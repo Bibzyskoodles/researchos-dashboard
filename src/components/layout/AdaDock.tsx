@@ -39,8 +39,8 @@ export default function AdaDock() {
         onClick={() => setOpen(!store.isOpen)}
       >
         <motion.div
-          animate={{ y: store.state === "thinking" ? [0,-5,0] : [0,-2,0] }}
-          transition={{ duration: store.state === "thinking" ? 0.5 : 3, repeat: Infinity, ease: "easeInOut" }}
+          animate={{ y: store.state === "thinking" ? [0,-8,0,-5,0] : store.isOpen ? 0 : [0,-6,2,-3,0] }}
+          transition={{ duration: store.state === "thinking" ? 0.5 : 2.5, repeat: store.isOpen ? 0 : Infinity, type:"spring", stiffness:300, damping:10, repeatDelay: 3 }}
           style={{ width: 64, height: 64, borderRadius: "50%", overflow: "hidden", border: `3px solid ${store.state === "warning" ? "#DC2626" : "#2463EB"}`, boxShadow: `0 4px 20px ${store.state === "warning" ? "rgba(220,38,38,.4)" : "rgba(37,99,235,.35)"}` }}
         >
           <img src="/ada-avatar.jpg" alt="Ada" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"50% 15%" }} />

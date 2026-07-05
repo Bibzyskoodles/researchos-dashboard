@@ -142,15 +142,15 @@ export default function OverviewPage() {
             <motion.div
               animate={{ y: [0, -6, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              style={{ width: 140, height: 140, borderRadius: "50%", overflow: "hidden", border: "3px solid rgba(255,255,255,.2)", boxShadow: "0 8px 32px rgba(37,99,235,.4)", cursor: "pointer" }}
+              style={{ width: 140, height: 140, borderRadius: "50%", overflow: "hidden", border: "3px solid rgba(255,255,255,.2)", boxShadow: "0 8px 32px rgba(37,99,235,.4)", cursor: "pointer", zIndex: 2, position: "relative" }}
               onClick={() => setOpen(true)}
             >
               <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 10%" }} />
             </motion.div>
             <motion.div
-              animate={{ scale: [1, 1.18, 1], opacity: [0.5, 0.1, 0.5] }}
+              animate={{ scale: [1, 1.22, 1], opacity: [0.6, 0, 0.6] }}
               transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-              style={{ position: "absolute", width: 160, height: 160, borderRadius: "50%", border: "2px solid rgba(96,165,250,.5)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", pointerEvents: "none" }}
+              style={{ position: "absolute", width: 158, height: 158, borderRadius: "50%", border: "2px solid rgba(96,165,250,.7)", top: 0, left: "50%", transform: "translateX(-50%)", pointerEvents: "none", zIndex: 1 }}
             />
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: 8, marginBottom: 16 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: 1.2, textTransform: "uppercase" }}>Ada · AI Analyst</div>
