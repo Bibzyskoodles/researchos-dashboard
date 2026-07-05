@@ -27,7 +27,7 @@ export default function EnumeratorsPage(){
     {subject:"Audio",value:91},{subject:"Duration",value:85},{subject:"Duplicate",value:98},
   ];
 
-  if(loading) return <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading enumerators...</div>;
+  if(_loading) return <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading enumerators...</div>;
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
