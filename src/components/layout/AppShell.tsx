@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "./Sidebar";
@@ -9,13 +9,7 @@ import { useAda } from "../../ada/AdaContext";
 export default function AppShell() {
   const location = useLocation();
   const isOverview = location.pathname === "/overview" || location.pathname === "/";
-  const { navigatePage } = useAda();
-
-  useEffect(() => {
-    const page = location.pathname.replace("/", "") || "overview";
-    navigatePage(page);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  const { store } = useAda();
 
   return (
     <div style={{
