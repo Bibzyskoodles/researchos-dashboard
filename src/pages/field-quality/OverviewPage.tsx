@@ -3,7 +3,7 @@ import { dashboardApi } from "../../services/api";
 import { DashboardData } from "../../types";
 import { useAuth } from "../../store/AuthContext";
 import { useAda } from "../../ada/AdaContext";
-import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Users, Activity } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity } from "lucide-react";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -93,7 +93,7 @@ export default function OverviewPage() {
       .then(res => { setData(res.data); setState("idle"); })
       .catch(() => setState("warning"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [setState]);
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "50vh", color: "#9CA3AF", fontSize: 14 }}>
@@ -133,7 +133,7 @@ export default function OverviewPage() {
             <span style={{ fontSize: 11, color: "#9CA3AF" }}>{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
           </div>
           <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: -.5, color: "#080D1A", marginBottom: 4 }}>{greet}, {user?.name?.split(" ")[0]}!</div>
-          <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 16 }}>{"Here\'s what happened while you were away."}</div>
+          <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 16 }}>"Here's what happened while you were away."</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
             <div style={{ display: "flex", gap: 8, fontSize: 12.5, color: "#374151" }}>
               <CheckCircle size={14} color={GREEN} style={{ flexShrink: 0, marginTop: 1 }} />

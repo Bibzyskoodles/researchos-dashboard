@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useReducer, useCallback, useRef } from 'react';
-import { AdaState, AdaMessage, AdaContext as AdaContextType } from '../types';
+import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import { AdaState, AdaMessage } from '../types';
 
 interface AdaStore {
   state: AdaState;
