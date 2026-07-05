@@ -131,8 +131,7 @@ export default function InsightsPage(){
                     fontSize:13,lineHeight:1.65,
                     color:msg.role==="user"?"white":"#374151",
                   }}
-                    dangerouslySetInnerHTML={{__html:msg.content.replace(/[*][*](.*?)[*][*]/g,"<strong>$1</strong>").replace(/
-/g,"<br>")}}/>
+                    dangerouslySetInnerHTML={{__html:msg.content.replace(/[*][*](.*?)[*][*]/g,"<strong>$1</strong>").replace(/\n/g,"<br>")}}/>
                 </motion.div>
               ))}
             </AnimatePresence>
