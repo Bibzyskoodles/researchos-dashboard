@@ -9,7 +9,7 @@ import { useAda } from "../../ada/AdaContext";
 export default function AppShell() {
   const location = useLocation();
   const isOverview = location.pathname === "/overview" || location.pathname === "/";
-  const { store } = useAda();
+  useAda();
 
   return (
     <div style={{
