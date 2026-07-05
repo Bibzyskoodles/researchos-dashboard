@@ -150,7 +150,7 @@ export default function OverviewPage() {
             <motion.div
               animate={{ scale: [1, 1.18, 1], opacity: [0.5, 0.1, 0.5] }}
               transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-              style={{ position: "absolute", width: 160, height: 160, borderRadius: "50%", border: "2px solid rgba(96,165,250,.5)", top: "50%", left: "50%", transform: "translate(-50%,-62%)", pointerEvents: "none" }}
+              style={{ position: "absolute", width: 160, height: 160, borderRadius: "50%", border: "2px solid rgba(96,165,250,.5)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", pointerEvents: "none" }}
             />
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: 8, marginBottom: 16 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: 1.2, textTransform: "uppercase" }}>Ada · AI Analyst</div>
