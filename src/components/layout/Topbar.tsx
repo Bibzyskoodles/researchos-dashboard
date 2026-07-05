@@ -1,7 +1,6 @@
 import React from 'react';
 import { Bell, HelpCircle, Search } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
-import { useAda } from '../../ada/AdaContext';
 
 export default function Topbar() {
   const { user } = useAuth();

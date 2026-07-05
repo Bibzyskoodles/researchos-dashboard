@@ -43,5 +43,6 @@ export function useAdaGreeting({ page, context = {}, delay = 1200 }: UseAdaGreet
     }, delay);
 
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 }

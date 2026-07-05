@@ -5,7 +5,7 @@ import { useAuth } from "../../store/AuthContext";
 import { dashboardApi, adaApi } from "../../services/api";
 import { Send, Sparkles, TrendingUp, Users } from "lucide-react";
 
-const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",PURPLE="#7C3AED";
+const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706";
 
 const SUGGESTIONS=[
   {icon:"📊",text:"Summarise all verified submissions"},
