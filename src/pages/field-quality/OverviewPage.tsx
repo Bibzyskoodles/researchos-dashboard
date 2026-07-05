@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { dashboardApi } from "../../services/api";
 import { DashboardData } from "../../types";
 import { useAuth } from "../../store/AuthContext";
