@@ -34,7 +34,7 @@ for(let lat=75;lat>=-60;lat-=4){
 
 function lonLatToPercent(lon:number,lat:number):[number,number]{
   const x=((lon+180)/360)*100;
-  const y=((90-lat)/150)*100;
+  const y=((90-lat)/180)*100;
   return[x,y];
 }
 
@@ -76,10 +76,10 @@ export default function MapPage(){
       <div style={{background:"#0B1120",borderRadius:20,overflow:"hidden",border:"1px solid #1E2A44",boxShadow:"0 8px 40px rgba(8,13,26,.3)",position:"relative",height:440}}>
 
         {/* Dotted world map */}
-        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%"}} viewBox="0 0 100 70" preserveAspectRatio="none">
+        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%"}} viewBox="0 0 100 100" preserveAspectRatio="none">
           {WORLD_DOTS.map(([lon,lat],i)=>{
             const[x,y]=lonLatToPercent(lon,lat);
-            return <circle key={i} cx={x} cy={y} r="0.18" fill="rgba(255,255,255,.12)"/>;
+            return <circle key={i} cx={x} cy={y} r="0.22" fill="rgba(255,255,255,.18)"/>;
           })}
         </svg>
 
@@ -120,12 +120,12 @@ export default function MapPage(){
 
         {/* Country labels */}
         <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none"}} viewBox="0 0 100 70">
-          <text x="18" y="35" fontSize="1.8" fill="rgba(255,255,255,.15)" fontFamily="Inter">North America</text>
-          <text x="28" y="52" fontSize="1.8" fill="rgba(255,255,255,.15)" fontFamily="Inter">South America</text>
-          <text x="46" y="28" fontSize="1.8" fill="rgba(255,255,255,.15)" fontFamily="Inter">Europe</text>
-          <text x="49" y="42" fontSize="1.8" fill="rgba(255,255,255,.15)" fontFamily="Inter">Africa</text>
-          <text x="65" y="30" fontSize="1.8" fill="rgba(255,255,255,.15)" fontFamily="Inter">Asia</text>
-          <text x="75" y="55" fontSize="1.8" fill="rgba(255,255,255,.15)" fontFamily="Inter">Australia</text>
+          <text x="18" y="42" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">North America</text>
+          <text x="28" y="62" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">South America</text>
+          <text x="46" y="34" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">Europe</text>
+          <text x="49" y="52" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">Africa</text>
+          <text x="65" y="36" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">Asia</text>
+          <text x="75" y="65" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">Australia</text>
         </svg>
 
         {/* Legend */}
