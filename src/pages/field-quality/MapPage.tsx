@@ -40,7 +40,7 @@ function lonLatToPercent(lon:number,lat:number):[number,number]{
 
 export default function MapPage(){
   const [subs,setSubs]=useState<Submission[]>([]);
-  const [_loading,setLoading]=useState(true);
+  
   const [filter,setFilter]=useState("ALL");
   const [hovered,setHovered]=useState<Submission|null>(null);
   useAdaGreeting({page:"map"});
@@ -48,7 +48,7 @@ export default function MapPage(){
   useEffect(()=>{
     dashboardApi.getSubmissions({limit:100})
       .then(r=>setSubs(r.data.submissions||[]))
-      .finally(()=>setLoading(false));
+      .finally(()=>{});
   },[]);
 
   const filtered=subs.filter(s=>filter==="ALL"||s.verdict===filter);
