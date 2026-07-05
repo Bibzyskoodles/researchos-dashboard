@@ -93,7 +93,7 @@ export default function OverviewPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-  const { setState } = useAda();
+  const { setState, setOpen } = useAda();
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   const firstName = user?.name?.split(" ")[0] || "there";
@@ -142,11 +142,23 @@ export default function OverviewPage() {
             <motion.div
               animate={{ y: [0, -6, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              style={{ width: 140, height: 140, borderRadius: "50%", overflow: "hidden", border: "3px solid rgba(255,255,255,.2)", boxShadow: "0 8px 32px rgba(37,99,235,.4)" }}
+              style={{ width: 140, height: 140, borderRadius: "50%", overflow: "hidden", border: "3px solid rgba(255,255,255,.2)", boxShadow: "0 8px 32px rgba(37,99,235,.4)", cursor: "pointer" }}
+              onClick={() => setOpen(true)}
             >
               <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 10%" }} />
             </motion.div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: 1.2, textTransform: "uppercase", marginTop: 8, marginBottom: 16 }}>Ada · AI Analyst</div>
+            <motion.div
+              animate={{ scale: [1, 1.18, 1], opacity: [0.5, 0.1, 0.5] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+              style={{ position: "absolute", width: 160, height: 160, borderRadius: "50%", border: "2px solid rgba(96,165,250,.5)", top: "50%", left: "50%", transform: "translate(-50%,-62%)", pointerEvents: "none" }}
+            />
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: 8, marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: 1.2, textTransform: "uppercase" }}>Ada · AI Analyst</div>
+              <div onClick={() => setOpen(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 20, padding: "4px 10px", cursor: "pointer", transition: "all .2s" }}>
+                <span style={{ fontSize: 12 }}>🎤</span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,.7)", letterSpacing: .3 }}>Say hey Ada</span>
+              </div>
+            </div>
           </div>
 
           {/* Briefing content */}

@@ -1,10 +1,12 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import AdaDock from './AdaDock';
 
 export default function AppShell() {
+  const location = useLocation();
+  const isOverview = location.pathname === '/overview' || location.pathname === '/';
   return (
     <div style={{
       display: 'flex',
@@ -20,7 +22,7 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
-      <AdaDock />
+      {!isOverview && <AdaDock />}
     </div>
   );
 }
