@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Enumerator } from "../../types";
 import { TrendingUp, TrendingDown, Award, AlertTriangle } from "lucide-react";
+import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
@@ -13,6 +14,7 @@ export default function EnumeratorsPage(){
   const [enums,setEnums]=useState<Enumerator[]>([]);
   const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState<Enumerator|null>(null);
+  useAdaGreeting({ page: "enumerators" });
 
   useEffect(()=>{
     dashboardApi.getEnumerators()

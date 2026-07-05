@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { FileText, Download, Sparkles, Clock, CheckCircle } from "lucide-react";
+import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 
 const BLUE="#2463EB",GREEN="#059669",PURPLE="#7C3AED";
 
@@ -14,6 +15,7 @@ const REPORT_TYPES=[
 export default function ReportsPage(){
   const [generating,setGenerating]=useState<string|null>(null);
   const [generated,setGenerated]=useState<string[]>([]);
+  useAdaGreeting({ page: "reports" });
 
   const generate=(id:string)=>{
     setGenerating(id);

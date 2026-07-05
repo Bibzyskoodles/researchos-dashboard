@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
 import { Search, Filter, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, Copy } from "lucide-react";
+import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -47,6 +48,7 @@ export default function SubmissionsPage(){
   const [selected,setSelected]=useState<Submission|null>(null);
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
+  useAdaGreeting({ page: "submissions" });
 
   useEffect(()=>{
     dashboardApi.getSubmissions({limit:50})

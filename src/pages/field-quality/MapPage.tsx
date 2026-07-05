@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
 import { MapPin, Layers, Filter } from "lucide-react";
+import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -10,6 +11,7 @@ export default function MapPage(){
   const [subs,setSubs]=useState<Submission[]>([]);
   const [loading,setLoading]=useState(true);
   const [filter,setFilter]=useState("ALL");
+  useAdaGreeting({ page: "map" });
 
   useEffect(()=>{
     dashboardApi.getSubmissions({limit:100})
