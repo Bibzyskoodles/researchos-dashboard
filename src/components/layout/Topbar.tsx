@@ -1,11 +1,10 @@
 import React from 'react';
-import { Bell, HelpCircle, Search, Plus } from 'lucide-react';
+import { Bell, HelpCircle, Search } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 
 export default function Topbar() {
   const { user } = useAuth();
-  const { toggleOpen } = useAda();
 
   return (
     <header style={{
@@ -72,18 +71,6 @@ export default function Topbar() {
         }}>
           {user?.name?.charAt(0) || 'U'}
         </div>
-        <button
-          onClick={toggleOpen}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '6px 13px', borderRadius: 7, fontSize: 12,
-            fontWeight: 600, cursor: 'pointer', border: 'none',
-            background: '#2463EB', color: 'white', fontFamily: 'Inter, sans-serif',
-          }}
-        >
-          <Plus size={11} />
-          Ask Ada
-        </button>
       </div>
     </header>
   );
