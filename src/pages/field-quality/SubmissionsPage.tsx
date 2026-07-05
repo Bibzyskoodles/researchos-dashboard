@@ -2,10 +2,10 @@ import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
-import { Search, Filter, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, Copy } from "lucide-react";
+import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 
-const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
+const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
 const vbg=(v:string)=>v==="PASS"?"#ECFDF5":v==="FLAG"?"#FFFBEB":"#FEF2F2";
 const vc=(v:string)=>v==="PASS"?GREEN:v==="FLAG"?AMBER:RED;

@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Enumerator } from "../../types";
-import { TrendingUp, TrendingDown, Award, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
+
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const COLORS=[BLUE,PURPLE,GREEN,AMBER,RED];
@@ -12,7 +12,7 @@ const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
 
 export default function EnumeratorsPage(){
   const [enums,setEnums]=useState<Enumerator[]>([]);
-  const [loading,setLoading]=useState(true);
+  const [_loading,setLoading]=useState(true);
   const [selected,setSelected]=useState<Enumerator|null>(null);
   useAdaGreeting({ page: "enumerators" });
 
@@ -128,13 +128,17 @@ export default function EnumeratorsPage(){
               {/* Radar chart */}
               <div>
                 <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Performance Radar</div>
-                <ResponsiveContainer width="100%" height={180}>
-                  <RadarChart data={radarData(selected)}>
-                    <PolarGrid stroke="#EEF2F8"/>
-                    <PolarAngleAxis dataKey="subject" tick={{fontSize:10,fill:"#9CA3AF"}}/>
-                    <Radar dataKey="value" stroke={BLUE} fill={BLUE} fillOpacity={0.12} strokeWidth={2}/>
-                  </RadarChart>
-                </ResponsiveContainer>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {radarData(selected).map(d=>(
+                  <div key={d.subject} style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:64,fontSize:10.5,color:"#9CA3AF",flexShrink:0}}>{d.subject}</div>
+                    <div style={{flex:1,height:4,background:"#EEF2F8",borderRadius:2,overflow:"hidden"}}>
+                      <div style={{width:`${d.value}%`,height:"100%",background:BLUE,borderRadius:2}}/>
+                    </div>
+                    <div style={{fontSize:10.5,fontWeight:700,color:BLUE,width:24,textAlign:"right"}}>{d.value}</div>
+                  </div>
+                ))}
+              </div>
               </div>
               {/* Stats */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>

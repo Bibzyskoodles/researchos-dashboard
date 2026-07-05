@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useAda } from "../ada/AdaContext";
-import { adaApi } from "../services/api";
 
 interface UseAdaGreetingOptions {
   page: string;
