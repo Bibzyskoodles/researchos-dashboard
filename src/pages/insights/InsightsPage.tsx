@@ -70,7 +70,7 @@ export default function InsightsPage(){
         </div>
         <div style={{display:"flex",gap:8}}>
           <button style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:"pointer"}}>
-            <FileText size={13}/> Generate Report
+            <span>📄</span> Generate Report
           </button>
         </div>
       </div>
