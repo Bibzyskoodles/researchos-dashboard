@@ -87,8 +87,7 @@ export default function AdaDock() {
                     </div>
                   )}
                   <div style={{ background: msg.role === "user" ? "#2463EB" : "#F8FAFF", border: msg.role === "user" ? "none" : "1px solid #E2E8F0", borderRadius: msg.role === "user" ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding:"10px 12px", fontSize:12.5, color: msg.role === "user" ? "white" : "#374151", lineHeight:1.6, maxWidth:260 }}
-                    dangerouslySetInnerHTML={{ __html: msg.content.replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/
-/g,"<br>") }} />
+                    dangerouslySetInnerHTML={{ __html: msg.content.replace(/[*][*](.*?)[*][*]/g,"<strong>$1</strong>").replace(/\n/g,"<br>") }} />
                 </div>
               ))}
               {sending && (
