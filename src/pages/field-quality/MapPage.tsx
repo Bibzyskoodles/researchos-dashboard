@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
@@ -53,18 +54,18 @@ export default function MapPage(){
             const lat=Number(sub.gps.lat);
             const lon=Number(sub.gps.lon);
             const color=clr(sub.overall_score);
+            const size=sub.verdict==="FLAG"?18:13;
+            const icon=L.divIcon({
+              className:"",
+              html:`<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.8);box-shadow:0 0 ${sub.verdict==="FLAG"?16:10}px ${color},0 0 ${sub.verdict==="FLAG"?32:20}px ${color}44;"></div>`,
+              iconSize:[size,size],
+              iconAnchor:[size/2,size/2],
+            });
             return(
-              <CircleMarker
+              <Marker
                 key={sub.submission_id}
-                center={[lat,lon]}
-                radius={sub.verdict==="FLAG"?10:7}
-                pathOptions={{
-                  color:"white",
-                  weight:2,
-                  fillColor:color,
-                  fillOpacity:1,
-                  opacity:1,
-                }}
+                position={[lat,lon]}
+                icon={icon}
               >
                 <Popup>
                   <div style={{fontFamily:"Inter,sans-serif",minWidth:160}}>
@@ -78,7 +79,7 @@ export default function MapPage(){
                     </div>
                   </div>
                 </Popup>
-              </CircleMarker>
+              </Marker>
             );
           })}
         </MapContainer>
