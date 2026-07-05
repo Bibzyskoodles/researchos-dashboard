@@ -14,6 +14,7 @@ export default function AppShell() {
   useEffect(() => {
     const page = location.pathname.replace("/", "") || "overview";
     navigatePage(page);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
   return (
