@@ -6,49 +6,57 @@ import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 const GREEN="#059669",AMBER="#D97706",RED="#DC2626",BLUE="#2463EB";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
 
-// World map dots — simplified outline as dot grid
-const WORLD_DOTS:Array<[number,number]>=[];
-// Generate dot grid
-for(let lat=75;lat>=-60;lat-=4){
-  for(let lon=-170;lon<=180;lon+=4){
-    // Rough world outline mask
-    const onLand=(
-      // North America
-      (lat>15&&lat<75&&lon>-170&&lon<-50)||
-      // South America
-      (lat>-55&&lat<15&&lon>-80&&lon<-35)||
-      // Europe
-      (lat>35&&lat<70&&lon>-10&&lon<40)||
-      // Africa
-      (lat>-35&&lat<37&&lon>-20&&lon<52)||
-      // Asia
-      (lat>-10&&lat<75&&lon>40&&lon<145)||
-      // Australia
-      (lat>-45&&lat<-10&&lon>113&&lon<155)||
-      // UK/Ireland
-      (lat>50&&lat<60&&lon>-10&&lon<2)
-    );
-    if(onLand) WORLD_DOTS.push([lon,lat]);
-  }
+// Convert lon/lat to SVG percentage coordinates
+// SVG viewBox: 0 0 1000 500
+// lon: -180 to 180 -> 0 to 1000
+// lat: 90 to -90 -> 0 to 500
+function toSVG(lon:number,lat:number):[number,number]{
+  const x=((lon+180)/360)*1000;
+  const y=((90-lat)/180)*500;
+  return[x,y];
 }
 
-function lonLatToPercent(lon:number,lat:number):[number,number]{
-  const x=((lon+180)/360)*100;
-  const y=((90-lat)/180)*100;
-  return[x,y];
+// World land masses as dot positions [lon, lat]
+const DOTS:[number,number][]=[];
+const LAND=[
+  // North America
+  {lon:[-165,-60],lat:[15,75]},
+  // South America  
+  {lon:[-80,-35],lat:[-55,15]},
+  // Europe
+  {lon:[-10,40],lat:[35,70]},
+  // Africa
+  {lon:[-18,52],lat:[-35,37]},
+  // Asia (west)
+  {lon:[40,90],lat:[10,75]},
+  // Asia (east)
+  {lon:[90,145],lat:[-10,75]},
+  // Australia
+  {lon:[113,155],lat:[-45,-10]},
+  // UK
+  {lon:[-8,2],lat:[50,59]},
+  // Japan
+  {lon:[130,145],lat:[30,45]},
+  // Indonesia
+  {lon:[95,141],lat:[-8,5]},
+];
+
+for(const region of LAND){
+  for(let lon=region.lon[0];lon<=region.lon[1];lon+=3.5){
+    for(let lat=region.lat[0];lat<=region.lat[1];lat+=3.5){
+      DOTS.push([lon,lat]);
+    }
+  }
 }
 
 export default function MapPage(){
   const [subs,setSubs]=useState<Submission[]>([]);
-  
   const [filter,setFilter]=useState("ALL");
   const [hovered,setHovered]=useState<Submission|null>(null);
   useAdaGreeting({page:"map"});
 
   useEffect(()=>{
-    dashboardApi.getSubmissions({limit:100})
-      .then(r=>setSubs(r.data.submissions||[]))
-      .finally(()=>{});
+    dashboardApi.getSubmissions({limit:100}).then(r=>setSubs(r.data.submissions||[]));
   },[]);
 
   const filtered=subs.filter(s=>filter==="ALL"||s.verdict===filter);
@@ -64,7 +72,7 @@ export default function MapPage(){
         <div style={{display:"flex",gap:6}}>
           {["ALL","PASS","FLAG","REJECT"].map(v=>(
             <button key={v} onClick={()=>setFilter(v)}
-              style={{padding:"6px 14px",borderRadius:7,border:"1px solid",fontSize:11.5,fontWeight:600,cursor:"pointer",transition:"all .15s",
+              style={{padding:"6px 14px",borderRadius:7,border:"1px solid",fontSize:11.5,fontWeight:600,cursor:"pointer",
                 borderColor:filter===v?BLUE:"#E2E8F0",background:filter===v?BLUE:"white",color:filter===v?"white":"#6B7280"}}>
               {v}
             </button>
@@ -72,64 +80,63 @@ export default function MapPage(){
         </div>
       </div>
 
-      {/* Map */}
-      <div style={{background:"#0B1120",borderRadius:20,overflow:"hidden",border:"1px solid #1E2A44",boxShadow:"0 8px 40px rgba(8,13,26,.3)",position:"relative",height:440}}>
+      <div style={{background:"#080E1F",borderRadius:20,overflow:"hidden",border:"1px solid #1A2744",boxShadow:"0 8px 40px rgba(8,13,26,.4)",position:"relative",height:460}}>
+        <svg width="100%" height="100%" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" style={{position:"absolute",inset:0}}>
+          {/* World dots */}
+          {DOTS.map(([lon,lat],i)=>{
+            const[x,y]=toSVG(lon,lat);
+            return <circle key={i} cx={x} cy={y} r="2.2" fill="rgba(255,255,255,.15)"/>;
+          })}
 
-        {/* Dotted world map */}
-        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%"}} viewBox="0 0 100 100" preserveAspectRatio="none">
-          {WORLD_DOTS.map(([lon,lat],i)=>{
-            const[x,y]=lonLatToPercent(lon,lat);
-            return <circle key={i} cx={x} cy={y} r="0.22" fill="rgba(255,255,255,.18)"/>;
+          {/* Continent labels */}
+          <text x="200" y="200" fontSize="14" fill="rgba(255,255,255,.2)" fontFamily="Inter" textAnchor="middle">North America</text>
+          <text x="280" y="330" fontSize="12" fill="rgba(255,255,255,.2)" fontFamily="Inter" textAnchor="middle">South America</text>
+          <text x="490" y="170" fontSize="12" fill="rgba(255,255,255,.2)" fontFamily="Inter" textAnchor="middle">Europe</text>
+          <text x="500" y="270" fontSize="14" fill="rgba(255,255,255,.2)" fontFamily="Inter" textAnchor="middle">Africa</text>
+          <text x="700" y="160" fontSize="14" fill="rgba(255,255,255,.2)" fontFamily="Inter" textAnchor="middle">Asia</text>
+          <text x="820" y="370" fontSize="12" fill="rgba(255,255,255,.2)" fontFamily="Inter" textAnchor="middle">Australia</text>
+
+          {/* Submission dots */}
+          {withGps.map(sub=>{
+            const[x,y]=toSVG(Number(sub.gps.lon),Number(sub.gps.lat));
+            const color=clr(sub.overall_score);
+            const isH=hovered?.submission_id===sub.submission_id;
+            return(
+              <g key={sub.submission_id}
+                onMouseEnter={()=>setHovered(sub)}
+                onMouseLeave={()=>setHovered(null)}
+                style={{cursor:"pointer"}}>
+                {/* Glow */}
+                <circle cx={x} cy={y} r={isH?18:12} fill={color} opacity="0.15"/>
+                {/* Dot */}
+                <circle cx={x} cy={y} r={isH?8:sub.verdict==="FLAG"?6:5}
+                  fill={color} stroke="rgba(255,255,255,0.6)" strokeWidth="1.5"/>
+              </g>
+            );
           })}
         </svg>
 
-        {/* Submission dots */}
-        {withGps.map(sub=>{
-          const lat=Number(sub.gps.lat);
-          const lon=Number(sub.gps.lon);
-          const[x,y]=lonLatToPercent(lon,lat);
-          const color=clr(sub.overall_score);
-          const isHovered=hovered?.submission_id===sub.submission_id;
-          return(
-            <div key={sub.submission_id}
-              onMouseEnter={()=>setHovered(sub)}
-              onMouseLeave={()=>setHovered(null)}
-              style={{position:"absolute",left:`${x}%`,top:`${y}%`,transform:"translate(-50%,-50%)",zIndex:3,cursor:"pointer"}}>
-              {/* Pulse ring */}
-              <div style={{position:"absolute",inset:-6,borderRadius:"50%",background:color,opacity:.15,animation:"pulse 2s infinite"}}/>
-              {/* Dot */}
-              <div style={{width:isHovered?14:sub.verdict==="FLAG"?10:8,height:isHovered?14:sub.verdict==="FLAG"?10:8,
-                borderRadius:"50%",background:color,
-                border:`1.5px solid rgba(255,255,255,${isHovered?0.9:0.5})`,
-                boxShadow:`0 0 ${isHovered?16:sub.verdict==="FLAG"?12:6}px ${color}`,
-                transition:"all .2s"}}/>
-              {/* Tooltip */}
-              {isHovered&&(
-                <div style={{position:"absolute",bottom:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",background:"rgba(15,25,45,.95)",backdropFilter:"blur(8px)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"8px 12px",whiteSpace:"nowrap",zIndex:10,minWidth:160}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"white",marginBottom:2}}>{sub.enumerator_id}</div>
-                  <div style={{fontSize:10.5,color:"rgba(255,255,255,.5)",marginBottom:4}}>{sub.gps.address?.split(",").slice(0,2).join(",")}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,background:sub.verdict==="PASS"?"#ECFDF5":sub.verdict==="FLAG"?"#FFFBEB":"#FEF2F2",color:clr(sub.overall_score)}}>{sub.verdict}</span>
-                    <span style={{fontSize:11,fontWeight:800,color,fontFamily:"monospace"}}>{sub.overall_score}/100</span>
-                  </div>
-                </div>
-              )}
+        {/* Tooltip */}
+        {hovered&&(
+          <div style={{position:"absolute",top:20,left:"50%",transform:"translateX(-50%)",
+            background:"rgba(8,14,31,.95)",backdropFilter:"blur(8px)",
+            border:"1px solid rgba(255,255,255,.1)",borderRadius:10,
+            padding:"10px 16px",zIndex:10,minWidth:200,textAlign:"center"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"white",marginBottom:2}}>{hovered.enumerator_id}</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.5)",marginBottom:6}}>{hovered.gps?.address?.split(",").slice(0,2).join(",")}</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:4,
+                background:hovered.verdict==="PASS"?"#ECFDF5":"#FFFBEB",
+                color:clr(hovered.overall_score)}}>{hovered.verdict}</span>
+              <span style={{fontSize:13,fontWeight:800,color:clr(hovered.overall_score),fontFamily:"monospace"}}>{hovered.overall_score}/100</span>
             </div>
-          );
-        })}
-
-        {/* Country labels */}
-        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none"}} viewBox="0 0 100 70">
-          <text x="18" y="42" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">North America</text>
-          <text x="28" y="62" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">South America</text>
-          <text x="46" y="34" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">Europe</text>
-          <text x="49" y="52" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">Africa</text>
-          <text x="65" y="36" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">Asia</text>
-          <text x="75" y="65" fontSize="2.2" fill="rgba(255,255,255,.2)" fontFamily="Inter">Australia</text>
-        </svg>
+          </div>
+        )}
 
         {/* Legend */}
-        <div style={{position:"absolute",bottom:16,left:16,display:"flex",gap:12,background:"rgba(11,17,32,.9)",backdropFilter:"blur(8px)",borderRadius:10,padding:"8px 14px",border:"1px solid rgba(255,255,255,.06)"}}>
+        <div style={{position:"absolute",bottom:16,left:16,display:"flex",gap:12,
+          background:"rgba(8,14,31,.85)",backdropFilter:"blur(8px)",
+          borderRadius:10,padding:"8px 14px",border:"1px solid rgba(255,255,255,.06)"}}>
           {[{c:GREEN,l:"High quality"},{c:AMBER,l:"Needs review"},{c:RED,l:"Flagged"}].map(({c,l})=>(
             <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:10.5,color:"rgba(255,255,255,.6)"}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:c,boxShadow:`0 0 6px ${c}`}}/>
@@ -140,24 +147,22 @@ export default function MapPage(){
 
         {/* Stats */}
         <div style={{position:"absolute",top:16,right:16,display:"flex",gap:8}}>
-          <div style={{background:"rgba(11,17,32,.9)",backdropFilter:"blur(8px)",borderRadius:10,padding:"10px 14px",border:"1px solid rgba(255,255,255,.06)",textAlign:"center"}}>
-            <div style={{fontSize:22,fontWeight:800,color:"white",letterSpacing:-1,lineHeight:1}}>{withGps.length}</div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,.4)",marginTop:2}}>Mapped</div>
-          </div>
-          <div style={{background:"rgba(11,17,32,.9)",backdropFilter:"blur(8px)",borderRadius:10,padding:"10px 14px",border:"1px solid rgba(255,255,255,.06)",textAlign:"center"}}>
-            <div style={{fontSize:22,fontWeight:800,color:GREEN,letterSpacing:-1,lineHeight:1}}>{withGps.filter(s=>s.overall_score>=70).length}</div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,.4)",marginTop:2}}>High quality</div>
-          </div>
-          {withGps.filter(s=>s.verdict==="FLAG").length>0&&(
-            <div style={{background:"rgba(11,17,32,.9)",backdropFilter:"blur(8px)",borderRadius:10,padding:"10px 14px",border:"1px solid rgba(255,255,255,.06)",textAlign:"center"}}>
-              <div style={{fontSize:22,fontWeight:800,color:AMBER,letterSpacing:-1,lineHeight:1}}>{withGps.filter(s=>s.verdict==="FLAG").length}</div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,.4)",marginTop:2}}>Flagged</div>
+          {[
+            {v:withGps.length,l:"Mapped",c:"white"},
+            {v:withGps.filter(s=>s.overall_score>=70).length,l:"Quality",c:GREEN},
+            {v:withGps.filter(s=>s.verdict==="FLAG").length,l:"Flagged",c:AMBER},
+          ].map(({v,l,c})=>(
+            <div key={l} style={{background:"rgba(8,14,31,.85)",backdropFilter:"blur(8px)",borderRadius:10,padding:"8px 12px",border:"1px solid rgba(255,255,255,.06)",textAlign:"center"}}>
+              <div style={{fontSize:20,fontWeight:800,color:c,letterSpacing:-1,lineHeight:1}}>{v}</div>
+              <div style={{fontSize:9.5,color:"rgba(255,255,255,.4)",marginTop:2}}>{l}</div>
             </div>
-          )}
+          ))}
         </div>
 
-        {/* Real-time label */}
-        <div style={{position:"absolute",top:16,left:16,display:"flex",alignItems:"center",gap:6,background:"rgba(11,17,32,.9)",borderRadius:8,padding:"6px 10px",border:"1px solid rgba(255,255,255,.06)"}}>
+        {/* Real-time */}
+        <div style={{position:"absolute",top:16,left:16,display:"flex",alignItems:"center",gap:6,
+          background:"rgba(8,14,31,.85)",borderRadius:8,padding:"6px 10px",
+          border:"1px solid rgba(255,255,255,.06)"}}>
           <div style={{width:6,height:6,borderRadius:"50%",background:GREEN,boxShadow:`0 0 6px ${GREEN}`}}/>
           <span style={{fontSize:10.5,fontWeight:600,color:"rgba(255,255,255,.6)"}}>Real-time report</span>
         </div>
@@ -171,7 +176,7 @@ export default function MapPage(){
           {label:"Needs Review",value:withGps.filter(s=>s.overall_score>=45&&s.overall_score<70).length,color:AMBER},
           {label:"Flagged",value:withGps.filter(s=>s.verdict==="FLAG").length,color:RED},
         ].map(({label,value,color})=>(
-          <div key={label} style={{background:"white",borderRadius:12,padding:"16px 18px",border:"1px solid #E8EDF5",boxShadow:"0 1px 4px rgba(10,15,28,.04)"}}>
+          <div key={label} style={{background:"white",borderRadius:12,padding:"16px 18px",border:"1px solid #E8EDF5"}}>
             <div style={{fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:6}}>{label}</div>
             <div style={{fontSize:28,fontWeight:800,color,letterSpacing:-1.5,lineHeight:1}}>{value}</div>
           </div>
