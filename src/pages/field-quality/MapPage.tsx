@@ -18,7 +18,7 @@ export default function MapPage(){
   },[]);
 
   const filtered=subs.filter(s=>filter==="ALL"||s.verdict===filter);
-  const withGps=filtered.filter(s=>s.gps?.lat&&s.gps?.lon&&Number(s.gps.lat)!==0);
+  const withGps=filtered.filter(s=>s.gps?.lat&&s.gps?.lon&&Math.abs(Number(s.gps.lat))>0.001&&Math.abs(Number(s.gps.lon))>0.001);
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -47,7 +47,7 @@ export default function MapPage(){
         >
           <TileLayer
             attribution=""
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           />
           {withGps.map(sub=>{
             const lat=Number(sub.gps.lat);
@@ -60,9 +60,10 @@ export default function MapPage(){
                 radius={sub.verdict==="FLAG"?10:7}
                 pathOptions={{
                   color:"white",
-                  weight:1.5,
+                  weight:2,
                   fillColor:color,
-                  fillOpacity:0.9,
+                  fillOpacity:1,
+                  opacity:1,
                 }}
               >
                 <Popup>
