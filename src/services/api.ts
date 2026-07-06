@@ -7,14 +7,12 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Attach JWT token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('fs_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Redirect to login on 401
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -26,7 +24,6 @@ api.interceptors.response.use(
   }
 );
 
-// ── Auth ──────────────────────────────────────────────────────────────────
 export const authApi = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
@@ -34,7 +31,6 @@ export const authApi = {
   logout: () => api.post('/auth/logout'),
 };
 
-// ── Dashboard ─────────────────────────────────────────────────────────────
 export const dashboardApi = {
   getDashboard: () => api.get('/api/dashboard'),
   getSubmissions: (params?: { verdict?: string; limit?: number; offset?: number }) =>
@@ -44,7 +40,6 @@ export const dashboardApi = {
   getStats: () => api.get('/api/stats'),
 };
 
-// ── Ada ───────────────────────────────────────────────────────────────────
 export const adaApi = {
   chat: (message: string, page: string, context: object) =>
     api.post('/ada/chat', { message, page, ...context }),
@@ -54,6 +49,25 @@ export const adaApi = {
   learn: (scope: 'user' | 'org', key: string, value: unknown) =>
     api.post('/ada/learn', { scope, key, value }),
   getMemory: () => api.get('/ada/memory'),
+};
+
+const insightApi = axios.create({
+  baseURL: 'https://insightscore-production.up.railway.app',
+});
+
+insightApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('fs_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+export const insightScoreApi = {
+  getProjects: () => insightApi.get('/projects'),
+  createProject: (data: object) => insightApi.post('/projects', data),
+  getProject: (id: string) => insightApi.get(`/projects/${id}`),
+  analyseProject: (id: string) => insightApi.post(`/projects/${id}/analyse`),
+  getReport: (id: string) => insightApi.get(`/projects/${id}/report`),
+  getSubmissions: (id: string) => insightApi.get(`/projects/${id}/submissions`),
 };
 
 export default api;

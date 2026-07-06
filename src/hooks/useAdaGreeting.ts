@@ -10,7 +10,7 @@ const GREETINGS: Record<string, string> = {
   submissions: "I have reviewed your submissions. I noticed 2 flagged entries — both from ENID0010 with duplicate media. Want me to walk you through them?",
   enumerators: "I have analysed enumerator performance. ENID0010 has completed the most interviews but has 2 flags. Want a detailed breakdown?",
   map: "I can see your submission coverage across Lagos. All GPS coordinates verified within Nigeria. No impossible travel detected.",
-  insights: "I am ready to analyse your verified data. You have 16 passed submissions ready for qualitative analysis. What would you like to explore?",
+  insights: "I found 16 verified interviews ready for analysis. Based on what I can see, I expect themes around community perceptions and service access barriers. Shall I begin?",
   reports: "I have already prepared a draft executive summary from your 16 verified submissions. Want me to generate the full report?",
 };
 

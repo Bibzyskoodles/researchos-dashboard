@@ -5,6 +5,7 @@ import "leaflet/dist/leaflet.css";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
+import { useAdaAttention } from "../../hooks/useAdaAttention";
 
 const GREEN="#059669",AMBER="#D97706",RED="#DC2626",BLUE="#2463EB";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -13,6 +14,7 @@ export default function MapPage(){
   const [subs,setSubs]=useState<Submission[]>([]);
   const [filter,setFilter]=useState("ALL");
   useAdaGreeting({page:"map"});
+  useAdaAttention({ x: 0.5, y: 0.5 }, { delay: 2500, returnAfterMs: 6000 });
 
   useEffect(()=>{
     dashboardApi.getSubmissions({limit:100}).then(r=>setSubs(r.data.submissions||[]));
@@ -40,16 +42,8 @@ export default function MapPage(){
       </div>
 
       <div style={{borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 4px 24px rgba(10,15,28,.1)",height:460}}>
-        <MapContainer
-          center={[9, 8]}
-          zoom={6}
-          style={{height:"100%",width:"100%"}}
-          scrollWheelZoom={true}
-        >
-          <TileLayer
-            attribution=""
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          />
+        <MapContainer center={[9,8]} zoom={6} style={{height:"100%",width:"100%"}} scrollWheelZoom={true}>
+          <TileLayer attribution="" url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"/>
           {withGps.map(sub=>{
             const lat=Number(sub.gps.lat);
             const lon=Number(sub.gps.lon);
@@ -62,19 +56,14 @@ export default function MapPage(){
               iconAnchor:[size/2,size/2],
             });
             return(
-              <Marker
-                key={sub.submission_id}
-                position={[lat,lon]}
-                icon={icon}
-              >
+              <Marker key={sub.submission_id} position={[lat,lon]} icon={icon}>
                 <Popup>
                   <div style={{fontFamily:"Inter,sans-serif",minWidth:160}}>
                     <div style={{fontSize:12,fontWeight:700,marginBottom:4}}>{sub.enumerator_id}</div>
                     <div style={{fontSize:11,color:"#6B7280",marginBottom:6}}>{sub.gps?.address?.split(",").slice(0,2).join(",")}</div>
                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                       <span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,
-                        background:sub.verdict==="PASS"?"#ECFDF5":"#FFFBEB",
-                        color:color}}>{sub.verdict}</span>
+                        background:sub.verdict==="PASS"?"#ECFDF5":"#FFFBEB",color}}>{sub.verdict}</span>
                       <span style={{fontSize:13,fontWeight:800,color,fontFamily:"monospace"}}>{sub.overall_score}/100</span>
                     </div>
                   </div>

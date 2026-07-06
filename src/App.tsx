@@ -2,17 +2,14 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './store/AuthContext';
 import { AdaProvider } from './ada/AdaContext';
-
-// Layouts
 import AppShell from './components/layout/AppShell';
-
-// Pages
 import LoginPage from './pages/LoginPage';
 import OverviewPage from './pages/field-quality/OverviewPage';
 import SubmissionsPage from './pages/field-quality/SubmissionsPage';
 import EnumeratorsPage from './pages/field-quality/EnumeratorsPage';
 import MapPage from './pages/field-quality/MapPage';
 import InsightsPage from './pages/insights/InsightsPage';
+import InsightProjectPage from './pages/insights/InsightProjectPage';
 import ReportsPage from './pages/reports/ReportsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -45,6 +42,7 @@ function AppRoutes() {
         <Route path="enumerators" element={<EnumeratorsPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="insights" element={<InsightsPage />} />
+        <Route path="insights/:id" element={<InsightProjectPage />} />
         <Route path="reports" element={<ReportsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/overview" replace />} />

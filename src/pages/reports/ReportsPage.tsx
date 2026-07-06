@@ -32,7 +32,6 @@ export default function ReportsPage(){
         <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>Ada generates client-ready deliverables from your verified data</p>
       </div>
 
-      {/* Ada prompt */}
       <div style={{background:"linear-gradient(135deg,#1A1F3E,#0F172A)",borderRadius:16,padding:"24px 28px",border:"1px solid rgba(255,255,255,.06)",display:"flex",alignItems:"center",gap:20}}>
         <div style={{width:56,height:56,borderRadius:"50%",overflow:"hidden",border:"2px solid rgba(255,255,255,.2)",flexShrink:0}}>
           <img src="/ada-avatar.jpg" alt="Ada" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"50% 15%"}}/>
@@ -43,11 +42,10 @@ export default function ReportsPage(){
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(37,99,235,.2)",border:"1px solid rgba(37,99,235,.3)",borderRadius:8,padding:"6px 12px"}}>
           <Sparkles size={12} color="#93C5FD"/>
-          <span style={{fontSize:11.5,fontWeight:600,color:"#93C5FD"}}>GPT-4o powered</span>
+          <span style={{fontSize:11.5,fontWeight:600,color:"#93C5FD"}}>Ada · AI</span>
         </div>
       </div>
 
-      {/* Report types */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}}>
         {REPORT_TYPES.map(r=>{
           const isDone=generated.includes(r.id);
@@ -96,7 +94,6 @@ export default function ReportsPage(){
         })}
       </div>
 
-      {/* Recent reports */}
       {generated.length>0&&(
         <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
           <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9"}}>

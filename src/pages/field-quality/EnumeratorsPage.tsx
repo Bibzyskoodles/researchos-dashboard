@@ -4,7 +4,7 @@ import { dashboardApi } from "../../services/api";
 import { Enumerator } from "../../types";
 import { AlertTriangle } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-
+import { useAdaAttention } from "../../hooks/useAdaAttention";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const COLORS=[BLUE,PURPLE,GREEN,AMBER,RED];
@@ -15,6 +15,7 @@ export default function EnumeratorsPage(){
   const [_loading,setLoading]=useState(true);
   const [selected,setSelected]=useState<Enumerator|null>(null);
   useAdaGreeting({ page: "enumerators" });
+  useAdaAttention({ x: 0.85, y: 0.45 }, { delay: 2000, returnAfterMs: 5000 });
 
   useEffect(()=>{
     dashboardApi.getEnumerators()
@@ -36,7 +37,6 @@ export default function EnumeratorsPage(){
         <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>{enums.length} active · Lagos Retail Audit</p>
       </div>
 
-      {/* Leaderboard header */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
         {enums.slice(0,3).map((e,i)=>{
           const medals=["🥇","🥈","🥉"];
@@ -73,7 +73,6 @@ export default function EnumeratorsPage(){
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:selected?"1fr 360px":"1fr",gap:16,alignItems:"start"}}>
-        {/* Full list */}
         <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
           <div style={{padding:"16px 20px 12px",borderBottom:"1px solid #F1F5F9"}}>
             <div style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>Performance Leaderboard</div>
@@ -110,7 +109,6 @@ export default function EnumeratorsPage(){
           })}
         </div>
 
-        {/* Detail panel */}
         {selected&&(
           <motion.div initial={{opacity:0,x:20}} animate={{opacity:1,x:0}}
             style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 4px 24px rgba(10,15,28,.1)",position:"sticky",top:16}}>
@@ -125,7 +123,6 @@ export default function EnumeratorsPage(){
               </div>
             </div>
             <div style={{padding:20,display:"flex",flexDirection:"column",gap:16}}>
-              {/* Radar chart */}
               <div>
                 <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Performance Radar</div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -140,7 +137,6 @@ export default function EnumeratorsPage(){
                 ))}
               </div>
               </div>
-              {/* Stats */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 {[["Submissions",selected.total_subs],["Avg Score",selected.avg_score+"/100"],["Passed",selected.pass_count],["Flagged",selected.flag_count]].map(([k,v])=>(
                   <div key={k} style={{padding:"12px",background:"#F8FAFF",borderRadius:10,textAlign:"center"}}>

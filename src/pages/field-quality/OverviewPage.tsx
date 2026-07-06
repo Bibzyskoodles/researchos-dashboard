@@ -5,6 +5,7 @@ import { dashboardApi } from "../../services/api";
 import { DashboardData } from "../../types";
 import { useAuth } from "../../store/AuthContext";
 import { useAda } from "../../ada/AdaContext";
+import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
 
 const BLUE = "#2463EB"; const GREEN = "#059669"; const AMBER = "#D97706";
@@ -93,17 +94,24 @@ export default function OverviewPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-  const { setState, setOpen } = useAda();
+  const { setState, setOpen, guideToElement } = useAda();
+  useAdaAttention({ x: 0.72, y: 0.22 }, { delay: 2500, returnAfterMs: 5000 });
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   const firstName = user?.name?.split(" ")[0] || "there";
 
   useEffect(() => {
     dashboardApi.getDashboard()
-      .then(res => { setData(res.data); setState("idle"); })
+      .then(res => {
+        setData(res.data);
+        setState("idle");
+        if ((res.data?.alerts?.length ?? 0) > 0) {
+          setTimeout(() => guideToElement("alert-item", 3000), 1500);
+        }
+      })
       .catch(() => setState("warning"))
       .finally(() => setLoading(false));
-  }, [setState]);
+  }, [setState, guideToElement]);
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
@@ -142,19 +150,16 @@ export default function OverviewPage() {
             <motion.div
               animate={{ y: [0, -6, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              style={{ position: "relative", width: 140, height: 140, flexShrink: 0 }}
+              style={{ width: 140, height: 140, flexShrink: 0 }}
             >
               <motion.div
-                animate={{ scale: [0.95, 1.4], opacity: [0.6, 0] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut", repeatDelay: 1.5 }}
-                style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid rgba(96,165,250,0.8)", pointerEvents: "none", zIndex: 0 }}
-              />
-              <div
                 onClick={() => setOpen(true)}
-                style={{ position: "relative", zIndex: 1, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", cursor: "pointer", border: "3px solid rgba(255,255,255,.2)", boxShadow: "0 8px 32px rgba(37,99,235,.4)" }}
+                animate={{ boxShadow: ["0 0 0 0 rgba(96,165,250,0)", "0 0 0 10px rgba(96,165,250,0.35)", "0 0 0 20px rgba(96,165,250,0)", "0 0 0 0 rgba(96,165,250,0)"] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
+                style={{ width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", cursor: "pointer", border: "3px solid rgba(255,255,255,.25)" }}
               >
                 <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
-              </div>
+              </motion.div>
             </motion.div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: 8, marginBottom: 16 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: 1.2, textTransform: "uppercase" }}>Ada · AI Analyst</div>
@@ -271,7 +276,7 @@ export default function OverviewPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
           {/* Trust Score */}
-          <div style={{ background: "white", borderRadius: 16, overflow: "hidden", border: "1px solid #E8EDF5", boxShadow: "0 2px 12px rgba(10,15,28,.06)" }}>
+          <div data-ada-target="trust-gauge" style={{ background: "white", borderRadius: 16, overflow: "hidden", border: "1px solid #E8EDF5", boxShadow: "0 2px 12px rgba(10,15,28,.06)" }}>
             <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #F1F5F9" }}>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>Trust Score</div>
               <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>Weighted across all engines</div>
@@ -315,8 +320,9 @@ export default function OverviewPage() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>⚠ Requires Attention</div>
                 <span style={{ fontSize: 11, fontWeight: 600, color: AMBER, cursor: "pointer" }}>View all</span>
               </div>
-              {data.alerts.slice(0, 2).map(a => (
+              {data.alerts.slice(0, 2).map((a, i) => (
                 <motion.div key={a.submission_id} whileHover={{ background: "#FFFBEB" }}
+                  data-ada-target={i === 0 ? "alert-item" : undefined}
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: "1px solid #FEF3C7", cursor: "pointer" }}>
                   <div style={{ width: 28, height: 28, borderRadius: 7, background: "#FEF3C7", display: "grid", placeItems: "center", fontSize: 13, flexShrink: 0 }}>🚩</div>
                   <div style={{ flex: 1 }}>

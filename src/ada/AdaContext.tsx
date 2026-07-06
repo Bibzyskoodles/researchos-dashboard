@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { AdaState, AdaMessage } from '../types';
 
+interface GuideTarget {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface AdaStore {
   state: AdaState;
   previousState: AdaState | null;
@@ -8,9 +15,11 @@ interface AdaStore {
   isTyping: boolean;
   position: { x: number; y: number };
   exitEdge: { edge: string; position: number } | null;
+  exitPending: boolean;
   currentPage: string;
   isOpen: boolean;
   memoryLoaded: boolean;
+  guideTarget: GuideTarget | null;
 }
 
 type AdaAction =
@@ -20,11 +29,13 @@ type AdaAction =
   | { type: 'SET_TYPING'; isTyping: boolean }
   | { type: 'SET_POSITION'; x: number; y: number }
   | { type: 'SET_EXIT_EDGE'; edge: string; position: number }
+  | { type: 'SET_EXIT_PENDING'; pending: boolean }
   | { type: 'SET_PAGE'; page: string }
   | { type: 'TOGGLE_OPEN' }
   | { type: 'SET_OPEN'; open: boolean }
   | { type: 'CLEAR_MESSAGES' }
-  | { type: 'SET_MEMORY_LOADED' };
+  | { type: 'SET_MEMORY_LOADED' }
+  | { type: 'SET_GUIDE_TARGET'; target: GuideTarget | null };
 
 const initialState: AdaStore = {
   state: 'idle',
@@ -33,9 +44,11 @@ const initialState: AdaStore = {
   isTyping: false,
   position: { x: 0.92, y: 0.88 },
   exitEdge: null,
+  exitPending: false,
   currentPage: 'overview',
   isOpen: false,
   memoryLoaded: false,
+  guideTarget: null,
 };
 
 function adaReducer(store: AdaStore, action: AdaAction): AdaStore {
@@ -52,6 +65,8 @@ function adaReducer(store: AdaStore, action: AdaAction): AdaStore {
       return { ...store, position: { x: action.x, y: action.y } };
     case 'SET_EXIT_EDGE':
       return { ...store, exitEdge: { edge: action.edge, position: action.position } };
+    case 'SET_EXIT_PENDING':
+      return { ...store, exitPending: action.pending };
     case 'SET_PAGE':
       return { ...store, currentPage: action.page };
     case 'TOGGLE_OPEN':
@@ -62,6 +77,8 @@ function adaReducer(store: AdaStore, action: AdaAction): AdaStore {
       return { ...store, messages: [] };
     case 'SET_MEMORY_LOADED':
       return { ...store, memoryLoaded: true };
+    case 'SET_GUIDE_TARGET':
+      return { ...store, guideTarget: action.target };
     default:
       return store;
   }
@@ -75,10 +92,13 @@ interface AdaContextValue {
   setTyping: (isTyping: boolean) => void;
   setPosition: (x: number, y: number) => void;
   navigatePage: (page: string) => void;
+  startExit: () => void;
+  clearExit: () => void;
   toggleOpen: () => void;
   setOpen: (open: boolean) => void;
   computeExitEdge: () => { edge: string; position: number };
   markMemoryLoaded: () => void;
+  guideToElement: (selector: string, returnAfterMs?: number) => void;
 }
 
 const AdaCtx = createContext<AdaContextValue | null>(null);
@@ -120,6 +140,16 @@ export function AdaProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_PAGE', page });
   }, [computeExitEdge]);
 
+  const startExit = useCallback(() => {
+    const exitEdge = computeExitEdge();
+    dispatch({ type: 'SET_EXIT_EDGE', edge: exitEdge.edge, position: exitEdge.position });
+    dispatch({ type: 'SET_EXIT_PENDING', pending: true });
+  }, [computeExitEdge]);
+
+  const clearExit = useCallback(() => {
+    dispatch({ type: 'SET_EXIT_PENDING', pending: false });
+  }, []);
+
   const toggleOpen = useCallback(() => {
     dispatch({ type: 'TOGGLE_OPEN' });
   }, []);
@@ -132,10 +162,23 @@ export function AdaProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_MEMORY_LOADED' });
   }, []);
 
+  const guideToElement = useCallback((selector: string, returnAfterMs = 3000) => {
+    const el = document.querySelector(`[data-ada-target="${selector}"]`);
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    dispatch({ type: 'SET_GUIDE_TARGET', target: { x: rect.left, y: rect.top, width: rect.width, height: rect.height } });
+    dispatch({ type: 'SET_STATE', state: 'guiding' });
+    setTimeout(() => {
+      dispatch({ type: 'SET_GUIDE_TARGET', target: null });
+      dispatch({ type: 'SET_STATE', state: 'idle' });
+    }, returnAfterMs);
+  }, []);
+
   return (
     <AdaCtx.Provider value={{
       store, setState, addMessage, setMessages, setTyping,
-      setPosition, navigatePage, toggleOpen, setOpen, computeExitEdge, markMemoryLoaded
+      setPosition, navigatePage, startExit, clearExit,
+      toggleOpen, setOpen, computeExitEdge, markMemoryLoaded, guideToElement,
     }}>
       {children}
     </AdaCtx.Provider>

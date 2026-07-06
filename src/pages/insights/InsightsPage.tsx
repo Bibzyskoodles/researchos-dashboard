@@ -1,211 +1,176 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { useAda } from "../../ada/AdaContext";
-import { useAuth } from "../../store/AuthContext";
-import { dashboardApi, adaApi } from "../../services/api";
-import { Send, Sparkles, TrendingUp, Users } from "lucide-react";
+import { useAdaGreeting } from "../../hooks/useAdaGreeting";
+import { insightScoreApi } from "../../services/api";
+import { InsightProject } from "../../types";
+import { ChevronRight, Clock } from "lucide-react";
 
-const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706";
+const BLUE = "#2463EB";
+const GREEN = "#059669";
+const AMBER = "#D97706";
+const PURPLE = "#7C3AED";
 
-const SUGGESTIONS=[
-  {icon:"📊",text:"Summarise all verified submissions"},
-  {icon:"🚩",text:"Why were submissions flagged?"},
-  {icon:"👤",text:"How is ENID0010 performing?"},
-  {icon:"📍",text:"Any GPS patterns or anomalies?"},
-  {icon:"📄",text:"Prepare an interim report"},
-  {icon:"🔍",text:"What are the key findings?"},
-];
+const STATUS_LABEL: Record<string, string> = {
+  pending: "Ready for review",
+  analysing: "Ada is reading the interviews",
+  complete: "Ready for review",
+  error: "Needs attention",
+};
 
-interface Message { id:string; role:"user"|"assistant"; content:string; timestamp:string; }
+const STATUS_COLOR: Record<string, string> = {
+  pending: AMBER,
+  analysing: BLUE,
+  complete: GREEN,
+  error: "#DC2626",
+};
 
-export default function InsightsPage(){
-  const [messages,setMessages]=useState<Message[]>([]);
-  const [input,setInput]=useState("");
-  const [sending,setSending]=useState(false);
-  const [stats,setStats]=useState<any>(null);
-  const endRef=useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
-  const { setState } = useAda();
+function statusLabel(s: string) { return STATUS_LABEL[s] ?? "Ready for review"; }
+function statusColor(s: string) { return STATUS_COLOR[s] ?? BLUE; }
 
-  useEffect(()=>{
-    dashboardApi.getStats().then(r=>setStats(r.data));
-    // Load previous conversation
-    adaApi.getMemory().then(r=>{
-      // Memory loaded — future: restore conversation
-    }).catch(()=>{});
-  },[]);
+function timeSince(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(diff / 3600000);
+  const d = Math.floor(diff / 86400000);
+  if (d > 0) return `${d}d ago`;
+  if (h > 0) return `${h}h ago`;
+  return "Recently";
+}
 
-  useEffect(()=>{
-    endRef.current?.scrollIntoView({behavior:"smooth"});
-  },[messages]);
+interface ProjectCardProps { project: InsightProject; onClick: () => void; }
 
-  const send=async(msg?:string)=>{
-    const text=(msg||input).trim();
-    if(!text||sending)return;
-    setInput("");
-    setSending(true);
-    setState("thinking");
-    const userMsg:Message={id:Date.now().toString(),role:"user",content:text,timestamp:new Date().toISOString()};
-    setMessages(prev=>[...prev,userMsg]);
-    try{
-      const res=await adaApi.chat(text,"insights",{stats,recent_submissions:[],alerts:[]});
-      const reply=res.data.reply||"I encountered an error. Please try again.";
-      setMessages(prev=>[...prev,{id:(Date.now()+1).toString(),role:"assistant",content:reply,timestamp:new Date().toISOString()}]);
-      setState("speaking");
-      setTimeout(()=>setState("idle"),3000);
-    }catch{
-      setMessages(prev=>[...prev,{id:(Date.now()+1).toString(),role:"assistant",content:"Connection error. Please try again.",timestamp:new Date().toISOString()}]);
-      setState("idle");
-    }finally{
-      setSending(false);
-    }
-  };
-
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:16,height:"calc(100vh - 120px)"}}>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexShrink:0}}>
-        <div>
-          <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>AI Analysis</h1>
-          <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>Ada · Intelligent research analyst · {stats?.pass_count||0} verified submissions</p>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:"pointer"}}>
-            <span>📄</span> Generate Report
-          </button>
+function ProjectCard({ project, onClick }: ProjectCardProps) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <motion.div
+      whileHover={{ y: -2 }}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: "white", borderRadius: 14, padding: "18px 20px",
+        border: `1px solid ${hovered ? "#BFDBFE" : "#E8EDF5"}`,
+        boxShadow: hovered ? "0 4px 20px rgba(37,99,235,.1)" : "0 2px 8px rgba(10,15,28,.05)",
+        cursor: "pointer", transition: "border-color .15s, box-shadow .15s",
+        display: "flex", alignItems: "center", gap: 16,
+      }}
+    >
+      <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: `linear-gradient(135deg, ${BLUE}18, ${PURPLE}18)`, display: "grid", placeItems: "center", fontSize: 20 }}>📋</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#080D1A", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{project.name}</div>
+        <div style={{ fontSize: 11.5, color: "#6B7280", display: "flex", alignItems: "center", gap: 10 }}>
+          <span>{project.submission_count} interview{project.submission_count !== 1 ? "s" : ""}</span>
+          <span style={{ color: "#D1D5DB" }}>·</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Clock size={10} />{timeSince(project.last_activity || project.created_at)}</span>
         </div>
       </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: statusColor(project.status) }} />
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: statusColor(project.status) }}>{statusLabel(project.status)}</span>
+        </div>
+        <ChevronRight size={14} color={hovered ? BLUE : "#9CA3AF"} style={{ transition: "color .15s" }} />
+      </div>
+    </motion.div>
+  );
+}
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 280px",gap:16,flex:1,minHeight:0}}>
+const ACTIVE_PROJECT = "658464e5-09dc-4b99-a664-05690de9921a";
 
-        {/* Chat */}
-        <div style={{background:"white",borderRadius:16,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+export default function InsightsPage() {
+  const [projects, setProjects] = useState<InsightProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adaAnswered, setAdaAnswered] = useState<null | "begin" | "review">(null);
+  const navigate = useNavigate();
+  const { setOpen } = useAda();
+  useAdaGreeting({ page: "insights" });
 
-          {/* Chat header */}
-          <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",gap:12,background:"linear-gradient(135deg,#F8FAFF,white)",flexShrink:0}}>
-            <div style={{width:40,height:40,borderRadius:"50%",overflow:"hidden",border:"2px solid #2463EB",flexShrink:0}}>
-              <img src="/ada-avatar.jpg" alt="Ada" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"50% 15%"}}/>
-            </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>Ada</div>
-              <div style={{fontSize:11,color:GREEN,display:"flex",alignItems:"center",gap:4}}>
-                <div style={{width:5,height:5,borderRadius:"50%",background:GREEN}}/>
-                AI Research Analyst · Active
-              </div>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:6,background:"#EFF6FF",border:"1px solid #DBEAFE",borderRadius:8,padding:"4px 10px"}}>
-              <Sparkles size={11} color={BLUE}/>
-              <span style={{fontSize:11,fontWeight:600,color:BLUE}}>GPT-4o</span>
+  useEffect(() => {
+    insightScoreApi.getProjects()
+      .then(r => setProjects(r.data || []))
+      .catch(() => setProjects([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleBegin = () => { setAdaAnswered("begin"); setTimeout(() => navigate(`/insights/${ACTIVE_PROJECT}`), 400); };
+  const handleReview = () => { setAdaAnswered("review"); setTimeout(() => navigate(`/insights/${ACTIVE_PROJECT}?tab=interviews`), 400); };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+        style={{ background: "linear-gradient(135deg, #1A1F3E 0%, #0F172A 40%, #1E1B4B 100%)", borderRadius: 20, overflow: "hidden", position: "relative", boxShadow: "0 8px 40px rgba(8,13,26,.2)" }}>
+        <div style={{ position: "absolute", top: -60, right: 160, width: 280, height: 280, borderRadius: "50%", background: "radial-gradient(circle,rgba(37,99,235,.22),transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: -40, left: 80, width: 180, height: 180, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,58,237,.15),transparent 70%)", pointerEvents: "none" }} />
+
+        <div style={{ display: "flex", alignItems: "stretch", position: "relative", zIndex: 1 }}>
+          <div style={{ width: 160, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "20px 10px 0" }}>
+            <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }} style={{ width: 120, height: 120 }}>
+              <motion.div onClick={() => setOpen(true)}
+                animate={{ boxShadow: ["0 0 0 0 rgba(96,165,250,0)", "0 0 0 10px rgba(96,165,250,0.3)", "0 0 0 20px rgba(96,165,250,0)", "0 0 0 0 rgba(96,165,250,0)"] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
+                style={{ width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", cursor: "pointer", border: "3px solid rgba(255,255,255,.25)" }}>
+                <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+              </motion.div>
+            </motion.div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: 8, marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: 1.2, textTransform: "uppercase" }}>Ada · AI Analyst</div>
             </div>
           </div>
 
-          {/* Messages */}
-          <div style={{flex:1,overflowY:"auto",padding:20,display:"flex",flexDirection:"column",gap:14}}>
-            {messages.length===0&&(
-              <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0}}>
-                  <img src="/ada-avatar.jpg" alt="Ada" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"50% 15%"}}/>
-                </div>
-                <div style={{background:"#F8FAFF",border:"1px solid #E8EDF5",borderRadius:"4px 14px 14px 14px",padding:"12px 16px",maxWidth:420}}>
-                  <div style={{fontSize:13,color:"#374151",lineHeight:1.65}}>
-                    {user?.name?.split(" ")[0]?"Hello "+user.name.split(" ")[0]+"! ":"Hello! "}I have already reviewed your current project data.
-                    {stats&&<><br/><br/>You have <strong>{stats.total_submissions} submissions</strong> with an average trust score of <strong>{stats.avg_score}/100</strong>. Pass rate is <strong>{stats.pass_rate}%</strong>.<br/><br/></>}
-                    What would you like to explore?
-                  </div>
-                </div>
+          <div style={{ flex: 1, padding: "28px 28px 28px 16px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 16 }}>
+            <div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(37,99,235,.2)", border: "1px solid rgba(37,99,235,.3)", borderRadius: 6, padding: "3px 10px", marginBottom: 12 }}>
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#60A5FA" }} />
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: "#93C5FD", letterSpacing: 1, textTransform: "uppercase" }}>Ada Briefing</span>
               </div>
-            )}
-            <AnimatePresence>
-              {messages.map(msg=>(
-                <motion.div key={msg.id} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}
-                  style={{display:"flex",gap:10,alignItems:"flex-start",flexDirection:msg.role==="user"?"row-reverse":"row"}}>
-                  {msg.role==="assistant"&&(
-                    <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0}}>
-                      <img src="/ada-avatar.jpg" alt="Ada" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"50% 15%"}}/>
-                    </div>
-                  )}
-                  <div style={{
-                    background:msg.role==="user"?BLUE:"#F8FAFF",
-                    border:msg.role==="user"?"none":"1px solid #E8EDF5",
-                    borderRadius:msg.role==="user"?"14px 4px 14px 14px":"4px 14px 14px 14px",
-                    padding:"12px 16px",maxWidth:420,
-                    fontSize:13,lineHeight:1.65,
-                    color:msg.role==="user"?"white":"#374151",
-                  }}
-                    dangerouslySetInnerHTML={{__html:msg.content.replace(/[*][*](.*?)[*][*]/g,"<strong>$1</strong>").replace(/\n/g,"<br>")}}/>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "white", lineHeight: 1.4, marginBottom: 8 }}>I found 16 verified interviews ready for analysis.</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,.6)", lineHeight: 1.6, maxWidth: 480 }}>Based on what I can see, I expect themes around community perceptions, service access barriers, and unmet household needs. Would you like me to begin reviewing the interviews?</div>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {adaAnswered === null ? (
+                <motion.div key="cta" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: "flex", gap: 10 }}>
+                  <button onClick={handleBegin}
+                    style={{ padding: "10px 22px", borderRadius: 10, background: BLUE, border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.88")}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}>
+                    Begin Analysis
+                  </button>
+                  <button onClick={handleReview}
+                    style={{ padding: "10px 22px", borderRadius: 10, background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.18)", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,.16)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,.1)")}>
+                    Review Interviews First
+                  </button>
                 </motion.div>
-              ))}
+              ) : (
+                <motion.div key="ack" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} style={{ fontSize: 13, color: "#60A5FA", fontWeight: 600 }}>
+                  {adaAnswered === "begin" ? "Starting analysis..." : "Opening interviews..."}
+                </motion.div>
+              )}
             </AnimatePresence>
-            {sending&&(
-              <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0}}>
-                  <img src="/ada-avatar.jpg" alt="Ada" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"50% 15%"}}/>
-                </div>
-                <div style={{background:"#F8FAFF",border:"1px solid #E8EDF5",borderRadius:"4px 14px 14px 14px",padding:"14px 18px",display:"flex",gap:5}}>
-                  {[0,1,2].map(i=>(
-                    <motion.div key={i} style={{width:7,height:7,borderRadius:"50%",background:BLUE}}
-                      animate={{y:[0,-7,0]}} transition={{duration:0.6,repeat:Infinity,delay:i*0.15}}/>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div ref={endRef}/>
-          </div>
-
-          {/* Suggestions */}
-          {messages.length===0&&(
-            <div style={{padding:"0 20px 12px",flexShrink:0,display:"flex",gap:6,flexWrap:"wrap"}}>
-              {SUGGESTIONS.map(s=>(
-                <button key={s.text} onClick={()=>send(s.text)}
-                  style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",border:"1px solid #E2E8F0",borderRadius:20,background:"#FAFBFF",fontSize:11.5,fontWeight:500,color:"#374151",cursor:"pointer",transition:"all .15s"}}
-                  onMouseEnter={e=>{(e.target as HTMLElement).style.borderColor=BLUE;(e.target as HTMLElement).style.color=BLUE;}}
-                  onMouseLeave={e=>{(e.target as HTMLElement).style.borderColor="#E2E8F0";(e.target as HTMLElement).style.color="#374151";}}>
-                  <span>{s.icon}</span>{s.text}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Input */}
-          <div style={{padding:"12px 16px",borderTop:"1px solid #F1F5F9",display:"flex",gap:8,flexShrink:0}}>
-            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
-              placeholder="Ask Ada anything about your data..."
-              style={{flex:1,border:"1.5px solid #E2E8F0",borderRadius:10,padding:"10px 14px",fontSize:13,fontFamily:"Inter,sans-serif",outline:"none",color:"#080D1A",transition:"border-color .15s"}}
-              onFocus={e=>(e.target.style.borderColor=BLUE)} onBlur={e=>(e.target.style.borderColor="#E2E8F0")}/>
-            <button onClick={()=>send()} disabled={sending||!input.trim()}
-              style={{width:42,height:42,borderRadius:10,background:sending||!input.trim()?"#93C5FD":BLUE,border:"none",cursor:sending||!input.trim()?"not-allowed":"pointer",display:"grid",placeItems:"center",transition:"all .15s"}}>
-              <Send size={15} color="white"/>
-            </button>
           </div>
         </div>
+      </motion.div>
 
-        {/* Context panel */}
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div style={{background:"white",borderRadius:16,padding:16,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:12}}>Live Context</div>
-            {stats&&[
-              {label:"Verified",value:stats.pass_count||0,icon:<TrendingUp size={12} color={GREEN}/>,color:GREEN},
-              {label:"Avg Score",value:(stats.avg_score||0)+"/100",icon:<Sparkles size={12} color={BLUE}/>,color:BLUE},
-              {label:"Pass Rate",value:(stats.pass_rate||0)+"%",icon:<TrendingUp size={12} color={GREEN}/>,color:GREEN},
-              {label:"Flagged",value:stats.flag_count||0,icon:<Users size={12} color={AMBER}/>,color:AMBER},
-            ].map(item=>(
-              <div key={item.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid #F8FAFF"}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#6B7280"}}>{item.icon}{item.label}</div>
-                <div style={{fontSize:13,fontWeight:700,color:item.color,fontFamily:"monospace"}}>{item.value}</div>
-              </div>
-            ))}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>Your Projects</div>
+        {loading ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[1, 2].map(i => <div key={i} style={{ height: 76, borderRadius: 14, background: "white", border: "1px solid #E8EDF5" }} />)}
           </div>
-
-          <div style={{background:"linear-gradient(135deg,#1A1F3E,#0F172A)",borderRadius:16,padding:16,border:"1px solid rgba(255,255,255,.06)"}}>
-            <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.7,marginBottom:10}}>Ada can help with</div>
-            {["Fraud pattern analysis","Enumerator performance","GPS verification results","Theme extraction","Executive summaries","Client-ready reports"].map(item=>(
-              <div key={item} onClick={()=>send(item)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid rgba(255,255,255,.04)",cursor:"pointer",fontSize:12,color:"rgba(255,255,255,.6)",transition:"color .15s"}}
-                onMouseEnter={e=>(e.currentTarget.style.color="white")} onMouseLeave={e=>(e.currentTarget.style.color="rgba(255,255,255,.6)")}>
-                <div style={{width:4,height:4,borderRadius:"50%",background:"rgba(96,165,250,.6)",flexShrink:0}}/>
-                {item}
-              </div>
-            ))}
+        ) : projects.length === 0 ? (
+          <div style={{ background: "white", borderRadius: 14, padding: "32px 24px", border: "1px solid #E8EDF5", textAlign: "center" }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 4 }}>No projects yet</div>
+            <div style={{ fontSize: 12.5, color: "#9CA3AF" }}>Ada will brief you here once interviews are ready for analysis.</div>
           </div>
-        </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {projects.map(p => <ProjectCard key={p.id} project={p} onClick={() => navigate(`/insights/${p.id}`)} />)}
+          </div>
+        )}
       </div>
     </div>
   );

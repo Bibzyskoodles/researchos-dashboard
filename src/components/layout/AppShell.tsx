@@ -8,7 +8,6 @@ import { useAda } from "../../ada/AdaContext";
 
 export default function AppShell() {
   const location = useLocation();
-  const isOverview = location.pathname === "/overview" || location.pathname === "/";
   useAda();
 
   return (
@@ -32,7 +31,7 @@ export default function AppShell() {
           </motion.main>
         </AnimatePresence>
       </div>
-      {!isOverview && <AdaDock />}
+      <AdaDock />
     </div>
   );
 }

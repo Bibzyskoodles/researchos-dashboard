@@ -1,5 +1,3 @@
-// ── Ada Types ──────────────────────────────────────────────────────────────
-
 export type AdaState =
   | 'idle' | 'greeting' | 'listening' | 'thinking'
   | 'speaking' | 'guiding' | 'celebrating' | 'warning'
@@ -24,11 +22,7 @@ export interface AdaMessage {
   page?: string;
 }
 
-// ── Platform Types ─────────────────────────────────────────────────────────
-
 export type Platform = 'field-quality' | 'insights' | 'reports' | 'research';
-
-// ── FieldScore Types ───────────────────────────────────────────────────────
 
 export type Verdict = 'PASS' | 'FLAG' | 'REJECT';
 export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
@@ -94,7 +88,47 @@ export interface DashboardData {
   };
 }
 
-// ── Auth Types ─────────────────────────────────────────────────────────────
+export type InsightProjectStatus = 'pending' | 'analysing' | 'complete' | 'error';
+
+export interface InsightProject {
+  id: string;
+  name: string;
+  submission_count: number;
+  status: InsightProjectStatus;
+  last_activity: string;
+  created_at: string;
+}
+
+export interface InsightTheme {
+  title: string;
+  summary: string;
+  quote_count: number;
+  quotes: string[];
+  sentiment: 'positive' | 'negative' | 'mixed' | 'neutral';
+}
+
+export interface InsightReport {
+  executive_summary: string;
+  business_implications: string[];
+  unexpected_findings: string[];
+  risks: string[];
+  opportunities: string[];
+  themes: InsightTheme[];
+  contradictions: string[];
+  outliers: string[];
+  recommendations: string[];
+  generated_at: string;
+  download_url?: string;
+}
+
+export interface InsightSubmission {
+  id: string;
+  enumerator_id: string;
+  score: number;
+  date: string;
+  location: string;
+  verdict: string;
+}
 
 export interface User {
   id: string;

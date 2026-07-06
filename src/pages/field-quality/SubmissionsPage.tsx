@@ -4,6 +4,8 @@ import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
 import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
+import { useAdaAttention } from "../../hooks/useAdaAttention";
+import { useAda as useAdaContext } from "../../ada/AdaContext";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -49,12 +51,21 @@ export default function SubmissionsPage(){
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
   useAdaGreeting({ page: "submissions" });
+  useAdaAttention({ x: 0.88, y: 0.35 }, { delay: 2000, returnAfterMs: 5000 });
+
+  const { guideToElement } = useAdaContext();
 
   useEffect(()=>{
     dashboardApi.getSubmissions({limit:50})
-      .then(r=>setSubs(r.data.submissions||[]))
+      .then(r=>{
+        const submissions = r.data.submissions || [];
+        setSubs(submissions);
+        if(submissions.some((s: Submission) => s.verdict === "FLAG")){
+          setTimeout(() => guideToElement("flagged-row", 3000), 1500);
+        }
+      })
       .finally(()=>setLoading(false));
-  },[]);
+  },[guideToElement]);
 
   const filtered=subs.filter(s=>{
     if(filter!=="ALL"&&s.verdict!==filter)return false;
@@ -64,7 +75,6 @@ export default function SubmissionsPage(){
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      {/* Header */}
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
         <div>
           <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>Submissions</h1>
@@ -75,7 +85,6 @@ export default function SubmissionsPage(){
         </button>
       </div>
 
-      {/* Filters */}
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <div style={{display:"flex",alignItems:"center",gap:8,background:"white",border:"1px solid #E2E8F0",borderRadius:8,padding:"7px 12px",flex:1,maxWidth:300}}>
           <Search size={13} color="#9CA3AF"/>
@@ -96,15 +105,17 @@ export default function SubmissionsPage(){
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:selected?"1fr 380px":"1fr",gap:16,alignItems:"start"}}>
-        {/* List */}
         <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
           {loading?(
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading submissions...</div>
           ):filtered.length===0?(
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>No submissions found</div>
-          ):filtered.map((sub,i)=>(
+          ):filtered.map((sub,i)=>{
+            const isFirstFlag = sub.verdict==="FLAG" && !filtered.slice(0,i).some(s=>s.verdict==="FLAG");
+            return(
             <motion.div key={sub.submission_id} onClick={()=>setSelected(selected?.submission_id===sub.submission_id?null:sub)}
               whileHover={{background:"#FAFBFF"}}
+              data-ada-target={isFirstFlag ? "flagged-row" : undefined}
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",borderBottom:i<filtered.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
                 background:selected?.submission_id===sub.submission_id?"#F0F7FF":"white",
                 borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
@@ -136,15 +147,13 @@ export default function SubmissionsPage(){
                 <ChevronRight size={14} color={selected?.submission_id===sub.submission_id?BLUE:"#CBD5E1"}/>
               </div>
             </motion.div>
-          ))}
+          );})}
         </div>
 
-        {/* Detail panel */}
         <AnimatePresence>
           {selected&&(
             <motion.div initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:20}}
               style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 4px 24px rgba(10,15,28,.1)",position:"sticky",top:16}}>
-              {/* Header */}
               <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",justifyContent:"space-between",background:"linear-gradient(135deg,#F8FAFF,white)"}}>
                 <div>
                   <div style={{fontSize:11,fontFamily:"monospace",color:"#9CA3AF",marginBottom:2}}>{selected.submission_id.substring(0,16)}…</div>
@@ -157,7 +166,6 @@ export default function SubmissionsPage(){
               </div>
 
               <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16,maxHeight:"calc(100vh - 200px)",overflowY:"auto"}}>
-                {/* Verdict */}
                 <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,background:vbg(selected.verdict),border:`1px solid ${vc(selected.verdict)}22`}}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:vc(selected.verdict),flexShrink:0}}/>
                   <div>
@@ -166,7 +174,6 @@ export default function SubmissionsPage(){
                   </div>
                 </div>
 
-                {/* Location */}
                 {selected.gps&&(
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Location</div>
@@ -183,7 +190,6 @@ export default function SubmissionsPage(){
                   </div>
                 )}
 
-                {/* Engine breakdown */}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Quality Engines</div>
                   <EngineBar label="GPS Accuracy" value={92} color={BLUE} icon={<MapPin size={12} color={BLUE}/>}/>
@@ -192,7 +198,6 @@ export default function SubmissionsPage(){
                   <EngineBar label="Duration" value={85} color={AMBER} icon={<Clock size={12} color={AMBER}/>}/>
                 </div>
 
-                {/* Flags */}
                 {selected.flags&&(
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Flags</div>
@@ -204,7 +209,6 @@ export default function SubmissionsPage(){
                   </div>
                 )}
 
-                {/* Meta */}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Details</div>
                   {[
