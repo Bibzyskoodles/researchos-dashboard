@@ -10,18 +10,21 @@ interface AdaStore {
   exitEdge: { edge: string; position: number } | null;
   currentPage: string;
   isOpen: boolean;
+  memoryLoaded: boolean;
 }
 
 type AdaAction =
   | { type: 'SET_STATE'; state: AdaState }
   | { type: 'ADD_MESSAGE'; message: AdaMessage }
+  | { type: 'SET_MESSAGES'; messages: AdaMessage[] }
   | { type: 'SET_TYPING'; isTyping: boolean }
   | { type: 'SET_POSITION'; x: number; y: number }
   | { type: 'SET_EXIT_EDGE'; edge: string; position: number }
   | { type: 'SET_PAGE'; page: string }
   | { type: 'TOGGLE_OPEN' }
   | { type: 'SET_OPEN'; open: boolean }
-  | { type: 'CLEAR_MESSAGES' };
+  | { type: 'CLEAR_MESSAGES' }
+  | { type: 'SET_MEMORY_LOADED' };
 
 const initialState: AdaStore = {
   state: 'idle',
@@ -32,6 +35,7 @@ const initialState: AdaStore = {
   exitEdge: null,
   currentPage: 'overview',
   isOpen: false,
+  memoryLoaded: false,
 };
 
 function adaReducer(store: AdaStore, action: AdaAction): AdaStore {
@@ -40,6 +44,8 @@ function adaReducer(store: AdaStore, action: AdaAction): AdaStore {
       return { ...store, previousState: store.state, state: action.state };
     case 'ADD_MESSAGE':
       return { ...store, messages: [...store.messages, action.message] };
+    case 'SET_MESSAGES':
+      return { ...store, messages: action.messages };
     case 'SET_TYPING':
       return { ...store, isTyping: action.isTyping };
     case 'SET_POSITION':
@@ -54,6 +60,8 @@ function adaReducer(store: AdaStore, action: AdaAction): AdaStore {
       return { ...store, isOpen: action.open };
     case 'CLEAR_MESSAGES':
       return { ...store, messages: [] };
+    case 'SET_MEMORY_LOADED':
+      return { ...store, memoryLoaded: true };
     default:
       return store;
   }
@@ -63,12 +71,14 @@ interface AdaContextValue {
   store: AdaStore;
   setState: (state: AdaState) => void;
   addMessage: (message: AdaMessage) => void;
+  setMessages: (messages: AdaMessage[]) => void;
   setTyping: (isTyping: boolean) => void;
   setPosition: (x: number, y: number) => void;
   navigatePage: (page: string) => void;
   toggleOpen: () => void;
   setOpen: (open: boolean) => void;
   computeExitEdge: () => { edge: string; position: number };
+  markMemoryLoaded: () => void;
 }
 
 const AdaCtx = createContext<AdaContextValue | null>(null);
@@ -84,6 +94,10 @@ export function AdaProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'ADD_MESSAGE', message });
   }, []);
 
+  const setMessages = useCallback((messages: AdaMessage[]) => {
+    dispatch({ type: 'SET_MESSAGES', messages });
+  }, []);
+
   const setTyping = useCallback((isTyping: boolean) => {
     dispatch({ type: 'SET_TYPING', isTyping });
   }, []);
@@ -94,7 +108,7 @@ export function AdaProvider({ children }: { children: React.ReactNode }) {
 
   const computeExitEdge = useCallback(() => {
     const { x, y } = store.position;
-    const distances = { left: x, right: 1 - x, top: y, bottom: 1 - y };
+    const distances: Record<string, number> = { left: x, right: 1 - x, top: y, bottom: 1 - y };
     const edge = Object.entries(distances).reduce((a, b) => a[1] < b[1] ? a : b)[0];
     const position = edge === 'left' || edge === 'right' ? y : x;
     return { edge, position };
@@ -114,10 +128,14 @@ export function AdaProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_OPEN', open });
   }, []);
 
+  const markMemoryLoaded = useCallback(() => {
+    dispatch({ type: 'SET_MEMORY_LOADED' });
+  }, []);
+
   return (
     <AdaCtx.Provider value={{
-      store, setState, addMessage, setTyping,
-      setPosition, navigatePage, toggleOpen, setOpen, computeExitEdge
+      store, setState, addMessage, setMessages, setTyping,
+      setPosition, navigatePage, toggleOpen, setOpen, computeExitEdge, markMemoryLoaded
     }}>
       {children}
     </AdaCtx.Provider>

@@ -142,16 +142,20 @@ export default function OverviewPage() {
             <motion.div
               animate={{ y: [0, -6, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              style={{ width: 140, height: 140, borderRadius: "50%", overflow: "hidden", border: "3px solid rgba(255,255,255,.2)", boxShadow: "0 8px 32px rgba(37,99,235,.4)", cursor: "pointer", zIndex: 2, position: "relative" }}
-              onClick={() => setOpen(true)}
+              style={{ position: "relative", width: 140, height: 140, flexShrink: 0 }}
             >
-              <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 10%" }} />
+              <motion.div
+                animate={{ scale: [0.95, 1.4], opacity: [0.6, 0] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut", repeatDelay: 1.5 }}
+                style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid rgba(96,165,250,0.8)", pointerEvents: "none", zIndex: 0 }}
+              />
+              <div
+                onClick={() => setOpen(true)}
+                style={{ position: "relative", zIndex: 1, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", cursor: "pointer", border: "3px solid rgba(255,255,255,.2)", boxShadow: "0 8px 32px rgba(37,99,235,.4)" }}
+              >
+                <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+              </div>
             </motion.div>
-            <motion.div
-              animate={{ scale: [1, 1.22, 1], opacity: [0.6, 0, 0.6] }}
-              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-              style={{ position: "absolute", width: 158, height: 158, borderRadius: "50%", border: "2px solid rgba(96,165,250,.7)", top: "50%", left: "50%", transform: "translate(-50%, -56%)", pointerEvents: "none", zIndex: 1 }}
-            />
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: 8, marginBottom: 16 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", letterSpacing: 1.2, textTransform: "uppercase" }}>Ada · AI Analyst</div>
               <div onClick={() => setOpen(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 20, padding: "4px 10px", cursor: "pointer", transition: "all .2s" }}>
