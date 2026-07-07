@@ -8,6 +8,7 @@ import {
   Download, ExternalLink, X,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -146,7 +147,7 @@ const SECTIONS = [
   { id: "storage",       icon: Database,     label: "Data & Storage",      group: "RESEARCH" },
   { id: "security",      icon: Lock,         label: "Security",            group: "SYSTEM" },
   { id: "notifications", icon: Bell,         label: "Notifications",       group: "SYSTEM" },
-  { id: "billing",       icon: CreditCard,   label: "Billing",             group: "SYSTEM" },
+  { id: "billing",       icon: CreditCard,   label: "Billing & Capacity",  group: "SYSTEM" },
   { id: "api",           icon: Code2,        label: "API & Webhooks",      group: "SYSTEM" },
   { id: "audit",         icon: ClipboardList,label: "Audit Log",           group: "SYSTEM" },
 ];
@@ -658,38 +659,263 @@ function NotificationsSection() {
   );
 }
 
+const MOCK_BILLING = {
+  plan: "Professional" as string,
+  status: "active" as string, // active | trial | expired
+  days_used: 7, days_total: 31, days_remaining: 24,
+  monthly_price_ngn: 350000, monthly_price_usd: 219,
+  next_billing: "1 August 2026",
+  capacity: [
+    { key: "fieldscore", label: "FieldScore Verifications", description: "Surveys & interviews verified for quality", icon: "🔍", used: 347, total: 2000, color: "#2463EB" },
+    { key: "insightscore", label: "Qualitative Interviews Analysed", description: "FGDs, IDIs, open-ended responses", icon: "💬", used: 12, total: 200, color: "#7C3AED" },
+    { key: "reports", label: "Executive Reports Generated", description: "Word, PowerPoint & Excel reports", icon: "📄", used: 3, total: 20, color: "#059669" },
+    { key: "presentations", label: "PowerPoint Presentations", description: "Board-ready presentations", icon: "📊", used: 1, total: 10, color: "#D97706" },
+    { key: "questionnaires", label: "Questionnaires Generated", description: "AI-generated or AI-reviewed", icon: "📋", used: 0, total: 5, color: "#06B6D4" },
+  ],
+  intelligence_credits: {
+    used: 1240, total: 5000, breakdown: [
+      { label: "FieldScore AI scoring", value: 890, color: "#2463EB" },
+      { label: "InsightScore analysis", value: 280, color: "#7C3AED" },
+      { label: "Report generation", value: 70, color: "#059669" },
+    ],
+  },
+  usage_history: [
+    { month: "May", fieldscore: 180, insightscore: 5, reports: 1 },
+    { month: "Jun", fieldscore: 290, insightscore: 8, reports: 2 },
+    { month: "Jul", fieldscore: 347, insightscore: 12, reports: 3 },
+  ],
+  invoices: [
+    { date: "2026-07-01", ref: "INV-2026-007", amount_ngn: 350000, amount_usd: 219, status: "paid" },
+    { date: "2026-06-01", ref: "INV-2026-006", amount_ngn: 350000, amount_usd: 219, status: "paid" },
+    { date: "2026-05-01", ref: "INV-2026-005", amount_ngn: 350000, amount_usd: 219, status: "paid" },
+  ],
+};
+
+const NGN_PER_USD = 1600;
+function money(ngn: number, currency: "NGN" | "USD") {
+  return currency === "NGN" ? `₦${ngn.toLocaleString()}` : `$${Math.round(ngn / NGN_PER_USD).toLocaleString()}`;
+}
+
+function DaysRing({ remaining, total }: { remaining: number; total: number }) {
+  const size = 120, stroke = 8, r = size / 2 - stroke;
+  const c = 2 * Math.PI * r;
+  const frac = Math.max(0, Math.min(1, remaining / total));
+  return (
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth={stroke} />
+      <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#60A5FA" strokeWidth={stroke}
+        strokeLinecap="round" strokeDasharray={c}
+        initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: c - frac * c }}
+        transition={{ duration: 1, ease: "easeOut" }} />
+    </svg>
+  );
+}
+
+function CreditGauge({ used, total }: { used: number; total: number }) {
+  const w = 220, h = 118, r = 92, cx = w / 2, cy = h - 8, stroke = 14;
+  const len = Math.PI * r;
+  const frac = Math.max(0, Math.min(1, used / total));
+  const path = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
+  return (
+    <svg width={w} height={h}>
+      <path d={path} fill="none" stroke="#EEF2F8" strokeWidth={stroke} strokeLinecap="round" />
+      <motion.path d={path} fill="none" stroke={BLUE} strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={len} initial={{ strokeDashoffset: len }} animate={{ strokeDashoffset: len - frac * len }}
+        transition={{ duration: 1.1, ease: "easeOut" }} />
+      <text x={cx} y={cy - 28} textAnchor="middle" style={{ fontSize: 26, fontWeight: 800, fill: "#080D1A", letterSpacing: -1 }}>{used.toLocaleString()}</text>
+      <text x={cx} y={cy - 10} textAnchor="middle" style={{ fontSize: 11, fill: "#9CA3AF" }}>of {total.toLocaleString()} used</text>
+    </svg>
+  );
+}
+
 function BillingSection() {
-  const plan = {name:"Professional",price:"$299/month",subs:500,users:10,storage:"10 GB"};
-  const usage = {subs:182,users:3,storage:"2.4 GB"};
+  const [currency, setCurrency] = useState<"NGN" | "USD">("NGN");
+  const [toast, setToast] = useState("");
+  const b = MOCK_BILLING;
+  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2500); };
+
+  const overallPct = Math.round((b.capacity.reduce((s, c) => s + c.used / c.total, 0) / b.capacity.length) * 100);
+  const adaMsg = b.status === "trial"
+    ? `You have ${b.days_remaining} days left on your trial. Your usage suggests the Professional plan would be a good fit.`
+    : overallPct > 70
+      ? "You're approaching your monthly limit on some metrics. Consider upgrading before your cycle resets."
+      : overallPct >= 30
+        ? "You've used about a third of your monthly capacity. You're on track for the month."
+        : "You're in great shape. At your current rate you'll have plenty of capacity when this cycle resets.";
+  const statusColor = b.status === "active" ? GREEN : b.status === "trial" ? AMBER : RED;
+  const statusLabel = b.status === "active" ? "Active" : b.status === "trial" ? "Trial" : "Expired";
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <SettingsCard style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div><div style={{ fontSize: 20, fontWeight: 800, color: "#111827", letterSpacing: -0.5 }}>{plan.name}</div><div style={{ fontSize: 13, color: "#9CA3AF" }}>{plan.price} · Renews 1 August 2025</div></div>
-          <div style={{ display: "flex", gap: 8 }}><button style={{ ...BTN_GHOST, fontSize: 12 }}>Change Plan</button><button style={{ ...BTN_PRIMARY, fontSize: 12 }}>Upgrade to Enterprise</button></div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-          {[{label:"Submissions",used:usage.subs,total:plan.subs,noBar:false},{label:"Team Members",used:usage.users,total:plan.users,noBar:false},{label:"Storage",used:usage.storage,total:plan.storage,noBar:true}].map(m => (
-            <div key={m.label} style={{ padding: "14px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8" }}>
-              <div style={{ ...LABEL, marginBottom: 6 }}>{m.label}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#111827", letterSpacing: -0.5 }}>{m.used}<span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>/{m.total}</span></div>
-              {!m.noBar && <div style={{ height: 3, background: "#E2E8F0", borderRadius: 2, marginTop: 8, overflow: "hidden" }}><div style={{ height: "100%", width: `${(Number(m.used) / Number(m.total)) * 100}%`, background: BLUE, borderRadius: 2 }} /></div>}
-            </div>
+      {toast && <div style={{ position: "fixed", top: 20, right: 20, background: "#1A1F3E", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 500, zIndex: 9999, boxShadow: "0 4px 20px rgba(0,0,0,.2)" }}>{toast}</div>}
+
+      {/* Currency toggle */}
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ display: "inline-flex", background: "#F1F5F9", borderRadius: 20, padding: 3 }}>
+          {(["NGN", "USD"] as const).map(cur => (
+            <button key={cur} onClick={() => setCurrency(cur)} style={{ padding: "5px 14px", borderRadius: 18, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "Inter,sans-serif", background: currency === cur ? "white" : "transparent", color: currency === cur ? "#080D1A" : "#9CA3AF", boxShadow: currency === cur ? "0 1px 4px rgba(0,0,0,.08)" : "none" }}>
+              {cur === "NGN" ? "₦ NGN" : "$ USD"}
+            </button>
           ))}
         </div>
-      </SettingsCard>
-      <SettingsCard style={{ padding: 24 }}>
-        <SettingsGroup label="Recent Invoices">
-          {[{date:"1 Jul 2025",amount:"$299.00",status:"paid"},{date:"1 Jun 2025",amount:"$299.00",status:"paid"},{date:"1 May 2025",amount:"$299.00",status:"paid"}].map(inv => (
-            <div key={inv.date} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "#F8FAFF", border: "1px solid #EEF2F8" }}>
-              <div style={{ fontSize: 18 }}>🧾</div>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{inv.amount}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{inv.date}</div></div>
-              <Badge label={inv.status} color={GREEN} />
-              <button style={{ ...BTN_GHOST, fontSize: 11, padding: "5px 10px", display: "flex", alignItems: "center", gap: 4 }}><Download size={11} /> PDF</button>
+      </div>
+
+      {/* SECTION 1 — Plan overview */}
+      <div style={{ background: "linear-gradient(135deg,#1A1F3E 0%,#0F172A 40%,#1E1B4B 100%)", borderRadius: 16, padding: "24px 28px", color: "white" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 240 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Current plan</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -1 }}>{b.plan}</div>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: `${statusColor}22`, color: statusColor }}>{statusLabel}</span>
             </div>
-          ))}
-        </SettingsGroup>
+            <div style={{ fontSize: 22, fontWeight: 800, marginTop: 10, letterSpacing: -0.5 }}>{money(b.monthly_price_ngn, currency)}<span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,255,255,.5)" }}>/month</span></div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>Billed monthly · Cancel anytime</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 2 }}>Next billing: {b.next_billing}</div>
+            {currency === "USD" && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.35)", marginTop: 6 }}>Converted at approx. ₦{NGN_PER_USD.toLocaleString()}/$1 · Rate may vary</div>}
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ position: "relative", width: 120, height: 120, margin: "0 auto" }}>
+              <DaysRing remaining={b.days_remaining} total={b.days_total} />
+              <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+                <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1 }}>{b.days_remaining}</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)", marginTop: 6 }}>days remaining in cycle</div>
+            <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.35)" }}>Resets {b.next_billing}</div>
+            <button onClick={() => showToast("Plan upgrade flow coming soon")} style={{ marginTop: 10, padding: "8px 16px", borderRadius: 8, background: BLUE, border: "none", color: "white", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" }}>Upgrade Plan →</button>
+          </div>
+        </div>
+        <div style={{ marginTop: 20, display: "flex", gap: 12, alignItems: "flex-start", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 12, padding: "12px 14px" }}>
+          <img src="/ada-avatar.jpg" alt="Ada" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", objectPosition: "50% 15%", flexShrink: 0 }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
+          <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.8)", lineHeight: 1.6 }}>{adaMsg}</div>
+        </div>
+      </div>
+
+      {/* SECTION 2 — Capacity summary bar */}
+      <div style={{ background: "#0F172A", borderRadius: 16, padding: "18px 20px", display: "grid", gridTemplateColumns: `repeat(${b.capacity.length},1fr)`, gap: 16 }}>
+        {b.capacity.map(c => {
+          const pct = Math.round((c.used / c.total) * 100);
+          return (
+            <div key={c.key} style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 16 }}>{c.icon}</div>
+              <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.55)", margin: "4px 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "white" }}>{c.used.toLocaleString()}<span style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,.4)" }}> / {c.total.toLocaleString()}</span></div>
+              <div style={{ height: 4, background: "rgba(255,255,255,.1)", borderRadius: 2, margin: "6px 0 4px", overflow: "hidden" }}>
+                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: "easeOut" }} style={{ height: "100%", background: c.color, borderRadius: 2 }} />
+              </div>
+              <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.5)", fontWeight: 600 }}>{pct}%</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Detailed capacity cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
+        {b.capacity.map((c, i) => {
+          const pct = Math.round((c.used / c.total) * 100);
+          const remaining = c.total - c.used;
+          const critical = pct > 95, warning = pct > 80 && !critical, unused = c.used === 0;
+          const borderColor = critical ? RED : warning ? AMBER : "#E8EDF5";
+          return (
+            <div key={c.key} style={{ ...CARD, padding: "18px 20px", borderLeft: `3px solid ${borderColor}` }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ fontSize: 28 }}>{c.icon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>{c.label}</div>
+                  <div style={{ fontSize: 11.5, color: "#9CA3AF", lineHeight: 1.5 }}>{c.description}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
+                <span style={{ fontSize: 26, fontWeight: 800, color: c.color, letterSpacing: -1 }}>{c.used.toLocaleString()}</span>
+                <span style={{ fontSize: 12, color: "#9CA3AF" }}>of {c.total.toLocaleString()} total</span>
+              </div>
+              <div style={{ height: 6, background: "#EEF2F8", borderRadius: 3, margin: "10px 0 6px", overflow: "hidden" }}>
+                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: "easeOut", delay: i * 0.1 }} style={{ height: "100%", background: c.color, borderRadius: 3 }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                <span style={{ color: critical ? RED : warning ? AMBER : "#9CA3AF", fontWeight: 600 }}>
+                  {unused ? "Not used yet this cycle" : critical ? "Contact us to upgrade" : warning ? "Approaching limit" : `${remaining.toLocaleString()} remaining`}
+                </span>
+                <span style={{ color: "#9CA3AF", fontWeight: 700 }}>{pct}%</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* SECTION 3 — Research Intelligence Credits */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ ...LABEL, marginBottom: 2 }}>Research Intelligence Credits</div>
+        <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 16 }}>Consumed across all AI-powered features — verification, analysis, report generation</div>
+        <div style={{ display: "flex", gap: 28, alignItems: "center", flexWrap: "wrap" }}>
+          <CreditGauge used={b.intelligence_credits.used} total={b.intelligence_credits.total} />
+          <div style={{ flex: 1, minWidth: 220 }}>
+            {b.intelligence_credits.breakdown.map(row => {
+              const pct = Math.round((row.value / b.intelligence_credits.used) * 100);
+              return (
+                <div key={row.label} style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#374151", marginBottom: 4 }}>
+                    <span>{row.label}</span><span style={{ fontWeight: 700 }}>{row.value} credits</span>
+                  </div>
+                  <div style={{ height: 6, background: "#EEF2F8", borderRadius: 3, overflow: "hidden" }}>
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: "easeOut" }} style={{ height: "100%", background: row.color, borderRadius: 3 }} />
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 8 }}>Credits replenish at the start of each Research Cycle</div>
+          </div>
+        </div>
       </SettingsCard>
+
+      {/* SECTION 4 — Usage history */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ ...LABEL, marginBottom: 16 }}>Usage Over Time</div>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={b.usage_history} barGap={4} barCategoryGap="24%">
+            <CartesianGrid vertical={false} stroke="#F1F5F9" />
+            <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 12, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+            <Tooltip cursor={{ fill: "#F8FAFF" }} contentStyle={{ borderRadius: 10, border: "1px solid #E8EDF5", fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="fieldscore" name="FieldScore" fill={BLUE} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="insightscore" name="InsightScore" fill={PURPLE} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="reports" name="Reports" fill={GREEN} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </SettingsCard>
+
+      {/* SECTION 5 — Invoice history */}
+      <SettingsCard style={{ padding: 24, overflowX: "auto" }}>
+        <div style={{ ...LABEL, marginBottom: 16 }}>Invoice History</div>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
+          <thead><tr>{["Date", "Invoice", "Amount", "Status", "Action"].map(h => <th key={h} style={{ ...LABEL, textAlign: "left", padding: "0 0 12px" }}>{h}</th>)}</tr></thead>
+          <tbody>
+            {b.invoices.map(inv => (
+              <tr key={inv.ref} style={{ borderBottom: "1px solid #F8FAFF" }}>
+                <td style={{ padding: "12px 0", fontSize: 12.5, color: "#374151" }}>{new Date(inv.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</td>
+                <td style={{ padding: "12px 0", fontSize: 12.5, color: "#374151", fontFamily: "monospace" }}>{inv.ref}</td>
+                <td style={{ padding: "12px 0", fontSize: 12.5, fontWeight: 700, color: "#080D1A" }}>{money(inv.amount_ngn, currency)}</td>
+                <td style={{ padding: "12px 0" }}><Badge label="✓ Paid" color={GREEN} /></td>
+                <td style={{ padding: "12px 0" }}><button onClick={() => showToast("Invoice download coming soon")} style={{ ...BTN_GHOST, fontSize: 11, padding: "5px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Download size={11} /> Download</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </SettingsCard>
+
+      {/* Upgrade card — only for Trial/Starter */}
+      {(b.status === "trial" || b.plan === "Starter") && (
+        <div style={{ ...CARD, padding: 24, borderLeft: `3px solid ${BLUE}` }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#080D1A", marginBottom: 4 }}>Ready for more research capacity?</div>
+          <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 16 }}>Upgrade to Professional for higher limits across every capability.</div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a href="mailto:bibilade@intelligencyai.com.ng" style={{ ...BTN_GHOST, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Talk to Sales</a>
+            <button onClick={() => showToast("Upgrade flow coming soon")} style={BTN_PRIMARY}>Start Upgrade</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
