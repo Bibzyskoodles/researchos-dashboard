@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
 import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
@@ -50,6 +51,7 @@ export default function SubmissionsPage(){
   const [selected,setSelected]=useState<Submission|null>(null);
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
+  const navigate=useNavigate();
   useAdaGreeting({ page: "submissions" });
   useAdaAttention({ x: 0.88, y: 0.35 }, { delay: 2000, returnAfterMs: 5000 });
 

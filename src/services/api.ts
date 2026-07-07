@@ -33,6 +33,7 @@ export const authApi = {
 
 export const dashboardApi = {
   getDashboard: () => api.get('/api/dashboard'),
+  getSubmission: (id: string) => api.get(`/api/submissions/${id}`),
   getSubmissions: (params?: { verdict?: string; limit?: number; offset?: number }) =>
     api.get('/api/submissions', { params }),
   getSubmission: (id: string) => api.get(`/api/submissions/${id}`),

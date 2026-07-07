@@ -5,6 +5,7 @@ import { AdaProvider } from './ada/AdaContext';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import OverviewPage from './pages/field-quality/OverviewPage';
+import SubmissionDetailPage from "./pages/field-quality/SubmissionDetailPage";
 import SubmissionsPage from './pages/field-quality/SubmissionsPage';
 import EnumeratorsPage from './pages/field-quality/EnumeratorsPage';
 import MapPage from './pages/field-quality/MapPage';
@@ -41,6 +42,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="/overview" replace />} />
         <Route path="overview" element={<OverviewPage />} />
         <Route path="submissions" element={<SubmissionsPage />} />
+          <Route path="submissions/:id" element={<SubmissionDetailPage />} />
         <Route path="enumerators" element={<EnumeratorsPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="insights" element={<InsightsPage />} />
