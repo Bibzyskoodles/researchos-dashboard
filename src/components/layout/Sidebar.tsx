@@ -38,17 +38,22 @@ export default function Sidebar() {
         padding: '18px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <div style={{
-          width: 32, height: 32, background: '#2463EB', borderRadius: 8,
-          display: 'grid', placeItems: 'center', fontSize: 12,
-          fontWeight: 800, color: 'white', flexShrink: 0,
-        }}>FS</div>
+        {/* LOGO_PLACEHOLDER — owner: drop /public/researchos-logo.png (square, ~32px). Falls back to a neutral tile until the file exists. */}
+        <img
+          src="/researchos-logo.png"
+          alt="ResearchOS"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
+          style={{
+            width: 32, height: 32, background: '#2463EB', borderRadius: 8,
+            objectFit: 'contain', flexShrink: 0,
+          }}
+        />
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: -0.3 }}>
-            FieldScore
+            ResearchOS
           </div>
           <div style={{ fontSize: 9, color: 'rgba(255,255,255,.28)', letterSpacing: 1, textTransform: 'uppercase' }}>
-            ResearchOS
+            by Intelligency AI
           </div>
         </div>
       </div>

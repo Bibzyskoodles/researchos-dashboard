@@ -28,10 +28,16 @@ export default function LoginPage() {
     <div style={{minHeight:"100vh",background:"#F0F4FF",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Inter,sans-serif"}}>
       <div style={{background:"white",borderRadius:16,padding:40,width:"100%",maxWidth:400,boxShadow:"0 4px 24px rgba(8,13,26,.10)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:32,justifyContent:"center"}}>
-          <div style={{width:36,height:36,background:"#2463EB",borderRadius:9,display:"grid",placeItems:"center",fontSize:15,fontWeight:800,color:"white"}}>FS</div>
+          {/* LOGO_PLACEHOLDER — owner: drop /public/researchos-logo.png (square, ~36px). Falls back to a neutral tile until the file exists. */}
+          <img
+            src="/researchos-logo.png"
+            alt="ResearchOS"
+            onError={(e)=>{ (e.currentTarget as HTMLImageElement).style.visibility="hidden"; }}
+            style={{width:36,height:36,background:"#2463EB",borderRadius:9,objectFit:"contain"}}
+          />
           <div>
-            <div style={{fontSize:18,fontWeight:700,color:"#080D1A"}}>FieldScore</div>
-            <div style={{fontSize:10,color:"#9CA3AF",letterSpacing:1,textTransform:"uppercase"}}>ResearchOS</div>
+            <div style={{fontSize:18,fontWeight:700,color:"#080D1A"}}>ResearchOS</div>
+            <div style={{fontSize:10,color:"#9CA3AF",letterSpacing:1,textTransform:"uppercase"}}>by Intelligency AI</div>
           </div>
         </div>
         <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",marginBottom:6}}>Welcome back</h1>
