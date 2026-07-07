@@ -104,10 +104,10 @@ export default function SubmissionDetailPage(){
     if(!s)return"";
     if(s.verdict==="PASS") return `This submission passed all quality checks. GPS verified${s.gps?.address?` in ${s.gps.address.split(",")[0]}`:""}, interview duration is appropriate, and all media checks passed.`;
     if(s.verdict==="FLAG"){
-      const flags=(s.flags||[]).map((f:string)=>FLAG_LABELS[f]?.label||f).slice(0,2).join("; ");
+      const flags=(Array.isArray(s.flags)?s.flags:String(s.flags||"").split(",").filter(Boolean)).map((f:string)=>FLAG_LABELS[f]?.label||f).slice(0,2).join("; ");
       return `I found some concerns with this submission. ${flags}. I recommend reviewing before approving for analysis.`;
     }
-    return `This submission failed quality verification. ${(s.flags||[]).map((f:string)=>FLAG_LABELS[f]?.label||f).slice(0,2).join("; ")}. I recommend rejecting this submission.`;
+    return `This submission failed quality verification. ${(Array.isArray(s.flags)?s.flags:String(s.flags||"").split(",").filter(Boolean)).map((f:string)=>FLAG_LABELS[f]?.label||f).slice(0,2).join("; ")}. I recommend rejecting this submission.`;
   };
 
   if(loading) return(
@@ -357,7 +357,7 @@ export default function SubmissionDetailPage(){
           {sub.flags&&sub.flags.length>0&&(
             <div style={{background:"white",borderRadius:16,padding:20,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:12}}>Flags</div>
-              {sub.flags.map((f:string)=>{
+              {(Array.isArray(sub.flags)?sub.flags:String(sub.flags||"").split(",").filter(Boolean)).map((f:string)=>{
                 const info=FLAG_LABELS[f]||{label:f,severity:"medium"};
                 const sc=info.severity==="high"?RED:info.severity==="medium"?AMBER:"#9CA3AF";
                 return(
