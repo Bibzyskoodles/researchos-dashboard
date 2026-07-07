@@ -12,6 +12,7 @@ import InsightsPage from './pages/insights/InsightsPage';
 import InsightProjectPage from './pages/insights/InsightProjectPage';
 import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
+import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -46,6 +47,7 @@ function AppRoutes() {
         <Route path="insights/:id" element={<InsightProjectPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>

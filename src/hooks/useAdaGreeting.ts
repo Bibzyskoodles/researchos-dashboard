@@ -12,6 +12,7 @@ const GREETINGS: Record<string, string> = {
   map: "I can see your submission coverage across Lagos. All GPS coordinates verified within Nigeria. No impossible travel detected.",
   insights: "I found 16 verified interviews ready for analysis. Based on what I can see, I expect themes around community perceptions and service access barriers. Shall I begin?",
   reports: "I have already prepared a draft executive summary from your 16 verified submissions. Want me to generate the full report?",
+  integrations: "Your KoboToolbox integration is healthy. 18 submissions received. Want to connect another platform or check your webhook URL?",
 };
 
 export function useAdaGreeting({ page, delay = 1200 }: UseAdaGreetingOptions) {
