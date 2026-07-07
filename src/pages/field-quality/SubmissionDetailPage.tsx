@@ -21,6 +21,15 @@ const FLAG_LABELS:Record<string,{label:string,severity:"high"|"medium"|"low"}> =
   IMAGE_QUALITY_ISSUE: {label:"Image Quality Issue — the submitted image did not pass quality checks",severity:"medium"},
   AUDIO_QUALITY_ISSUE: {label:"Audio Quality Issue — the audio recording did not pass quality checks",severity:"medium"},
   LOW_GPS_ACCURACY: {label:"Low GPS Accuracy — the location could not be precisely determined",severity:"low"},
+  GPS_POOR_ACCURACY: {label:"Low GPS Accuracy — the recorded location accuracy is below the required threshold",severity:"low"},
+  NO_GPS: {label:"No GPS Data — this submission has no location recorded",severity:"medium"},
+  GPS_PARSE_ERROR: {label:"GPS Unreadable — the location data could not be parsed",severity:"medium"},
+  OUTSIDE_ASSIGNED_ZONE: {label:"Outside Assigned Zone — the submission was captured outside the enumerator's assigned area",severity:"high"},
+  DURATION_NOT_CALCULABLE: {label:"Duration Unknown — start or end time is missing, so length can't be verified",severity:"medium"},
+  DURATION_PARSE_ERROR: {label:"Duration Unreadable — the interview timestamps could not be parsed",severity:"medium"},
+  DURATION_NEGATIVE: {label:"Invalid Timing — the end time is before the start time",severity:"high"},
+  IMAGE_AI_UNAVAILABLE: {label:"Image Check Unavailable — the AI image review could not be completed",severity:"low"},
+  AUDIO_AI_UNAVAILABLE: {label:"Audio Check Unavailable — the AI audio review could not be completed",severity:"low"},
   AUDIO_EMPTY: {label:"No Speech Detected — the audio recording contains no speech",severity:"high"},
 };
 
