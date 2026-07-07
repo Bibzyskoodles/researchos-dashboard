@@ -260,7 +260,7 @@ export default function OverviewPage() {
                 <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, fontFamily: "monospace", background: sub.verdict === "PASS" ? "#ECFDF5" : sub.verdict === "FLAG" ? "#FFFBEB" : "#FEF2F2", color: sub.verdict === "PASS" ? GREEN : sub.verdict === "FLAG" ? AMBER : RED }}>{sub.verdict}</span>
                   <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, fontFamily: "monospace", background: "#EFF6FF", color: BLUE }}>{sub.overall_score}/100</span>
-                  {sub.flags && sub.flags.split(",").filter(Boolean).slice(0,2).map(f => (
+                  {sub.flags && (Array.isArray(sub.flags)?sub.flags:sub.flags.split(",").filter(Boolean)).slice(0,2).map(f => (
                     <span key={f} style={{ fontSize: 9.5, fontWeight: 600, padding: "2px 7px", borderRadius: 5, background: "#F1F5F9", color: "#6B7280" }}>{f.trim().replace(/_/g," ")}</span>
                   ))}
                 </div>
@@ -326,7 +326,7 @@ export default function OverviewPage() {
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: "1px solid #FEF3C7", cursor: "pointer" }}>
                   <div style={{ width: 28, height: 28, borderRadius: 7, background: "#FEF3C7", display: "grid", placeItems: "center", fontSize: 13, flexShrink: 0 }}>🚩</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, color: "#92400E" }}>{(a.flags || "").split(",")[0]?.trim().replace(/_/g," ") || "Review needed"}</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: "#92400E" }}>{(Array.isArray(a.flags)?a.flags[0]:((a.flags||"").split(",")[0]||""))?.trim().replace(/_/g," ") || "Review needed"}</div>
                     <div style={{ fontSize: 10.5, color: "#B45309" }}>{a.enumerator_id} · Score: {a.overall_score}</div>
                   </div>
                   <ArrowRight size={12} color={AMBER} />

@@ -135,7 +135,7 @@ export default function SubmissionsPage(){
                 </div>
                 {sub.flags&&(
                   <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
-                    {sub.flags.split(",").filter(Boolean).map(f=>(
+                    {(Array.isArray(sub.flags)?sub.flags:sub.flags.split(",").filter(Boolean)).map(f=>(
                       <span key={f} style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:4,background:"#F1F5F9",color:"#6B7280"}}>{f.trim().replace(/_/g," ")}</span>
                     ))}
                   </div>
@@ -204,7 +204,7 @@ export default function SubmissionsPage(){
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Flags</div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {selected.flags.split(",").filter(Boolean).map(f=>(
+                      {(Array.isArray(selected.flags)?selected.flags:selected.flags.split(",").filter(Boolean)).map(f=>(
                         <span key={f} style={{fontSize:11,fontWeight:600,padding:"4px 10px",borderRadius:6,background:"#FEF2F2",color:RED,border:"1px solid #FECACA"}}>{f.trim().replace(/_/g," ")}</span>
                       ))}
                     </div>

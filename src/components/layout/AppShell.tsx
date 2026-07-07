@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import ErrorBoundary from "../ErrorBoundary";
 import AdaDock from "./AdaDock";
 import { useAda } from "../../ada/AdaContext";
 
@@ -27,7 +28,7 @@ export default function AppShell() {
             transition={{ duration: 0.18, ease: "easeInOut" }}
             style={{ flex: 1, overflowY: "auto", padding: "24px" }}
           >
-            <Outlet />
+            <ErrorBoundary><Outlet /></ErrorBoundary>
           </motion.main>
         </AnimatePresence>
       </div>

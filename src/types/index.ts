@@ -37,7 +37,7 @@ export interface Submission {
   overall_score: number;
   grade: Grade;
   verdict: Verdict;
-  flags: string;
+  flags: string | string[];
   supervisor_action: string;
   scored_at: string;
   gps: {
