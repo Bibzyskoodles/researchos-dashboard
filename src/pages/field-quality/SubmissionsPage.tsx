@@ -115,7 +115,7 @@ export default function SubmissionsPage(){
           ):filtered.map((sub,i)=>{
             const isFirstFlag = sub.verdict==="FLAG" && !filtered.slice(0,i).some(s=>s.verdict==="FLAG");
             return(
-            <motion.div key={sub.submission_id} onClick={()=>setSelected(selected?.submission_id===sub.submission_id?null:sub)}
+            <motion.div key={sub.submission_id} onClick={()=>navigate(`/submissions/${sub.submission_id}`)}
               whileHover={{background:"#FAFBFF"}}
               data-ada-target={isFirstFlag ? "flagged-row" : undefined}
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",borderBottom:i<filtered.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
