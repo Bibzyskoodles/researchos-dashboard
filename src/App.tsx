@@ -14,6 +14,7 @@ import InsightProjectPage from './pages/insights/InsightProjectPage';
 import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import IntegrationsPage from './pages/field-quality/IntegrationsPage';
+import PricingPage from './pages/PricingPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -34,6 +35,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route path="/" element={
         <ProtectedRoute>
           <AppShell />
