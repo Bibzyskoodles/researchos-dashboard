@@ -211,7 +211,7 @@ export default function SubmissionDetailPage(){
                 <CircleMarker center={[lat,lon]} radius={10} pathOptions={{color:"white",weight:2,fillColor:BLUE,fillOpacity:1}}/>
               </MapContainer>
             </div>
-            <div style={{padding:"14px 20px",display:"flex",gap:20",flexWrap:"wrap"}}>
+            <div style={{padding:"14px 20px",display:"flex",gap:20,flexWrap:"wrap"}}>
               <div><div style={{fontSize:10.5,color:"#9CA3AF",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Coordinates</div>
                 <div style={{fontSize:12.5,fontFamily:"monospace",color:"#374151"}}>{lat.toFixed(6)}, {lon.toFixed(6)}</div></div>
               {gps.address&&<div><div style={{fontSize:10.5,color:"#9CA3AF",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Address</div>
