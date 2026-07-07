@@ -36,7 +36,6 @@ export const dashboardApi = {
   getSubmission: (id: string) => api.get(`/api/submissions/${id}`),
   getSubmissions: (params?: { verdict?: string; limit?: number; offset?: number }) =>
     api.get('/api/submissions', { params }),
-  getSubmission: (id: string) => api.get(`/api/submissions/${id}`),
   getEnumerators: () => api.get('/api/enumerators'),
   getStats: () => api.get('/api/stats'),
 };
