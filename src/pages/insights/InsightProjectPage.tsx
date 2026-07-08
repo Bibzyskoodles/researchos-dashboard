@@ -34,9 +34,10 @@ function AdaBriefing({ message, action, actionLabel }: {
   );
 }
 
-function ThemeCard({ theme }: { theme: { title: string; summary: string; quote_count: number; quotes: string[]; sentiment: string } }) {
+function ThemeCard({ theme }: { theme: { title: string; summary: string; quote_count: number; quotes: (string | { text: string; respondent?: string; context?: string; relevance?: number })[]; sentiment: string } }) {
   const [expanded, setExpanded] = useState(false);
   const sentimentColor = theme.sentiment === "positive" ? GREEN : theme.sentiment === "negative" ? RED : AMBER;
+  const getQuoteText = (q: any) => typeof q === "string" ? q : q?.text || "";
   return (
     <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8EDF5", overflow: "hidden", marginBottom: 10 }}>
       <div onClick={() => setExpanded(e => !e)} style={{ padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -52,7 +53,7 @@ function ThemeCard({ theme }: { theme: { title: string; summary: string; quote_c
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden" }}>
             <div style={{ padding: "0 16px 14px 36px", display: "flex", flexDirection: "column", gap: 8 }}>
               {theme.quotes.slice(0, 3).map((q, i) => (
-                <div key={i} style={{ background: "#F8FAFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", fontSize: 12.5, color: "#374151", fontStyle: "italic", lineHeight: 1.5 }}>"{q}"</div>
+                <div key={i} style={{ background: "#F8FAFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", fontSize: 12.5, color: "#374151", fontStyle: "italic", lineHeight: 1.5 }}>"{getQuoteText(q)}"</div>
               ))}
             </div>
           </motion.div>
