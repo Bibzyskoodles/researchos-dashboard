@@ -156,9 +156,26 @@ export default function PricingPage() {
     return GOALS.some(g => goals[g.key] && g.metrics.includes(mk));
   };
 
-  const plan = useMemo(() => recommend(volumes), [volumes]);
+  // Only metrics relevant to the selected goals count toward the recommendation
+  // and pricing. Greyed-out (inactive) metrics contribute 0 — so picking
+  // "Design Research" and setting 2 questionnaires yields Starter regardless of
+  // where the other (inactive) sliders happen to sit. When no goal is selected,
+  // every metric is active and counts.
+  const effectiveVolumes = useMemo(() => {
+    const anyGoal = Object.values(goals).some(Boolean);
+    const ev = { ...volumes } as Volumes;
+    if (anyGoal) {
+      METRICS.forEach(m => {
+        const on = GOALS.some(g => goals[g.key] && g.metrics.includes(m.key));
+        if (!on) ev[m.key] = 0;
+      });
+    }
+    return ev;
+  }, [volumes, goals]);
+
+  const plan = useMemo(() => recommend(effectiveVolumes), [effectiveVolumes]);
   const p = PLANS[plan];
-  const riuEstimate = estimateRIU(volumes);
+  const riuEstimate = estimateRIU(effectiveVolumes);
   const riuPct = p.riu === Infinity ? 0 : Math.min(100, Math.round((riuEstimate / p.riu) * 100));
   const riuRemaining = p.riu === Infinity ? Infinity : Math.max(0, p.riu - riuEstimate);
 
@@ -271,10 +288,11 @@ export default function PricingPage() {
               <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Monthly Research Capacity</div>
               {METRICS.map(m => {
                 const cap = p.caps[m.key];
-                const fits = volumes[m.key] <= cap;
+                const on = activeMetric(m.key);
+                const fits = !on || volumes[m.key] <= cap;
                 return (
-                  <div key={m.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "4px 0" }}>
-                    <span style={{ color: "rgba(255,255,255,.7)" }}>{m.icon} {m.label.split(" ")[0]} {m.key === "questionnaires" ? "" : ""}</span>
+                  <div key={m.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "4px 0", opacity: on ? 1 : 0.4 }}>
+                    <span style={{ color: "rgba(255,255,255,.7)" }}>{m.icon} {m.label.split(" ")[0]}</span>
                     <span style={{ color: fits ? "rgba(255,255,255,.9)" : "#FCA5A5", fontWeight: 700 }}>
                       {cap === Infinity ? "Unlimited" : cap.toLocaleString()}{!fits && " ⚠"}
                     </span>
