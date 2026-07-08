@@ -3,19 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, HelpCircle, Search } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { dashboardApi } from '../../services/api';
-
-const BLUE = '#2463EB', RED = '#DC2626', AMBER = '#D97706', GREEN = '#059669';
+import { colors, spacing, typography, transitions, radius, shadows } from '../../designTokens';
 
 interface Sub {
   submission_id: string; enumerator_id: string; verdict: string;
   overall_score: number; project_id?: string;
 }
-
-const pill: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, background: '#F0F4FF', border: '1px solid #E2E8F0', borderRadius: 7, padding: '5px 10px', fontSize: 12.5, fontWeight: 600, color: '#080D1A', cursor: 'pointer' };
-const dropdown: React.CSSProperties = { position: 'absolute', top: 'calc(100% + 6px)', background: 'white', border: '1px solid #E8EDF5', borderRadius: 10, boxShadow: '0 8px 28px rgba(10,15,28,.12)', zIndex: 3000, overflow: 'hidden', maxHeight: 340, overflowY: 'auto' };
-const item: React.CSSProperties = { padding: '9px 12px', fontSize: 12.5, color: '#374151', cursor: 'pointer', borderBottom: '1px solid #F5F7FB', whiteSpace: 'nowrap' };
-const muted: React.CSSProperties = { padding: '12px', fontSize: 12, color: '#9CA3AF', textAlign: 'center' };
-const iconBtn: React.CSSProperties = { position: 'relative', width: 30, height: 30, borderRadius: 7, border: '1px solid #E2E8F0', background: 'transparent', display: 'grid', placeItems: 'center', cursor: 'pointer', color: '#6B7280' };
 
 export default function Topbar() {
   const { user } = useAuth();
@@ -31,13 +24,15 @@ export default function Topbar() {
   useEffect(() => {
     dashboardApi.getSubmissions({ limit: 200 })
       .then(r => setSubs(r.data?.submissions || []))
-      .catch(() => { /* topbar stays functional but empty */ });
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpenSearch(false); setOpenBell(false); setOpenProj(false);
+        setOpenSearch(false);
+        setOpenBell(false);
+        setOpenProj(false);
       }
     };
     document.addEventListener('mousedown', h);
@@ -56,80 +51,305 @@ export default function Topbar() {
   const alerts = useMemo(() => subs.filter(s => s.verdict === 'FLAG' || s.verdict === 'REJECT').slice(0, 8), [subs]);
   const projects = useMemo(() => Array.from(new Set(subs.map(s => s.project_id).filter(Boolean))) as string[], [subs]);
 
-  const go = (id: string) => { setOpenSearch(false); setQuery(''); nav(`/submissions/${id}`); };
+  const go = (id: string) => {
+    setOpenSearch(false);
+    setQuery('');
+    nav(`/submissions/${id}`);
+  };
+
+  const pillStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: spacing.md,
+    background: colors.primaryLighter,
+    border: `1px solid ${colors.primary}`,
+    borderRadius: radius.full,
+    padding: `${spacing.sm}px ${spacing.md}px`,
+    fontSize: 14,
+    fontWeight: 600,
+    color: colors.primary,
+    cursor: 'pointer',
+    transition: transitions.normal,
+  };
+
+  const dropdownStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: `calc(100% + ${spacing.md}px)`,
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    boxShadow: shadows.lg,
+    zIndex: 3000,
+    overflow: 'hidden',
+    maxHeight: 340,
+    overflowY: 'auto',
+  };
+
+  const itemStyle: React.CSSProperties = {
+    padding: `${spacing.md}px ${spacing.md}px`,
+    fontSize: 14,
+    color: colors.textSecondary,
+    cursor: 'pointer',
+    borderBottom: `1px solid ${colors.borderLight}`,
+    whiteSpace: 'nowrap',
+    transition: transitions.fast,
+  };
+
+  const mutedStyle: React.CSSProperties = {
+    padding: spacing.lg,
+    fontSize: 14,
+    color: colors.textQuaternary,
+    textAlign: 'center',
+  };
+
+  const iconBtnStyle: React.CSSProperties = {
+    position: 'relative',
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    border: `1px solid ${colors.border}`,
+    background: 'transparent',
+    display: 'grid',
+    placeItems: 'center',
+    cursor: 'pointer',
+    color: colors.textTertiary,
+    transition: transitions.fast,
+  };
 
   return (
-    <header ref={rootRef} style={{ height: 52, background: 'white', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, flexShrink: 0 }}>
+    <header ref={rootRef} style={{
+      height: 60,
+      background: colors.surface,
+      borderBottom: `1px solid ${colors.border}`,
+      display: 'flex',
+      alignItems: 'center',
+      padding: `0 ${spacing.lg}px`,
+      gap: spacing.lg,
+      flexShrink: 0,
+    }}>
       {/* Project switcher */}
       <div style={{ position: 'relative' }}>
-        <div onClick={() => { setOpenProj(o => !o); setOpenBell(false); setOpenSearch(false); }} style={pill}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: GREEN }} />
+        <div
+          onClick={() => {
+            setOpenProj(o => !o);
+            setOpenBell(false);
+            setOpenSearch(false);
+          }}
+          style={pillStyle}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLDivElement).style.boxShadow = shadows.sm;
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+          }}
+        >
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: colors.success }} />
           {project}
-          <span style={{ color: '#9CA3AF', fontSize: 10 }}>▾</span>
+          <span style={{ color: colors.textTertiary, fontSize: 11 }}>▾</span>
         </div>
         {openProj && (
-          <div style={{ ...dropdown, left: 0, minWidth: 200 }}>
+          <div style={{ ...dropdownStyle, left: 0, minWidth: 200 }}>
             {['All Projects', ...projects].map(p => (
-              <div key={p} onClick={() => { setProject(p); setOpenProj(false); nav('/submissions'); }}
-                style={{ ...item, fontWeight: p === project ? 700 : 400, color: p === project ? BLUE : '#374151' }}>
+              <div
+                key={p}
+                onClick={() => {
+                  setProject(p);
+                  setOpenProj(false);
+                  nav('/submissions');
+                }}
+                style={{
+                  ...itemStyle,
+                  fontWeight: p === project ? 700 : 400,
+                  color: p === project ? colors.primary : colors.textSecondary,
+                  background: p === project ? colors.primaryLighter : 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  if (p !== project) {
+                    (e.currentTarget as HTMLDivElement).style.background = colors.surfaceHover;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (p !== project) {
+                    (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+                  }
+                }}
+              >
                 {p}
               </div>
             ))}
-            {projects.length === 0 && <div style={muted}>No projects yet</div>}
+            {projects.length === 0 && <div style={mutedStyle}>No projects yet</div>}
           </div>
         )}
       </div>
 
       {/* Search */}
-      <div style={{ position: 'relative', flex: 1, maxWidth: 340 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F0F4FF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px 12px' }}>
-          <Search size={13} color="#9CA3AF" />
+      <div style={{ position: 'relative', flex: 1, maxWidth: 400 }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: spacing.md,
+          background: colors.primaryLighter,
+          border: `1px solid ${colors.primary}`,
+          borderRadius: radius.md,
+          padding: `${spacing.md}px ${spacing.md}px`,
+          transition: transitions.normal,
+        }}>
+          <Search size={16} color={colors.textTertiary} />
           <input
             value={query}
-            onChange={e => { setQuery(e.target.value); setOpenSearch(true); }}
+            onChange={e => {
+              setQuery(e.target.value);
+              setOpenSearch(true);
+            }}
             onFocus={() => setOpenSearch(true)}
-            onKeyDown={e => { if (e.key === 'Enter' && results[0]) go(results[0].submission_id); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && results[0]) go(results[0].submission_id);
+            }}
             placeholder="Search submissions or enumerators…"
-            style={{ border: 'none', background: 'transparent', fontSize: 12.5, fontFamily: 'Inter, sans-serif', color: '#080D1A', outline: 'none', flex: 1 }}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              fontSize: 14,
+              fontFamily: typography.fontFamily,
+              color: colors.textPrimary,
+              outline: 'none',
+              flex: 1,
+            }}
           />
         </div>
         {openSearch && query.trim() && (
-          <div style={{ ...dropdown, left: 0, width: '100%' }}>
-            {results.length ? results.map(s => (
-              <div key={s.submission_id} onClick={() => go(s.submission_id)} style={item}>
-                <span style={{ fontWeight: 600, color: '#080D1A' }}>{s.submission_id.slice(0, 20)}</span>
-                <span style={{ color: '#9CA3AF' }}> · {s.enumerator_id} · {s.verdict}</span>
-              </div>
-            )) : <div style={muted}>No matches</div>}
+          <div style={{ ...dropdownStyle, left: 0, right: 0, width: 'auto' }}>
+            {results.length
+              ? results.map(s => (
+                  <div
+                    key={s.submission_id}
+                    onClick={() => go(s.submission_id)}
+                    style={itemStyle}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.background = colors.surfaceHover;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: colors.textPrimary }}>
+                      {s.submission_id.slice(0, 20)}
+                    </span>
+                    <span style={{ color: colors.textTertiary }}>
+                      {' '}· {s.enumerator_id} · {s.verdict}
+                    </span>
+                  </div>
+                ))
+              : <div style={mutedStyle}>No matches</div>}
           </div>
         )}
       </div>
 
       {/* Right */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, marginLeft: 'auto' }}>
         <div style={{ position: 'relative' }}>
-          <button onClick={() => { setOpenBell(o => !o); setOpenProj(false); setOpenSearch(false); }} style={iconBtn}>
-            <Bell size={13} />
+          <button
+            onClick={() => {
+              setOpenBell(o => !o);
+              setOpenProj(false);
+              setOpenSearch(false);
+            }}
+            style={iconBtnStyle}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = colors.surfaceHover;
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            }}
+          >
+            <Bell size={18} />
             {alerts.length > 0 && (
-              <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, padding: '0 3px', borderRadius: 8, background: RED, color: 'white', fontSize: 9, fontWeight: 700, display: 'grid', placeItems: 'center' }}>
+              <span style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                minWidth: 20,
+                height: 20,
+                padding: `0 ${spacing.xs}px`,
+                borderRadius: radius.full,
+                background: colors.error,
+                color: colors.white,
+                fontSize: 11,
+                fontWeight: 700,
+                display: 'grid',
+                placeItems: 'center',
+              }}>
                 {alerts.length}
               </span>
             )}
           </button>
           {openBell && (
-            <div style={{ ...dropdown, right: 0, width: 300 }}>
-              <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.6, borderBottom: '1px solid #F1F5F9' }}>Alerts</div>
-              {alerts.length ? alerts.map(s => (
-                <div key={s.submission_id} onClick={() => { setOpenBell(false); nav(`/submissions/${s.submission_id}`); }} style={item}>
-                  <span style={{ fontWeight: 700, color: s.verdict === 'REJECT' ? RED : AMBER }}>{s.verdict}</span>
-                  <span style={{ color: '#6B7280' }}> · {s.enumerator_id} · {s.overall_score}/100</span>
-                </div>
-              )) : <div style={muted}>No alerts — all clear</div>}
+            <div style={{ ...dropdownStyle, right: 0, width: 320 }}>
+              <div style={{
+                padding: `${spacing.md}px ${spacing.lg}px`,
+                fontSize: 11,
+                fontWeight: 700,
+                color: colors.textQuaternary,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                borderBottom: `1px solid ${colors.border}`,
+              }}>
+                Alerts
+              </div>
+              {alerts.length
+                ? alerts.map(s => (
+                    <div
+                      key={s.submission_id}
+                      onClick={() => {
+                        setOpenBell(false);
+                        nav(`/submissions/${s.submission_id}`);
+                      }}
+                      style={itemStyle}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLDivElement).style.background = colors.surfaceHover;
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+                      }}
+                    >
+                      <span style={{
+                        fontWeight: 700,
+                        color: s.verdict === 'REJECT' ? colors.error : colors.warning,
+                      }}>
+                        {s.verdict}
+                      </span>
+                      <span style={{ color: colors.textTertiary }}>
+                        {' '}· {s.enumerator_id} · {s.overall_score}/100
+                      </span>
+                    </div>
+                  ))
+                : <div style={mutedStyle}>No alerts — all clear</div>}
             </div>
           )}
         </div>
-        <button style={iconBtn}><HelpCircle size={13} /></button>
-        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#2463EB,#7C3AED)', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700, color: 'white', cursor: 'pointer' }}>
+        <button
+          style={iconBtnStyle}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = colors.surfaceHover;
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+          }}
+        >
+          <HelpCircle size={18} />
+        </button>
+        <div style={{
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          background: `linear-gradient(135deg, ${colors.primary}, ${colors.primaryLight})`,
+          display: 'grid',
+          placeItems: 'center',
+          fontSize: 14,
+          fontWeight: 700,
+          color: colors.white,
+          cursor: 'pointer',
+        }}>
           {user?.name?.charAt(0) || 'U'}
         </div>
       </div>
