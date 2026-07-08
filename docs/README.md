@@ -21,6 +21,7 @@ deliberately.
 | 09 | [DESIGN_SYSTEM](09_DESIGN_SYSTEM.md) | Tokens, components, UX principles. | Design / Eng |
 | 10 | [CHANGELOG](10_CHANGELOG.md) | Every release, forever. | Everyone |
 | 11 | [DECISIONS](11_DECISIONS.md) | Every major architectural decision and **why**. | Engineering |
+| 13 | [IMPLEMENTATION_AUDIT](13_IMPLEMENTATION_AUDIT.md) | As-built engineering review — exactly what the code does today, `file:line` grounded. | Engineering |
 
 ## Status legend (used throughout)
 - ✅ **Live** — in production on `main`.
