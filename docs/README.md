@@ -22,6 +22,7 @@ deliberately.
 | 10 | [CHANGELOG](10_CHANGELOG.md) | Every release, forever. | Everyone |
 | 11 | [DECISIONS](11_DECISIONS.md) | Every major architectural decision and **why**. | Engineering |
 | 13 | [IMPLEMENTATION_AUDIT](13_IMPLEMENTATION_AUDIT.md) | As-built engineering review — exactly what the code does today, `file:line` grounded. | Engineering |
+| 14 | [PHASE_2_BRIEF](14_PHASE_2_BRIEF.md) | The Phase 2 implementation brief — Engineering Mandate + 3-phase plan (Trust → Domain Model & Brand → Platform Experience). | Engineering / Product |
 
 ## Status legend (used throughout)
 - ✅ **Live** — in production on `main`.
