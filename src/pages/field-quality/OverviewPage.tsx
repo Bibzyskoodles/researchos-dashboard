@@ -318,7 +318,7 @@ export default function OverviewPage() {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: "#080D1A" }}>{e.enumerator_id}</div>
-                    <div style={{ fontSize: 10.5, color: "#9CA3AF" }}>{e.total_subs} interviews</div>
+                    <div style={{ fontSize: 10.5, color: "#9CA3AF" }}>{e.total_subs} {vocab.respondents}</div>
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "monospace", color: clr(e.avg_score) }}>{e.avg_score}</div>
                   <div style={{ fontSize: 12, color: e.trend === "up" ? GREEN : e.trend === "down" ? RED : "#9CA3AF" }}>
