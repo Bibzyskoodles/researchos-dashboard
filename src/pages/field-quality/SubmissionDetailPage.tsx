@@ -5,6 +5,8 @@ import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { dashboardApi } from "../../services/api";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { ScoreRing } from "../../components/ui/ScoreRing";
+import { EngineBar } from "../../components/ui/EngineBar";
 import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield } from "lucide-react";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED",CYAN="#06B6D4";
@@ -35,58 +37,7 @@ const FLAG_LABELS:Record<string,{label:string,severity:"high"|"medium"|"low"}> =
   AUDIO_EMPTY: {label:"No Speech Detected — the audio recording contains no speech",severity:"high"},
 };
 
-function ScoreRing({score,size=80}:{score:number,size:number}){
-  const r=size/2-6; const c=2*Math.PI*r;
-  const pct=score/100; const color=clr(score);
-  return(
-    <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#EEF2F8" strokeWidth={6}/>
-      <motion.circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
-        strokeDasharray={c} initial={{strokeDashoffset:c}}
-        animate={{strokeDashoffset:c-(pct*c)}} transition={{duration:1,ease:"easeOut"}}
-        strokeLinecap="round"/>
-      <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="middle"
-        style={{transform:`rotate(90deg) translate(0,0)`,transformOrigin:`${size/2}px ${size/2}px`,
-          fontSize:size>100?28:18,fontWeight:800,fill:color,fontFamily:"Inter,sans-serif"}}>
-        {score}
-      </text>
-    </svg>
-  );
-}
-
-function EngineBar({label,score,status,finding,weight,color,icon}:any){
-  const notMeasured=!status||status==="NOT_AVAILABLE"||status==="SKIPPED"||status==="not_available";
-  return(
-    <motion.div initial={{opacity:0,x:20}} animate={{opacity:1,x:0}}
-      style={{padding:"12px 0",borderBottom:"1px solid #F1F5F9"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:28,height:28,borderRadius:7,background:color+"15",display:"grid",placeItems:"center"}}>
-            {icon}
-          </div>
-          <div>
-            <div style={{fontSize:12.5,fontWeight:600,color:"#374151"}}>{label}</div>
-            <div style={{fontSize:10.5,color:"#9CA3AF"}}>{weight}% of total score</div>
-          </div>
-        </div>
-        {notMeasured?(
-          <span style={{fontSize:11,color:"#9CA3AF",background:"#F1F5F9",padding:"3px 10px",borderRadius:20,fontWeight:500}}>
-            Not measured
-          </span>
-        ):(
-          <span style={{fontSize:14,fontWeight:800,color:clr(score),fontFamily:"monospace"}}>{score}/100</span>
-        )}
-      </div>
-      {!notMeasured&&(
-        <div style={{height:4,background:"#EEF2F8",borderRadius:2,overflow:"hidden",marginBottom:6}}>
-          <motion.div style={{height:"100%",background:color,borderRadius:2}}
-            initial={{width:0}} animate={{width:`${score}%`}} transition={{duration:0.8,ease:"easeOut"}}/>
-        </div>
-      )}
-      {finding&&<div style={{fontSize:11.5,color:"#6B7280",lineHeight:1.5}}>{finding}</div>}
-    </motion.div>
-  );
-}
+// ScoreRing and EngineBar now live in src/components/ui (shared).
 
 export default function SubmissionDetailPage(){
   const {id}=useParams();
