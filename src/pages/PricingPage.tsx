@@ -88,12 +88,17 @@ const HOURS_SAVED_PER: Record<MetricKey, number> = {
   presentations: 3,     // building one board-ready deck ≈ 3 hr
   questionnaires: 2,    // designing/reviewing one questionnaire ≈ 2 hr
 };
-const ANALYST_RATE_NGN_PER_HOUR = 15000; // blended research-analyst cost benchmark
+
+// Blended research-analyst cost per hour, benchmarked per market so the USD
+// (international) view isn't just the naira figure converted down.
+// NGN: Nigeria avg research-analyst salary ≈ ₦256k/mo (~₦1.6k/hr) loaded ≈ ₦2.5k/hr.
+// USD: mid-level research analyst ≈ $35/hr (US avg ~$42-48/hr, kept conservative).
+const ANALYST_RATE: Record<"NGN" | "USD", number> = { NGN: 2500, USD: 35 };
 
 function computeImpact(ev: Volumes) {
   const hours = METRICS.reduce((s, m) => s + ev[m.key] * HOURS_SAVED_PER[m.key], 0);
   const records = METRICS.reduce((s, m) => s + ev[m.key], 0);
-  return { hours, records, valueNgn: hours * ANALYST_RATE_NGN_PER_HOUR };
+  return { hours, records };
 }
 
 function joinPhrase(items: string[]): string {
@@ -289,6 +294,8 @@ export default function PricingPage() {
   const adaSays = useMemo(() => buildAdaAdvice(goals, effectiveVolumes, activeKeys, plan, p), [goals, effectiveVolumes, activeKeys, plan, p]);
   // Impact stats derived from the user's own volumes — they move with the sliders.
   const impact = useMemo(() => computeImpact(effectiveVolumes), [effectiveVolumes]);
+  const impactValue = Math.round(impact.hours * ANALYST_RATE[currency]);
+  const impactValueStr = currency === "NGN" ? `₦${impactValue.toLocaleString()}` : `$${impactValue.toLocaleString()}`;
   // What Ada shows: while thinking → a working note; after an AI reply → that
   // reply (adaMsg); otherwise the instant rule-based advice (adaSays).
   const adaDisplay = adaThinking ? "Let me work that out…" : (adaMsg || adaSays);
@@ -500,7 +507,7 @@ export default function PricingPage() {
           <div style={{ background: "white", borderRadius: 16, border: "1px solid #E8EDF5", padding: "28px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 20 }}>
             {[
               { n: `~${Math.round(impact.hours).toLocaleString()}`, d: "Analyst hours saved each month", c: BLUE },
-              { n: money(impact.valueNgn, currency), d: "Estimated value created each month", c: GREEN },
+              { n: impactValueStr, d: "Estimated value created each month", c: GREEN },
               { n: `~${Math.round(impact.records).toLocaleString()}`, d: "Records verified & analysed each month", c: PURPLE },
             ].map(s => (
               <div key={s.d} style={{ textAlign: "center" }}>
