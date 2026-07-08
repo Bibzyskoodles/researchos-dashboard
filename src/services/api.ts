@@ -18,7 +18,8 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('fs_token');
-      window.location.href = '/login';
+      const currentPath = window.location.pathname;
+      window.location.href = `/login?expired=true&returnTo=${encodeURIComponent(currentPath)}`;
     }
     return Promise.reject(err);
   }
@@ -75,10 +76,27 @@ export const insightScoreApi = {
   createProject: (data: object) => insightApi.post('/projects', data),
   getProject: (id: string) => insightApi.get(`/projects/${id}`),
   analyseProject: (id: string) => insightApi.post(`/projects/${id}/analyse`),
+  getStatus: (id: string) => insightApi.get(`/projects/${id}/status`),
   getReport: (id: string) => insightApi.get(`/projects/${id}/report`),
   downloadReport: (id: string, format: 'docx' | 'pptx' | 'xlsx') =>
     insightApi.get(`/projects/${id}/report`, { params: { format }, responseType: 'blob' }),
   getSubmissions: (id: string) => insightApi.get(`/projects/${id}/submissions`),
+  waitForAnalysis: async (id: string, timeout = 300000) => {
+    const startTime = Date.now();
+    const pollInterval = 2000;
+    while (Date.now() - startTime < timeout) {
+      try {
+        const status = await insightScoreApi.getStatus(id);
+        if (status.data.complete) return status.data;
+        if (status.data.failed) throw new Error(status.data.error || 'Analysis failed');
+      } catch (err: any) {
+        if (err.response?.status === 404) throw err;
+        if (Date.now() - startTime >= timeout) throw new Error('Analysis timeout');
+      }
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    throw new Error('Analysis timeout');
+  },
 };
 
 export default api;
