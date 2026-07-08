@@ -23,7 +23,7 @@ export default function Sidebar() {
     }}>
       {/* Logo */}
       <div style={{
-        padding: `${spacing.md}px ${spacing.lg}px`,
+        padding: `${spacing.sm}px ${spacing.lg}px`,
         borderBottom: `1px solid ${colors.border}`,
         display: 'flex',
         flexDirection: 'column',
@@ -35,7 +35,7 @@ export default function Sidebar() {
           alt="ResearchOS"
           style={{
             width: '100%',
-            maxWidth: 120,
+            maxWidth: 100,
             height: 'auto',
             objectFit: 'contain',
             display: 'block',
