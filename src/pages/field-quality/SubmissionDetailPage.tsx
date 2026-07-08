@@ -28,6 +28,7 @@ const FLAG_LABELS:Record<string,{label:string,severity:"high"|"medium"|"low"}> =
   DURATION_NOT_CALCULABLE: {label:"Duration Unknown — start or end time is missing, so length can't be verified",severity:"medium"},
   DURATION_PARSE_ERROR: {label:"Duration Unreadable — the interview timestamps could not be parsed",severity:"medium"},
   DURATION_NEGATIVE: {label:"Invalid Timing — the end time is before the start time",severity:"high"},
+  BACK_TO_BACK: {label:"Impossible Back-to-Back — this interview's time overlaps another by the same enumerator",severity:"high"},
   IMAGE_AI_UNAVAILABLE: {label:"Image Check Unavailable — the AI image review could not be completed",severity:"low"},
   AUDIO_AI_UNAVAILABLE: {label:"Audio Check Unavailable — the AI audio review could not be completed",severity:"low"},
   AUDIO_EMPTY: {label:"No Speech Detected — the audio recording contains no speech",severity:"high"},
