@@ -8,6 +8,47 @@ interface GuideTarget {
   height: number;
 }
 
+// Commands Ada can issue to adjust the UI when the user asks. She can filter,
+// highlight, navigate and switch project — never delete or submit.
+export type AdaCommand =
+  | { type: 'FILTER_SUBMISSIONS'; verdict: 'PASS' | 'FLAG' | 'REJECT' | 'ALL' }
+  | { type: 'HIGHLIGHT_ENUMERATOR'; id: string }
+  | { type: 'NAVIGATE_TO'; path: string }
+  | { type: 'SWITCH_PROJECT'; id: string };
+
+// Map a natural-language message to a command intent, or null if none.
+export function parseAdaCommand(text: string): AdaCommand | null {
+  const t = (text || '').toLowerCase();
+
+  // Enumerator highlight — e.g. "show me ENID0010's submissions"
+  const enumMatch = text.match(/\b(ENID\d{3,})\b/i);
+  if (enumMatch && /(show|highlight|find|filter|only)/.test(t)) {
+    return { type: 'HIGHLIGHT_ENUMERATOR', id: enumMatch[1].toUpperCase() };
+  }
+
+  // Verdict filter
+  if (/(all submissions|clear (the )?filter|reset|show everything)/.test(t)) {
+    return { type: 'FILTER_SUBMISSIONS', verdict: 'ALL' };
+  }
+  if (/(flag|flagged)/.test(t)) return { type: 'FILTER_SUBMISSIONS', verdict: 'FLAG' };
+  if (/(reject|rejected|failed)/.test(t)) return { type: 'FILTER_SUBMISSIONS', verdict: 'REJECT' };
+  if (/(passed|passing|approved|clean)/.test(t)) return { type: 'FILTER_SUBMISSIONS', verdict: 'PASS' };
+
+  // Navigation intents
+  if (/(go to|open|take me to|show me the|navigate to)/.test(t)) {
+    const pages: Record<string, string> = {
+      overview: '/overview', dashboard: '/overview', submission: '/submissions',
+      enumerator: '/enumerators', map: '/map', coverage: '/map', insight: '/insights',
+      analysis: '/insights', report: '/reports', questionnaire: '/questionnaire',
+      setting: '/settings', integration: '/integrations',
+    };
+    for (const key of Object.keys(pages)) {
+      if (t.includes(key)) return { type: 'NAVIGATE_TO', path: pages[key] };
+    }
+  }
+  return null;
+}
+
 interface AdaStore {
   state: AdaState;
   previousState: AdaState | null;
@@ -20,6 +61,7 @@ interface AdaStore {
   isOpen: boolean;
   memoryLoaded: boolean;
   guideTarget: GuideTarget | null;
+  command: (AdaCommand & { seq: number }) | null;
 }
 
 type AdaAction =
@@ -35,7 +77,8 @@ type AdaAction =
   | { type: 'SET_OPEN'; open: boolean }
   | { type: 'CLEAR_MESSAGES' }
   | { type: 'SET_MEMORY_LOADED' }
-  | { type: 'SET_GUIDE_TARGET'; target: GuideTarget | null };
+  | { type: 'SET_GUIDE_TARGET'; target: GuideTarget | null }
+  | { type: 'SET_COMMAND'; command: AdaCommand };
 
 const initialState: AdaStore = {
   state: 'idle',
@@ -49,6 +92,7 @@ const initialState: AdaStore = {
   isOpen: false,
   memoryLoaded: false,
   guideTarget: null,
+  command: null,
 };
 
 function adaReducer(store: AdaStore, action: AdaAction): AdaStore {
@@ -79,6 +123,8 @@ function adaReducer(store: AdaStore, action: AdaAction): AdaStore {
       return { ...store, memoryLoaded: true };
     case 'SET_GUIDE_TARGET':
       return { ...store, guideTarget: action.target };
+    case 'SET_COMMAND':
+      return { ...store, command: { ...action.command, seq: (store.command?.seq ?? 0) + 1 } };
     default:
       return store;
   }
@@ -99,6 +145,7 @@ interface AdaContextValue {
   computeExitEdge: () => { edge: string; position: number };
   markMemoryLoaded: () => void;
   guideToElement: (selector: string, returnAfterMs?: number) => void;
+  dispatchCommand: (command: AdaCommand) => void;
 }
 
 const AdaCtx = createContext<AdaContextValue | null>(null);
@@ -162,6 +209,10 @@ export function AdaProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_MEMORY_LOADED' });
   }, []);
 
+  const dispatchCommand = useCallback((command: AdaCommand) => {
+    dispatch({ type: 'SET_COMMAND', command });
+  }, []);
+
   const guideToElement = useCallback((selector: string, returnAfterMs = 3000) => {
     const el = document.querySelector(`[data-ada-target="${selector}"]`);
     if (!el) return;
@@ -179,6 +230,7 @@ export function AdaProvider({ children }: { children: React.ReactNode }) {
       store, setState, addMessage, setMessages, setTyping,
       setPosition, navigatePage, startExit, clearExit,
       toggleOpen, setOpen, computeExitEdge, markMemoryLoaded, guideToElement,
+      dispatchCommand,
     }}>
       {children}
     </AdaCtx.Provider>

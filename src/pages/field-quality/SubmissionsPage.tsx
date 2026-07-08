@@ -55,7 +55,15 @@ export default function SubmissionsPage(){
   useAdaGreeting({ page: "submissions" });
   useAdaAttention({ x: 0.88, y: 0.35 }, { delay: 2000, returnAfterMs: 5000 });
 
-  const { guideToElement } = useAdaContext();
+  const { guideToElement, store } = useAdaContext();
+
+  // React to Ada commands ("show only flagged", "highlight ENID0010")
+  useEffect(() => {
+    const c = store.command;
+    if (!c) return;
+    if (c.type === "FILTER_SUBMISSIONS") setFilter(c.verdict);
+    else if (c.type === "HIGHLIGHT_ENUMERATOR") { setSearch(c.id); setFilter("ALL"); }
+  }, [store.command]);
 
   useEffect(()=>{
     let cancelled = false;

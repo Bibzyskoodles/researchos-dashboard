@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAda } from "../../ada/AdaContext";
+import { useAda, parseAdaCommand } from "../../ada/AdaContext";
 import { adaApi } from "../../services/api";
 import { X, Send } from "lucide-react";
 
@@ -33,7 +33,7 @@ function edgeTarget(edge: string, along: number): { x: string; y: string } {
 }
 
 export default function AdaDock() {
-  const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage } = useAda();
+  const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage, dispatchCommand } = useAda();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
@@ -100,6 +100,15 @@ export default function AdaDock() {
     setSending(true);
     setState("thinking");
     addMessage({ id: Date.now().toString(), role: "user", content: msg, timestamp: new Date().toISOString() });
+    // Ada can adjust the UI when asked — filter, highlight, navigate (never delete)
+    const cmd = parseAdaCommand(msg);
+    if (cmd) {
+      dispatchCommand(cmd);
+      if (cmd.type === "NAVIGATE_TO") {
+        navigatePage(cmd.path.replace("/", ""));
+        setTimeout(() => navigate(cmd.path), 350);
+      }
+    }
     try {
       const res = await adaApi.chat(msg, store.currentPage, {});
       const reply: string = res.data.reply;
