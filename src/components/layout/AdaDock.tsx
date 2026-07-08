@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAda, parseAdaCommand } from "../../ada/AdaContext";
 import { adaApi } from "../../services/api";
-import { X, Send } from "lucide-react";
+import { X, Send, Mic } from "lucide-react";
 
 function nearestEdge(x: number, y: number): { edge: string; along: number } {
   const d = { left: x, right: 1 - x, top: y, bottom: 1 - y };
@@ -36,6 +36,8 @@ export default function AdaDock() {
   const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage, dispatchCommand } = useAda();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const [transitioning, setTransitioning] = useState(false);
   const [visible, setVisible] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
@@ -93,9 +95,9 @@ export default function AdaDock() {
     }
   }, [navigate]);
 
-  const send = async () => {
-    if (!input.trim() || sending) return;
-    const msg = input.trim();
+  const send = async (override?: string) => {
+    const msg = (override ?? input).trim();
+    if (!msg || sending) return;
     setInput("");
     setSending(true);
     setState("thinking");
@@ -122,6 +124,26 @@ export default function AdaDock() {
       setSending(false);
       setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     }
+  };
+
+  // Voice input — browser speech recognition → transcript → send to Ada
+  const startVoice = () => {
+    const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (!SR) { setInput("Voice input isn't supported in this browser"); return; }
+    if (listening) { recognitionRef.current?.stop?.(); return; }
+    const rec = new SR();
+    rec.lang = "en-NG";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onstart = () => { setListening(true); setState("listening"); setOpen(true); };
+    rec.onresult = (e: any) => {
+      const transcript = e.results?.[0]?.[0]?.transcript || "";
+      if (transcript) { setInput(transcript); setTimeout(() => send(transcript), 150); }
+    };
+    rec.onerror = () => { setListening(false); setState("idle"); };
+    rec.onend = () => { setListening(false); };
+    recognitionRef.current = rec;
+    try { rec.start(); } catch { setListening(false); }
   };
 
   const { x, y } = store.position;
@@ -244,11 +266,18 @@ export default function AdaDock() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && send()}
-                placeholder="Ask Ada anything..."
-                style={{ flex: 1, border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, fontFamily: "Inter,sans-serif", outline: "none" }}
+                placeholder={listening ? "Listening…" : "Ask Ada anything..."}
+                style={{ flex: 1, border: `1.5px solid ${listening ? "#2463EB" : "#E2E8F0"}`, borderRadius: 8, padding: "8px 12px", fontSize: 12.5, fontFamily: "Inter,sans-serif", outline: "none" }}
               />
               <button
-                onClick={send}
+                onClick={startVoice}
+                title={listening ? "Stop listening" : "Speak to Ada"}
+                style={{ width: 36, height: 36, borderRadius: 8, background: listening ? "#DC2626" : "#F0F4FF", border: "1px solid #E2E8F0", cursor: "pointer", display: "grid", placeItems: "center" }}
+              >
+                <Mic size={14} color={listening ? "white" : "#2463EB"} />
+              </button>
+              <button
+                onClick={() => send()}
                 disabled={sending || !input.trim()}
                 style={{ width: 36, height: 36, borderRadius: 8, background: "#2463EB", border: "none", cursor: "pointer", display: "grid", placeItems: "center", opacity: sending || !input.trim() ? 0.5 : 1 }}
               >
