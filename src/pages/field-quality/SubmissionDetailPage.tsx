@@ -109,6 +109,21 @@ export default function SubmissionDetailPage(){
     setTimeout(()=>setToast(""),2500);
   };
 
+  const [acting,setActing]=useState("");
+  const act=async(action:"approve"|"reject"|"flag",label:string,status:string)=>{
+    if(!id)return;
+    setActing(action);
+    try{
+      await dashboardApi.actionSubmission(id,action);
+      setSub((s:any)=>s?{...s,review_status:status}:s);
+      showToast(label);
+    }catch{
+      showToast("Action failed — please try again");
+    }finally{
+      setActing("");
+    }
+  };
+
   const adaBriefing=(s:any)=>{
     if(!s)return"";
     if(s.verdict==="PASS") return `This submission passed all quality checks. GPS verified${s.gps?.address?` in ${s.gps.address.split(",")[0]}`:""}, interview duration is appropriate, and all media checks passed.`;
@@ -382,18 +397,25 @@ export default function SubmissionDetailPage(){
           {/* Actions */}
           <div style={{background:"white",borderRadius:16,padding:20,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
             <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:12}}>Actions</div>
+            {sub.review_status&&(
+              <div style={{fontSize:12,fontWeight:600,marginBottom:10,padding:"8px 12px",borderRadius:8,textAlign:"center",
+                background:(sub.review_status==="APPROVED"?GREEN:sub.review_status==="REJECTED"?RED:AMBER)+"15",
+                color:sub.review_status==="APPROVED"?GREEN:sub.review_status==="REJECTED"?RED:AMBER}}>
+                {sub.review_status==="APPROVED"?"✓ Approved":sub.review_status==="REJECTED"?"Rejected":"Flagged for review"}
+              </div>
+            )}
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              <button onClick={()=>showToast("Marked as approved ✓")}
-                style={{padding:"10px",borderRadius:9,background:GREEN,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"white",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                <CheckCircle size={14}/> Approve
+              <button disabled={acting!==""} onClick={()=>act("approve","Marked as approved ✓","APPROVED")}
+                style={{padding:"10px",borderRadius:9,background:GREEN,border:"none",cursor:acting?"wait":"pointer",fontSize:13,fontWeight:600,color:"white",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:6,opacity:acting&&acting!=="approve"?0.6:1}}>
+                <CheckCircle size={14}/> {acting==="approve"?"Approving…":"Approve"}
               </button>
-              <button onClick={()=>showToast("Marked as rejected")}
-                style={{padding:"10px",borderRadius:9,background:RED,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"white",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                <XCircle size={14}/> Reject
+              <button disabled={acting!==""} onClick={()=>act("reject","Marked as rejected","REJECTED")}
+                style={{padding:"10px",borderRadius:9,background:RED,border:"none",cursor:acting?"wait":"pointer",fontSize:13,fontWeight:600,color:"white",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:6,opacity:acting&&acting!=="reject"?0.6:1}}>
+                <XCircle size={14}/> {acting==="reject"?"Rejecting…":"Reject"}
               </button>
-              <button onClick={()=>showToast("Flagged for supervisor review")}
-                style={{padding:"10px",borderRadius:9,background:AMBER,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"white",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                <AlertTriangle size={14}/> Flag for review
+              <button disabled={acting!==""} onClick={()=>act("flag","Flagged for supervisor review","FLAGGED_FOR_REVIEW")}
+                style={{padding:"10px",borderRadius:9,background:AMBER,border:"none",cursor:acting?"wait":"pointer",fontSize:13,fontWeight:600,color:"white",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:6,opacity:acting&&acting!=="flag"?0.6:1}}>
+                <AlertTriangle size={14}/> {acting==="flag"?"Flagging…":"Flag for review"}
               </button>
             </div>
           </div>
