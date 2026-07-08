@@ -123,3 +123,58 @@ select:focus-visible {
     opacity: 1;
   }
 }
+
+/* Form Validation States */
+input:invalid:not(:placeholder-shown) {
+  border-color: #DC2626;
+}
+
+input:valid:not(:placeholder-shown) {
+  border-color: #059669;
+}
+
+input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input:read-only {
+  background: #F9FAFB;
+  cursor: default;
+}
+
+/* Better placeholder styling */
+::placeholder {
+  color: #9CA3AF;
+  opacity: 1;
+}
+
+::-webkit-input-placeholder {
+  color: #9CA3AF;
+  opacity: 1;
+}
+
+::-moz-placeholder {
+  color: #9CA3AF;
+  opacity: 1;
+}
+
+:-ms-input-placeholder {
+  color: #9CA3AF;
+  opacity: 1;
+}
+
+/* Better link styling */
+a {
+  color: #003DA5;
+  text-decoration: none;
+  transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+a:hover {
+  opacity: 0.8;
+}
+
+a:active {
+  opacity: 0.6;
+}
