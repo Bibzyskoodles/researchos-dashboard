@@ -75,6 +75,27 @@ function estimateRIU(v: Volumes): number {
   return Math.round(v.fieldscore * 1 + v.interviews * 10 + v.reports * 20 + v.presentations * 15 + v.questionnaires * 5);
 }
 
+// ── Impact benchmarks ───────────────────────────────────────────────────────
+// Hours of MANUAL effort a task typically takes, so we can estimate time (and
+// therefore money) saved by automating it. These are transparent industry
+// estimates — NOT customer-reported figures, and NOT things we can measure
+// before we have real usage (e.g. fraud caught, ROI) which is why those are
+// deliberately excluded.
+const HOURS_SAVED_PER: Record<MetricKey, number> = {
+  fieldscore: 0.1,      // manual quality-check of one survey ≈ 6 min
+  interviews: 2,        // transcribing + coding one qualitative interview ≈ 2 hr
+  reports: 8,           // drafting one executive report ≈ 1 working day
+  presentations: 3,     // building one board-ready deck ≈ 3 hr
+  questionnaires: 2,    // designing/reviewing one questionnaire ≈ 2 hr
+};
+const ANALYST_RATE_NGN_PER_HOUR = 15000; // blended research-analyst cost benchmark
+
+function computeImpact(ev: Volumes) {
+  const hours = METRICS.reduce((s, m) => s + ev[m.key] * HOURS_SAVED_PER[m.key], 0);
+  const records = METRICS.reduce((s, m) => s + ev[m.key], 0);
+  return { hours, records, valueNgn: hours * ANALYST_RATE_NGN_PER_HOUR };
+}
+
 function joinPhrase(items: string[]): string {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
@@ -266,6 +287,8 @@ export default function PricingPage() {
     return s;
   }, [goals]);
   const adaSays = useMemo(() => buildAdaAdvice(goals, effectiveVolumes, activeKeys, plan, p), [goals, effectiveVolumes, activeKeys, plan, p]);
+  // Impact stats derived from the user's own volumes — they move with the sliders.
+  const impact = useMemo(() => computeImpact(effectiveVolumes), [effectiveVolumes]);
   // What Ada shows: while thinking → a working note; after an AI reply → that
   // reply (adaMsg); otherwise the instant rule-based advice (adaSays).
   const adaDisplay = adaThinking ? "Let me work that out…" : (adaMsg || adaSays);
@@ -471,35 +494,32 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* IMPACT STATS */}
-        <div style={{ marginTop: 48, background: "white", borderRadius: 16, border: "1px solid #E8EDF5", padding: "28px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 20 }}>
-          {[
-            { n: "320+", d: "Analyst hours saved every month", c: BLUE },
-            { n: "38+", d: "Poor quality interviews detected & prevented", c: RED },
-            { n: "3x", d: "Faster report turnaround time", c: GREEN },
-            { n: "95%", d: "Faster insights with AI", c: PURPLE },
-            { n: "4.6x", d: "Average ROI reported by customers", c: AMBER },
-          ].map(s => (
-            <div key={s.d} style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 34, fontWeight: 800, color: s.c, letterSpacing: -1.5 }}>{s.n}</div>
-              <div style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.5, marginTop: 4 }}>{s.d}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* TRUST */}
-        <div style={{ marginTop: 40, textAlign: "center" }}>
-          <div style={{ ...LABEL, marginBottom: 16 }}>Trusted by leading research organizations</div>
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 24, alignItems: "center" }}>
-            {[["PPFN", 800], ["UNICEF", 700], ["WHO", 800], ["Ipsos", 600], ["Nielsen", 700], ["Kantar", 800], ["Mercy Corps", 600], ["PwC", 700]].map(([name, w]) => (
-              <span key={name as string} style={{ fontSize: 20, fontWeight: w as number, color: "#CBD5E1", letterSpacing: -0.5 }}>{name}</span>
+        {/* IMPACT STATS — derived from the user's own volumes, move with the sliders */}
+        <div style={{ marginTop: 48 }}>
+          <div style={{ ...LABEL, textAlign: "center", marginBottom: 14 }}>Your estimated monthly impact</div>
+          <div style={{ background: "white", borderRadius: 16, border: "1px solid #E8EDF5", padding: "28px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 20 }}>
+            {[
+              { n: `~${Math.round(impact.hours).toLocaleString()}`, d: "Analyst hours saved each month", c: BLUE },
+              { n: money(impact.valueNgn, currency), d: "Estimated value created each month", c: GREEN },
+              { n: `~${Math.round(impact.records).toLocaleString()}`, d: "Records verified & analysed each month", c: PURPLE },
+            ].map(s => (
+              <div key={s.d} style={{ textAlign: "center" }}>
+                <AnimatePresence mode="wait">
+                  <motion.div key={s.n} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+                    style={{ fontSize: 32, fontWeight: 800, color: s.c, letterSpacing: -1.5 }}>{s.n}</motion.div>
+                </AnimatePresence>
+                <div style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.5, marginTop: 4 }}>{s.d}</div>
+              </div>
             ))}
+          </div>
+          <div style={{ fontSize: 11, color: "#9CA3AF", textAlign: "center", marginTop: 10, lineHeight: 1.5 }}>
+            Estimated from typical manual effort at benchmark analyst rates — adjust the sliders above and these update live.
           </div>
         </div>
 
         {/* FOOTER */}
         <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid #E8EDF5", textAlign: "center", fontSize: 12, color: "#9CA3AF" }}>
-          Enterprise-grade security · SOC 2 Type II Compliant · Your data is always yours
+          Enterprise-grade security · Your data is always yours
         </div>
       </div>
     </div>
