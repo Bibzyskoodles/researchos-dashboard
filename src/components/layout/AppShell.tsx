@@ -6,6 +6,7 @@ import Topbar from "./Topbar";
 import ErrorBoundary from "../ErrorBoundary";
 import AdaDock from "./AdaDock";
 import { useAda } from "../../ada/AdaContext";
+import { colors, spacing, transitions } from "../../designTokens";
 
 export default function AppShell() {
   const location = useLocation();
@@ -13,11 +14,19 @@ export default function AppShell() {
 
   return (
     <div style={{
-      display: "flex", height: "100vh", overflow: "hidden",
-      background: "#F0F4FF", fontFamily: "Inter, sans-serif",
+      display: "flex",
+      height: "100vh",
+      overflow: "hidden",
+      background: colors.bg,
+      fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     }}>
       <Sidebar />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}>
         <Topbar />
         <AnimatePresence mode="wait">
           <motion.main
@@ -25,10 +34,19 @@ export default function AppShell() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.18, ease: "easeInOut" }}
-            style={{ flex: 1, overflowY: "auto", padding: "24px" }}
+            transition={{
+              duration: 0.2,
+              ease: "easeInOut",
+            }}
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: spacing.xl,
+            }}
           >
-            <ErrorBoundary><Outlet /></ErrorBoundary>
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </motion.main>
         </AnimatePresence>
       </div>
