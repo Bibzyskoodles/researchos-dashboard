@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { adaApi } from "../services/api";
 
 // ── Public marketing page — no auth, no dashboard shell ──────────────────────
 const BLUE = "#2463EB", GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", PURPLE = "#7C3AED", CYAN = "#06B6D4";
@@ -168,8 +169,11 @@ export default function PricingPage() {
     const v = {} as Volumes; METRICS.forEach(m => { v[m.key] = m.def; }); return v;
   });
   const [adaMsg, setAdaMsg] = useState("");
+  const [adaInput, setAdaInput] = useState("");
+  const [adaThinking, setAdaThinking] = useState(false);
 
   const toggleGoal = (key: string) => {
+    setAdaMsg(""); // manual change → revert to live rule-based advice
     setGoals(prev => {
       if (key === "everything") {
         const on = !prev.everything;
@@ -184,7 +188,44 @@ export default function PricingPage() {
     });
   };
 
-  const setVol = (k: MetricKey, n: number) => setVolumes(v => ({ ...v, [k]: n }));
+  const setVol = (k: MetricKey, n: number) => { setAdaMsg(""); setVolumes(v => ({ ...v, [k]: n })); };
+
+  // Apply a set of goal keys (as returned by Ada) to the goals record.
+  const applyGoals = (arr: string[]) => {
+    const set = new Set(arr);
+    const base = GOALS.filter(g => g.key !== "everything");
+    const next: Record<string, boolean> = {};
+    if (set.has("everything")) {
+      GOALS.forEach(g => { next[g.key] = true; });
+    } else {
+      base.forEach(g => { next[g.key] = set.has(g.key); });
+      next.everything = base.every(g => next[g.key]);
+    }
+    setGoals(next);
+  };
+
+  // Ada (real AI) reads a plain-English description and moves the sliders herself.
+  const askAda = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = adaInput.trim();
+    if (!q || adaThinking) return;
+    setAdaThinking(true);
+    setAdaMsg("");
+    try {
+      const activeGoals = GOALS.map(g => g.key).filter(k => goals[k]);
+      const { data } = await adaApi.pricing(q, volumes, activeGoals);
+      if (Array.isArray(data.goals)) applyGoals(data.goals);
+      if (data.volumes && Object.keys(data.volumes).length) {
+        setVolumes(v => ({ ...v, ...data.volumes }));
+      }
+      setAdaMsg(data.message || "");
+      setAdaInput("");
+    } catch (err) {
+      setAdaMsg("Sorry — I couldn't reach my AI service just now. You can set the sliders yourself, or try again in a moment.");
+    } finally {
+      setAdaThinking(false);
+    }
+  };
 
   const activeMetric = (mk: string) => {
     const anyGoal = Object.values(goals).some(Boolean);
@@ -225,6 +266,9 @@ export default function PricingPage() {
     return s;
   }, [goals]);
   const adaSays = useMemo(() => buildAdaAdvice(goals, effectiveVolumes, activeKeys, plan, p), [goals, effectiveVolumes, activeKeys, plan, p]);
+  // What Ada shows: while thinking → a working note; after an AI reply → that
+  // reply (adaMsg); otherwise the instant rule-based advice (adaSays).
+  const adaDisplay = adaThinking ? "Let me work that out…" : (adaMsg || adaSays);
 
   const letAdaEstimate = () => {
     const g = goals;
@@ -273,9 +317,9 @@ export default function PricingPage() {
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 700 }}>Hi! I'm Ada, your research consultant.</div>
               <AnimatePresence mode="wait">
-                <motion.div key={adaSays} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+                <motion.div key={adaDisplay} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
                   style={{ fontSize: 12.5, color: "rgba(255,255,255,.7)", lineHeight: 1.5, marginTop: 4 }}>
-                  {adaSays}
+                  {adaDisplay}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -311,15 +355,35 @@ export default function PricingPage() {
             {METRICS.map(m => (
               <Slider key={m.key} m={m} value={volumes[m.key]} onChange={(n) => setVol(m.key, n)} active={activeMetric(m.key)} />
             ))}
-            <div style={{ marginTop: 12, background: DARK, borderRadius: 12, padding: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <img src="/ada-avatar.jpg" alt="Ada" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", objectPosition: "50% 15%", flexShrink: 0 }} />
-              <div style={{ flex: "1 1 180px", color: "white" }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>Not sure about the numbers?</div>
-                <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.7)" }}>Ada can estimate based on your team size and projects.</div>
+            <div style={{ marginTop: 12, background: DARK, borderRadius: 12, padding: 16 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+                <img src="/ada-avatar.jpg" alt="Ada" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", objectPosition: "50% 15%", flexShrink: 0 }} />
+                <div style={{ flex: "1 1 180px", color: "white" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>Tell Ada about your research</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.7)" }}>Describe it in plain English — she'll set the sliders for you.</div>
+                </div>
               </div>
-              <button onClick={letAdaEstimate} style={{ padding: "9px 16px", borderRadius: 9, background: BLUE, border: "none", color: "white", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "Inter,sans-serif" }}>Let Ada Estimate →</button>
+              <form onSubmit={askAda} style={{ display: "flex", gap: 8 }}>
+                <input
+                  value={adaInput}
+                  onChange={(e) => setAdaInput(e.target.value)}
+                  disabled={adaThinking}
+                  placeholder="e.g. 3 national surveys a quarter, ~2,000 interviews each, plus monthly board decks"
+                  style={{ flex: 1, minWidth: 0, border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.06)", color: "white", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, fontFamily: "Inter,sans-serif", outline: "none" }}
+                />
+                <button type="submit" disabled={adaThinking || !adaInput.trim()}
+                  style={{ padding: "10px 16px", borderRadius: 9, background: adaThinking || !adaInput.trim() ? "rgba(255,255,255,.15)" : BLUE, border: "none", color: "white", fontSize: 12.5, fontWeight: 700, cursor: adaThinking || !adaInput.trim() ? "default" : "pointer", fontFamily: "Inter,sans-serif", whiteSpace: "nowrap" }}>
+                  {adaThinking ? "Thinking…" : "Ask Ada →"}
+                </button>
+              </form>
+              <button onClick={letAdaEstimate} type="button" disabled={adaThinking}
+                style={{ marginTop: 8, background: "none", border: "none", color: "rgba(255,255,255,.55)", fontSize: 11.5, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "Inter,sans-serif" }}>
+                Or let Ada estimate for me →
+              </button>
             </div>
-            {adaMsg && <div style={{ marginTop: 10, fontSize: 12, color: "#374151", background: "#F0F4FF", border: "1px solid #DBE4FF", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5 }}>{adaMsg}</div>}
+            {adaMsg && <div style={{ marginTop: 10, fontSize: 12.5, color: "#374151", background: "#F0F4FF", border: "1px solid #DBE4FF", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5, display: "flex", gap: 8 }}>
+              <span style={{ fontWeight: 800, color: BLUE }}>Ada:</span><span>{adaMsg}</span>
+            </div>}
           </div>
 
           {/* RIGHT — plan summary (sticky) */}
@@ -332,9 +396,9 @@ export default function PricingPage() {
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: "#93C5FD", textTransform: "uppercase", letterSpacing: 0.6 }}>Ada · Research Consultant</div>
                   <AnimatePresence mode="wait">
-                    <motion.div key={adaSays} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+                    <motion.div key={adaDisplay} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
                       style={{ fontSize: 12, color: "rgba(255,255,255,.82)", lineHeight: 1.5, marginTop: 4 }}>
-                      {adaSays}
+                      {adaDisplay}
                     </motion.div>
                   </AnimatePresence>
                 </div>

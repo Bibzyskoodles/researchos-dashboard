@@ -50,6 +50,8 @@ export const dashboardApi = {
 export const adaApi = {
   chat: (message: string, page: string, context: object) =>
     api.post('/ada/chat', { message, page, ...context }),
+  pricing: (message: string, volumes: object, goals: string[]) =>
+    api.post('/ada/pricing', { message, volumes, goals }),
   brief: (name: string, stats: object) =>
     api.post('/ada/brief', { name, stats }),
   getState: () => api.get('/ada/state'),
