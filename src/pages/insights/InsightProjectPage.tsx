@@ -135,7 +135,27 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
   const [analyseState, setAnalyseState] = useState<AnalyseState>("idle");
   const [loading, setLoading] = useState(true);
   const [guidedQ, setGuidedQ] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const { setState: setAdaState } = useAda();
+
+  const downloadReport = useCallback(async (format: "docx" | "pptx" | "xlsx") => {
+    setDownloading(format);
+    try {
+      const res = await insightScoreApi.downloadReport(projectId, format);
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ResearchOS_Report_${projectId}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // swallow — a toast system isn't wired on this page yet
+    } finally {
+      setDownloading(null);
+    }
+  }, [projectId]);
 
   const GUIDED_QUESTIONS = [
     "What surprised respondents most?",
@@ -198,6 +218,15 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
   return (
     <div>
       <AdaBriefing message="I have finished reviewing all interviews. Here is what I found — structured for an executive audience." />
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, margin: "4px 0 20px" }}>
+        {([["docx", "Download Word"], ["pptx", "Download PowerPoint"], ["xlsx", "Download Excel"]] as const).map(([fmt, label]) => (
+          <button key={fmt} onClick={() => downloadReport(fmt)} disabled={downloading !== null}
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 9, background: "white", border: "1px solid #E2E8F0", color: "#374151", fontSize: 12.5, fontWeight: 600, cursor: downloading ? "wait" : "pointer", fontFamily: "Inter,sans-serif", opacity: downloading && downloading !== fmt ? 0.5 : 1 }}>
+            <Download size={13} /> {downloading === fmt ? "Preparing…" : label}
+          </button>
+        ))}
+      </div>
 
       <Section title="Executive Summary">
         <div style={{ background: "linear-gradient(135deg,#EFF6FF,#F8FAFF)", border: "1px solid #DBEAFE", borderRadius: 12, padding: "18px 20px", fontSize: 13.5, color: "#1E3A8A", lineHeight: 1.7 }}>

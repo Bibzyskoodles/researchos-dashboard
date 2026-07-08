@@ -67,6 +67,8 @@ export const insightScoreApi = {
   getProject: (id: string) => insightApi.get(`/projects/${id}`),
   analyseProject: (id: string) => insightApi.post(`/projects/${id}/analyse`),
   getReport: (id: string) => insightApi.get(`/projects/${id}/report`),
+  downloadReport: (id: string, format: 'docx' | 'pptx' | 'xlsx') =>
+    insightApi.get(`/projects/${id}/report`, { params: { format }, responseType: 'blob' }),
   getSubmissions: (id: string) => insightApi.get(`/projects/${id}/submissions`),
 };
 
