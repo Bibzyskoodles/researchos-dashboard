@@ -7,6 +7,7 @@ import { useAuth } from "../../store/AuthContext";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { useIndustry } from "../../store/IndustryContext";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -99,6 +100,7 @@ export default function OverviewPage() {
   const { user } = useAuth();
   const { setState, setOpen, guideToElement } = useAda();
   const { vocab } = useIndustry();
+  const isMobile = useIsMobile();
   useAdaAttention({ x: 0.72, y: 0.22 }, { delay: 2500, returnAfterMs: 5000 });
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
@@ -156,7 +158,7 @@ export default function OverviewPage() {
         <div style={{ position: "absolute", top: -60, right: 200, width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle,rgba(37,99,235,.25),transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", bottom: -40, left: 100, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,58,237,.15),transparent 70%)", pointerEvents: "none" }} />
 
-        <div style={{ display: "flex", alignItems: "stretch", position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", alignItems: "stretch", position: "relative", zIndex: 1, flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: isMobile ? "center" : "flex-start" }}>
           {/* Ada — large and prominent */}
           <div style={{ width: 180, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "20px 10px 0", position: "relative" }}>
             <div style={{ position: "relative", width: 140, height: 140, flexShrink: 0 }}>
@@ -228,7 +230,7 @@ export default function OverviewPage() {
       </motion.div>
 
       {/* KPI Cards with sparklines */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 14 }}>
         <KpiCard label="Total Submissions" value={s.total_submissions} sub="Lagos Retail Audit" trend={s.score_trend} color="#080D1A" sparkData={chartScores} />
         <KpiCard label="Avg Trust Score" value={`${s.avg_score}`} sub={s.avg_score >= 80 ? "Excellent quality" : "Good quality"} color={GREEN} sparkData={chartScores} />
         <KpiCard label="Pass Rate" value={`${s.pass_rate}%`} sub={`${s.pass_count} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />
@@ -236,7 +238,7 @@ export default function OverviewPage() {
       </div>
 
       {/* Main content */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 16 }}>
 
         {/* Submission feed */}
         <div style={{ background: "white", borderRadius: 16, overflow: "hidden", border: "1px solid #E8EDF5", boxShadow: "0 2px 12px rgba(10,15,28,.06)" }}>

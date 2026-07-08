@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -51,6 +52,7 @@ export default function SubmissionsPage(){
   const [selected,setSelected]=useState<Submission|null>(null);
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
+  const isMobile=useIsMobile();
   const navigate=useNavigate();
   useAdaGreeting({ page: "submissions" });
   useAdaAttention({ x: 0.88, y: 0.35 }, { delay: 2000, returnAfterMs: 5000 });
@@ -122,7 +124,7 @@ export default function SubmissionsPage(){
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:selected?"1fr 380px":"1fr",gap:16,alignItems:"start"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":(selected?"1fr 380px":"1fr"),gap:16,alignItems:"start"}}>
         <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
           {loading?(
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading submissions...</div>
