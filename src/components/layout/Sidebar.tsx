@@ -4,7 +4,7 @@ import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { usePlatform } from '../../platform/PlatformProvider';
 import { LogOut } from 'lucide-react';
-import { colors, spacing, typography, transitions, radius } from '../../designTokens';
+import { colors, spacing, transitions, radius } from '../../designTokens';
 
 export default function Sidebar() {
   const { user, org, logout } = useAuth();

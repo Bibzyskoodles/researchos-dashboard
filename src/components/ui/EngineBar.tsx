@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { scoreColor } from "../../styles/tokens";
-import { colors, spacing, typography, transitions, radius } from "../../designTokens";
+import { colors, spacing, radius } from "../../designTokens";
 
 export function EngineBar({ label, score, status, finding, weight, color, icon }: any) {
   const notMeasured = !status || status === "NOT_AVAILABLE" || status === "SKIPPED" || status === "not_available";

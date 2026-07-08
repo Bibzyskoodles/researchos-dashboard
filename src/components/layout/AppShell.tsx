@@ -6,7 +6,7 @@ import Topbar from "./Topbar";
 import ErrorBoundary from "../ErrorBoundary";
 import AdaDock from "./AdaDock";
 import { useAda } from "../../ada/AdaContext";
-import { colors, spacing, transitions } from "../../designTokens";
+import { colors, spacing } from "../../designTokens";
 
 export default function AppShell() {
   const location = useLocation();

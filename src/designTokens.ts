@@ -137,6 +137,9 @@ export const colors = {
   // Disabled
   disabled: "#9CA3AF",
   disabledBg: "#F3F4F6",
+
+  // Dialog/Overlay
+  dialogBackdrop: "rgba(17, 24, 39, 0.5)",
 } as const;
 
 // ─── SHADOWS / ELEVATION ─────────────────────────────────────────────────
