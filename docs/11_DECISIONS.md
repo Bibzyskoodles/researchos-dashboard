@@ -84,6 +84,23 @@ Proposed, not built.
 now by removing real hardcoding and enabling adaptivity we already need; layers
 that don't clear that bar wait.
 
+### ADR-011 — Resolve real license/role from auth; gate plans safely ✅
+**Decision.** `PlatformProvider` feeds the resolver **real** context: the signed-in
+user's `role` and the organisation's `plan`. Licensing is derived from `plan` via
+`capabilitiesForPlan()` against each capability's `requiredLicense`. Two
+backward-compatibility rules: (1) a missing/unknown plan and `trial` get **full
+access**, so no existing session or trial loses features; (2) only the named
+lower tiers are actually gated — in practice just `starter`, which correctly
+does not include InsightScore or the Questionnaire builder per 07_PRICING.
+Role-based *navigation* gating is deferred (`permissions: undefined`) so
+managers/viewers keep today's nav; the real role is still plumbed for dashboard
+cards and future gating.
+**Why.** This makes the resolver reflect reality (the point of the platform spine)
+while honouring the "don't break existing functionality" guardrail. Enforcement
+of the risky axes (tenant isolation, role-hidden nav) stays deliberately off
+until there is a coordinated, data-verified switch — consistent with ADR-008
+(seed only proven) and ADR-010 (don't over-engineer before revenue).
+
 ---
 
 *New decisions append here. When a decision changes, mark the old one 🔁

@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, FileText, Users, Map, Sparkles, ClipboardList, BookOpen, Puzzle, Settings,
 } from "lucide-react";
-import { Capability, NavSectionRef } from "./types";
+import { Capability, CapabilityId, LicenseTier, NavSectionRef } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // The Platform (Capability) Registry — seeded from the PROVEN, working routes
@@ -57,3 +57,17 @@ export const CAPABILITIES: Capability[] = [
 ];
 
 export const ALL_CAPABILITY_IDS = CAPABILITIES.map(c => c.id);
+
+// Which capabilities a plan licenses (ADR-011). Gating is by requiredLicense.
+// Backward-compatibility safety: a missing/unknown plan and `trial` get FULL
+// access, so existing sessions and trials never lose features. `enterprise`
+// gets everything. Only the named lower tiers (`starter`, `professional`) are
+// actually gated — which matches what those plans are sold (07_PRICING).
+const TIER_RANK: Record<LicenseTier, number> = { starter: 0, professional: 1, enterprise: 2 };
+
+export function capabilitiesForPlan(plan?: string | null): CapabilityId[] {
+  if (!plan || plan === "trial" || plan === "enterprise") return ALL_CAPABILITY_IDS;
+  const rank = TIER_RANK[plan as LicenseTier];
+  if (rank === undefined) return ALL_CAPABILITY_IDS; // unknown → don't hide anything
+  return CAPABILITIES.filter(c => TIER_RANK[c.requiredLicense] <= rank).map(c => c.id);
+}
