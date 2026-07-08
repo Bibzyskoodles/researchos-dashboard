@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAda, parseAdaCommand } from "../../ada/AdaContext";
+import { useAda, parseAdaCommand, AdaCommand } from "../../ada/AdaContext";
 import { adaApi } from "../../services/api";
 import { X, Send, Mic } from "lucide-react";
 
@@ -78,22 +78,16 @@ export default function AdaDock() {
     }
   }, [store.messages, store.isOpen]);
 
-  const detectAndNavigate = useCallback((reply: string) => {
-    const nav: [RegExp, string][] = [
-      [/\b(show|open|go to|navigate to|take me to)?\s*(submission|submissions)\b/i, "/submissions"],
-      [/\b(show|open|go to)?\s*(enumerator|enumerators|field agents?)\b/i, "/enumerators"],
-      [/\b(show|open|go to)?\s*(map|coverage)\b/i, "/map"],
-      [/\b(show|open|go to)?\s*(insight|insights|analysis)\b/i, "/insights"],
-      [/\b(show|open|go to)?\s*(report|reports)\b/i, "/reports"],
-      [/\b(show|open|go to)?\s*(overview|dashboard|home)\b/i, "/overview"],
-    ];
-    for (const [pattern, path] of nav) {
-      if (pattern.test(reply)) {
-        setTimeout(() => navigate(path), 800);
-        return;
-      }
+  // Ada can adjust the UI when asked — filter, highlight, navigate (never
+  // delete). Applies a command dispatched either by the instant local parser
+  // or by the AI (tool call) once her reply returns.
+  const applyCommand = useCallback((cmd: AdaCommand) => {
+    dispatchCommand(cmd);
+    if (cmd.type === "NAVIGATE_TO") {
+      navigatePage(cmd.path.replace("/", ""));
+      setTimeout(() => navigate(cmd.path), 350);
     }
-  }, [navigate]);
+  }, [dispatchCommand, navigatePage, navigate]);
 
   const send = async (override?: string) => {
     const msg = (override ?? input).trim();
@@ -102,22 +96,18 @@ export default function AdaDock() {
     setSending(true);
     setState("thinking");
     addMessage({ id: Date.now().toString(), role: "user", content: msg, timestamp: new Date().toISOString() });
-    // Ada can adjust the UI when asked — filter, highlight, navigate (never delete)
-    const cmd = parseAdaCommand(msg);
-    if (cmd) {
-      dispatchCommand(cmd);
-      if (cmd.type === "NAVIGATE_TO") {
-        navigatePage(cmd.path.replace("/", ""));
-        setTimeout(() => navigate(cmd.path), 350);
-      }
-    }
+    // Instant local fast-path for the obvious commands; the AI is authoritative.
+    const localCmd = parseAdaCommand(msg);
+    if (localCmd) applyCommand(localCmd);
     try {
       const res = await adaApi.chat(msg, store.currentPage, {});
       const reply: string = res.data.reply;
+      const aiCmd: AdaCommand | null = res.data.command || null;
       addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: reply, timestamp: new Date().toISOString() });
       setState("speaking");
       setTimeout(() => setState("idle"), 3000);
-      detectAndNavigate(reply);
+      // Honour the AI's decision when the local parser didn't already catch it.
+      if (aiCmd && !localCmd) applyCommand(aiCmd);
     } catch {
       setState("idle");
     } finally {
