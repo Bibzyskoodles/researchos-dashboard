@@ -142,12 +142,12 @@ export default function AdaDock() {
   const avatarSize = transitioning ? 42 : store.isOpen ? 48 : 64;
 
   const breatheAnim = {
-    scale: 1,
+    scale: [1, 1.02, 1],
     transition: { duration: 4, repeat: Infinity, ease: "easeInOut" as const },
   };
 
   const bounceAnim = {
-    y: 0,
+    y: [0, -8, 0],
     scale: 1,
     transition: { duration: 3.5, repeat: Infinity, ease: "easeInOut" as const, repeatDelay: 4.5 }
   };
