@@ -29,6 +29,8 @@ export const authApi = {
     api.post('/auth/login', { email, password }),
   me: () => api.get('/auth/me'),
   logout: () => api.post('/auth/logout'),
+  changePassword: (current_password: string, new_password: string) =>
+    api.post('/auth/change-password', { current_password, new_password }),
 };
 
 export const dashboardApi = {

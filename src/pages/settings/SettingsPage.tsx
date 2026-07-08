@@ -8,6 +8,7 @@ import {
   Download, ExternalLink, X,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
+import { authApi } from "../../services/api";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 
 const BLUE = "#2463EB";
@@ -581,6 +582,57 @@ function StorageSection() {
   );
 }
 
+function ChangePasswordCard() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const { setState: setAdaState } = useAda();
+
+  const submit = async () => {
+    setMsg(null);
+    if (next.length < 8) { setMsg({ ok: false, text: "New password must be at least 8 characters." }); return; }
+    if (next !== confirm) { setMsg({ ok: false, text: "New passwords do not match." }); return; }
+    setBusy(true);
+    try {
+      await authApi.changePassword(current, next);
+      setMsg({ ok: true, text: "Password updated successfully. Ada: your password has been updated — keep it safe." });
+      setCurrent(""); setNext(""); setConfirm("");
+      setAdaState("celebrating");
+      setTimeout(() => setAdaState("idle"), 3000);
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.response?.data?.error || "Could not update password. Check your current password and try again." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <SettingsCard style={{ padding: 24 }}>
+      <SettingsGroup label="Change Password">
+        <SettingsField label="Current Password">
+          <input type="password" value={current} onChange={e => setCurrent(e.target.value)} style={INPUT} autoComplete="current-password" />
+        </SettingsField>
+        <SettingsField label="New Password" hint="At least 8 characters">
+          <input type="password" value={next} onChange={e => setNext(e.target.value)} style={INPUT} autoComplete="new-password" />
+        </SettingsField>
+        <SettingsField label="Confirm New Password">
+          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} style={INPUT} autoComplete="new-password" />
+        </SettingsField>
+        {msg && (
+          <div style={{ fontSize: 12.5, fontWeight: 600, padding: "9px 12px", borderRadius: 8, background: msg.ok ? "#ECFDF5" : "#FEF2F2", color: msg.ok ? GREEN : RED, border: `1px solid ${msg.ok ? "#A7F3D0" : "#FECACA"}` }}>{msg.text}</div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={submit} disabled={busy || !current || !next || !confirm} style={{ ...BTN_PRIMARY, opacity: busy || !current || !next || !confirm ? 0.6 : 1, cursor: busy ? "wait" : "pointer" }}>
+            {busy ? "Updating…" : "Update Password"}
+          </button>
+        </div>
+      </SettingsGroup>
+    </SettingsCard>
+  );
+}
+
 function SecuritySection() {
   const [twoFa, setTwoFa] = useState(false);
   const [sso, setSso] = useState(false);
@@ -588,6 +640,7 @@ function SecuritySection() {
   const [ipRestrict, setIpRestrict] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <ChangePasswordCard />
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Authentication">
           <Toggle value={twoFa} onChange={setTwoFa} label="Two-Factor Authentication" description="Require 2FA for all users in this organisation" />
