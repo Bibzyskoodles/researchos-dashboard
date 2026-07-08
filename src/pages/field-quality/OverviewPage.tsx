@@ -6,7 +6,10 @@ import { DashboardData } from "../../types";
 import { useAuth } from "../../store/AuthContext";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
+import { useIndustry } from "../../store/IndustryContext";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const BLUE = "#2463EB"; const GREEN = "#059669"; const AMBER = "#D97706";
 const RED = "#DC2626"; const PURPLE = "#7C3AED";
@@ -95,6 +98,7 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { setState, setOpen, guideToElement } = useAda();
+  const { vocab } = useIndustry();
   useAdaAttention({ x: 0.72, y: 0.22 }, { delay: 2500, returnAfterMs: 5000 });
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
@@ -220,7 +224,7 @@ export default function OverviewPage() {
         <KpiCard label="Total Submissions" value={s.total_submissions} sub="Lagos Retail Audit" trend={s.score_trend} color="#080D1A" sparkData={chartScores} />
         <KpiCard label="Avg Trust Score" value={`${s.avg_score}`} sub={s.avg_score >= 80 ? "Excellent quality" : "Good quality"} color={GREEN} sparkData={chartScores} />
         <KpiCard label="Pass Rate" value={`${s.pass_rate}%`} sub={`${s.pass_count} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />
-        <KpiCard label="Active Enumerators" value={s.active_enumerators} sub="All performing well" color={PURPLE} sparkData={[1,1,1,1,1,1,1]} />
+        <KpiCard label={`Active ${cap(vocab.enumerators)}`} value={s.active_enumerators} sub="All performing well" color={PURPLE} sparkData={[1,1,1,1,1,1,1]} />
       </div>
 
       {/* Main content */}
@@ -289,7 +293,7 @@ export default function OverviewPage() {
           {/* Enumerator leaderboard */}
           <div style={{ background: "white", borderRadius: 16, overflow: "hidden", border: "1px solid #E8EDF5", boxShadow: "0 2px 12px rgba(10,15,28,.06)" }}>
             <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>Enumerators</div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>{cap(vocab.enumerators)}</div>
               <span style={{ fontSize: 11, fontWeight: 600, color: BLUE, cursor: "pointer" }}>View all →</span>
             </div>
             {data.enumerators.slice(0, 4).map((e, i) => {

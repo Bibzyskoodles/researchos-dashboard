@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './store/AuthContext';
+import { IndustryProvider } from './store/IndustryContext';
 import { AdaProvider } from './ada/AdaContext';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
@@ -64,9 +65,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AdaProvider>
-          <AppRoutes />
-        </AdaProvider>
+        <IndustryProvider>
+          <AdaProvider>
+            <AppRoutes />
+          </AdaProvider>
+        </IndustryProvider>
       </AuthProvider>
     </BrowserRouter>
   );

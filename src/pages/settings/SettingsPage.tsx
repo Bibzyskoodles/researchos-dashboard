@@ -8,6 +8,7 @@ import {
   Download, ExternalLink, X,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
+import { useIndustry } from "../../store/IndustryContext";
 import { authApi } from "../../services/api";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 
@@ -155,7 +156,7 @@ const SECTIONS = [
 
 function OrgSection() {
   const [name, setName] = useState("ResearchOS Demo Org");
-  const [industry, setIndustry] = useState("Research & Consulting");
+  const { industry, setIndustry, INDUSTRIES } = useIndustry();
   const [country, setCountry] = useState("Nigeria");
   const [timezone, setTimezone] = useState("Africa/Lagos");
   const [website, setWebsite] = useState("https://researchos.io");
@@ -167,9 +168,9 @@ function OrgSection() {
         <SettingsGroup label="Organisation Details">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <SettingsField label="Organisation Name"><input style={INPUT} value={name} onChange={e => setName(e.target.value)} /></SettingsField>
-            <SettingsField label="Industry">
-              <select style={{ ...INPUT }} value={industry} onChange={e => setIndustry(e.target.value)}>
-                {["Research & Consulting","Healthcare","Finance","Government","NGO / Non-profit","Education","Technology"].map(i => <option key={i}>{i}</option>)}
+            <SettingsField label="Industry" hint="Adapts Ada's language and dashboard labels to your sector">
+              <select style={{ ...INPUT }} value={industry} onChange={e => setIndustry(e.target.value as any)}>
+                {INDUSTRIES.map(i => <option key={i.key} value={i.key}>{i.label}</option>)}
               </select>
             </SettingsField>
             <SettingsField label="Country"><input style={INPUT} value={country} onChange={e => setCountry(e.target.value)} /></SettingsField>
