@@ -53,6 +53,7 @@ export default function SubmissionsPage(){
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
   const [bulkSelected,setBulkSelected]=useState<Set<string>>(new Set());
+  const selectAllRef=React.useRef<HTMLInputElement>(null);
   const isMobile=useIsMobile();
   const navigate=useNavigate();
   useAdaGreeting({ page: "submissions" });
@@ -93,6 +94,23 @@ export default function SubmissionsPage(){
     if(search&&!s.submission_id.toLowerCase().includes(search.toLowerCase())&&!s.enumerator_id.toLowerCase().includes(search.toLowerCase()))return false;
     return true;
   });
+
+  useEffect(()=>{
+    if(!selectAllRef.current)return;
+    if(filtered.length===0){
+      selectAllRef.current.checked=false;
+      (selectAllRef.current as any).indeterminate=false;
+    }else if(bulkSelected.size===filtered.length){
+      selectAllRef.current.checked=true;
+      (selectAllRef.current as any).indeterminate=false;
+    }else if(bulkSelected.size>0){
+      selectAllRef.current.checked=false;
+      (selectAllRef.current as any).indeterminate=true;
+    }else{
+      selectAllRef.current.checked=false;
+      (selectAllRef.current as any).indeterminate=false;
+    }
+  },[bulkSelected,filtered]);
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -138,6 +156,22 @@ export default function SubmissionsPage(){
 
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":(selected?"1fr 380px":"1fr"),gap:16,alignItems:"start"}}>
         <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
+          {!loading && filtered.length > 0 && (
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 20px",borderBottom:"1px solid #F8FAFF",background:"#FAFBFF"}}>
+              <input ref={selectAllRef} type="checkbox"
+                onChange={(e)=>{
+                  const newSelected = new Set<string>();
+                  if(e.target.checked){
+                    filtered.forEach(s => newSelected.add(s.submission_id));
+                  }
+                  setBulkSelected(newSelected);
+                }}
+                style={{cursor:"pointer",width:18,height:18,accentColor:BLUE}}/>
+              <span style={{fontSize:12,fontWeight:600,color:"#6B7280"}}>
+                {bulkSelected.size > 0 ? `${bulkSelected.size} selected` : `Select all (${filtered.length})`}
+              </span>
+            </div>
+          )}
           {loading?(
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading submissions...</div>
           ):filtered.length===0?(
