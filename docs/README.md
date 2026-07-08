@@ -20,6 +20,7 @@ deliberately.
 | 08 | [ADA_BIBLE](08_ADA_BIBLE.md) | The Intelligence Layer — what Ada is and isn't. | Everyone |
 | 09 | [DESIGN_SYSTEM](09_DESIGN_SYSTEM.md) | Tokens, components, UX principles. | Design / Eng |
 | 10 | [CHANGELOG](10_CHANGELOG.md) | Every release, forever. | Everyone |
+| 11 | [DECISIONS](11_DECISIONS.md) | Every major architectural decision and **why**. | Engineering |
 
 ## Status legend (used throughout)
 - ✅ **Live** — in production on `main`.

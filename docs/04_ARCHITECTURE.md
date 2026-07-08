@@ -36,104 +36,144 @@ Auth: JWT (`auth.py`, HS256). Org/user store is SQLite by default or Supabase
 
 ---
 
-## The platform spine (Phase 1 target)
+# The Platform Spine (Phase 1)
 
 The current app hardcodes navigation, terminology, and page structure. Phase 1
-replaces that with **one metadata-driven resolution pipeline**. This is the
-single most important architectural decision in the product's life — build it once,
-build it right.
+replaces that with **metadata-driven resolution**. This is the most important
+architectural decision in the product's life — build it once, build it right.
 
-### One resolver, not four systems
-Navigation, role experiences, and experience packs are **not** separate features.
-They are outputs of one function:
+## The No-Hardcoding Rule (law)
+Everything below must eventually be **metadata-driven**, never hardcoded:
+
+> navigation · roles · capabilities · settings · dashboard cards · experience
+> packs · terminology · integrations · reports · notifications · commands · permissions
+
+**The UI describes itself through metadata.** A screen, a nav item, a label, or a
+command that is hardcoded is a bug against this rule — migrate it when touched.
+
+## The resolution pipeline (the heart of ResearchOS)
+Everything is an output of one function. Roles, permissions, packs, navigation,
+terminology, and dashboards are **not** separate systems — they resolve together:
 
 ```
+Organization
+   ↓
+Workspace
+   ↓
+Project
+   ↓
+Research Stage        ← Planning · Fieldwork · Cleaning · Analysis · Reporting · Completed
+   ↓
+Role                  ← CEO · Research Director · Project Manager · Analyst · Field Supervisor · Admin
+   ↓
+Experience Pack       ← terminology + defaults (industry lens)
+   ↓
+Licensed Capabilities
+   ↓
 resolveExperience(context) → ResolvedExperience
+```
 
-context = {
-  organization, workspace, project,
-  role, experiencePack, licensedCapabilities
+```ts
+interface PlatformContext {
+  organization: Organization;
+  workspace?: Workspace;
+  project?: Project;
+  researchStage?: ResearchStage;   // makes the whole platform stage-aware
+  role: Role;
+  customerType: CustomerType;      // business model — see below
+  experiencePack: ExperiencePackId;// industry lens — terminology
+  licensedCapabilities: CapabilityId[];
 }
 
-ResolvedExperience = {
-  navigation:   NavItem[]        // adaptive sidebar
-  homePage:     RouteId          // role-specific landing
-  dashboard:    CardId[]         // role/industry dashboard cards
-  terminology:  (key) => string  // Experience-Pack vocabulary, t()
-  capabilities: CapabilityId[]   // what's enabled + licensed
-  ada:          AdaContext       // same context, handed to the Intelligence Layer
+interface ResolvedExperience {
+  navigation:   NavItem[];         // adaptive sidebar
+  homePage:     RouteId;           // role-specific landing
+  dashboard:    DashboardCard[];   // role/industry/stage dashboard
+  t:            (key: string) => string;  // Experience-Pack terminology
+  capabilities: CapabilityId[];    // enabled ∩ licensed
+  stage:        ResearchStage | null;
+  ada:          AdaContext;        // same context, handed to the Intelligence Layer
 }
 ```
 
-Every page, the sidebar, and Ada **consume** `ResolvedExperience`. Nothing
-hardcodes a nav item, a label, or a role check again.
+Every surface **consumes** `ResolvedExperience`: sidebar, dashboard, widgets,
+search, reports, settings, the pricing page later, and Ada. Nothing hardcodes a
+nav item, a label, or a role check again.
 
-### 1. Capability Registry
-Every capability describes itself in typed metadata:
+## Two independent axes: Customer Type vs Experience Pack
+They are different and must not be conflated:
+
+- **Experience Pack (industry)** changes **terminology**: respondent /
+  beneficiary / citizen / consumer / patient / student.
+- **Customer Type (business model)** changes **workflows and structure**:
+  - *Research Agency* — works for clients → needs clients, billing, white-label.
+  - *NGO* — needs donors, baseline/endline, M&E.
+  - *Corporate* — internal research, no clients.
+  - *University* — studies, publications, ethics.
+  - *Government* — districts, national surveys.
+
+An NGO and a corporate can share an industry lens yet need different workflows;
+an agency and an NGO can serve the same sector with different business models.
+
+## Research Stage (stage-awareness)
+`Planning → Fieldwork → Cleaning → Analysis → Reporting → Completed`. The
+platform, dashboards, recommendations, navigation, and Ada all read the stage.
+ResearchOS never suggests generating a report before interviews exist.
+
+## The Platform Registry (not just capabilities)
+Everything declares itself. The Platform Registry is a family of registries:
+
+```
+Platform Registry
+  ├── Capability Registry     ── what a capability is
+  ├── Dashboard Registry      ── cards & widgets per capability/role/stage
+  ├── Command Registry        ── ⌘K palette entries (searchable, later executable)
+  ├── Settings Registry       ── config schema (Org → Workspace → Project inheritance)
+  ├── Integration Registry    ── connectable platforms
+  ├── Report Registry         ── report types & formats
+  └── Notification Registry   ── event types & intelligence
+```
+
+A **Capability** self-describes across all of them:
 ```ts
 interface Capability {
-  id: string;                 // "fieldscore" | "insightscore" | "questionnaire" | …
-  name: string;
-  description: string;
-  routes: RouteDef[];
-  sidebar: SidebarItem[];
-  permissions: Permission[];
+  id: CapabilityId; name: string; description: string;
   requiredLicense: LicenseTier;
-  experiencePacks: PackId[];  // where it applies
-  settings?: SettingsSchema;
-  dashboardCards?: CardDef[];
+  experiencePacks?: ExperiencePackId[];   // where it applies (default: all)
+  customerTypes?: CustomerType[];          // where it applies (default: all)
+  navigation?: NavItem[];       // sidebar entries
+  routes?: RouteDef[];
+  dashboardCards?: DashboardCard[];
   widgets?: WidgetDef[];
+  commands?: CommandDef[];
+  settings?: SettingsSchema;
+  integrations?: IntegrationDef[];
+  reports?: ReportDef[];
+  notifications?: NotificationDef[];
+  permissions?: Permission[];
 }
 ```
-The registry is **seeded from the existing routes/pages first** — so behaviour is
-identical on day one — then hardcoded nav/pages migrate into it incrementally.
+**The homepage builds itself** from the resolved dashboard cards; the sidebar from
+resolved navigation; the palette from resolved commands. Add a capability → it
+appears everywhere it's licensed and permitted, with zero page edits.
 
-### 2. Experience Packs (terminology + defaults)
-```ts
-interface ExperiencePack {
-  id: "research_agency" | "ngo" | "government" | "healthcare" | "education" | "fmcg";
-  terminology: Record<string, string>;   // respondent → beneficiary/citizen/…
-  defaultMetrics: MetricId[];
-  defaults: ResearchConfig;               // seeds Research Configuration
-}
-```
-Terminology is a resolver `t(key)` — i18n applied to industry. `IndustryContext`
-(already live) is the seed of this; Phase 1 promotes it into the pipeline.
+## Migration: seed only what's proven
+Seed the registry from the **working, proven** routes only. **Do not migrate**
+dead code, experimental pages, or placeholders — this is an opportunity to
+simplify, not to preserve cruft. Backward-compatible by construction: the seed
+reproduces today's navigation exactly, then behaviour evolves behind the resolver.
 
-### 3. Role experiences
-Roles resolve to a **home page + dashboard set**, not just hidden buttons:
-CEO → Executive Summary / Portfolio / Impact / At-Risk; Research Director →
-Capacity / Portfolio / Quality Trends; Project Manager → Progress / Tasks /
-Deliverables; Analyst → Assigned Projects / Analysis / Reports; Field Supervisor →
-Coverage / GPS / Fraud / Enumerator Performance.
+## Incremental rollout (no big-bang, each step ships green)
+1. Platform Registry + `resolveExperience`, seeded from proven routes (nav identical).
+2. Sidebar reads resolved navigation.
+3. Terminology → `t()` (IndustryContext is the seed).
+4. Dashboard Registry → role/stage home pages.
+5. Settings split + Org→Workspace→Project inheritance.
+6. Command Registry → ⌘K palette.
+7. Migrate remaining proven pages into capabilities; delete the rest.
 
-### 4. Settings hierarchy (inheritance)
-`Research Configuration` resolves **Organization → Workspace → Project**, each
-level overriding the last. Organization Settings vs Project Settings are distinct
-surfaces reading the same schema.
-
-### 5. Global command palette (⌘K)
-Searches projects, users, settings, reports, templates, integrations, docs —
-permission-filtered — and later **executes** ("Create Project", "Connect Kobo",
-"Open GPS Settings").
-
-### 6. Ada as a consumer of the spine
-Ada receives the same `context`/`ResolvedExperience`, so her language, her
-suggestions, and her command palette are automatically correct per industry and
-role. Ada is the Intelligence Layer sitting on the platform context — not a
-sidecar. See [ADA_BIBLE](08_ADA_BIBLE.md).
-
-### Engineering principles for the spine
-Modular · metadata-driven · strongly typed · reusable · enterprise-scalable ·
-**backward compatible**. No hardcoded navigation, terminology, roles, or pages.
-A new capability should be a registry entry plus its components — minimal wiring.
-
-### Incremental rollout (no big-bang)
-1. Introduce the registry + resolver, seeded from current routes (behaviour identical).
-2. Sidebar reads resolved navigation (still the same items).
-3. Terminology moves to `t()` (already started).
-4. Role home pages added behind the resolver.
-5. Settings split + inheritance.
-6. Command palette.
-7. Migrate remaining hardcoded pages into capabilities.
-Each step ships independently and green (`CI=true npm run build`).
+## Guardrail
+Every layer must solve a **today** problem while making tomorrow easier. If a
+layer is elegant but earns nothing now, defer it. Architecture serves the product,
+not the reverse. Record the *why* for each accepted layer in
+[DECISIONS](11_DECISIONS.md).

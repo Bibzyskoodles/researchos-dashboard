@@ -2,32 +2,16 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
-import {
-  LayoutDashboard, FileText, Users, Map,
-  Sparkles, BookOpen, Puzzle, Settings, LogOut, ClipboardList
-} from 'lucide-react';
+import { usePlatform } from '../../platform/PlatformProvider';
+import { LogOut } from 'lucide-react';
 
-const NAV = [
-  { label: 'WORKSPACE', items: [
-    { to: '/overview',     icon: LayoutDashboard, label: 'Overview' },
-    { to: '/submissions',  icon: FileText,         label: 'Submissions' },
-    { to: '/enumerators',  icon: Users,            label: 'Enumerators' },
-    { to: '/map',          icon: Map,              label: 'Coverage Map' },
-  ]},
-  { label: 'INTELLIGENCE', items: [
-    { to: '/insights',      icon: Sparkles,      label: 'AI Analysis' },
-    { to: '/questionnaire', icon: ClipboardList, label: 'Questionnaire' },
-    { to: '/reports',       icon: BookOpen,      label: 'Reports' },
-  ]},
-  { label: 'PROJECT', items: [
-    { to: '/integrations', icon: Puzzle,           label: 'Integrations' },
-    { to: '/settings',     icon: Settings,         label: 'Settings' },
-  ]},
-];
+// Navigation is now resolved from the Platform Registry (docs/04_ARCHITECTURE.md),
+// not hardcoded here (ADR-002 No-Hardcoding Rule).
 
 export default function Sidebar() {
   const { user, org, logout } = useAuth();
   const { navigatePage } = useAda();
+  const { navigation } = usePlatform();
 
   return (
     <aside style={{
@@ -51,8 +35,8 @@ export default function Sidebar() {
 
       {/* Nav */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
-        {NAV.map(section => (
-          <div key={section.label} style={{ marginBottom: 8 }}>
+        {navigation.map(section => (
+          <div key={section.id} style={{ marginBottom: 8 }}>
             <div style={{
               fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,.2)',
               letterSpacing: 1.1, textTransform: 'uppercase',
