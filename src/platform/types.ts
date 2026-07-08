@@ -35,6 +35,7 @@ export interface NavItemDef {
   section: NavSectionRef;
   order: number;
   permission?: string;
+  labelKey?: string;   // when set, the resolver re-skins the label via t() (industry terminology)
 }
 
 // Sub-registry declaration types — declared now, filled incrementally (ADR-007).

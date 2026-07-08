@@ -21,23 +21,32 @@ function permitted(permission: string | undefined, ctx: PlatformContext): boolea
   return ctx.permissions.includes(permission);
 }
 
+// Title-case an industry term for use as a label ("field officers" → "Field Officers").
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export function resolveExperience(
   ctx: PlatformContext,
   capabilities: Capability[] = CAPABILITIES,
 ): ResolvedExperience {
   const active = capabilities.filter(c => isLicensed(c, ctx) && appliesTo(c, ctx));
+  const t = makeT(ctx.experiencePack);
 
   // Navigation: gather nav items from active capabilities, grouped by section.
   const flat: { sectionId: string; sectionLabel: string; sectionOrder: number; order: number; item: NavItem }[] = [];
   for (const cap of active) {
     for (const nav of cap.navigation || []) {
       if (!permitted(nav.permission, ctx)) continue;
+      // Industry-adaptive label: t() falls back to the static label when the
+      // pack has no term, so default (research_agency) reproduces today's text.
+      const label = nav.labelKey ? titleCase(t(nav.labelKey, nav.label)) : nav.label;
       flat.push({
         sectionId: nav.section.id,
         sectionLabel: nav.section.label,
         sectionOrder: nav.section.order,
         order: nav.order,
-        item: { to: nav.to, label: nav.label, icon: nav.icon, capabilityId: cap.id },
+        item: { to: nav.to, label, icon: nav.icon, capabilityId: cap.id },
       });
     }
   }
@@ -64,6 +73,6 @@ export function resolveExperience(
     dashboard,
     capabilities: active.map(c => c.id),
     stage: ctx.researchStage ?? null,
-    t: makeT(ctx.experiencePack),
+    t,
   };
 }

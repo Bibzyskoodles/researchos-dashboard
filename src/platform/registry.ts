@@ -25,7 +25,7 @@ export const CAPABILITIES: Capability[] = [
     requiredLicense: "starter",
     navigation: [
       { to: "/submissions", label: "Submissions", icon: FileText, section: WORKSPACE, order: 1 },
-      { to: "/enumerators", label: "Enumerators", icon: Users, section: WORKSPACE, order: 2 },
+      { to: "/enumerators", label: "Enumerators", icon: Users, section: WORKSPACE, order: 2, labelKey: "enumerators" },
       { to: "/map", label: "Coverage Map", icon: Map, section: WORKSPACE, order: 3 },
     ],
   },

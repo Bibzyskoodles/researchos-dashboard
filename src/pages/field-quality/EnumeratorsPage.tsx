@@ -5,6 +5,7 @@ import { Enumerator } from "../../types";
 import { AlertTriangle } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
+import { usePlatform } from "../../platform/PlatformProvider";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const COLORS=[BLUE,PURPLE,GREEN,AMBER,RED];
@@ -14,6 +15,9 @@ export default function EnumeratorsPage(){
   const [enums,setEnums]=useState<Enumerator[]>([]);
   const [_loading,setLoading]=useState(true);
   const [selected,setSelected]=useState<Enumerator|null>(null);
+  const { t }=usePlatform();
+  const termPlural=t("enumerators","enumerators");            // industry term (lowercase)
+  const Term=termPlural.replace(/\b\w/g,c=>c.toUpperCase());  // title-cased for headings
   useAdaGreeting({ page: "enumerators" });
   useAdaAttention({ x: 0.85, y: 0.45 }, { delay: 2000, returnAfterMs: 5000 });
 
@@ -28,12 +32,12 @@ export default function EnumeratorsPage(){
     {subject:"Audio",value:91},{subject:"Duration",value:85},{subject:"Duplicate",value:98},
   ];
 
-  if(_loading) return <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading enumerators...</div>;
+  if(_loading) return <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading {termPlural}...</div>;
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
       <div>
-        <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>Enumerators</h1>
+        <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>{Term}</h1>
         <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>{enums.length} active · Lagos Retail Audit</p>
       </div>
 
