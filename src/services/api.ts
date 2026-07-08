@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { shouldThrottleRequest, isNonUserError, getSecurityHeaders } from './security';
 
 const BASE_URL = process.env.REACT_APP_API_URL || 'https://web-production-f5bab.up.railway.app';
 
@@ -10,17 +11,40 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('fs_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  // Add security headers
+  const securityHeaders = getSecurityHeaders();
+  config.headers = { ...config.headers, ...securityHeaders };
+
+  // Throttle requests
+  if (shouldThrottleRequest()) {
+    throw new Error('Request throttled - too many requests');
+  }
+
   return config;
 });
 
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    // Check if this looks like a bot/non-user error
+    if (isNonUserError(err)) {
+      console.warn('[Security] Bot detection triggered:', err.response?.status);
+      localStorage.removeItem('fs_token');
+      window.location.href = '/login?reason=bot_detected';
+      return Promise.reject(err);
+    }
+
     if (err.response?.status === 401) {
       localStorage.removeItem('fs_token');
       window.dispatchEvent(new CustomEvent('session-expired'));
       window.location.href = '/login';
     }
+
+    if (err.response?.status === 429) {
+      console.warn('[Security] Rate limited - please wait before making more requests');
+    }
+
     return Promise.reject(err);
   }
 );
