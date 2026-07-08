@@ -23,7 +23,7 @@ export default function Sidebar() {
     }}>
       {/* Logo */}
       <div style={{
-        padding: `${spacing.lg}px ${spacing.lg}px`,
+        padding: `${spacing.md}px ${spacing.lg}px`,
         borderBottom: `1px solid ${colors.border}`,
         display: 'flex',
         flexDirection: 'column',
@@ -35,22 +35,12 @@ export default function Sidebar() {
           alt="ResearchOS"
           style={{
             width: '100%',
-            maxWidth: 150,
+            maxWidth: 120,
             height: 'auto',
             objectFit: 'contain',
             display: 'block',
           }}
         />
-        <div style={{
-          fontSize: 10,
-          color: colors.textQuaternary,
-          letterSpacing: 0.5,
-          textTransform: 'uppercase',
-          paddingLeft: spacing.xs,
-          fontWeight: 600,
-        }}>
-          by Intelligency AI
-        </div>
       </div>
 
       {/* Nav */}
