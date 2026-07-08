@@ -27,18 +27,11 @@ export default function LoginPage() {
   return (
     <div style={{minHeight:"100vh",background:"#F0F4FF",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Inter,sans-serif"}}>
       <div style={{background:"white",borderRadius:16,padding:40,width:"100%",maxWidth:400,boxShadow:"0 4px 24px rgba(8,13,26,.10)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:32,justifyContent:"center"}}>
-          {/* LOGO_PLACEHOLDER — owner: drop /public/researchos-logo.png (square, ~36px). Falls back to a neutral tile until the file exists. */}
-          <img
-            src="/researchos-logo.png"
-            alt="ResearchOS"
-            onError={(e)=>{ (e.currentTarget as HTMLImageElement).style.visibility="hidden"; }}
-            style={{width:36,height:36,background:"#2463EB",borderRadius:9,objectFit:"contain"}}
-          />
-          <div>
-            <div style={{fontSize:18,fontWeight:700,color:"#080D1A"}}>ResearchOS</div>
-            <div style={{fontSize:10,color:"#9CA3AF",letterSpacing:1,textTransform:"uppercase"}}>by Intelligency AI</div>
+        <div style={{marginBottom:28,display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+          <div style={{background:"linear-gradient(135deg,#1A1F3E 0%,#0F172A 100%)",borderRadius:12,padding:"16px 22px",width:"100%",display:"flex",justifyContent:"center"}}>
+            <img src="/researchos-logo.png" alt="ResearchOS" style={{width:210,maxWidth:"80%",height:"auto",objectFit:"contain"}} />
           </div>
+          <div style={{fontSize:10,color:"#9CA3AF",letterSpacing:1,textTransform:"uppercase"}}>by Intelligency AI</div>
         </div>
         <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",marginBottom:6}}>Welcome back</h1>
         <p style={{fontSize:13.5,color:"#6B7280",marginBottom:28}}>Sign in to your workspace</p>

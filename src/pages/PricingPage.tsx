@@ -181,10 +181,10 @@ export default function PricingPage() {
     <div style={{ minHeight: "100vh", background: "#F7F9FE", fontFamily: "Inter,sans-serif", color: "#080D1A" }}>
       {/* NAVBAR */}
       <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", maxWidth: 1200, margin: "0 auto" }}>
-        <Link to="/pricing" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          {/* LOGO_PLACEHOLDER — owner: drop /public/researchos-logo.png */}
-          <img src="/researchos-logo.png" alt="ResearchOS" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} style={{ width: 30, height: 30, borderRadius: 8, background: BLUE, objectFit: "contain" }} />
-          <span style={{ fontWeight: 800, fontSize: 17, color: "#080D1A" }}>ResearchOS</span>
+        <Link to="/pricing" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+          <div style={{ background: "linear-gradient(135deg,#1A1F3E,#0F172A)", borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center" }}>
+            <img src="/researchos-logo.png" alt="ResearchOS" style={{ height: 22, width: "auto", objectFit: "contain" }} />
+          </div>
         </Link>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <Link to="/login" style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, color: "#374151", textDecoration: "none" }}>Log in</Link>

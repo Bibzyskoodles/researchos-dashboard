@@ -36,26 +36,16 @@ export default function Sidebar() {
     }}>
       {/* Logo */}
       <div style={{
-        padding: '18px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
-        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '16px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4,
       }}>
-        {/* LOGO_PLACEHOLDER — owner: drop /public/researchos-logo.png (square, ~32px). Falls back to a neutral tile until the file exists. */}
         <img
           src="/researchos-logo.png"
           alt="ResearchOS"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
-          style={{
-            width: 32, height: 32, background: '#2463EB', borderRadius: 8,
-            objectFit: 'contain', flexShrink: 0,
-          }}
+          style={{ width: '100%', maxWidth: 150, height: 'auto', objectFit: 'contain', display: 'block' }}
         />
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: -0.3 }}>
-            ResearchOS
-          </div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,.28)', letterSpacing: 1, textTransform: 'uppercase' }}>
-            by Intelligency AI
-          </div>
+        <div style={{ fontSize: 9, color: 'rgba(255,255,255,.28)', letterSpacing: 1, textTransform: 'uppercase', paddingLeft: 2 }}>
+          by Intelligency AI
         </div>
       </div>
 
