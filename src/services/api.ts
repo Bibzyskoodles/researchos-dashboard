@@ -1,25 +1,37 @@
 import axios from 'axios';
 
-const BASE_URL = process.env.REACT_APP_API_URL || 'https://web-production-f5bab.up.railway.app';
+// ✅ SECURITY: Use environment variable for API URL (defaults to relative)
+const BASE_URL = process.env.REACT_APP_FIELDSCORE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
+  // ✅ SECURITY: Send httpOnly cookies automatically
   withCredentials: true,
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('fs_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// ✅ SECURITY: Don't manually add token - it's in httpOnly cookie
+// Removed interceptor that read from localStorage
 
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('fs_token');
+      // ✅ SECURITY: Backend clears httpOnly cookie automatically
+      // Frontend doesn't need to do anything
       const currentPath = window.location.pathname;
       window.location.href = `/login?expired=true&returnTo=${encodeURIComponent(currentPath)}`;
+    }
+    // ✅ SECURITY: Sanitize error messages to hide server details
+    if (err.response?.data?.error) {
+      const message = err.response.data.error;
+      if (typeof message === 'string' &&
+          (message.includes('KOBO_API_TOKEN') ||
+           message.includes('OPENAI_API_KEY') ||
+           message.includes('environ') ||
+           message.includes('set on the server'))) {
+        // Replace sensitive error details with generic message
+        err.response.data.error = 'An error occurred. Please try again.';
+      }
     }
     return Promise.reject(err);
   }
@@ -61,15 +73,17 @@ export const adaApi = {
   getMemory: () => api.get('/ada/memory'),
 };
 
+// ✅ SECURITY: Use environment variable for InsightScore URL
+const INSIGHT_API_URL = process.env.REACT_APP_INSIGHTSCORE_API_URL || '/insightscore';
+
 const insightApi = axios.create({
-  baseURL: 'https://insightscore-production.up.railway.app',
+  baseURL: INSIGHT_API_URL,
+  // ✅ SECURITY: Send httpOnly cookies automatically
+  withCredentials: true,
 });
 
-insightApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('fs_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// ✅ SECURITY: Don't manually add token - it's in httpOnly cookie
+// Removed interceptor that read from localStorage
 
 export const insightScoreApi = {
   getProjects: () => insightApi.get('/projects'),
