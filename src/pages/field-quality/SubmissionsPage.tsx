@@ -49,10 +49,12 @@ function EngineBar({label,value,color,icon}:{label:string;value:number;color:str
 export default function SubmissionsPage(){
   const [subs,setSubs]=useState<Submission[]>([]);
   const [loading,setLoading]=useState(true);
+  const [error,setError]=useState<{status:number;message:string}|null>(null);
   const [selected,setSelected]=useState<Submission|null>(null);
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
   const [bulkSelected,setBulkSelected]=useState<Set<string>>(new Set());
+  const [bulkLoading,setBulkLoading]=useState(false);
   const isMobile=useIsMobile();
   const navigate=useNavigate();
   useAdaGreeting({ page: "submissions" });
@@ -76,11 +78,20 @@ export default function SubmissionsPage(){
           if (cancelled) return;
           const submissions = r.data.submissions || [];
           setSubs(submissions);
+          setError(null);
           if(initial && submissions.some((s: Submission) => s.verdict === "FLAG")){
             setTimeout(() => guideToElement("flagged-row", 3000), 1500);
           }
         })
-        .catch(()=>{})
+        .catch((err)=>{
+          if (cancelled) return;
+          const status = err.response?.status || 500;
+          let message = "Failed to load submissions";
+          if(status === 404) message = "Submissions not found";
+          else if(status === 403) message = "You don't have access to these submissions";
+          else if(status === 500) message = "Server error. Please try again.";
+          if(initial) setError({status, message});
+        })
         .finally(()=>{ if(initial && !cancelled) setLoading(false); });
     };
     load(true);
@@ -93,6 +104,26 @@ export default function SubmissionsPage(){
     if(search&&!s.submission_id.toLowerCase().includes(search.toLowerCase())&&!s.enumerator_id.toLowerCase().includes(search.toLowerCase()))return false;
     return true;
   });
+
+  const handleBulkAction = async (action: 'approve'|'reject') => {
+    if(bulkSelected.size === 0) return;
+    setBulkLoading(true);
+    try {
+      const ids = Array.from(bulkSelected);
+      await dashboardApi.bulkAction(ids, action);
+      setSubs(prev => prev.filter(s => !bulkSelected.has(s.submission_id)));
+      setBulkSelected(new Set());
+    } catch(err: any) {
+      const status = err.response?.status || 500;
+      let message = "Failed to update submissions";
+      if(status === 403) message = "You don't have access to update these submissions";
+      else if(status === 400) message = "Invalid request";
+      else if(status === 500) message = "Server error. Please try again.";
+      setError({status, message});
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -125,20 +156,46 @@ export default function SubmissionsPage(){
         </div>
       </div>
 
+      {error && (
+        <motion.div initial={{y:20,opacity:0}} animate={{y:0,opacity:1}}
+          style={{background:"#FEF2F2",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,border:"1px solid #FECACA"}}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:RED,flexShrink:0}}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:600,color:RED}}>{error.message}</div>
+            {error.status === 403 && <div style={{fontSize:11,color:"#9CA3AF",marginTop:2}}>Check your permissions or try refreshing</div>}
+            {error.status === 500 && <div style={{fontSize:11,color:"#9CA3AF",marginTop:2}}>Please try again in a moment</div>}
+          </div>
+          <button onClick={()=>setError(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#9CA3AF",padding:4}}>✕</button>
+        </motion.div>
+      )}
+
       {bulkSelected.size > 0 && (
         <motion.div initial={{y:20,opacity:0}} animate={{y:0,opacity:1}}
-          style={{position:"sticky",bottom:16,left:0,right:0,background:BLUE,borderRadius:12,padding:"12px 20px",display:"flex",alignItems:"center",gap:16,color:"white",boxShadow:"0 8px 32px rgba(36,99,235,.2)",marginLeft:16,marginRight:16}}>
+          style={{position:"sticky",bottom:16,left:0,right:0,background:BLUE,borderRadius:12,padding:"12px 20px",display:"flex",alignItems:"center",gap:16,color:"white",boxShadow:"0 8px 32px rgba(36,99,235,.2)",marginLeft:16,marginRight:16,opacity:bulkLoading?0.7:1}}>
           <span style={{fontSize:13,fontWeight:600}}>✓ {bulkSelected.size} selected</span>
-          <button onClick={()=>setBulkSelected(new Set())} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:6,padding:"5px 12px",color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>Clear</button>
+          <button onClick={()=>setBulkSelected(new Set())} disabled={bulkLoading} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:6,padding:"5px 12px",color:"white",fontSize:12,fontWeight:600,cursor:bulkLoading?"not-allowed":"pointer",opacity:bulkLoading?0.6:1}}>Clear</button>
           <div style={{flex:1}}/>
-          <button style={{background:"white",color:BLUE,border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Approve All</button>
-          <button style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:6,padding:"6px 14px",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Reject All</button>
+          <button onClick={()=>handleBulkAction('approve')} disabled={bulkLoading} style={{background:"white",color:BLUE,border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:bulkLoading?"not-allowed":"pointer",opacity:bulkLoading?0.6:1}}>{bulkLoading?"Processing...":"Approve All"}</button>
+          <button onClick={()=>handleBulkAction('reject')} disabled={bulkLoading} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:6,padding:"6px 14px",color:"white",fontSize:12,fontWeight:700,cursor:bulkLoading?"not-allowed":"pointer",opacity:bulkLoading?0.6:1}}>{bulkLoading?"Processing...":"Reject All"}</button>
         </motion.div>
       )}
 
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":(selected?"1fr 380px":"1fr"),gap:16,alignItems:"start"}}>
         <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
-          {loading?(
+          {error && !loading?(
+            <div style={{padding:40,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
+              <div style={{width:48,height:48,borderRadius:"50%",background:"#FEF2F2",display:"grid",placeItems:"center"}}>
+                <span style={{fontSize:24}}>⚠️</span>
+              </div>
+              <div>
+                <div style={{fontSize:15,fontWeight:600,color:"#DC2626",marginBottom:4}}>{error.message}</div>
+                {error.status === 404 && <div style={{fontSize:13,color:"#9CA3AF"}}>The submissions page could not be found</div>}
+                {error.status === 403 && <div style={{fontSize:13,color:"#9CA3AF"}}>You don't have permission to access submissions</div>}
+                {error.status === 500 && <div style={{fontSize:13,color:"#9CA3AF"}}>A server error occurred. Please refresh the page</div>}
+              </div>
+              <button onClick={()=>{setLoading(true);setError(null);location.reload()}} style={{marginTop:8,padding:"8px 16px",background:"#2463EB",color:"white",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"}}>Retry</button>
+            </div>
+          ):loading?(
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading submissions...</div>
           ):filtered.length===0?(
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>No submissions found</div>

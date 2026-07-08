@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './store/AuthContext';
 import { IndustryProvider } from './store/IndustryContext';
 import { PlatformProvider } from './platform/PlatformProvider';
 import { AdaProvider } from './ada/AdaContext';
+import { SessionExpiredModal } from './components/SessionExpiredModal';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import OverviewPage from './pages/field-quality/OverviewPage';
@@ -69,6 +70,7 @@ export default function App() {
         <IndustryProvider>
           <PlatformProvider>
             <AdaProvider>
+              <SessionExpiredModal />
               <AppRoutes />
             </AdaProvider>
           </PlatformProvider>

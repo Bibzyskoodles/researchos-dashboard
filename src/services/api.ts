@@ -18,6 +18,7 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('fs_token');
+      window.dispatchEvent(new CustomEvent('session-expired'));
       window.location.href = '/login';
     }
     return Promise.reject(err);
@@ -38,6 +39,8 @@ export const dashboardApi = {
   getSubmission: (id: string) => api.get(`/api/submissions/${id}`),
   actionSubmission: (id: string, action: 'approve' | 'reject' | 'flag') =>
     api.post(`/api/submissions/${id}/action`, { action }),
+  bulkAction: (submission_ids: string[], action: 'approve' | 'reject' | 'flag') =>
+    api.post('/api/submissions/bulk-action', { submission_ids, action }),
   getSubmissions: (params?: { verdict?: string; limit?: number; offset?: number }) =>
     api.get('/api/submissions', { params }),
   getEnumerators: () => api.get('/api/enumerators'),
