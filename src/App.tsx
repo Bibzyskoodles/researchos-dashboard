@@ -15,6 +15,7 @@ import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 import PricingPage from './pages/PricingPage';
+import QuestionnairePage from './pages/questionnaire/QuestionnairePage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -49,6 +50,7 @@ function AppRoutes() {
         <Route path="map" element={<MapPage />} />
         <Route path="insights" element={<InsightsPage />} />
         <Route path="insights/:id" element={<InsightProjectPage />} />
+        <Route path="questionnaire" element={<QuestionnairePage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="integrations" element={<IntegrationsPage />} />

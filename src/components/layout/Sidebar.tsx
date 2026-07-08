@@ -4,7 +4,7 @@ import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import {
   LayoutDashboard, FileText, Users, Map,
-  Sparkles, BookOpen, Puzzle, Settings, LogOut
+  Sparkles, BookOpen, Puzzle, Settings, LogOut, ClipboardList
 } from 'lucide-react';
 
 const NAV = [
@@ -15,8 +15,9 @@ const NAV = [
     { to: '/map',          icon: Map,              label: 'Coverage Map' },
   ]},
   { label: 'INTELLIGENCE', items: [
-    { to: '/insights',     icon: Sparkles,         label: 'AI Analysis' },
-    { to: '/reports',      icon: BookOpen,         label: 'Reports' },
+    { to: '/insights',      icon: Sparkles,      label: 'AI Analysis' },
+    { to: '/questionnaire', icon: ClipboardList, label: 'Questionnaire' },
+    { to: '/reports',       icon: BookOpen,      label: 'Reports' },
   ]},
   { label: 'PROJECT', items: [
     { to: '/integrations', icon: Puzzle,           label: 'Integrations' },
