@@ -75,10 +75,22 @@ export const insightScoreApi = {
   createProject: (data: object) => insightApi.post('/projects', data),
   getProject: (id: string) => insightApi.get(`/projects/${id}`),
   analyseProject: (id: string) => insightApi.post(`/projects/${id}/analyse`),
+  getStatus: (id: string) => insightApi.get(`/projects/${id}/status`),
   getReport: (id: string) => insightApi.get(`/projects/${id}/report`),
   downloadReport: (id: string, format: 'docx' | 'pptx' | 'xlsx') =>
     insightApi.get(`/projects/${id}/report`, { params: { format }, responseType: 'blob' }),
   getSubmissions: (id: string) => insightApi.get(`/projects/${id}/submissions`),
+  waitForAnalysis: async (id: string, maxWaitMs = 300000) => {
+    const startTime = Date.now();
+    const pollInterval = 2000;
+    while (Date.now() - startTime < maxWaitMs) {
+      const res = await insightApi.get(`/projects/${id}/status`);
+      if (res.data.complete) return res.data;
+      if (res.data.failed) throw new Error(res.data.error || 'Analysis failed');
+      await new Promise(r => setTimeout(r, pollInterval));
+    }
+    throw new Error('Analysis timeout');
+  },
 };
 
 export default api;
