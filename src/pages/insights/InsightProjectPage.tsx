@@ -177,12 +177,14 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
     setAdaState("thinking");
     try {
       await insightScoreApi.analyseProject(projectId);
+      await insightScoreApi.waitForAnalysis(projectId);
       const r = await insightScoreApi.getReport(projectId);
       if (r.data) setReport(r.data);
       setAnalyseState("done");
       setAdaState("speaking");
       setTimeout(() => setAdaState("idle"), 4000);
-    } catch {
+    } catch (err) {
+      console.error("Analysis failed:", err);
       setAnalyseState("error");
       setAdaState("idle");
     }
