@@ -58,15 +58,23 @@ export default function SubmissionsPage(){
   const { guideToElement } = useAdaContext();
 
   useEffect(()=>{
-    dashboardApi.getSubmissions({limit:50})
-      .then(r=>{
-        const submissions = r.data.submissions || [];
-        setSubs(submissions);
-        if(submissions.some((s: Submission) => s.verdict === "FLAG")){
-          setTimeout(() => guideToElement("flagged-row", 3000), 1500);
-        }
-      })
-      .finally(()=>setLoading(false));
+    let cancelled = false;
+    const load = (initial: boolean) => {
+      dashboardApi.getSubmissions({limit:50})
+        .then(r=>{
+          if (cancelled) return;
+          const submissions = r.data.submissions || [];
+          setSubs(submissions);
+          if(initial && submissions.some((s: Submission) => s.verdict === "FLAG")){
+            setTimeout(() => guideToElement("flagged-row", 3000), 1500);
+          }
+        })
+        .catch(()=>{})
+        .finally(()=>{ if(initial && !cancelled) setLoading(false); });
+    };
+    load(true);
+    const id = setInterval(() => load(false), 30000);
+    return () => { cancelled = true; clearInterval(id); };
   },[guideToElement]);
 
   const filtered=subs.filter(s=>{

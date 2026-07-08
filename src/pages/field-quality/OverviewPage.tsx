@@ -105,16 +105,24 @@ export default function OverviewPage() {
   const firstName = user?.name?.split(" ")[0] || "there";
 
   useEffect(() => {
-    dashboardApi.getDashboard()
-      .then(res => {
-        setData(res.data);
-        setState("idle");
-        if ((res.data?.alerts?.length ?? 0) > 0) {
-          setTimeout(() => guideToElement("alert-item", 3000), 1500);
-        }
-      })
-      .catch(() => setState("warning"))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const load = (initial: boolean) => {
+      dashboardApi.getDashboard()
+        .then(res => {
+          if (cancelled) return;
+          setData(res.data);
+          setState("idle");
+          if (initial && (res.data?.alerts?.length ?? 0) > 0) {
+            setTimeout(() => guideToElement("alert-item", 3000), 1500);
+          }
+        })
+        .catch(() => { if (!cancelled) setState("warning"); })
+        .finally(() => { if (initial && !cancelled) setLoading(false); });
+    };
+    load(true);
+    // Real-time: silently refresh every 30s (no spinner, no repeated Ada guidance)
+    const id = setInterval(() => load(false), 30000);
+    return () => { cancelled = true; clearInterval(id); };
   }, [setState, guideToElement]);
 
   if (loading) return (
