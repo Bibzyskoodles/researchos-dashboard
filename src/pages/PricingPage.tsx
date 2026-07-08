@@ -74,23 +74,59 @@ function estimateRIU(v: Volumes): number {
   return Math.round(v.fieldscore * 1 + v.interviews * 10 + v.reports * 20 + v.presentations * 15 + v.questionnaires * 5);
 }
 
+function joinPhrase(items: string[]): string {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+const METRIC_NOUN: Record<MetricKey, string> = {
+  fieldscore: "field verifications", interviews: "interviews", reports: "reports",
+  presentations: "presentations", questionnaires: "questionnaires",
+};
+
+// Ada's live consultant commentary — reacts to the selected goals, the slider
+// volumes and the resulting plan, so she reads as an advisor rather than a
+// static greeting.
+function buildAdaAdvice(goals: Record<string, boolean>, ev: Volumes, activeKeys: Set<MetricKey>, plan: PlanName, p: (typeof PLANS)[PlanName]): string {
+  const anyGoal = Object.values(goals).some(Boolean);
+  if (!anyGoal) return "Start by telling me what you'd like to accomplish — pick a goal above and I'll size the right plan around your real volumes.";
+
+  const bits = METRICS.filter(m => activeKeys.has(m.key) && ev[m.key] > 0).map(m => `${ev[m.key].toLocaleString()} ${METRIC_NOUN[m.key]}`);
+  const workload = bits.length ? `At ${joinPhrase(bits)} a month, ` : "";
+
+  const over = METRICS.filter(m => activeKeys.has(m.key) && p.caps[m.key] !== Infinity && ev[m.key] > p.caps[m.key]);
+  if (over.length) {
+    const names = joinPhrase(over.map(m => METRIC_NOUN[m.key]));
+    return `${workload}your ${names} run past the ${plan} plan's limits. I'd move you up to Enterprise for unlimited capacity — want me to connect you with the team?`;
+  }
+
+  const why: Record<PlanName, string> = {
+    Starter: "that's a focused workload that fits comfortably in Starter without overpaying",
+    Professional: "that's an active, multi-project pace — Professional gives you room to grow",
+    Enterprise: "that's large-scale, continuous research where unlimited capacity pays for itself",
+  };
+  return `${workload}${why[plan]}. I'd recommend the ${plan} plan — adjust any slider and I'll re-check the fit.`;
+}
+
 function Slider({ m, value, onChange, active }: { m: typeof METRICS[number]; value: number; onChange: (n: number) => void; active: boolean }) {
   const clamp = (n: number) => Math.max(m.min, Math.min(m.max, isNaN(n) ? m.min : n));
   return (
-    <div style={{ padding: "14px 0", opacity: active ? 1 : 0.55, transition: "opacity .2s" }}>
+    <div style={{ padding: "14px 0", opacity: active ? 1 : 0.5, transition: "opacity .2s" }} title={active ? undefined : "Select a matching goal above to adjust this"}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <div style={{ fontSize: 20 }}>{m.icon}</div>
+          <div style={{ fontSize: 20 }}>{active ? m.icon : "🔒"}</div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#080D1A" }}>{m.label}</div>
-            <div style={{ fontSize: 11, color: "#9CA3AF" }}>{m.desc}</div>
+            <div style={{ fontSize: 11, color: "#9CA3AF" }}>{active ? m.desc : "Not counted — select the matching goal to include it"}</div>
           </div>
         </div>
-        <input type="number" value={value} min={m.min} max={m.max} onChange={(e) => onChange(clamp(parseInt(e.target.value, 10)))}
-          style={{ width: 92, textAlign: "right", border: "1px solid #E2E8F0", borderRadius: 8, padding: "7px 10px", fontSize: 15, fontWeight: 800, color: m.color, fontFamily: "Inter,sans-serif", outline: "none", letterSpacing: -0.5 }} />
+        <input type="number" value={value} min={m.min} max={m.max} disabled={!active} onChange={(e) => onChange(clamp(parseInt(e.target.value, 10)))}
+          style={{ width: 92, textAlign: "right", border: "1px solid #E2E8F0", borderRadius: 8, padding: "7px 10px", fontSize: 15, fontWeight: 800, color: active ? m.color : "#CBD5E1", fontFamily: "Inter,sans-serif", outline: "none", letterSpacing: -0.5, background: active ? "white" : "#F8FAFC", cursor: active ? "text" : "not-allowed" }} />
       </div>
-      <input type="range" min={m.min} max={m.max} value={value} onChange={(e) => onChange(clamp(parseInt(e.target.value, 10)))}
-        style={{ width: "100%", accentColor: m.color, cursor: "pointer" }} />
+      <input type="range" min={m.min} max={m.max} value={value} disabled={!active} onChange={(e) => onChange(clamp(parseInt(e.target.value, 10)))}
+        style={{ width: "100%", accentColor: active ? m.color : "#CBD5E1", cursor: active ? "pointer" : "not-allowed" }} />
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "#CBD5E1", marginTop: 2 }}>
         <span>{m.min.toLocaleString()}</span><span>{m.max.toLocaleString()}</span>
       </div>
@@ -179,6 +215,17 @@ export default function PricingPage() {
   const riuPct = p.riu === Infinity ? 0 : Math.min(100, Math.round((riuEstimate / p.riu) * 100));
   const riuRemaining = p.riu === Infinity ? Infinity : Math.max(0, p.riu - riuEstimate);
 
+  const activeKeys = useMemo(() => {
+    const anyGoal = Object.values(goals).some(Boolean);
+    const s = new Set<MetricKey>();
+    METRICS.forEach(m => {
+      const on = !anyGoal || GOALS.some(g => goals[g.key] && g.metrics.includes(m.key));
+      if (on) s.add(m.key);
+    });
+    return s;
+  }, [goals]);
+  const adaSays = useMemo(() => buildAdaAdvice(goals, effectiveVolumes, activeKeys, plan, p), [goals, effectiveVolumes, activeKeys, plan, p]);
+
   const letAdaEstimate = () => {
     const g = goals;
     const anyGoal = Object.values(g).some(Boolean);
@@ -223,9 +270,14 @@ export default function PricingPage() {
           </div>
           <div style={{ flex: "0 1 320px", background: DARK, borderRadius: 16, padding: 24, color: "white", display: "flex", gap: 14, alignItems: "center" }}>
             <img src="/ada-avatar.jpg" alt="Ada" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", objectPosition: "50% 15%", border: "2px solid rgba(255,255,255,.2)", flexShrink: 0 }} />
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>Hi! I'm Ada.</div>
-              <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.7)", lineHeight: 1.5, marginTop: 4 }}>I'll help you find the right plan for your research needs.</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Hi! I'm Ada, your research consultant.</div>
+              <AnimatePresence mode="wait">
+                <motion.div key={adaSays} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+                  style={{ fontSize: 12.5, color: "rgba(255,255,255,.7)", lineHeight: 1.5, marginTop: 4 }}>
+                  {adaSays}
+                </motion.div>
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -273,6 +325,20 @@ export default function PricingPage() {
           {/* RIGHT — plan summary (sticky) */}
           <div style={{ position: "sticky", top: 16 }}>
             <div style={{ background: DARK, borderRadius: 16, padding: 22, color: "white" }}>
+              {/* Ada — live consultant, reacts as you adjust goals & sliders */}
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid rgba(255,255,255,.1)" }}>
+                <img src="/ada-avatar.jpg" alt="Ada" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+                  style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", objectPosition: "50% 15%", flexShrink: 0, border: "1.5px solid rgba(147,197,253,.4)" }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#93C5FD", textTransform: "uppercase", letterSpacing: 0.6 }}>Ada · Research Consultant</div>
+                  <AnimatePresence mode="wait">
+                    <motion.div key={adaSays} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+                      style={{ fontSize: 12, color: "rgba(255,255,255,.82)", lineHeight: 1.5, marginTop: 4 }}>
+                      {adaSays}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </div>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: 0.8 }}>Recommended plan</div>
               <AnimatePresence mode="wait">
                 <motion.div key={plan} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25 }}>
