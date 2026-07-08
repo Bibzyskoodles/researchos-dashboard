@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Layers, Users, Shield, Palette, Puzzle, Brain,
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useIndustry } from "../../store/IndustryContext";
+import { useAuth } from "../../store/AuthContext";
 import { authApi } from "../../services/api";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 
@@ -155,17 +156,27 @@ const SECTIONS = [
 ];
 
 function OrgSection() {
-  const [name, setName] = useState("ResearchOS Demo Org");
+  const { org } = useAuth();
+  const [name, setName] = useState(org?.name || "");
   const { industry, setIndustry, INDUSTRIES } = useIndustry();
   const [country, setCountry] = useState("Nigeria");
   const [timezone, setTimezone] = useState("Africa/Lagos");
   const [website, setWebsite] = useState("https://researchos.io");
   const [saved, setSaved] = useState(false);
   const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  // Seed the editable name from the real organisation once auth resolves.
+  useEffect(() => { if (org?.name) setName(org.name); }, [org?.name]);
+  const planLabel = org?.plan ? org.plan.charAt(0).toUpperCase() + org.plan.slice(1) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Organisation Details">
+          {org && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, fontSize: 12, color: "#6B7280" }}>
+              {planLabel && <Badge label={`${planLabel} plan`} color={BLUE} />}
+              {org.status && <Badge label={org.status} color={org.status === "active" ? GREEN : AMBER} />}
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <SettingsField label="Organisation Name"><input style={INPUT} value={name} onChange={e => setName(e.target.value)} /></SettingsField>
             <SettingsField label="Industry" hint="Adapts Ada's language and dashboard labels to your sector">
