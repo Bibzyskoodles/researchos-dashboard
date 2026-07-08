@@ -27,7 +27,7 @@ export default function Sidebar() {
         borderBottom: `1px solid ${colors.border}`,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: spacing.xs,
       }}>
         <img

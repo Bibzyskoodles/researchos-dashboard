@@ -142,13 +142,15 @@ export default function AdaDock() {
   const avatarSize = transitioning ? 42 : store.isOpen ? 48 : 64;
 
   const breatheAnim = {
-    scale: [1, 1.02, 1] as number[],
+    scale: 1,
     transition: { duration: 4, repeat: Infinity, ease: "easeInOut" as const },
   };
 
-  const bounceAnim = store.state === "thinking"
-    ? { y: [0, -8, 0, -5, 0] as number[], scale: [1, 1.08, 0.97, 1.02, 1] as number[], transition: { duration: 0.8, repeat: Infinity, type: "spring" as const, stiffness: 300, damping: 10 } }
-    : { y: [0, -14, 3, -6, 0] as number[], scale: [1, 1.08, 0.97, 1.02, 1] as number[], transition: { duration: 3.5, repeat: Infinity, ease: "easeInOut" as const, repeatDelay: 4.5 } };
+  const bounceAnim = {
+    y: 0,
+    scale: 1,
+    transition: { duration: 3.5, repeat: Infinity, ease: "easeInOut" as const, repeatDelay: 4.5 }
+  };
 
   const borderColor = store.state === "warning" ? "#DC2626" : "rgba(255,255,255,.2)";
   const shadowColor = store.state === "warning" ? "rgba(220,38,38,.4)" : "rgba(37,99,235,.4)";
@@ -177,14 +179,14 @@ export default function AdaDock() {
                     style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid rgba(96,165,250,0.8)", pointerEvents: "none", zIndex: 0 }}
                   />
                   <div style={{ position: "relative", zIndex: 1, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", border: `3px solid ${borderColor}`, boxShadow: `0 8px 32px ${shadowColor}` }}>
-                    <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+                    <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 50%" }} />
                   </div>
                 </div>
               </motion.div>
             </motion.div>
-            {!store.isOpen && (
+            {!store.isOpen && store.state === "thinking" && (
               <div style={{ fontSize: 10, fontWeight: 700, color: "#2463EB", background: "white", padding: "2px 8px", borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,.1)", border: "1px solid #E2E8F0", textAlign: "center", marginTop: 6, whiteSpace: "nowrap" }}>
-                {store.state === "thinking" ? "Thinking..." : "Ada · AI"}
+                Thinking...
               </div>
             )}
           </motion.div>
@@ -202,10 +204,9 @@ export default function AdaDock() {
           >
             <div style={{ padding: "14px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", gap: 10, background: "linear-gradient(135deg,#EFF6FF,#F8FAFF)" }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", border: "2px solid #2463EB", flexShrink: 0 }}>
-                <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+                <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 50%" }} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#080D1A" }}>Ada</div>
                 <div style={{ fontSize: 10.5, color: "#059669" }}>● AI Research Analyst</div>
               </div>
               <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF" }}>
@@ -216,7 +217,7 @@ export default function AdaDock() {
               {store.messages.length === 0 && (
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                   <div style={{ width: 24, height: 24, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
-                    <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+                    <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 50%" }} />
                   </div>
                   <div style={{ background: "#F8FAFF", border: "1px solid #E2E8F0", borderRadius: "4px 12px 12px 12px", padding: "10px 12px", fontSize: 12.5, color: "#374151", lineHeight: 1.6, maxWidth: 260 }}>
                     Hello! I have already reviewed your project data. What would you like to explore?
@@ -227,7 +228,7 @@ export default function AdaDock() {
                 <div key={msg.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
                   {msg.role === "assistant" && (
                     <div style={{ width: 24, height: 24, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
-                      <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+                      <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 50%" }} />
                     </div>
                   )}
                   <div
@@ -239,7 +240,7 @@ export default function AdaDock() {
               {sending && (
                 <div style={{ display: "flex", gap: 8 }}>
                   <div style={{ width: 24, height: 24, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
-                    <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+                    <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 50%" }} />
                   </div>
                   <div style={{ background: "#F8FAFF", border: "1px solid #E2E8F0", borderRadius: "4px 12px 12px 12px", padding: "12px 16px", display: "flex", gap: 4 }}>
                     {[0, 1, 2].map(i => (
