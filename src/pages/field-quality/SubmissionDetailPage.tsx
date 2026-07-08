@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { dashboardApi } from "../../services/api";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield } from "lucide-react";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED",CYAN="#06B6D4";
@@ -110,6 +111,7 @@ export default function SubmissionDetailPage(){
     setTimeout(()=>setToast(""),2500);
   };
 
+  const isMobile=useIsMobile();
   const [acting,setActing]=useState("");
   const act=async(action:"approve"|"reject"|"flag",label:string,status:string)=>{
     if(!id)return;
@@ -215,7 +217,7 @@ export default function SubmissionDetailPage(){
       </div>
 
       {/* Two column */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:20,alignItems:"start"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 340px",gap:20,alignItems:"start"}}>
 
         {/* LEFT */}
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
