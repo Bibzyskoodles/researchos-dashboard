@@ -25,6 +25,7 @@ export default function Topbar() {
   const [openSearch, setOpenSearch] = useState(false);
   const [openBell, setOpenBell] = useState(false);
   const [openProj, setOpenProj] = useState(false);
+  const [openUser, setOpenUser] = useState(false);
   const [project, setProject] = useState('All Projects');
   const rootRef = useRef<HTMLElement>(null);
 
@@ -37,7 +38,7 @@ export default function Topbar() {
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpenSearch(false); setOpenBell(false); setOpenProj(false);
+        setOpenSearch(false); setOpenBell(false); setOpenProj(false); setOpenUser(false);
       }
     };
     document.addEventListener('mousedown', h);
@@ -129,8 +130,28 @@ export default function Topbar() {
           )}
         </div>
         <button style={iconBtn}><HelpCircle size={13} /></button>
-        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#2463EB,#7C3AED)', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700, color: 'white', cursor: 'pointer' }}>
-          {user?.name?.charAt(0) || 'U'}
+        <div style={{ position: 'relative' }}>
+          <div
+            onClick={() => { setOpenUser(o => !o); setOpenBell(false); setOpenProj(false); setOpenSearch(false); }}
+            style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#2463EB,#7C3AED)', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700, color: 'white', cursor: 'pointer' }}>
+            {user?.name?.charAt(0) || 'U'}
+          </div>
+          {openUser && (
+            <div style={{ ...dropdown, right: 0, minWidth: 180 }}>
+              <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: '#080D1A', borderBottom: '1px solid #F1F5F9' }}>
+                {user?.name}
+              </div>
+              <div style={{ ...item, borderBottom: 'none' }} onClick={() => { setOpenUser(false); nav('/account/billing'); }}>
+                💳 Billing & License
+              </div>
+              <div style={{ ...item, borderBottom: 'none' }} onClick={() => { setOpenUser(false); nav('/settings'); }}>
+                ⚙️ Settings
+              </div>
+              <div style={{ ...item, borderBottom: 'none', color: RED }} onClick={() => { setOpenUser(false); /* logout will be handled by auth context */ }}>
+                🚪 Logout
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

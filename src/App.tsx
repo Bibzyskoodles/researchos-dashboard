@@ -20,6 +20,7 @@ import SettingsPage from './pages/settings/SettingsPage';
 import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 import PricingPage from './pages/PricingPage';
 import QuestionnairePage from './pages/questionnaire/QuestionnairePage';
+import BillingPage from './pages/account/BillingPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="integrations" element={<IntegrationsPage />} />
+        <Route path="account/billing" element={<BillingPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>

@@ -1,0 +1,540 @@
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 32px 20px;
+}
+
+.header {
+  margin-bottom: 32px;
+}
+
+.header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1a1f3e;
+  margin-bottom: 8px;
+}
+
+.header p {
+  font-size: 16px;
+  color: #6b7280;
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #FEE2E2;
+  border-left: 4px solid #DC2626;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  color: #7F1D1D;
+  font-weight: 500;
+}
+
+.errorBanner button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #7F1D1D;
+  padding: 0;
+}
+
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 16px;
+  color: #6b7280;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #E5E7EB;
+  border-top-color: #2463EB;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* License Card */
+.licenseCard {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border-left-width: 4px;
+}
+
+.licenseHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.licenseHeader h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  margin: 0 0 8px 0;
+}
+
+.tierName {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.statusBadge {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.statusBadge[data-status="active"] {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.statusBadge[data-status="expired"] {
+  background: #FEE2E2;
+  color: #7F1D1D;
+}
+
+.licenseDetails {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.detailRow span {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.detailRow strong {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1f3e;
+}
+
+.actionButton {
+  margin-top: 20px;
+  padding: 16px;
+  background: #DBEAFE;
+  border-radius: 8px;
+  color: #0C4A6E;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Usage Card */
+.usageCard {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.usageCard h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #1a1f3e;
+}
+
+.usageMetrics {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.metric {
+  padding: 12px 0;
+}
+
+.metricLabel {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.metricValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1f3e;
+}
+
+.metricLimit {
+  font-size: 13px;
+  color: #9CA3AF;
+  margin-top: 4px;
+}
+
+.progressBar {
+  width: 100%;
+  height: 8px;
+  background: #E5E7EB;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 16px 0;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.metricSummary {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* Features Card */
+.featuresCard {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.featuresCard h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #1a1f3e;
+}
+
+.featureList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  background: #F9FAFB;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.featureItem[data-enabled="true"] {
+  color: #065F46;
+  background: #D1FAE5;
+}
+
+.featureIcon {
+  font-weight: 700;
+  font-size: 16px;
+  min-width: 20px;
+}
+
+.featureName {
+  font-size: 14px;
+  text-transform: capitalize;
+}
+
+/* Upgrade Section */
+.upgradeSection {
+  background: linear-gradient(135deg, #F0F9FF 0%, #F3F4F6 100%);
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.upgradeSection h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  color: #1a1f3e;
+}
+
+.upgradeOptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.upgradeCard {
+  background: white;
+  border: 2px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.upgradeCard:hover {
+  border-color: #2463EB;
+  box-shadow: 0 4px 12px rgba(36, 99, 235, 0.15);
+}
+
+.upgradeName {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1f3e;
+  margin-bottom: 8px;
+}
+
+.upgradePrice {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2463EB;
+  margin-bottom: 16px;
+}
+
+.upgradeFeatures {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.upgradeFeature {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.upgradeBtn {
+  width: 100%;
+  padding: 10px;
+  background: #2463EB;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.upgradeBtn:hover {
+  background: #1e53ce;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background: white;
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.modalContent h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #1a1f3e;
+}
+
+.modalContent p {
+  color: #6b7280;
+  margin-bottom: 24px;
+}
+
+.renewOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.renewOptions label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.renewOptions label:hover {
+  background: #F9FAFB;
+}
+
+.renewOptions input {
+  cursor: pointer;
+}
+
+.modalActions {
+  display: flex;
+  gap: 12px;
+}
+
+.cancelBtn,
+.confirmBtn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.cancelBtn {
+  background: #F3F4F6;
+  color: #6b7280;
+}
+
+.cancelBtn:hover {
+  background: #E5E7EB;
+}
+
+.confirmBtn {
+  background: #2463EB;
+  color: white;
+}
+
+.confirmBtn:hover {
+  background: #1e53ce;
+}
+
+/* White-Label Card */
+.whiteLabelCard {
+  background: white;
+  border: 2px solid #FCD34D;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.whiteLabelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.whiteLabelHeader h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1f3e;
+  margin: 0;
+}
+
+.badge {
+  background: #FEF3C7;
+  color: #92400E;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.whiteLabelConfig {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.configItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.configItem label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+
+.configItem input {
+  padding: 10px;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #F9FAFB;
+  color: #1a1f3e;
+}
+
+.colorPicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.colorPreview {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid #E5E7EB;
+}
+
+.colorPicker code {
+  padding: 8px;
+  background: #F9FAFB;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: "Monaco", monospace;
+  color: #6b7280;
+}
+
+.editBtn {
+  align-self: flex-start;
+  padding: 10px 16px;
+  background: #FCD34D;
+  color: #92400E;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.editBtn:hover {
+  background: #F59E0B;
+}

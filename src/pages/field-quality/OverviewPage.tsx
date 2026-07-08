@@ -10,6 +10,7 @@ import { useIndustry } from "../../store/IndustryContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
 import { UsageIndicator } from "../../components/UsageIndicator";
+import { LicenseExpiryCountdown } from "../../components/FeatureAvailability";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -144,8 +145,11 @@ export default function OverviewPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Usage Indicator */}
-      <UsageIndicator />
+      {/* Usage Indicator & License Expiry */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <UsageIndicator />
+        <LicenseExpiryCountdown />
+      </div>
 
       {/* Ada Hero — large, gradient, immersive */}
       <motion.div

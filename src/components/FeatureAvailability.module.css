@@ -1,0 +1,140 @@
+.lockedContainer {
+  position: relative;
+}
+
+.lockedOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: 8px;
+  backdrop-filter: blur(2px);
+}
+
+.lockedContent {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.icon {
+  font-size: 32px;
+}
+
+.message {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+  max-width: 200px;
+}
+
+.upgradeLink {
+  padding: 8px 16px;
+  background: #2463EB;
+  color: white;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.3s;
+}
+
+.upgradeLink:hover {
+  background: #1e53ce;
+  transform: translateY(-2px);
+}
+
+.blurredContent {
+  filter: blur(2px);
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #FEF3C7;
+  color: #92400E;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badgeInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(251, 191, 36, 0.1);
+  color: #D97706;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.badgeIcon {
+  font-size: 12px;
+}
+
+/* License Expiry Countdown */
+.countdown {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.countdownCompact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.countdown .icon,
+.countdownCompact .icon {
+  font-size: 18px;
+}
+
+.countdown .text,
+.countdownCompact .text {
+  flex: 1;
+}
+
+.countdown .link,
+.countdownCompact .link {
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.countdown .link:hover,
+.countdownCompact .link:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
