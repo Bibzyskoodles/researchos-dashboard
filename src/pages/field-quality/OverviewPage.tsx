@@ -9,6 +9,7 @@ import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { useIndustry } from "../../store/IndustryContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
+import { UsageIndicator } from "../../components/UsageIndicator";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -143,6 +144,8 @@ export default function OverviewPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Usage Indicator */}
+      <UsageIndicator />
 
       {/* Ada Hero — large, gradient, immersive */}
       <motion.div

@@ -47,6 +47,14 @@ api.interceptors.response.use(
       window.location.href = '/login';
     }
 
+    if (err.response?.status === 402) {
+      // Payment required - license invalid or expired
+      const reason = err.response?.data?.message || 'Your subscription has expired or limit reached';
+      console.warn('[License] Payment required:', reason);
+      window.dispatchEvent(new CustomEvent('license-required', { detail: { reason } }));
+      return Promise.reject(err);
+    }
+
     if (err.response?.status === 429) {
       console.warn('[Security] Rate limited - please wait before making more requests');
     }
@@ -124,6 +132,17 @@ export const insightScoreApi = {
     }
     throw new Error('Analysis timeout');
   },
+};
+
+export const licensingApi = {
+  getLicense: () => api.get('/api/license'),
+  getUsage: () => api.get('/api/license/usage'),
+  renewLicense: (tier: string, expires_in_days?: number) =>
+    api.post('/api/license/renew', { tier, expires_in_days }),
+  getWhiteLabel: () => api.get('/api/white-label'),
+  updateWhiteLabel: (config: object) =>
+    api.post('/api/white-label/update', config),
+  getPricing: () => api.get('/api/pricing'),
 };
 
 export default api;

@@ -5,6 +5,7 @@ import { IndustryProvider } from './store/IndustryContext';
 import { PlatformProvider } from './platform/PlatformProvider';
 import { AdaProvider } from './ada/AdaContext';
 import { SessionExpiredModal } from './components/SessionExpiredModal';
+import { LicenseModal } from './components/LicenseModal';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import OverviewPage from './pages/field-quality/OverviewPage';
@@ -71,6 +72,7 @@ export default function App() {
           <PlatformProvider>
             <AdaProvider>
               <SessionExpiredModal />
+              <LicenseModal />
               <AppRoutes />
             </AdaProvider>
           </PlatformProvider>
