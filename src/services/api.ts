@@ -42,6 +42,9 @@ export const dashboardApi = {
     api.get('/api/submissions', { params }),
   getEnumerators: () => api.get('/api/enumerators'),
   getStats: () => api.get('/api/stats'),
+  koboPing: () => api.get('/kobo/ping'),
+  koboImport: (asset_uid: string, limit = 30) =>
+    api.post('/kobo/import', { asset_uid, limit }),
 };
 
 export const adaApi = {

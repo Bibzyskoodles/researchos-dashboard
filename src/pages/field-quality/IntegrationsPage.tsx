@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
+import { dashboardApi } from "../../services/api";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -231,6 +232,27 @@ export default function IntegrationsPage() {
   const [urlCopied, setUrlCopied] = useState(false);
   const { setOpen, addMessage, setState } = useAda();
 
+  // KoboToolbox pull/import (testing helper)
+  const [assetUid, setAssetUid] = useState("");
+  const [koboBusy, setKoboBusy] = useState("");
+  const [koboForms, setKoboForms] = useState<any[] | null>(null);
+  const [koboResult, setKoboResult] = useState<any>(null);
+  const [koboError, setKoboError] = useState("");
+
+  const testKobo = async () => {
+    setKoboBusy("ping"); setKoboError(""); setKoboForms(null); setKoboResult(null);
+    try { const r = await dashboardApi.koboPing(); setKoboForms(r.data.forms || []); }
+    catch (e: any) { setKoboError(e?.response?.data?.error || "Connection failed — is KOBO_API_TOKEN set on the server?"); }
+    finally { setKoboBusy(""); }
+  };
+  const importKobo = async () => {
+    if (!assetUid.trim()) return;
+    setKoboBusy("import"); setKoboError(""); setKoboResult(null);
+    try { const r = await dashboardApi.koboImport(assetUid.trim(), 30); setKoboResult(r.data); }
+    catch (e: any) { setKoboError(e?.response?.data?.error || "Import failed"); }
+    finally { setKoboBusy(""); }
+  };
+
   useAdaGreeting({ page: "integrations" });
 
   const handleSetupOpen = useCallback((id: string) => {
@@ -297,6 +319,36 @@ export default function IntegrationsPage() {
           </div>
           {urlCopied && <motion.div initial={{ opacity:0,scale:0.9 }} animate={{ opacity:1,scale:1 }} style={{ padding:"8px 14px",borderRadius:8,background:"#ECFDF5",border:"1px solid #A7F3D0",fontSize:12,fontWeight:600,color:GREEN,flexShrink:0,display:"flex",alignItems:"center",gap:4 }}><Check size={12} />URL copied!</motion.div>}
         </div>
+      </div>
+
+      {/* Pull from KoboToolbox — testing helper */}
+      <div style={{ ...CARD, padding:"20px 24px" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6 }}>
+          <Zap size={15} color={BLUE} /><div style={{ fontSize:13.5,fontWeight:700,color:"#080D1A" }}>Pull submissions from KoboToolbox</div>
+        </div>
+        <div style={{ fontSize:12,color:"#6B7280",marginBottom:12 }}>Import and score existing submissions from a Kobo form — handy for testing without waiting on the webhook. Requires <code style={{ fontFamily:"monospace" }}>KOBO_API_TOKEN</code> on the server.</div>
+        <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:12 }}>
+          <button onClick={testKobo} disabled={koboBusy!==""} style={{ padding:"9px 16px",borderRadius:8,background:"white",border:"1px solid #E2E8F0",color:"#374151",fontSize:12.5,fontWeight:600,cursor:koboBusy?"wait":"pointer",fontFamily:"Inter,sans-serif" }}>{koboBusy==="ping"?"Testing…":"Test Connection"}</button>
+          <input value={assetUid} onChange={e=>setAssetUid(e.target.value)} placeholder="Form asset UID (e.g. aBcD123…)" style={{ flex:1,minWidth:200,border:"1px solid #E2E8F0",borderRadius:8,padding:"9px 12px",fontSize:12.5,fontFamily:"Inter,sans-serif",outline:"none" }} />
+          <button onClick={importKobo} disabled={koboBusy!==""||!assetUid.trim()} style={{ padding:"9px 16px",borderRadius:8,background:BLUE,border:"none",color:"white",fontSize:12.5,fontWeight:600,cursor:koboBusy?"wait":"pointer",fontFamily:"Inter,sans-serif",opacity:koboBusy||!assetUid.trim()?0.6:1 }}>{koboBusy==="import"?"Importing…":"Import & Score"}</button>
+        </div>
+        {koboError && <div style={{ fontSize:12,color:"#DC2626",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 12px",marginBottom:8 }}>{koboError}</div>}
+        {koboForms && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.6,marginBottom:6 }}>Your forms ({koboForms.length}) — click one to use its UID</div>
+            {koboForms.length ? koboForms.map((f:any)=>(
+              <div key={f.uid} onClick={()=>setAssetUid(f.uid)} style={{ display:"flex",justifyContent:"space-between",gap:10,padding:"7px 10px",borderRadius:8,background:"#F8FAFF",border:"1px solid #EEF2F8",marginBottom:6,cursor:"pointer",fontSize:12 }}>
+                <span style={{ fontWeight:600,color:"#080D1A" }}>{f.name}</span>
+                <span style={{ color:"#9CA3AF",fontFamily:"monospace" }}>{f.uid} · {f.submissions} subs</span>
+              </div>
+            )) : <div style={{ fontSize:12,color:"#9CA3AF" }}>No forms found on this account.</div>}
+          </div>
+        )}
+        {koboResult && (
+          <div style={{ fontSize:12.5,color:GREEN,background:"#ECFDF5",border:"1px solid #A7F3D0",borderRadius:8,padding:"10px 12px" }}>
+            ✓ Imported and scored {koboResult.scored} of {koboResult.fetched} submissions{koboResult.errors?` (${koboResult.errors} errors)`:""}. They now appear on your dashboard.
+          </div>
+        )}
       </div>
 
       <div>
