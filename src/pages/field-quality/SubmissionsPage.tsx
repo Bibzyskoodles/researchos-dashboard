@@ -52,6 +52,7 @@ export default function SubmissionsPage(){
   const [selected,setSelected]=useState<Submission|null>(null);
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
+  const [bulkSelected,setBulkSelected]=useState<Set<string>>(new Set());
   const isMobile=useIsMobile();
   const navigate=useNavigate();
   useAdaGreeting({ page: "submissions" });
@@ -124,6 +125,17 @@ export default function SubmissionsPage(){
         </div>
       </div>
 
+      {bulkSelected.size > 0 && (
+        <motion.div initial={{y:20,opacity:0}} animate={{y:0,opacity:1}}
+          style={{position:"sticky",bottom:16,left:0,right:0,background:BLUE,borderRadius:12,padding:"12px 20px",display:"flex",alignItems:"center",gap:16,color:"white",boxShadow:"0 8px 32px rgba(36,99,235,.2)",marginLeft:16,marginRight:16}}>
+          <span style={{fontSize:13,fontWeight:600}}>✓ {bulkSelected.size} selected</span>
+          <button onClick={()=>setBulkSelected(new Set())} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:6,padding:"5px 12px",color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>Clear</button>
+          <div style={{flex:1}}/>
+          <button style={{background:"white",color:BLUE,border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Approve All</button>
+          <button style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:6,padding:"6px 14px",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Reject All</button>
+        </motion.div>
+      )}
+
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":(selected?"1fr 380px":"1fr"),gap:16,alignItems:"start"}}>
         <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
           {loading?(
@@ -133,38 +145,44 @@ export default function SubmissionsPage(){
           ):filtered.map((sub,i)=>{
             const isFirstFlag = sub.verdict==="FLAG" && !filtered.slice(0,i).some(s=>s.verdict==="FLAG");
             return(
-            <motion.div key={sub.submission_id} onClick={()=>navigate(`/submissions/${sub.submission_id}`)}
+            <motion.div key={sub.submission_id}
               whileHover={{background:"#FAFBFF"}}
               data-ada-target={isFirstFlag ? "flagged-row" : undefined}
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",borderBottom:i<filtered.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
                 background:selected?.submission_id===sub.submission_id?"#F0F7FF":"white",
                 borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
+              <input type="checkbox" checked={bulkSelected.has(sub.submission_id)}
+                onChange={(e)=>{e.stopPropagation();const s=new Set(bulkSelected);if(e.target.checked)s.add(sub.submission_id);else s.delete(sub.submission_id);setBulkSelected(s);}}
+                onClick={(e)=>e.stopPropagation()}
+                style={{cursor:"pointer",width:18,height:18,accentColor:BLUE}}/>
+              <div onClick={()=>navigate(`/submissions/${sub.submission_id}`)} style={{flex:1,display:"flex",alignItems:"center",gap:12}}>
               <ScoreRing score={sub.overall_score}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontSize:11,fontFamily:"monospace",color:"#6B7280"}}>{sub.submission_id.substring(0,12)}…</span>
-                  <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:vbg(sub.verdict),color:vc(sub.verdict)}}>{sub.verdict}</span>
-                  <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:"#EFF6FF",color:BLUE,fontFamily:"monospace"}}>{sub.overall_score}/100</span>
-                </div>
-                <div style={{fontSize:12,color:"#374151",fontWeight:500,marginBottom:3}}>{sub.enumerator_id}</div>
-                <div style={{display:"flex",alignItems:"center",gap:12,fontSize:11,color:"#9CA3AF"}}>
-                  {sub.gps?.address&&<span style={{display:"flex",alignItems:"center",gap:3}}><MapPin size={10}/>{sub.gps.address.split(",").slice(0,2).join(",")}</span>}
-                  {sub.duration_mins&&<span style={{display:"flex",alignItems:"center",gap:3}}><Clock size={10}/>{Math.round(Number(sub.duration_mins))}m</span>}
-                </div>
-                {sub.flags&&(
-                  <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
-                    {(Array.isArray(sub.flags)?sub.flags:sub.flags.split(",").filter(Boolean)).map(f=>(
-                      <span key={f} style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:4,background:"#F1F5F9",color:"#6B7280"}}>{f.trim().replace(/_/g," ")}</span>
-                    ))}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                    <span style={{fontSize:11,fontFamily:"monospace",color:"#6B7280"}}>{sub.submission_id.substring(0,12)}…</span>
+                    <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:vbg(sub.verdict),color:vc(sub.verdict)}}>{sub.verdict}</span>
+                    <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:"#EFF6FF",color:BLUE,fontFamily:"monospace"}}>{sub.overall_score}/100</span>
                   </div>
-                )}
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:10,color:"#9CA3AF"}}>{new Date(sub.scored_at).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</div>
-                  <div style={{fontSize:10,color:"#CBD5E1"}}>{new Date(sub.scored_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
+                  <div style={{fontSize:12,color:"#374151",fontWeight:500,marginBottom:3}}>{sub.enumerator_id}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:12,fontSize:11,color:"#9CA3AF"}}>
+                    {sub.gps?.address&&<span style={{display:"flex",alignItems:"center",gap:3}}><MapPin size={10}/>{sub.gps.address.split(",").slice(0,2).join(",")}</span>}
+                    {sub.duration_mins&&<span style={{display:"flex",alignItems:"center",gap:3}}><Clock size={10}/>{Math.round(Number(sub.duration_mins))}m</span>}
+                  </div>
+                  {sub.flags&&(
+                    <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
+                      {(Array.isArray(sub.flags)?sub.flags:sub.flags.split(",").filter(Boolean)).map(f=>(
+                        <span key={f} style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:4,background:"#F1F5F9",color:"#6B7280"}}>{f.trim().replace(/_/g," ")}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <ChevronRight size={14} color={selected?.submission_id===sub.submission_id?BLUE:"#CBD5E1"}/>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:10,color:"#9CA3AF"}}>{new Date(sub.scored_at).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</div>
+                    <div style={{fontSize:10,color:"#CBD5E1"}}>{new Date(sub.scored_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
+                  </div>
+                  <ChevronRight size={14} color={selected?.submission_id===sub.submission_id?BLUE:"#CBD5E1"}/>
+                </div>
               </div>
             </motion.div>
           );})}
