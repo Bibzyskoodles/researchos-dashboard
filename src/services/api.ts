@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { shouldThrottleRequest, isNonUserError, getSecurityHeaders } from './security';
+import { getToken, getSecurityMetadata } from './clientSecurity';
 
 const BASE_URL = process.env.REACT_APP_API_URL || 'https://web-production-f5bab.up.railway.app';
 
@@ -9,12 +10,17 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('fs_token');
+  // Get token from secure storage (not localStorage)
+  const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
-  // Add security headers
+  // Add CSRF headers
   const securityHeaders = getSecurityHeaders();
   config.headers = { ...config.headers, ...securityHeaders };
+
+  // Add device/session tracking headers
+  const metadata = getSecurityMetadata();
+  config.headers = { ...config.headers, ...metadata };
 
   // Throttle requests
   if (shouldThrottleRequest()) {
