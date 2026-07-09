@@ -1,6 +1,30 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { AlertCircle, CheckCircle, Copy, ExternalLink, Loader, Lock, Unlock, X } from 'lucide-react';
-const QRCode = ({ value, ...rest }: { value: string; [k: string]: unknown }) => <div data-qr={value} />;
+
+// Simple QR placeholder — renders the URL as a monospace block
+// (qrcode.react is not installed; replace with the real package if needed)
+const QRCode = ({ value, size = 200 }: { value: string; size?: number; level?: string; includeMargin?: boolean }) => (
+  <div
+    style={{
+      width: size,
+      height: size,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#f5f5f5',
+      border: '1px solid #e0e0e0',
+      borderRadius: 4,
+      padding: 8,
+      wordBreak: 'break-all',
+      fontSize: 10,
+      fontFamily: 'monospace',
+      color: '#333',
+      textAlign: 'center',
+    }}
+  >
+    {value}
+  </div>
+);
 
 // Types
 interface KoboAsset {
@@ -175,7 +199,7 @@ const PublishModal: React.FC<PublishModalProps> = ({
     isPublic: false,
     syncResponses: false,
   });
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [isUpdating] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -473,7 +497,7 @@ export const PublishToKoboButton: React.FC<PublishToKoboButtonProps> = ({
     projectName: string;
     version: number;
   } | null>(null);
-  const [existingVersions, setExistingVersions] = useState<number[]>([]);
+  const [existingVersions] = useState<number[]>([]);
 
   const handleAuthSuccess = useCallback((newToken: string) => {
     setToken(newToken);
