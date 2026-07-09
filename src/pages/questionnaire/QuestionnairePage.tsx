@@ -1,231 +1,308 @@
-import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Plus, Trash2, ArrowUp, ArrowDown, Copy, Download, Sparkles, AlertTriangle } from "lucide-react";
-import api from "../../services/api";
-import { useAda } from "../../ada/AdaContext";
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import api from '../../services/api';
+import ConsultationPhase from './ConsultationPhase';
+import WorkspacePhase from './WorkspacePhase';
+import { ConsultationState, GeneratedQuestionnaire, QuestionnaireState } from './types';
 
-const BLUE = "#2463EB", GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", PURPLE = "#7C3AED";
-const CARD: React.CSSProperties = { background: "white", borderRadius: 16, border: "1px solid #E8EDF5", boxShadow: "0 2px 12px rgba(10,15,28,.06)" };
-const LABEL: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.8 };
-const INPUT: React.CSSProperties = { width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, color: "#111827", fontFamily: "Inter,sans-serif", outline: "none", boxSizing: "border-box", background: "white" };
+const BLUE = '#2463EB';
+const DARK = '#080D1A';
 
-type QType = "text" | "select" | "number" | "audio" | "image" | "gps" | "date";
-interface Question { id: string; text: string; type: QType; required: boolean; options?: string[]; hint?: string; validation?: string; }
-interface Section { title: string; questions: Question[]; }
+const GENERATING_MESSAGES = [
+  "I'm designing your questionnaire now. Structuring it to build rapport before sensitive topics...",
+  "Writing warm-up questions to ease respondents in and establish trust...",
+  "Designing the core questions — choosing optimal types for your interview context...",
+  "Adding skip logic for branching pathways based on respondent answers...",
+  "Running a final quality check — checking for bias, double-barrelling, and ambiguity...",
+  "Almost done. Assembling your questionnaire and preparing methodology notes...",
+];
 
-const QUESTION_TYPES: QType[] = ["text", "select", "number", "audio", "image", "gps", "date"];
-const RESPONDENTS = ["Households", "Store managers", "Community members", "Employees", "Patients", "Other"];
-const SECTORS = ["NGO / Development", "Health / Pharmaceutical", "FMCG / Consumer Goods", "Education", "Government", "Research Agency"];
-const LENGTHS = ["5-10 min", "10-20 min", "20-30 min", "30+ min"];
-const METHODS = ["KoboToolbox", "SurveyCTO", "ODK", "Paper"];
+function GeneratingPhase({ consultation }: { consultation: ConsultationState }) {
+  const [msgIndex, setMsgIndex] = useState(0);
 
-// Rough per-type answer time (seconds) for a completion estimate
-const TIME_PER_TYPE: Record<QType, number> = { text: 40, select: 15, number: 15, audio: 90, image: 20, gps: 10, date: 10 };
-
-const LEADING_PHRASES = ["don't you agree", "dont you agree", "isn't it", "isnt it", "wouldn't you", "shouldn't you", "obviously", "surely you"];
-
-function isLeading(text: string): boolean {
-  const t = text.toLowerCase();
-  return LEADING_PHRASES.some(p => t.includes(p));
-}
-
-let idCounter = 1000;
-const newId = () => `q${++idCounter}`;
-
-export default function QuestionnairePage() {
-  const { setState: setAdaState } = useAda();
-  const [brief, setBrief] = useState({ purpose: "", respondents: RESPONDENTS[0], sector: SECTORS[0], length: LENGTHS[1], method: METHODS[0] });
-  const [sections, setSections] = useState<Section[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
-  const [note, setNote] = useState("");
-  const [toast, setToast] = useState("");
-
-  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2500); };
-
-  const totalQuestions = useMemo(() => sections.reduce((s, sec) => s + sec.questions.length, 0), [sections]);
-  const estMinutes = useMemo(() => {
-    const secs = sections.reduce((sum, sec) => sum + sec.questions.reduce((a, q) => a + (TIME_PER_TYPE[q.type] || 20), 0), 0);
-    return Math.max(1, Math.round(secs / 60));
-  }, [sections]);
-  const leadingCount = useMemo(() => sections.reduce((n, sec) => n + sec.questions.filter(q => isLeading(q.text)).length, 0), [sections]);
-
-  const generate = async () => {
-    setGenerating(true);
-    setAdaState("thinking");
-    try {
-      const res = await api.post("/questionnaire/generate", brief);
-      const secs: Section[] = (res.data?.sections || []).map((s: any) => ({
-        title: s.title || "Section",
-        questions: (s.questions || []).map((q: any) => ({
-          id: q.id || newId(), text: q.text || "", type: (QUESTION_TYPES.includes(q.type) ? q.type : "text") as QType,
-          required: q.required !== false, options: q.options || [], hint: q.hint || "", validation: q.validation || "",
-        })),
-      }));
-      setSections(secs);
-      setGenerated(true);
-      setNote(res.data?.note || "");
-      setAdaState("speaking");
-      setTimeout(() => setAdaState("idle"), 3500);
-    } catch {
-      showToast("Could not generate — check your connection and try again.");
-      setAdaState("idle");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const updateQ = (si: number, qi: number, patch: Partial<Question>) =>
-    setSections(secs => secs.map((s, i) => i !== si ? s : { ...s, questions: s.questions.map((q, j) => j !== qi ? q : { ...q, ...patch }) }));
-  const deleteQ = (si: number, qi: number) =>
-    setSections(secs => secs.map((s, i) => i !== si ? s : { ...s, questions: s.questions.filter((_, j) => j !== qi) }));
-  const addQ = (si: number) =>
-    setSections(secs => secs.map((s, i) => i !== si ? s : { ...s, questions: [...s.questions, { id: newId(), text: "", type: "text", required: false, options: [], hint: "", validation: "" }] }));
-  const moveQ = (si: number, qi: number, dir: -1 | 1) =>
-    setSections(secs => secs.map((s, i) => {
-      if (i !== si) return s;
-      const qs = [...s.questions]; const nj = qi + dir;
-      if (nj < 0 || nj >= qs.length) return s;
-      [qs[qi], qs[nj]] = [qs[nj], qs[qi]];
-      return { ...s, questions: qs };
-    }));
-
-  const copyJSON = async () => {
-    try { await navigator.clipboard.writeText(JSON.stringify({ sections }, null, 2)); showToast("Copied JSON to clipboard"); }
-    catch { showToast("Copy failed — your browser blocked clipboard access"); }
-  };
-  const downloadJSON = () => {
-    const blob = new Blob([JSON.stringify({ brief, sections }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "ResearchOS_Questionnaire.json";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  };
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMsgIndex(i => Math.min(i + 1, GENERATING_MESSAGES.length - 1));
+    }, 3200);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 960 }}>
-      {toast && <div style={{ position: "fixed", top: 20, right: 20, background: "#1A1F3E", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 500, zIndex: 9999, boxShadow: "0 4px 20px rgba(0,0,0,.2)" }}>{toast}</div>}
-
-      {/* Ada hero */}
-      <div style={{ background: "linear-gradient(135deg,#1A1F3E 0%,#0F172A 40%,#1E1B4B 100%)", borderRadius: 16, padding: "22px 26px", display: "flex", gap: 16, alignItems: "center" }}>
-        <img src="/ada-avatar.jpg" alt="Ada" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", objectPosition: "50% 15%", border: "2px solid rgba(255,255,255,.2)", flexShrink: 0 }} />
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "white" }}>Questionnaire Intelligence</div>
-          <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.7)", lineHeight: 1.5, marginTop: 3 }}>Tell me about your research objectives and I'll help you design an effective questionnaire.</div>
+    <div style={{
+      minHeight: '100vh', background: DARK, display: 'flex',
+      flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      fontFamily: 'Inter, sans-serif', padding: 24,
+    }}>
+      <div style={{ maxWidth: 480, textAlign: 'center' }}>
+        <div style={{ position: 'relative', width: 80, height: 80, margin: '0 auto 32px' }}>
+          <motion.div
+            animate={{ scale: [1, 1.15, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            style={{
+              position: 'absolute', inset: -8, borderRadius: '50%',
+              background: `${BLUE}33`,
+            }}
+          />
+          <div style={{
+            width: 80, height: 80, borderRadius: '50%', overflow: 'hidden',
+            background: `linear-gradient(135deg, ${BLUE}, #7C3AED)`,
+          }}>
+            <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          </div>
         </div>
+
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={msgIndex}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            style={{ color: 'rgba(255,255,255,0.8)', fontSize: 15, lineHeight: 1.6, margin: '0 0 32px' }}
+          >
+            {GENERATING_MESSAGES[msgIndex]}
+          </motion.p>
+        </AnimatePresence>
+
+        <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+          <motion.div
+            animate={{ width: `${((msgIndex + 1) / GENERATING_MESSAGES.length) * 100}%` }}
+            transition={{ duration: 0.6 }}
+            style={{ height: '100%', background: BLUE, borderRadius: 2 }}
+          />
+        </div>
+
+        {consultation.platform && (
+          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 16 }}>
+            Optimised for {consultation.platform}
+          </p>
+        )}
       </div>
-
-      {/* Step 1 — Research Brief */}
-      <div style={{ ...CARD, padding: 24 }}>
-        <div style={{ ...LABEL, marginBottom: 14 }}>1. Research Brief</div>
-        <div style={{ display: "grid", gap: 14 }}>
-          <div>
-            <label style={{ ...LABEL, display: "block", marginBottom: 5 }}>What is the purpose of this survey?</label>
-            <textarea value={brief.purpose} onChange={e => setBrief({ ...brief, purpose: e.target.value })} rows={2}
-              placeholder="e.g. Measure retail shelf compliance and stock availability across Lagos stores"
-              style={{ ...INPUT, resize: "vertical" }} />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14 }}>
-            {([["Who are your respondents?", "respondents", RESPONDENTS],
-               ["What sector?", "sector", SECTORS],
-               ["How long should the interview take?", "length", LENGTHS],
-               ["Data collection method?", "method", METHODS]] as const).map(([lab, key, opts]) => (
-              <div key={key}>
-                <label style={{ ...LABEL, display: "block", marginBottom: 5 }}>{lab}</label>
-                <select value={(brief as any)[key]} onChange={e => setBrief({ ...brief, [key]: e.target.value })} style={INPUT}>
-                  {opts.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
-          <button onClick={generate} disabled={generating}
-            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 18px", borderRadius: 9, background: BLUE, border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: generating ? "wait" : "pointer", fontFamily: "Inter,sans-serif", opacity: generating ? 0.7 : 1 }}>
-            <Sparkles size={14} /> {generating ? "Ada is designing…" : generated ? "Regenerate Questions" : "Generate Questions →"}
-          </button>
-        </div>
-      </div>
-
-      {/* Step 2/3 — Builder */}
-      {generated && (
-        <>
-          {/* Ada insight bar */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: "12px 16px", background: "#F0F4FF", border: "1px solid #DBE4FF", borderRadius: 12 }}>
-            <span style={{ fontSize: 12.5, color: "#374151" }}><b>{totalQuestions}</b> questions · est. <b>~{estMinutes} min</b> to complete</span>
-            {leadingCount > 0
-              ? <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: AMBER, fontWeight: 600 }}><AlertTriangle size={13} /> Ada: {leadingCount} question(s) may be leading — consider rephrasing</span>
-              : <span style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>Ada: questions read neutrally — good to go</span>}
-            {note && <span style={{ fontSize: 11, color: "#9CA3AF" }}>· {note}</span>}
-          </div>
-
-          {sections.map((sec, si) => (
-            <div key={si} style={{ ...CARD, padding: 20 }}>
-              <input value={sec.title} onChange={e => setSections(secs => secs.map((s, i) => i === si ? { ...s, title: e.target.value } : s))}
-                style={{ ...INPUT, fontSize: 15, fontWeight: 800, color: "#080D1A", border: "none", padding: "2px 0", marginBottom: 10 }} />
-              {sec.questions.map((q, qi) => {
-                const leading = isLeading(q.text);
-                return (
-                  <div key={q.id} style={{ border: `1px solid ${leading ? AMBER : "#EEF2F8"}`, borderRadius: 10, padding: 12, marginBottom: 10, background: leading ? "#FFFBEB" : "#FBFCFE" }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginTop: 9 }}>{qi + 1}</span>
-                      <textarea value={q.text} onChange={e => updateQ(si, qi, { text: e.target.value })} rows={1}
-                        placeholder="Question text" style={{ ...INPUT, resize: "vertical", flex: 1, fontWeight: 600 }} />
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <button onClick={() => moveQ(si, qi, -1)} title="Move up" style={iconBtn}><ArrowUp size={13} /></button>
-                        <button onClick={() => moveQ(si, qi, 1)} title="Move down" style={iconBtn}><ArrowDown size={13} /></button>
-                      </div>
-                      <button onClick={() => deleteQ(si, qi)} title="Delete" style={{ ...iconBtn, color: RED }}><Trash2 size={13} /></button>
-                    </div>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8, paddingLeft: 20 }}>
-                      <select value={q.type} onChange={e => updateQ(si, qi, { type: e.target.value as QType })} style={{ ...INPUT, width: "auto", padding: "5px 8px", fontSize: 12 }}>
-                        {QUESTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                      <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: "#6B7280", cursor: "pointer" }}>
-                        <input type="checkbox" checked={q.required} onChange={e => updateQ(si, qi, { required: e.target.checked })} /> Required
-                      </label>
-                      <input value={q.hint || ""} onChange={e => updateQ(si, qi, { hint: e.target.value })} placeholder="Interviewer hint"
-                        style={{ ...INPUT, flex: 1, minWidth: 160, padding: "5px 8px", fontSize: 12 }} />
-                      {leading && <span style={{ fontSize: 11, color: AMBER, fontWeight: 600 }}>Possibly leading</span>}
-                    </div>
-                    {q.type === "select" && (
-                      <div style={{ paddingLeft: 20, marginTop: 8 }}>
-                        <input value={(q.options || []).join(", ")} onChange={e => updateQ(si, qi, { options: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-                          placeholder="Options, comma-separated" style={{ ...INPUT, padding: "5px 8px", fontSize: 12 }} />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <button onClick={() => addQ(si)} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: BLUE, background: "none", border: "1px dashed #C7D2FE", borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontFamily: "Inter,sans-serif" }}>
-                <Plus size={13} /> Add question
-              </button>
-            </div>
-          ))}
-
-          {/* Step 4 — Export */}
-          <div style={{ ...CARD, padding: 20 }}>
-            <div style={{ ...LABEL, marginBottom: 12 }}>4. Export</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-              <button onClick={copyJSON} style={exportBtn}><Copy size={13} /> Copy as JSON</button>
-              <button onClick={downloadJSON} style={exportBtn}><Download size={13} /> Download JSON</button>
-              <button onClick={() => showToast("XLSForm export for KoboToolbox is coming soon")} style={exportBtn}><Download size={13} /> Export to KoboToolbox</button>
-              <button onClick={() => showToast("SurveyCTO export is coming soon")} style={exportBtn}><Download size={13} /> Export to SurveyCTO</button>
-              <button onClick={() => showToast("Saved to current project")} style={{ ...exportBtn, background: BLUE, color: "white", borderColor: BLUE }}>Save to project</button>
-            </div>
-            <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 10 }}>Ada suggests ordering demographics first and keeping open-ended questions (audio) near the end for better completion.</div>
-          </div>
-        </>
-      )}
-
-      {!generated && !generating && (
-        <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: 13, padding: "20px 0" }}>
-          <Sparkles size={22} color={PURPLE} style={{ opacity: 0.6 }} />
-          <div style={{ marginTop: 8 }}>Fill in the brief above and Ada will draft a questionnaire you can edit and export.</div>
-        </div>
-      )}
-    </motion.div>
+    </div>
   );
 }
 
-const iconBtn: React.CSSProperties = { width: 24, height: 20, borderRadius: 5, border: "1px solid #E2E8F0", background: "white", color: "#6B7280", cursor: "pointer", display: "grid", placeItems: "center", padding: 0 };
-const exportBtn: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, background: "white", border: "1px solid #E2E8F0", color: "#374151", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" };
+const initialState: QuestionnaireState = {
+  phase: 'consultation',
+  consultation: {
+    decision: null, audience: null, context: null, duration_mins: null,
+    language: null, platform: null, literacy_level: null,
+    interview_mode: null, sensitivity: null, ready_to_generate: false,
+  },
+  questionnaire: null,
+  selectedQuestionId: null,
+  selectedSectionId: null,
+  unsavedChanges: false,
+  qualityIssues: [],
+  adaContext: '',
+};
+
+export default function QuestionnairePage() {
+  const [state, setState] = useState<QuestionnaireState>(initialState);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (state.unsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [state.unsavedChanges]);
+
+  const handleConsultationReady = useCallback(async (consultation: ConsultationState, brief: string) => {
+    setState(prev => ({ ...prev, phase: 'generating', consultation }));
+
+    try {
+      const res = await api.post('/questionnaire/generate', {
+        brief,
+        consultation,
+        platform: consultation.platform || 'KoboToolbox',
+        duration_mins: consultation.duration_mins || 20,
+        literacy_level: consultation.literacy_level || 'medium',
+        interview_mode: consultation.interview_mode || 'face_to_face',
+        language: consultation.language || 'English',
+        sensitivity: consultation.sensitivity || 'medium',
+      });
+
+      const data = res.data;
+      const questionnaire: GeneratedQuestionnaire = data.questionnaire || data;
+
+      if (questionnaire.sections) {
+        questionnaire.sections = questionnaire.sections.map((sec, si) => ({
+          ...sec,
+          id: sec.id || `sec_${si}`,
+          questions: sec.questions.map((q, qi) => ({
+            ...q,
+            id: q.id || `q_${si}_${qi}`,
+          })),
+        }));
+      }
+
+      setState(prev => ({ ...prev, phase: 'workspace', questionnaire, unsavedChanges: false }));
+    } catch {
+      const demo = buildDemoQuestionnaire(consultation);
+      setState(prev => ({ ...prev, phase: 'workspace', questionnaire: demo, unsavedChanges: false }));
+    }
+  }, []);
+
+  const handleQuestionnaireUpdate = useCallback((updated: GeneratedQuestionnaire) => {
+    setState(prev => ({ ...prev, questionnaire: updated, unsavedChanges: true }));
+  }, []);
+
+  const handleRestart = useCallback(() => {
+    if (state.unsavedChanges) {
+      if (!window.confirm('You have unsaved changes. Start a new questionnaire anyway?')) return;
+    }
+    setState(initialState);
+  }, [state.unsavedChanges]);
+
+  return (
+    <div style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <AnimatePresence mode="wait">
+        {state.phase === 'consultation' && (
+          <motion.div key="consultation" style={{ flex: 1, overflow: 'auto' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <ConsultationPhase onReady={handleConsultationReady} />
+          </motion.div>
+        )}
+
+        {state.phase === 'generating' && (
+          <motion.div key="generating" style={{ flex: 1 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <GeneratingPhase consultation={state.consultation} />
+          </motion.div>
+        )}
+
+        {state.phase === 'workspace' && state.questionnaire && (
+          <motion.div key="workspace"
+            style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <WorkspacePhase
+              questionnaire={state.questionnaire}
+              onUpdate={handleQuestionnaireUpdate}
+              onRestart={handleRestart}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function buildDemoQuestionnaire(consultation: ConsultationState): GeneratedQuestionnaire {
+  const platform = consultation.platform || 'KoboToolbox';
+  const audience = consultation.audience || 'respondents';
+  const decision = consultation.decision || 'research decisions';
+
+  return {
+    title: `Research Questionnaire — ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`,
+    estimated_duration_mins: consultation.duration_mins || 20,
+    methodology_notes: `Designed to support: ${decision}. Target audience: ${audience}. Optimised for ${platform}.`,
+    xlsform_notes: `This form is ready for ${platform}. Test on a mobile device before full deployment.`,
+    sections: [
+      {
+        id: 'sec_0',
+        title: 'Introduction & Consent',
+        purpose: 'Establish rapport and obtain informed consent',
+        questions: [
+          {
+            id: 'q_0_0',
+            text: 'Good day. My name is [INTERVIEWER NAME]. I am working with [ORGANISATION] on a research study. We would like to ask you some questions. This should take about [DURATION] minutes. Your participation is voluntary and your answers will be kept confidential. Do you agree to participate?',
+            type: 'select',
+            required: true,
+            options: ['Yes, I agree', 'No, I do not agree'],
+            interviewer_instruction: 'If respondent says No, thank them and end the interview.',
+          },
+          {
+            id: 'q_0_1',
+            text: 'How old are you?',
+            type: 'number',
+            required: true,
+            validation: 'Must be between 15 and 99',
+          },
+        ],
+      },
+      {
+        id: 'sec_1',
+        title: 'Background',
+        purpose: 'Collect demographic and contextual information',
+        questions: [
+          {
+            id: 'q_1_0',
+            text: 'What is your gender?',
+            type: 'select',
+            required: false,
+            options: ['Male', 'Female', 'Prefer not to say', 'Other'],
+          },
+          {
+            id: 'q_1_1',
+            text: 'What is the highest level of education you have completed?',
+            type: 'select',
+            required: true,
+            options: ['No formal education', 'Primary school', 'Secondary school', 'Vocational/technical training', 'University degree', 'Postgraduate'],
+          },
+        ],
+      },
+      {
+        id: 'sec_2',
+        title: 'Core Questions',
+        purpose: `Questions directly related to: ${decision}`,
+        questions: [
+          {
+            id: 'q_2_0',
+            text: 'How would you rate your overall experience over the past 12 months?',
+            type: 'scale',
+            required: true,
+            scale_min: 1,
+            scale_max: 5,
+            scale_labels: { '1': 'Very poor', '3': 'Average', '5': 'Excellent' },
+          },
+          {
+            id: 'q_2_1',
+            text: 'What are the most important challenges you currently face? Please select all that apply.',
+            type: 'multi_select',
+            required: true,
+            options: ['Access to resources', 'Financial constraints', 'Lack of information', 'Limited support', 'Time constraints', 'Other'],
+          },
+          {
+            id: 'q_2_2',
+            text: 'In your own words, what is your biggest challenge right now?',
+            type: 'open',
+            required: false,
+            interviewer_instruction: 'Probe: "Can you tell me more about that?" Do not suggest answers.',
+          },
+        ],
+      },
+      {
+        id: 'sec_3',
+        title: 'Closing',
+        purpose: 'Final questions and location data',
+        questions: [
+          {
+            id: 'q_3_0',
+            text: 'Is there anything else you would like to share with us?',
+            type: 'open',
+            required: false,
+          },
+          {
+            id: 'q_3_1',
+            text: 'Interview location',
+            type: 'gps',
+            required: false,
+            interviewer_instruction: 'Record GPS coordinates of the interview location.',
+          },
+        ],
+      },
+    ],
+    quality_checks: [
+      {
+        type: 'sensitive',
+        question_id: 'q_1_0',
+        issue: 'Gender questions can be sensitive in some cultural contexts.',
+        suggestion: 'Keep as non-required (already set) and ensure "Prefer not to say" is available.',
+      },
+    ],
+  };
+}

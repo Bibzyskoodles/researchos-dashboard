@@ -60,6 +60,17 @@ export const dashboardApi = {
     api.post('/kobo/import', { asset_uid, limit }),
 };
 
+export const questionnaireApi = {
+  generate: (payload: object) =>
+    api.post('/questionnaire/generate', payload),
+  save: (questionnaire: object) =>
+    api.post('/questionnaire/save', questionnaire),
+  exportXlsform: (questionnaire: object, platform: string) =>
+    api.post('/questionnaire/export/xlsform', { questionnaire, platform }, { responseType: 'blob' }),
+  exportDocx: (questionnaire: object) =>
+    api.post('/questionnaire/export/docx', { questionnaire }, { responseType: 'blob' }),
+};
+
 export const adaApi = {
   chat: (message: string, page: string, context: object) =>
     api.post('/ada/chat', { message, page, ...context }),
