@@ -16,6 +16,8 @@ export function Button({
   icon,
   children,
   disabled,
+  className,
+  type = 'button',
   ...props
 }: ButtonProps) {
   const sizeStyles = {
@@ -49,6 +51,7 @@ export function Button({
 
   return (
     <motion.button
+      type={type}
       whileHover={!disabled && !loading ? { scale: 1.02 } : {}}
       whileTap={!disabled && !loading ? { scale: 0.98 } : {}}
       disabled={disabled || loading}
@@ -63,8 +66,9 @@ export function Button({
         opacity: disabled || loading ? 0.6 : 1,
         ...sizeStyles[size],
         ...variantStyles[variant],
-      }}
-      {...props}
+      } as React.CSSProperties}
+      className={className}
+      {...(props as any)}
     >
       {icon && <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>}
       <span style={{ opacity: loading ? 0.5 : 1 }}>{children}</span>
