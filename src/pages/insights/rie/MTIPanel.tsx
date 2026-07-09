@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { insightScoreApi } from "../../../services/api";
+import { usePlatform } from "../../../platform/PlatformProvider";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -73,6 +74,7 @@ function SeverityBadge({ severity }: { severity: "low" | "medium" | "high" }) {
 }
 
 function MTIPendingState() {
+  const { t } = usePlatform();
   return (
     <div style={{ background: "white", borderRadius: 16, border: "1px solid #E8EDF5", overflow: "hidden" }}>
       <div style={{ background: "linear-gradient(135deg, #1A1F3E, #0F172A)", padding: "28px 32px" }}>
@@ -107,7 +109,7 @@ function MTIPendingState() {
           <div style={{ fontSize: 13, color: "#1E40AF" }}>MTI scores will appear here once Ada completes analysis of the interview responses.</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-          {["Per Question", "Per Enumerator", "Per Region", "Per Language"].map(dim => (
+          {["Per Question", `Per ${t('enumerator','Enumerator')}`, "Per Region", "Per Language"].map(dim => (
             <div key={dim} style={{ background: "#F8FAFF", borderRadius: 10, padding: "16px 14px", border: "1px solid #E8EDF5", textAlign: "center" }}>
               <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#E8EDF5", margin: "0 auto 8px", display: "grid", placeItems: "center" }}>
                 <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#CBD5E1" }} />
@@ -123,6 +125,7 @@ function MTIPendingState() {
 }
 
 export default function MTIPanel({ projectId }: { projectId: string }) {
+  const { t } = usePlatform();
   const [data, setData] = useState<MTIData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -222,7 +225,7 @@ export default function MTIPanel({ projectId }: { projectId: string }) {
       {enumerators.length > 0 && (
         <div style={{ background: "white", borderRadius: 14, border: "1px solid #E8EDF5", overflow: "hidden" }}>
           <div style={{ padding: "14px 20px", borderBottom: "1px solid #F1F5F9" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Enumerator MTI Comparison</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{t('enumerator','Enumerator')} MTI Comparison</div>
           </div>
           <div style={{ padding: "16px 20px", display: "flex", flexWrap: "wrap", gap: 12 }}>
             {[...enumerators].sort((a, b) => b.mti - a.mti).map((e, i) => (

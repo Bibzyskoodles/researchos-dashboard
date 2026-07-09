@@ -211,7 +211,8 @@ function OrgSection() {
 }
 
 function WorkspaceSection() {
-  const [wsName, setWsName] = useState("Lagos Retail Audit");
+  const { org } = useAuth();
+  const [wsName, setWsName] = useState(org?.name || "My Workspace");
   const [desc, setDesc] = useState("Primary workspace for Q3 2025 fieldwork");
   const [lang, setLang] = useState("English");
   const [saved, setSaved] = useState(false);
@@ -228,7 +229,7 @@ function WorkspaceSection() {
         </SettingsField>
       </SettingsGroup>
       <SectionDivider label="Active Projects" />
-      {[{ name: "Lagos Retail Audit", subs: 18, status: "active" },{ name: "Abuja Healthcare Survey", subs: 0, status: "draft" }].map(p => (
+      {[{ name: org?.name ? `${org.name} — Active Study` : "Active Study", subs: 18, status: "active" },{ name: "Draft Study", subs: 0, status: "draft" }].map(p => (
         <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "#F8FAFF", border: "1px solid #EEF2F8", marginBottom: 8 }}>
           <div style={{ fontSize: 18 }}>📂</div>
           <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{p.name}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{p.subs} submissions</div></div>

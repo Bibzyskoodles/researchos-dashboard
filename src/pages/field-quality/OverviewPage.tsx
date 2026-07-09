@@ -98,7 +98,7 @@ function TrustArc({ score }: { score: number }) {
 export default function OverviewPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, org } = useAuth();
   const { setState, setOpen, guideToElement } = useAda();
   const { vocab } = useIndustry();
   const nav = useNavigate();
@@ -227,10 +227,10 @@ export default function OverviewPage() {
 
       {/* KPI Cards */}
       <div data-ada-target="overview-stats" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 14 }}>
-        <KpiCard label="Total Submissions" value={s.total_submissions} sub="Lagos Retail Audit" trend={s.score_trend} color="#080D1A" sparkData={chartScores} />
+        <KpiCard label="Total Submissions" value={s.total_submissions} sub={org?.name || "Current project"} trend={s.score_trend} color="#080D1A" sparkData={chartScores} />
         <KpiCard label="Avg Trust Score" value={`${s.avg_score}`} sub={s.avg_score >= 80 ? "Excellent quality" : "Good quality"} color={GREEN} sparkData={chartScores} />
         <KpiCard label="Pass Rate" value={`${s.pass_rate}%`} sub={`${s.pass_count} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />
-        <KpiCard label={`Active ${cap(vocab.enumerators)}`} value={s.active_enumerators} sub="All performing well" color={PURPLE} sparkData={[1,1,1,1,1,1,1]} />
+        <KpiCard label={`Active ${cap(vocab.enumerators)}`} value={s.active_enumerators} sub="All performing well" color={PURPLE} sparkData={data.enumerators.slice(0, 7).map(e => e.avg_score)} />
       </div>
 
       {/* Main content */}
