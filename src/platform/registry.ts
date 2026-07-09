@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, FileText, Users, Map, Sparkles, ClipboardList, BookOpen, Puzzle, Settings,
+  LayoutDashboard, FileText, Users, Map, Sparkles, ClipboardList, BookOpen, Puzzle, Settings, Shield,
 } from "lucide-react";
 import { Capability, CapabilityId, LicenseTier, NavSectionRef } from "./types";
 
@@ -27,6 +27,7 @@ export const CAPABILITIES: Capability[] = [
       { to: "/submissions", label: "Submissions", icon: FileText, section: WORKSPACE, order: 1 },
       { to: "/enumerators", label: "Enumerators", icon: Users, section: WORKSPACE, order: 2, labelKey: "enumerators" },
       { to: "/map", label: "Coverage Map", icon: Map, section: WORKSPACE, order: 3 },
+      { to: "/clean", label: "Clean Room", icon: Shield, section: WORKSPACE, order: 4 },
     ],
   },
   {

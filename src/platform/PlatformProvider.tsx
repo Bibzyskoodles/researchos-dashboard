@@ -15,20 +15,20 @@ import { PlatformContext as PCtx, ResolvedExperience, Role, ExperiencePackId, Cu
 const Ctx = createContext<ResolvedExperience | null>(null);
 
 export function PlatformProvider({ children }: { children: React.ReactNode }) {
-  const { industry } = useIndustry();
+  const { sessionIndustry } = useIndustry();
   const { user, org } = useAuth();
 
   const resolved = useMemo(() => {
     const ctx: PCtx = {
       role: (user?.role as Role) || "admin",
-      customerType: "research_agency" as CustomerType,       // TODO: from org profile
-      experiencePack: industry as ExperiencePackId,           // IndustryContext is the seed
-      licensedCapabilities: capabilitiesForPlan(org?.plan),   // real: from org plan
-      researchStage: null,                                    // TODO: from active project
-      permissions: undefined,                                 // role-based gating deferred (ADR-011)
+      customerType: "research_agency" as CustomerType,
+      experiencePack: sessionIndustry as ExperiencePackId,    // session override takes precedence
+      licensedCapabilities: capabilitiesForPlan(org?.plan),
+      researchStage: null,
+      permissions: undefined,
     };
     return resolveExperience(ctx);
-  }, [industry, user, org]);
+  }, [sessionIndustry, user, org]);
 
   return <Ctx.Provider value={resolved}>{children}</Ctx.Provider>;
 }
