@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, FileText, Users, Map, Sparkles, ClipboardList, BookOpen, Puzzle, Settings, Shield, Target, Award,
+  LayoutDashboard, FileText, Users, Map, Sparkles, ClipboardList, BookOpen, Puzzle, Settings, Shield, CreditCard,
 } from "lucide-react";
 import { Capability, CapabilityId, LicenseTier, NavSectionRef } from "./types";
 
@@ -25,26 +25,26 @@ export const CAPABILITIES: Capability[] = [
     requiredLicense: "starter",
     navigation: [
       { to: "/submissions", label: "Submissions", icon: FileText, section: WORKSPACE, order: 1 },
-      { to: "/enumerators", label: "Enumerators", icon: Users, section: WORKSPACE, order: 2, labelKey: "enumerators" },
+      { to: "/enumerators", label: "Team", icon: Users, section: WORKSPACE, order: 2, labelKey: "enumerators" },
       { to: "/map", label: "Coverage Map", icon: Map, section: WORKSPACE, order: 3 },
       { to: "/clean", label: "Clean Room", icon: Shield, section: WORKSPACE, order: 4 },
-      { to: "/scorecard", label: "Scorecard", icon: Award, section: WORKSPACE, order: 5, labelKey: "enumerators" },
     ],
   },
   {
-    id: "insightscore", name: "InsightScore", description: "Qualitative analysis",
-    requiredLicense: "professional",
-    navigation: [{ to: "/insights", label: "AI Analysis", icon: Sparkles, section: INTELLIGENCE, order: 0 }],
-  },
-  {
+    // Outcome Intelligence is merged into /insights as a tab — no separate nav item
     id: "outcome-intelligence", name: "Outcome Intelligence", description: "Retroactive study objective analysis",
     requiredLicense: "professional",
-    navigation: [{ to: "/outcome", label: "Outcome Intelligence", icon: Target, section: INTELLIGENCE, order: 1 }],
+    navigation: [],
   },
   {
     id: "questionnaire", name: "Questionnaire", description: "AI questionnaire design",
     requiredLicense: "professional",
-    navigation: [{ to: "/questionnaire", label: "Questionnaire", icon: ClipboardList, section: INTELLIGENCE, order: 1 }],
+    navigation: [{ to: "/questionnaire", label: "Questionnaire", icon: ClipboardList, section: INTELLIGENCE, order: 0 }],
+  },
+  {
+    id: "insightscore", name: "InsightScore", description: "Qualitative analysis + Outcome Intelligence",
+    requiredLicense: "professional",
+    navigation: [{ to: "/insights", label: "AI Analysis", icon: Sparkles, section: INTELLIGENCE, order: 1 }],
   },
   {
     id: "reports", name: "Reports", description: "Report generation and delivery",
@@ -57,9 +57,14 @@ export const CAPABILITIES: Capability[] = [
     navigation: [{ to: "/integrations", label: "Integrations", icon: Puzzle, section: PROJECT, order: 0 }],
   },
   {
+    id: "billing", name: "Billing", description: "Plans and usage",
+    requiredLicense: "starter", alwaysOn: true,
+    navigation: [{ to: "/billing", label: "Billing & Plans", icon: CreditCard, section: PROJECT, order: 1 }],
+  },
+  {
     id: "settings", name: "Settings", description: "Configuration",
     requiredLicense: "starter", alwaysOn: true,
-    navigation: [{ to: "/settings", label: "Settings", icon: Settings, section: PROJECT, order: 1 }],
+    navigation: [{ to: "/settings", label: "Settings", icon: Settings, section: PROJECT, order: 2 }],
   },
 ];
 

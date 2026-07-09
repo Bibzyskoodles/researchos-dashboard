@@ -5,7 +5,8 @@ import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { insightScoreApi, adaApi } from "../../services/api";
 import { InsightProject } from "../../types";
-import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download } from "lucide-react";
+import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download, Sparkles, Target } from "lucide-react";
+import OutcomeIntelligencePage from "./OutcomeIntelligencePage";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -262,9 +263,12 @@ function ProjectCard({ project, onClick }: { project: InsightProject; onClick: (
   );
 }
 
+type InsightsTab = "analysis" | "outcome";
+
 export default function InsightsPage() {
   const [projects, setProjects] = useState<InsightProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<InsightsTab>("analysis");
   const navigate = useNavigate();
   useAda();
   useAdaGreeting({ page: "insights" });
@@ -276,13 +280,35 @@ export default function InsightsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Hardcoded fallback so Ada's briefing buttons always navigate somewhere.
-  // Once the API returns a real project, that takes precedence.
   const FALLBACK_PROJECT = "658464e5-09dc-4b99-a664-05690de9921a";
   const firstProjectId = projects[0]?.id ?? FALLBACK_PROJECT;
 
+  const BLUE_L = "#2463EB";
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* Tab bar */}
+      <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 4, alignSelf: "flex-start" }}>
+        {([
+          { id: "analysis" as InsightsTab, label: "AI Analysis", icon: Sparkles },
+          { id: "outcome" as InsightsTab, label: "Outcome Intelligence", icon: Target },
+        ]).map(tab => {
+          const Icon = tab.icon;
+          const active = activeTab === tab.id;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: "Inter,sans-serif", fontSize: 12.5, fontWeight: active ? 700 : 500,
+                background: active ? "white" : "transparent", color: active ? BLUE_L : "#6B7280",
+                boxShadow: active ? "0 1px 4px rgba(10,15,28,.08)" : "none", transition: "all .15s" }}>
+              <Icon size={13} />{tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === "outcome" && <OutcomeIntelligencePage />}
+
+      {activeTab === "analysis" && <>
       <AdaHero firstProjectId={firstProjectId} />
       <CapabilityGrid firstProjectId={firstProjectId} />
 
@@ -304,6 +330,7 @@ export default function InsightsPage() {
           </div>
         )}
       </div>
+      </>}
     </div>
   );
 }

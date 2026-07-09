@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, HelpCircle, RefreshCw, Search, Menu } from 'lucide-react';
+import { Bell, HelpCircle, RefreshCw, Search, Menu, Settings, LogOut, Mail, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { dashboardApi } from '../../services/api';
 import { usePlatform } from '../../platform/PlatformProvider';
@@ -18,7 +18,7 @@ interface TopbarProps {
 }
 
 export default function Topbar({ onRefresh, onMenuClick }: TopbarProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { t } = usePlatform();
   const nav = useNavigate();
   const [subs, setSubs] = useState<Sub[]>([]);
@@ -26,6 +26,8 @@ export default function Topbar({ onRefresh, onMenuClick }: TopbarProps) {
   const [openSearch, setOpenSearch] = useState(false);
   const [openBell, setOpenBell] = useState(false);
   const [openProj, setOpenProj] = useState(false);
+  const [openHelp, setOpenHelp] = useState(false);
+  const [openProfile, setOpenProfile] = useState(false);
   const [project, setProject] = useState('All Projects');
   const rootRef = useRef<HTMLElement>(null);
 
@@ -41,6 +43,8 @@ export default function Topbar({ onRefresh, onMenuClick }: TopbarProps) {
         setOpenSearch(false);
         setOpenBell(false);
         setOpenProj(false);
+        setOpenHelp(false);
+        setOpenProfile(false);
       }
     };
     document.addEventListener('mousedown', h);
@@ -376,35 +380,83 @@ export default function Topbar({ onRefresh, onMenuClick }: TopbarProps) {
             )}
           </AnimatePresence>
         </div>
-        <button
-          onClick={() => nav('/settings')}
-          title="Help & Settings"
-          style={iconBtnStyle}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = colors.surfaceHover;
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-          }}
-        >
-          <HelpCircle size={18} />
-        </button>
-        <div
-          onClick={() => nav('/settings')}
-          title="Account settings"
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            background: `linear-gradient(135deg, ${colors.primary}, ${colors.primaryLight})`,
-            display: 'grid',
-            placeItems: 'center',
-            fontSize: 14,
-            fontWeight: 700,
-            color: colors.white,
-            cursor: 'pointer',
-          }}>
-          {user?.name?.charAt(0) || 'U'}
+        {/* Help */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => { setOpenHelp(o => !o); setOpenBell(false); setOpenProj(false); setOpenProfile(false); }}
+            title="Help"
+            style={iconBtnStyle}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = colors.surfaceHover; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+          >
+            <HelpCircle size={18} />
+          </button>
+          <AnimatePresence>
+            {openHelp && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.12 }}
+                style={{ ...dropdownStyle, right: 0, width: 220 }}>
+                <div style={{ padding: '10px 14px 6px', fontSize: 10.5, fontWeight: 700, color: colors.textQuaternary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Help & Support</div>
+                {[
+                  { label: 'Documentation', icon: ExternalLink, action: () => {} },
+                  { label: 'Contact Support', icon: Mail, action: () => { window.location.href = 'mailto:support@intelligencyai.com.ng'; } },
+                  { label: 'Settings', icon: Settings, action: () => { nav('/settings'); setOpenHelp(false); } },
+                ].map(({ label, icon: Icon, action }) => (
+                  <div key={label} onClick={action} style={{ ...itemStyle, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = colors.surfaceHover; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}>
+                    <Icon size={13} color={colors.textTertiary} />
+                    <span style={{ fontSize: 13, color: colors.textPrimary }}>{label}</span>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Profile avatar */}
+        <div style={{ position: 'relative' }}>
+          <div
+            onClick={() => { setOpenProfile(o => !o); setOpenHelp(false); setOpenBell(false); setOpenProj(false); }}
+            title={user?.name || 'Account'}
+            style={{
+              width: 40, height: 40, borderRadius: '50%',
+              background: `linear-gradient(135deg, ${colors.primary}, ${colors.primaryLight})`,
+              display: 'grid', placeItems: 'center',
+              fontSize: 14, fontWeight: 700, color: colors.white, cursor: 'pointer',
+              border: openProfile ? `2px solid ${colors.primary}` : '2px solid transparent',
+              transition: 'border-color 0.15s',
+            }}>
+            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+          </div>
+          <AnimatePresence>
+            {openProfile && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.12 }}
+                style={{ ...dropdownStyle, right: 0, width: 240 }}>
+                <div style={{ padding: '14px 16px', borderBottom: `1px solid ${colors.border}` }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: colors.textPrimary }}>{user?.name || 'User'}</div>
+                  <div style={{ fontSize: 11.5, color: colors.textTertiary, marginTop: 2 }}>{(user as any)?.email || ''}</div>
+                </div>
+                <div onClick={() => { nav('/settings'); setOpenProfile(false); }} style={{ ...itemStyle, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = colors.surfaceHover; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}>
+                  <Settings size={13} color={colors.textTertiary} />
+                  <span style={{ fontSize: 13, color: colors.textPrimary }}>Account Settings</span>
+                </div>
+                <div onClick={() => { nav('/billing'); setOpenProfile(false); }} style={{ ...itemStyle, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = colors.surfaceHover; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}>
+                  <ExternalLink size={13} color={colors.textTertiary} />
+                  <span style={{ fontSize: 13, color: colors.textPrimary }}>Billing & Plans</span>
+                </div>
+                <div onClick={() => { logout(); setOpenProfile(false); }} style={{ ...itemStyle, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', borderBottom: 'none' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = '#FEF2F2'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}>
+                  <LogOut size={13} color="#DC2626" />
+                  <span style={{ fontSize: 13, color: '#DC2626' }}>Sign out</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </header>

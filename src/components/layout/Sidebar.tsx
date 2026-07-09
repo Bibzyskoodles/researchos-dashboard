@@ -6,7 +6,7 @@ import { useAda } from '../../ada/AdaContext';
 import { usePlatform } from '../../platform/PlatformProvider';
 import { useGuidedExperience } from '../../ada/GuidedExperienceContext';
 import { useIndustry } from '../../store/IndustryContext';
-import { LogOut, Sparkles, Video, ChevronDown, RefreshCw } from 'lucide-react';
+import { LogOut, Sparkles, Video, ChevronDown, RefreshCw, MessageCircle } from 'lucide-react';
 
 const BLUE = '#2463EB';
 
@@ -175,40 +175,63 @@ export default function Sidebar({ isMobile, mobileOpen, onClose }: SidebarProps)
         )}
       </div>
 
-      {/* Learn with Ada + Meeting */}
-      <div style={{ padding: '6px 8px', borderTop: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <button
-          onClick={showLauncher}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            width: '100%', padding: '8px 10px', borderRadius: 8,
-            background: 'linear-gradient(135deg, #EFF4FF, #F5F0FF)',
-            border: '1px solid #C7D2FE', cursor: 'pointer',
-            fontFamily: 'Inter, sans-serif', transition: 'all .15s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #DBEAFE, #EDE9FE)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #EFF4FF, #F5F0FF)'; }}
-        >
-          <Sparkles size={13} color={BLUE} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: BLUE }}>Learn with Ada</span>
-        </button>
-        <a
-          href="/meeting"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            width: '100%', padding: '7px 10px', borderRadius: 8,
-            background: 'rgba(220,38,38,0.05)',
-            border: '1px solid rgba(220,38,38,0.2)', cursor: 'pointer',
-            fontFamily: 'Inter, sans-serif', textDecoration: 'none', transition: 'all .15s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(220,38,38,0.1)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(220,38,38,0.05)'; }}
-        >
-          <Video size={13} color="#DC2626" />
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#DC2626' }}>Meeting Ada</span>
-        </a>
+      {/* Talk to Ada */}
+      <div style={{ padding: '6px 8px', borderTop: '1px solid #F1F5F9' }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: '#CBD5E1', letterSpacing: 1, textTransform: 'uppercase', padding: '0 2px', marginBottom: 4 }}>
+          Ada
+        </div>
+        <div style={{ display: 'flex', gap: 5 }}>
+          <button
+            onClick={showLauncher}
+            title="Ada Guided Tour"
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '7px 8px', borderRadius: 8,
+              background: 'linear-gradient(135deg, #EFF4FF, #F5F0FF)',
+              border: '1px solid #C7D2FE', cursor: 'pointer',
+              fontFamily: 'Inter, sans-serif', transition: 'all .15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #DBEAFE, #EDE9FE)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #EFF4FF, #F5F0FF)'; }}
+          >
+            <Sparkles size={12} color={BLUE} />
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: BLUE }}>Learn</span>
+          </button>
+          <a
+            href="/meeting"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Live meeting with Ada"
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '7px 8px', borderRadius: 8,
+              background: 'rgba(124,58,237,0.05)',
+              border: '1px solid rgba(124,58,237,0.2)', cursor: 'pointer',
+              fontFamily: 'Inter, sans-serif', textDecoration: 'none', transition: 'all .15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(124,58,237,0.1)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(124,58,237,0.05)'; }}
+          >
+            <Video size={12} color="#7C3AED" />
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#7C3AED' }}>Meet</span>
+          </a>
+          <button
+            onClick={() => { const el = document.querySelector('[data-ada-dock]') as HTMLButtonElement; el?.click(); }}
+            title="Chat with Ada"
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '7px 8px', borderRadius: 8,
+              background: 'rgba(5,150,105,0.05)',
+              border: '1px solid rgba(5,150,105,0.2)', cursor: 'pointer',
+              fontFamily: 'Inter, sans-serif', transition: 'all .15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(5,150,105,0.1)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(5,150,105,0.05)'; }}
+          >
+            <MessageCircle size={12} color="#059669" />
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#059669' }}>Chat</span>
+          </button>
+        </div>
       </div>
 
       {/* User */}

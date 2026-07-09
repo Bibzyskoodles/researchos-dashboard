@@ -14,10 +14,8 @@ import SubmissionsPage from './pages/field-quality/SubmissionsPage';
 import EnumeratorsPage from './pages/field-quality/EnumeratorsPage';
 import MapPage from './pages/field-quality/MapPage';
 import DataCleaningPage from './pages/field-quality/DataCleaningPage';
-import ScorecardPage from './pages/field-quality/ScorecardPage';
 import InsightsPage from './pages/insights/InsightsPage';
 import InsightProjectPage from './pages/insights/InsightProjectPage';
-import OutcomeIntelligencePage from './pages/insights/OutcomeIntelligencePage';
 import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import IntegrationsPage from './pages/field-quality/IntegrationsPage';
@@ -60,13 +58,15 @@ function AppRoutes() {
         <Route path="enumerators" element={<EnumeratorsPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="clean" element={<DataCleaningPage />} />
-        <Route path="scorecard" element={<ScorecardPage />} />
+        {/* Legacy redirects — scorecard and outcome merged into their parent pages */}
+        <Route path="scorecard" element={<Navigate to="/enumerators" replace />} />
+        <Route path="outcome" element={<Navigate to="/insights" replace />} />
         <Route path="insights" element={<InsightsPage />} />
         <Route path="insights/:id" element={<InsightProjectPage />} />
-        <Route path="outcome" element={<OutcomeIntelligencePage />} />
         <Route path="questionnaire" element={<QuestionnairePage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="billing" element={<PricingPage />} />
         <Route path="integrations" element={<IntegrationsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/overview" replace />} />
