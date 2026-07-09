@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import AdaDock from "./AdaDock";
+import ErrorBoundary from "../ErrorBoundary";
 import { useAda } from "../../ada/AdaContext";
 
 // Pages where a Refresh button is meaningful
@@ -34,7 +35,9 @@ export default function AppShell() {
             transition={{ duration: 0.18, ease: "easeInOut" }}
             style={{ flex: 1, overflowY: "auto", padding: "24px" }}
           >
-            <Outlet />
+            <ErrorBoundary resetKey={location.pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </motion.main>
         </AnimatePresence>
       </div>
