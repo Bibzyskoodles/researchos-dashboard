@@ -6,6 +6,10 @@ import { useAda } from "../../ada/AdaContext";
 import { insightScoreApi } from "../../services/api";
 import { InsightProject, InsightReport, InsightSubmission } from "../../types";
 import { ChevronLeft, Download, AlertCircle } from "lucide-react";
+import MTIPanel from "./rie/MTIPanel";
+import QuestionIntelligencePanel from "./rie/QuestionIntelligencePanel";
+import DemographicIntelligencePanel from "./rie/DemographicIntelligencePanel";
+import AskResearchPanel from "./rie/AskResearchPanel";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -13,7 +17,7 @@ const AMBER = "#D97706";
 const RED = "#DC2626";
 const PURPLE = "#7C3AED";
 
-type Tab = "interviews" | "intelligence" | "report";
+type Tab = "interviews" | "intelligence" | "questions" | "demographics" | "mti" | "ask";
 
 function AdaBriefing({ message, action, actionLabel }: {
   message: string; action?: () => void; actionLabel?: string;
@@ -25,7 +29,7 @@ function AdaBriefing({ message, action, actionLabel }: {
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 12.5, color: "#1E40AF", lineHeight: 1.6 }}>
-          <span style={{whiteSpace:"pre-wrap"}}>{DOMPurify.sanitize(message)}</span>
+          <span style={{ whiteSpace: "pre-wrap" }}>{DOMPurify.sanitize(message)}</span>
         </div>
         {action && actionLabel && (
           <button onClick={action} style={{ marginTop: 10, padding: "7px 16px", borderRadius: 8, background: BLUE, border: "none", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
@@ -37,7 +41,7 @@ function AdaBriefing({ message, action, actionLabel }: {
   );
 }
 
-function ThemeCard({ theme }: { theme: { title: string; summary: string; quote_count: number; quotes: (string | { text: string; respondent?: string; context?: string; relevance?: number })[]; sentiment: string } }) {
+function ThemeCard({ theme }: { theme: { title: string; summary: string; quote_count: number; quotes: (string | { text: string; respondent?: string })[]; sentiment: string } }) {
   const [expanded, setExpanded] = useState(false);
   const sentimentColor = theme.sentiment === "positive" ? GREEN : theme.sentiment === "negative" ? RED : AMBER;
   const getQuoteText = (q: any) => typeof q === "string" ? q : q?.text || "";
@@ -66,12 +70,8 @@ function ThemeCard({ theme }: { theme: { title: string; summary: string; quote_c
   );
 }
 
-function QuoteBlock({ text }: { text: string }) {
-  return (
-    <div style={{ background: "#F8FAFF", border: "1px solid #E2E8F0", borderLeft: `3px solid ${BLUE}`, borderRadius: "0 8px 8px 0", padding: "10px 14px", fontSize: 12.5, color: "#374151", fontStyle: "italic", lineHeight: 1.6, marginBottom: 8 }}>
-      "{text}"
-    </div>
-  );
+function EvidenceTag({ label, color = BLUE }: { label: string; color?: string }) {
+  return <span style={{ fontSize: 10.5, fontWeight: 700, color, background: `${color}14`, borderRadius: 5, padding: "2px 7px", border: `1px solid ${color}28` }}>{label}</span>;
 }
 
 function Section({ title, color = "#374151", children }: { title: string; color?: string; children: React.ReactNode }) {
@@ -138,7 +138,6 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
   const [report, setReport] = useState<InsightReport | null>(null);
   const [analyseState, setAnalyseState] = useState<AnalyseState>("idle");
   const [loading, setLoading] = useState(true);
-  const [guidedQ, setGuidedQ] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const { setState: setAdaState } = useAda();
 
@@ -155,19 +154,11 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      // swallow — a toast system isn't wired on this page yet
+      // swallow
     } finally {
       setDownloading(null);
     }
   }, [projectId]);
-
-  const GUIDED_QUESTIONS = [
-    "What surprised respondents most?",
-    "Show contradictory opinions",
-    "Compare male vs female responses",
-    "Which quotes best support the top theme?",
-    "Summarise interviews by location",
-  ];
 
   useEffect(() => {
     insightScoreApi.getReport(projectId)
@@ -187,8 +178,7 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
       setAnalyseState("done");
       setAdaState("speaking");
       setTimeout(() => setAdaState("idle"), 4000);
-    } catch (err) {
-      console.error("Analysis failed:", err);
+    } catch {
       setAnalyseState("error");
       setAdaState("idle");
     }
@@ -221,15 +211,21 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
     );
   }
 
+  const evidenceCount = report.themes?.reduce((s, t) => s + (t.quote_count || 0), 0) || 0;
+
   return (
     <div>
-      <AdaBriefing message="I have finished reviewing all interviews. Here is what I found — structured for an executive audience." />
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+        {report.themes?.length > 0 && <EvidenceTag label={`${report.themes.length} themes`} color={PURPLE} />}
+        {evidenceCount > 0 && <EvidenceTag label={`${evidenceCount} quotes`} color={BLUE} />}
+        {report.recommendations?.length > 0 && <EvidenceTag label={`${report.recommendations.length} recommendations`} color={GREEN} />}
+      </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, margin: "4px 0 20px" }}>
-        {([["docx", "Download Word"], ["pptx", "Download PowerPoint"], ["xlsx", "Download Excel"]] as const).map(([fmt, label]) => (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+        {([["docx", "Word"], ["pptx", "PowerPoint"], ["xlsx", "Excel"]] as const).map(([fmt, label]) => (
           <button key={fmt} onClick={() => downloadReport(fmt)} disabled={downloading !== null}
-            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 9, background: "white", border: "1px solid #E2E8F0", color: "#374151", fontSize: 12.5, fontWeight: 600, cursor: downloading ? "wait" : "pointer", fontFamily: "Inter,sans-serif", opacity: downloading && downloading !== fmt ? 0.5 : 1 }}>
-            <Download size={13} /> {downloading === fmt ? "Preparing…" : label}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, background: "white", border: "1px solid #E2E8F0", color: "#374151", fontSize: 12, fontWeight: 600, cursor: downloading ? "wait" : "pointer", opacity: downloading && downloading !== fmt ? 0.5 : 1 }}>
+            <Download size={12} /> {downloading === fmt ? "Preparing…" : `Download ${label}`}
           </button>
         ))}
       </div>
@@ -241,7 +237,7 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
       </Section>
 
       {report.business_implications?.length > 0 && (
-        <Section title="Top Business Implications" color={PURPLE}>
+        <Section title="Business Implications" color={PURPLE}>
           {report.business_implications.map((imp, i) => (
             <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid #F1F5F9" }}>
               <div style={{ width: 20, height: 20, borderRadius: "50%", background: PURPLE + "18", color: PURPLE, fontSize: 10, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
@@ -280,19 +276,21 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
       )}
 
       {report.themes?.length > 0 && (
-        <Section title="Top Themes">
+        <Section title="Themes — Evidence Grounded">
           {report.themes.map((t, i) => <ThemeCard key={i} theme={t} />)}
         </Section>
       )}
 
       {report.contradictions?.length > 0 && (
         <Section title="Contradictions">
-          {report.contradictions.map((c, i) => <QuoteBlock key={i} text={c} />)}
+          {report.contradictions.map((c, i) => (
+            <div key={i} style={{ background: "#F8FAFF", border: "1px solid #E2E8F0", borderLeft: `3px solid ${AMBER}`, borderRadius: "0 8px 8px 0", padding: "10px 14px", fontSize: 12.5, color: "#374151", fontStyle: "italic", lineHeight: 1.6, marginBottom: 8 }}>"{c}"</div>
+          ))}
         </Section>
       )}
 
       {report.outliers?.length > 0 && (
-        <Section title="Interesting Outliers" color={PURPLE}>
+        <Section title="Outliers" color={PURPLE}>
           {report.outliers.map((o, i) => (
             <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
               <span style={{ color: PURPLE, flexShrink: 0 }}>◆</span>
@@ -312,106 +310,18 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
           ))}
         </Section>
       )}
-
-      <div style={{ background: "linear-gradient(135deg,#1A1F3E,#0F172A)", borderRadius: 14, padding: "18px 20px", border: "1px solid rgba(255,255,255,.06)" }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
-          <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", border: "2px solid rgba(255,255,255,.2)", flexShrink: 0 }}>
-            <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
-          </div>
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,.8)", fontWeight: 600 }}>Ask Ada a question about these findings</div>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {GUIDED_QUESTIONS.map(q => (
-            <button key={q} onClick={() => setGuidedQ(q)}
-              style={{ padding: "7px 14px", borderRadius: 20, background: guidedQ === q ? BLUE : "rgba(255,255,255,.08)", border: `1px solid ${guidedQ === q ? BLUE : "rgba(255,255,255,.15)"}`, color: guidedQ === q ? "white" : "rgba(255,255,255,.7)", fontSize: 12, fontWeight: 500, cursor: "pointer", transition: "all .15s" }}>
-              {q}
-            </button>
-          ))}
-        </div>
-        {guidedQ && (
-          <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 14, padding: "12px 14px", background: "rgba(255,255,255,.06)", borderRadius: 10, fontSize: 12.5, color: "rgba(255,255,255,.5)" }}>
-            Open the Ada chat panel for a full answer to: "{guidedQ}"
-          </motion.div>
-        )}
-      </div>
     </div>
   );
 }
 
-type ReportState = "idle" | "preparing" | "ready" | "error";
-
-function ReportTab({ projectId }: { projectId: string }) {
-  const [reportState, setReportState] = useState<ReportState>("idle");
-  const [report, setReport] = useState<InsightReport | null>(null);
-  const { setState: setAdaState } = useAda();
-
-  const prepareReport = async () => {
-    setReportState("preparing");
-    setAdaState("thinking");
-    try {
-      const r = await insightScoreApi.getReport(projectId);
-      setReport(r.data);
-      setReportState("ready");
-      setAdaState("speaking");
-      setTimeout(() => setAdaState("idle"), 4000);
-    } catch {
-      setReportState("error");
-      setAdaState("idle");
-    }
-  };
-
-  return (
-    <div>
-      {reportState === "idle" && (
-        <AdaBriefing message="I have finished reviewing the interviews. I can now prepare a presentation-ready report with executive summary, themes, evidence and methodology." action={prepareReport} actionLabel="Prepare Report" />
-      )}
-      {reportState === "preparing" && (
-        <div style={{ background: "white", borderRadius: 14, border: "1px solid #E8EDF5", padding: "32px 24px", textAlign: "center" }}>
-          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
-            {[0, 1, 2].map(i => (
-              <motion.div key={i} style={{ width: 10, height: 10, borderRadius: "50%", background: BLUE }}
-                animate={{ y: [0, -10, 0] }} transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.15 }} />
-            ))}
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#374151" }}>I'm preparing your report now...</div>
-          <div style={{ fontSize: 12.5, color: "#9CA3AF", marginTop: 6 }}>Compiling themes, evidence, and executive summary</div>
-        </div>
-      )}
-      {reportState === "error" && (
-        <div style={{ background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA", padding: "16px 20px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <AlertCircle size={16} color={RED} style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: RED }}>Couldn't prepare the report</div>
-            <div style={{ fontSize: 12.5, color: "#6B7280", marginTop: 4 }}>Please run the analysis first, then try again.</div>
-            <button onClick={prepareReport} style={{ marginTop: 10, padding: "6px 14px", borderRadius: 8, background: RED, border: "none", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Try Again</button>
-          </div>
-        </div>
-      )}
-      {reportState === "ready" && report && (
-        <div>
-          <div style={{ background: "linear-gradient(135deg,#ECFDF5,#F0FFF4)", border: "1px solid #A7F3D0", borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", border: "2px solid #6EE7B7", flexShrink: 0 }}>
-              <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#065F46" }}>Your report is ready.</div>
-              <div style={{ fontSize: 12, color: "#047857" }}>Generated {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</div>
-            </div>
-            {report.download_url && (
-              <a href={report.download_url} download style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: GREEN, color: "white", fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}>
-                <Download size={13} /> Download
-              </a>
-            )}
-          </div>
-          <div style={{ background: "white", borderRadius: 14, border: "1px solid #E8EDF5", padding: "24px" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>Executive Summary</div>
-            <div style={{ fontSize: 14, color: "#374151", lineHeight: 1.7 }}>{report.executive_summary}</div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+const TABS: { key: Tab; label: string; badge?: string }[] = [
+  { key: "interviews", label: "Interviews" },
+  { key: "intelligence", label: "Intelligence" },
+  { key: "questions", label: "Questions" },
+  { key: "demographics", label: "Demographics" },
+  { key: "mti", label: "MTI™" },
+  { key: "ask", label: "Ask Your Research" },
+];
 
 export default function InsightProjectPage() {
   const { id } = useParams<{ id: string }>();
@@ -421,6 +331,7 @@ export default function InsightProjectPage() {
 
   const activeTab = (searchParams.get("tab") as Tab) || "intelligence";
   const [project, setProject] = useState<InsightProject | null>(null);
+  const [report, setReport] = useState<InsightReport | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -429,31 +340,58 @@ export default function InsightProjectPage() {
       .then(r => setProject(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+    insightScoreApi.getReport(id)
+      .then(r => { if (r.data?.executive_summary || r.data?.themes) setReport(r.data); })
+      .catch(() => {});
   }, [id]);
 
   const setTab = (tab: Tab) => setSearchParams({ tab });
-  const TABS: { key: Tab; label: string }[] = [
-    { key: "interviews", label: "Interviews" },
-    { key: "intelligence", label: "Intelligence" },
-    { key: "report", label: "Report" },
-  ];
-
   if (!id) return null;
+
+  const statusColor = project?.status === "complete" ? GREEN : project?.status === "error" ? RED : project?.status === "analysing" ? BLUE : AMBER;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <button onClick={() => navigate("/insights")} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: 12.5, padding: "4px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <button onClick={() => navigate("/insights")}
+          style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: 12.5, padding: "4px 0" }}>
           <ChevronLeft size={14} /> Back
         </button>
         <div style={{ width: 1, height: 14, background: "#E2E8F0" }} />
         {loading ? (
           <div style={{ height: 16, width: 160, borderRadius: 4, background: "#E8EDF5" }} />
         ) : (
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#080D1A", letterSpacing: -0.4 }}>{project?.name || "Project"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#080D1A", letterSpacing: -0.4 }}>{project?.name || "Project"}</div>
+            {project?.status && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: statusColor }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: statusColor, textTransform: "capitalize" }}>{project.status}</span>
+              </div>
+            )}
+          </div>
         )}
-        <div style={{ marginLeft: "auto" }}>
-          <button onClick={() => setOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "1px solid #DBEAFE", borderRadius: 8, background: "#EFF6FF", fontSize: 12, fontWeight: 600, color: BLUE, cursor: "pointer" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {report && (
+            <div style={{ display: "flex", gap: 6 }}>
+              {(["docx", "pptx", "xlsx"] as const).map(fmt => (
+                <button key={fmt} onClick={async () => {
+                  try {
+                    const res = await insightScoreApi.downloadReport(id, fmt);
+                    const url = URL.createObjectURL(new Blob([res.data]));
+                    const a = document.createElement("a"); a.href = url;
+                    a.download = `ResearchOS_${id}.${fmt}`; document.body.appendChild(a);
+                    a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                  } catch {}
+                }}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", border: "1px solid #E2E8F0", borderRadius: 8, background: "white", fontSize: 11, fontWeight: 600, color: "#374151", cursor: "pointer" }}>
+                  <Download size={11} /> {fmt.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={() => setOpen(true)}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "1px solid #DBEAFE", borderRadius: 8, background: "#EFF6FF", fontSize: 12, fontWeight: 600, color: BLUE, cursor: "pointer" }}>
             <div style={{ width: 18, height: 18, borderRadius: "50%", overflow: "hidden" }}>
               <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
             </div>
@@ -462,11 +400,13 @@ export default function InsightProjectPage() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #E8EDF5", marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #E8EDF5", marginBottom: 20, overflowX: "auto" }}>
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            style={{ padding: "10px 20px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: activeTab === t.key ? 700 : 500, color: activeTab === t.key ? BLUE : "#6B7280", borderBottom: `2px solid ${activeTab === t.key ? BLUE : "transparent"}`, marginBottom: -1, transition: "all .15s" }}>
+            style={{ padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: activeTab === t.key ? 700 : 500, color: activeTab === t.key ? BLUE : "#6B7280", borderBottom: `2px solid ${activeTab === t.key ? BLUE : "transparent"}`, marginBottom: -1, transition: "all .15s", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
             {t.label}
+            {t.key === "mti" && <span style={{ fontSize: 9, fontWeight: 800, color: PURPLE, background: "#F5F3FF", borderRadius: 4, padding: "1px 5px" }}>IP</span>}
+            {t.key === "ask" && <span style={{ fontSize: 9, fontWeight: 800, color: GREEN, background: "#ECFDF5", borderRadius: 4, padding: "1px 5px" }}>NEW</span>}
           </button>
         ))}
       </div>
@@ -475,9 +415,26 @@ export default function InsightProjectPage() {
         <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }}>
           {activeTab === "interviews" && <InterviewsTab projectId={id} />}
           {activeTab === "intelligence" && <IntelligenceTab projectId={id} project={project} />}
-          {activeTab === "report" && <ReportTab projectId={id} />}
+          {activeTab === "questions" && <QuestionIntelligencePanel projectId={id} />}
+          {activeTab === "demographics" && <DemographicIntelligencePanel projectId={id} />}
+          {activeTab === "mti" && <MTIPanel projectId={id} />}
+          {activeTab === "ask" && <AskResearchPanel projectId={id} report={report} />}
         </motion.div>
       </AnimatePresence>
+
+      {!report && activeTab !== "intelligence" && activeTab !== "interviews" && (
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 100 }}>
+          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+            style={{ background: "linear-gradient(135deg, #1A1F3E, #0F172A)", borderRadius: 12, padding: "12px 20px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,.1)" }}>
+            <AlertCircle size={14} color={AMBER} />
+            <span style={{ fontSize: 12.5, color: "rgba(255,255,255,.8)" }}>Run Intelligence analysis to unlock all dimensions</span>
+            <button onClick={() => setTab("intelligence")}
+              style={{ padding: "5px 14px", borderRadius: 7, background: BLUE, border: "none", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              Begin Analysis
+            </button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

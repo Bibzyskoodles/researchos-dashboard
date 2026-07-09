@@ -115,6 +115,14 @@ export const insightScoreApi = {
   downloadReport: (id: string, format: 'docx' | 'pptx' | 'xlsx') =>
     insightApi.get(`/projects/${id}/report`, { params: { format }, responseType: 'blob' }),
   getSubmissions: (id: string) => insightApi.get(`/projects/${id}/submissions`),
+  getMTI: (id: string) => insightApi.get(`/projects/${id}/mti`),
+  getQuestionIntelligence: (id: string) => insightApi.get(`/projects/${id}/question-intelligence`),
+  getDemographics: (id: string, field?: string) =>
+    insightApi.get(`/projects/${id}/demographics`, { params: field ? { field } : {} }),
+  askResearch: (id: string, question: string, context?: object) =>
+    insightApi.post(`/projects/${id}/ask`, { question, ...context }),
+  exportWorkbook: (id: string, type: string) =>
+    insightApi.get(`/projects/${id}/export/${type}`, { responseType: "blob" }),
   waitForAnalysis: async (id: string, timeout = 300000) => {
     const startTime = Date.now();
     const pollInterval = 2000;
