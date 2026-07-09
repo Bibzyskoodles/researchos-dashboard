@@ -1,39 +1,46 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAda } from "../../ada/AdaContext";
+import DOMPurify from "dompurify";
+import { useAda, parseAdaCommand, AdaCommand } from "../../ada/AdaContext";
 import { adaApi } from "../../services/api";
-import { X, Send } from "lucide-react";
+import { X, Send, Mic } from "lucide-react";
 
-// Sanitise Ada message content — strip all HTML tags, then apply safe bold only.
-// This prevents XSS from backend-injected markup.
-function sanitiseMessage(raw: string): string {
-  const text = raw.replace(/<[^>]*>/g, "");
-  return text;
+function nearestEdge(x: number, y: number): { edge: string; along: number } {
+  const d = { left: x, right: 1 - x, top: y, bottom: 1 - y };
+  const edge = (Object.entries(d) as [string, number][]).reduce((a, b) => a[1] < b[1] ? a : b)[0];
+  const along = edge === "left" || edge === "right" ? y : x;
+  return { edge, along };
 }
 
-function renderMessageParts(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*|\n)/g);
-  return parts.map((part, i) => {
-    if (part === "\n") return <br key={i} />;
-    if (part.startsWith("**") && part.endsWith("**"))
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    return part;
-  });
+function dockStyle(x: number, y: number): React.CSSProperties {
+  return {
+    position: "fixed",
+    left: `${x * 100}vw`,
+    top: `${y * 100}vh`,
+    transform: "translate(-50%, -50%)",
+    zIndex: 1000,
+  };
 }
 
-// Ada is fixed at bottom-right — no movement or dragging.
-const ADA_DOCK_STYLE: React.CSSProperties = {
-  position: "fixed",
-  right: 24,
-  bottom: 24,
-  zIndex: 1000,
-};
+function edgeTarget(edge: string, along: number): { x: string; y: string } {
+  switch (edge) {
+    case "left":   return { x: "-120px", y: `${along * 100}vh` };
+    case "right":  return { x: "calc(100vw + 120px)", y: `${along * 100}vh` };
+    case "top":    return { x: `${along * 100}vw`, y: "-120px" };
+    case "bottom": return { x: `${along * 100}vw`, y: "calc(100vh + 120px)" };
+    default:       return { x: "calc(100vw + 120px)", y: "90vh" };
+  }
+}
 
 export default function AdaDock() {
-  const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage } = useAda();
+  const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage, dispatchCommand } = useAda();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const [transitioning, setTransitioning] = useState(false);
+  const [visible, setVisible] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -56,6 +63,13 @@ export default function AdaDock() {
     if (location.pathname === prevPathRef.current) return;
     prevPathRef.current = location.pathname;
     navigatePage(location.pathname.replace("/", "") || "overview");
+    setTransitioning(true);
+    setVisible(false);
+    const timer = setTimeout(() => {
+      setVisible(true);
+      setTransitioning(false);
+    }, 700);
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
@@ -65,37 +79,36 @@ export default function AdaDock() {
     }
   }, [store.messages, store.isOpen]);
 
-  const detectAndNavigate = useCallback((reply: string) => {
-    const nav: [RegExp, string][] = [
-      [/\b(show|open|go to|navigate to|take me to)?\s*(submission|submissions)\b/i, "/submissions"],
-      [/\b(show|open|go to)?\s*(enumerator|enumerators|field agents?)\b/i, "/enumerators"],
-      [/\b(show|open|go to)?\s*(map|coverage)\b/i, "/map"],
-      [/\b(show|open|go to)?\s*(insight|insights|analysis)\b/i, "/insights"],
-      [/\b(show|open|go to)?\s*(report|reports)\b/i, "/reports"],
-      [/\b(show|open|go to)?\s*(overview|dashboard|home)\b/i, "/overview"],
-    ];
-    for (const [pattern, path] of nav) {
-      if (pattern.test(reply)) {
-        setTimeout(() => navigate(path), 800);
-        return;
-      }
+  // Ada can adjust the UI when asked — filter, highlight, navigate (never
+  // delete). Applies a command dispatched either by the instant local parser
+  // or by the AI (tool call) once her reply returns.
+  const applyCommand = useCallback((cmd: AdaCommand) => {
+    dispatchCommand(cmd);
+    if (cmd.type === "NAVIGATE_TO") {
+      navigatePage(cmd.path.replace("/", ""));
+      setTimeout(() => navigate(cmd.path), 350);
     }
-  }, [navigate]);
+  }, [dispatchCommand, navigatePage, navigate]);
 
-  const send = async () => {
-    if (!input.trim() || sending) return;
-    const msg = input.trim();
+  const send = async (override?: string) => {
+    const msg = (override ?? input).trim();
+    if (!msg || sending) return;
     setInput("");
     setSending(true);
     setState("thinking");
     addMessage({ id: Date.now().toString(), role: "user", content: msg, timestamp: new Date().toISOString() });
+    // Instant local fast-path for the obvious commands; the AI is authoritative.
+    const localCmd = parseAdaCommand(msg);
+    if (localCmd) applyCommand(localCmd);
     try {
       const res = await adaApi.chat(msg, store.currentPage, {});
       const reply: string = res.data.reply;
+      const aiCmd: AdaCommand | null = res.data.command || null;
       addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: reply, timestamp: new Date().toISOString() });
       setState("speaking");
       setTimeout(() => setState("idle"), 3000);
-      detectAndNavigate(reply);
+      // Honour the AI's decision when the local parser didn't already catch it.
+      if (aiCmd && !localCmd) applyCommand(aiCmd);
     } catch {
       setState("idle");
     } finally {
@@ -104,51 +117,81 @@ export default function AdaDock() {
     }
   };
 
-  const avatarSize = store.isOpen ? 48 : 60;
-  const borderColor = store.state === "warning" ? "#DC2626" : "rgba(255,255,255,.2)";
-  const shadowColor = store.state === "warning" ? "rgba(220,38,38,.4)" : "rgba(37,99,235,.4)";
+  // Voice input — browser speech recognition → transcript → send to Ada
+  const startVoice = () => {
+    const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (!SR) { setInput("Voice input isn't supported in this browser"); return; }
+    if (listening) { recognitionRef.current?.stop?.(); return; }
+    const rec = new SR();
+    rec.lang = "en-NG";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onstart = () => { setListening(true); setState("listening"); setOpen(true); };
+    rec.onresult = (e: any) => {
+      const transcript = e.results?.[0]?.[0]?.transcript || "";
+      if (transcript) { setInput(transcript); setTimeout(() => send(transcript), 150); }
+    };
+    rec.onerror = () => { setListening(false); setState("idle"); };
+    rec.onend = () => { setListening(false); };
+    recognitionRef.current = rec;
+    try { rec.start(); } catch { setListening(false); }
+  };
+
+  const { x, y } = store.position;
+  const { edge, along } = nearestEdge(x, y);
+  const offscreen = edgeTarget(edge, along);
+  const avatarSize = transitioning ? 42 : store.isOpen ? 48 : 64;
 
   const breatheAnim = {
     scale: [1, 1.02, 1] as number[],
     transition: { duration: 4, repeat: Infinity, ease: "easeInOut" as const },
   };
 
-  const thinkingAnim = store.state === "thinking"
-    ? { y: [0, -6, 0] as number[], transition: { duration: 0.7, repeat: Infinity } }
-    : {};
+  const bounceAnim = store.state === "thinking"
+    ? { y: [0, -8, 0, -5, 0] as number[], scale: [1, 1.08, 0.97, 1.02, 1] as number[], transition: { duration: 0.8, repeat: Infinity, type: "spring" as const, stiffness: 300, damping: 10 } }
+    : { y: [0, -14, 3, -6, 0] as number[], scale: [1, 1.08, 0.97, 1.02, 1] as number[], transition: { duration: 3.5, repeat: Infinity, ease: "easeInOut" as const, repeatDelay: 4.5 } };
+
+  const borderColor = store.state === "warning" ? "#DC2626" : "rgba(255,255,255,.2)";
+  const shadowColor = store.state === "warning" ? "rgba(220,38,38,.4)" : "rgba(37,99,235,.4)";
 
   return (
     <>
-      {/* Fixed Ada avatar — bottom right, no movement */}
-      <div style={ADA_DOCK_STYLE}>
-        <motion.div
-          style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}
-          whileHover={{ scale: 1.06 }}
-          whileTap={{ scale: 0.96 }}
-          onClick={() => setOpen(!store.isOpen)}
-          animate={breatheAnim}
-        >
-          <motion.div animate={thinkingAnim}>
-            <div style={{ position: "relative", width: avatarSize, height: avatarSize }}>
-              <motion.div
-                animate={{ scale: [0.95, 1.35], opacity: [0.5, 0] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut", repeatDelay: 2 }}
-                style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid rgba(96,165,250,0.7)", pointerEvents: "none" }}
-              />
-              <div style={{ width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", border: `3px solid ${borderColor}`, boxShadow: `0 6px 24px ${shadowColor}` }}>
-                <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+      <AnimatePresence>
+        {visible && (
+          <motion.div
+            key="ada-dock"
+            style={{ ...dockStyle(x, y), cursor: "pointer" }}
+            initial={{ x: offscreen.x, y: offscreen.y, scale: 0.3, opacity: 0 }}
+            animate={{ x: 0, y: 0, scale: 1, opacity: 1 }}
+            exit={{ x: offscreen.x, y: offscreen.y, scale: 0.3, opacity: 0 }}
+            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setOpen(!store.isOpen)}
+          >
+            <motion.div animate={breatheAnim}>
+              <motion.div animate={bounceAnim}>
+                <div style={{ position: "relative", width: avatarSize, height: avatarSize, flexShrink: 0, transition: "width .3s, height .3s" }}>
+                  <motion.div
+                    animate={{ scale: [0.95, 1.4], opacity: [0.6, 0] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut", repeatDelay: 1.5 }}
+                    style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid rgba(96,165,250,0.8)", pointerEvents: "none", zIndex: 0 }}
+                  />
+                  <div style={{ position: "relative", zIndex: 1, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", border: `3px solid ${borderColor}`, boxShadow: `0 8px 32px ${shadowColor}` }}>
+                    <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+            {!store.isOpen && (
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#2463EB", background: "white", padding: "2px 8px", borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,.1)", border: "1px solid #E2E8F0", textAlign: "center", marginTop: 6, whiteSpace: "nowrap" }}>
+                {store.state === "thinking" ? "Thinking..." : "Ada · AI"}
               </div>
-            </div>
+            )}
           </motion.div>
-          {!store.isOpen && (
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#2463EB", background: "white", padding: "2px 8px", borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,.1)", border: "1px solid #E2E8F0", textAlign: "center", marginTop: 6, whiteSpace: "nowrap" }}>
-              {store.state === "thinking" ? "Thinking..." : "Ada · AI"}
-            </div>
-          )}
-        </motion.div>
-      </div>
+        )}
+      </AnimatePresence>
 
-      {/* Chat panel */}
       <AnimatePresence>
         {store.isOpen && (
           <motion.div
@@ -170,7 +213,6 @@ export default function AdaDock() {
                 <X size={16} />
               </button>
             </div>
-
             <div style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
               {store.messages.length === 0 && (
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
@@ -189,8 +231,10 @@ export default function AdaDock() {
                       <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
                     </div>
                   )}
-                  <div style={{ background: msg.role === "user" ? "#2463EB" : "#F8FAFF", border: msg.role === "user" ? "none" : "1px solid #E2E8F0", borderRadius: msg.role === "user" ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "10px 12px", fontSize: 12.5, color: msg.role === "user" ? "white" : "#374151", lineHeight: 1.6, maxWidth: 260 }}>
-                    {renderMessageParts(sanitiseMessage(msg.content))}
+                  <div
+                    style={{ background: msg.role === "user" ? "#2463EB" : "#F8FAFF", border: msg.role === "user" ? "none" : "1px solid #E2E8F0", borderRadius: msg.role === "user" ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "10px 12px", fontSize: 12.5, color: msg.role === "user" ? "white" : "#374151", lineHeight: 1.6, maxWidth: 260 }}
+                  >
+                    <span style={{whiteSpace:"pre-wrap"}}>{DOMPurify.sanitize(msg.content)}</span>
                   </div>
                 </div>
               ))}
@@ -209,20 +253,25 @@ export default function AdaDock() {
               )}
               <div ref={endRef} />
             </div>
-
             <div style={{ padding: "10px 14px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 8 }}>
               <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && !sending && send()}
-                placeholder="Ask Ada anything..."
-                maxLength={1000}
-                style={{ flex: 1, border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, fontFamily: "Inter,sans-serif", outline: "none" }}
+                onKeyDown={e => e.key === "Enter" && send()}
+                placeholder={listening ? "Listening…" : "Ask Ada anything..."}
+                style={{ flex: 1, border: `1.5px solid ${listening ? "#2463EB" : "#E2E8F0"}`, borderRadius: 8, padding: "8px 12px", fontSize: 12.5, fontFamily: "Inter,sans-serif", outline: "none" }}
               />
               <button
-                onClick={send}
+                onClick={startVoice}
+                title={listening ? "Stop listening" : "Speak to Ada"}
+                style={{ width: 36, height: 36, borderRadius: 8, background: listening ? "#DC2626" : "#F0F4FF", border: "1px solid #E2E8F0", cursor: "pointer", display: "grid", placeItems: "center" }}
+              >
+                <Mic size={14} color={listening ? "white" : "#2463EB"} />
+              </button>
+              <button
+                onClick={() => send()}
                 disabled={sending || !input.trim()}
-                style={{ width: 36, height: 36, borderRadius: 8, background: "#2463EB", border: "none", cursor: sending || !input.trim() ? "not-allowed" : "pointer", display: "grid", placeItems: "center", opacity: sending || !input.trim() ? 0.5 : 1 }}
+                style={{ width: 36, height: 36, borderRadius: 8, background: "#2463EB", border: "none", cursor: "pointer", display: "grid", placeItems: "center", opacity: sending || !input.trim() ? 0.5 : 1 }}
               >
                 <Send size={14} color="white" />
               </button>

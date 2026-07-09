@@ -1,27 +1,37 @@
 import axios from 'axios';
 
-const BASE_URL = process.env.REACT_APP_API_URL || 'https://web-production-f5bab.up.railway.app';
+// ✅ SECURITY: Use environment variable for API URL (defaults to relative)
+const BASE_URL = process.env.REACT_APP_FIELDSCORE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
+  // ✅ SECURITY: Send httpOnly cookies automatically
   withCredentials: true,
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('fs_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// ✅ SECURITY: Don't manually add token - it's in httpOnly cookie
+// Removed interceptor that read from localStorage
 
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      // Clear all auth state — never leave a partial session
-      localStorage.removeItem('fs_token');
-      localStorage.removeItem('fs_user');
-      document.cookie = 'fs_token=;path=/;max-age=0';
-      window.location.href = '/login';
+      // ✅ SECURITY: Backend clears httpOnly cookie automatically
+      // Frontend doesn't need to do anything
+      const currentPath = window.location.pathname;
+      window.location.href = `/login?expired=true&returnTo=${encodeURIComponent(currentPath)}`;
+    }
+    // ✅ SECURITY: Sanitize error messages to hide server details
+    if (err.response?.data?.error) {
+      const message = err.response.data.error;
+      if (typeof message === 'string' &&
+          (message.includes('KOBO_API_TOKEN') ||
+           message.includes('OPENAI_API_KEY') ||
+           message.includes('environ') ||
+           message.includes('set on the server'))) {
+        // Replace sensitive error details with generic message
+        err.response.data.error = 'An error occurred. Please try again.';
+      }
     }
     return Promise.reject(err);
   }
@@ -50,6 +60,17 @@ export const dashboardApi = {
     api.post('/kobo/import', { asset_uid, limit }),
 };
 
+export const questionnaireApi = {
+  generate: (payload: object) =>
+    api.post('/questionnaire/generate', payload),
+  save: (questionnaire: object) =>
+    api.post('/questionnaire/save', questionnaire),
+  exportXlsform: (questionnaire: object, platform: string) =>
+    api.post('/questionnaire/export/xlsform', { questionnaire, platform }, { responseType: 'blob' }),
+  exportDocx: (questionnaire: object) =>
+    api.post('/questionnaire/export/docx', { questionnaire }, { responseType: 'blob' }),
+};
+
 export const adaApi = {
   chat: (message: string, page: string, context: object) =>
     api.post('/ada/chat', { message, page, ...context }),
@@ -63,15 +84,36 @@ export const adaApi = {
   getMemory: () => api.get('/ada/memory'),
 };
 
+export const analyticsApi = {
+  getQuestionnaireAnalytics: (questionnaireId: string, groupBy?: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics`, {
+      params: { group_by: groupBy },
+    }),
+  getAnalyticsSummary: (questionnaireId: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics/summary`),
+  getSourceMetrics: (questionnaireId: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics/sources`),
+  getDropOffAnalysis: (questionnaireId: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics/drop-off`),
+  getQuestionAnalytics: (questionnaireId: string, source?: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics/questions`, {
+      params: { source },
+    }),
+  getAnalyticsHealth: () =>
+    api.get('/analytics/health'),
+};
+
+// ✅ SECURITY: Use environment variable for InsightScore URL
+const INSIGHT_API_URL = process.env.REACT_APP_INSIGHTSCORE_API_URL || '/insightscore';
+
 const insightApi = axios.create({
-  baseURL: 'https://insightscore-production.up.railway.app',
+  baseURL: INSIGHT_API_URL,
+  // ✅ SECURITY: Send httpOnly cookies automatically
+  withCredentials: true,
 });
 
-insightApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('fs_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// ✅ SECURITY: Don't manually add token - it's in httpOnly cookie
+// Removed interceptor that read from localStorage
 
 export const insightScoreApi = {
   getProjects: () => insightApi.get('/projects'),
@@ -83,14 +125,19 @@ export const insightScoreApi = {
   downloadReport: (id: string, format: 'docx' | 'pptx' | 'xlsx') =>
     insightApi.get(`/projects/${id}/report`, { params: { format }, responseType: 'blob' }),
   getSubmissions: (id: string) => insightApi.get(`/projects/${id}/submissions`),
-  waitForAnalysis: async (id: string, maxWaitMs = 300000) => {
+  waitForAnalysis: async (id: string, timeout = 300000) => {
     const startTime = Date.now();
     const pollInterval = 2000;
-    while (Date.now() - startTime < maxWaitMs) {
-      const res = await insightApi.get(`/projects/${id}/status`);
-      if (res.data.complete) return res.data;
-      if (res.data.failed) throw new Error(res.data.error || 'Analysis failed');
-      await new Promise(r => setTimeout(r, pollInterval));
+    while (Date.now() - startTime < timeout) {
+      try {
+        const status = await insightScoreApi.getStatus(id);
+        if (status.data.complete) return status.data;
+        if (status.data.failed) throw new Error(status.data.error || 'Analysis failed');
+      } catch (err: any) {
+        if (err.response?.status === 404) throw err;
+        if (Date.now() - startTime >= timeout) throw new Error('Analysis timeout');
+      }
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
     throw new Error('Analysis timeout');
   },

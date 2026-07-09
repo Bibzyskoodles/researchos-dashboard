@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import DOMPurify from "dompurify";
 import { useAda } from "../../ada/AdaContext";
 import { insightScoreApi } from "../../services/api";
 import { InsightProject, InsightReport, InsightSubmission } from "../../types";
@@ -23,7 +24,9 @@ function AdaBriefing({ message, action, actionLabel }: {
         <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12.5, color: "#1E40AF", lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: message.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />
+        <div style={{ fontSize: 12.5, color: "#1E40AF", lineHeight: 1.6 }}>
+          <span style={{whiteSpace:"pre-wrap"}}>{DOMPurify.sanitize(message)}</span>
+        </div>
         {action && actionLabel && (
           <button onClick={action} style={{ marginTop: 10, padding: "7px 16px", borderRadius: 8, background: BLUE, border: "none", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             {actionLabel}

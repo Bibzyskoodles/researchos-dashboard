@@ -6,6 +6,7 @@ interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
+  isAuthenticated: boolean;
 }
 
 const AuthCtx = createContext<AuthContextValue | null>(null);
@@ -13,51 +14,55 @@ const AuthCtx = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [org, setOrg] = useState<Organisation | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('fs_token'));
+  // ✅ SECURITY: Don't store token in state - it's managed by httpOnly cookie
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('fs_token');
-    if (stored) {
-      authApi.me()
-        .then(res => {
-          setUser(res.data.user);
-          setOrg(res.data.org);
-          setToken(stored);
-        })
-        .catch(() => {
-          localStorage.removeItem('fs_token');
-          setToken(null);
-        })
-        .finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
+    // ✅ SECURITY: Check authentication via backend endpoint
+    // The httpOnly cookie is automatically sent with every request
+    authApi.me()
+      .then(res => {
+        setUser(res.data.user);
+        setOrg(res.data.org);
+        setIsAuthenticated(true);
+      })
+      .catch(() => {
+        // Not authenticated or session expired
+        setIsAuthenticated(false);
+        setUser(null);
+        setOrg(null);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await authApi.login(email, password);
-    const { token, user, org } = res.data;
-    localStorage.setItem('fs_token', token);
-    document.cookie = `fs_token=${token};path=/;max-age=86400;SameSite=Lax`;
-    setToken(token);
+    // ✅ SECURITY: Backend sets httpOnly cookie automatically
+    // Frontend never sees or stores the token
+    const { user, org } = res.data;
     setUser(user);
     setOrg(org);
+    setIsAuthenticated(true);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('fs_token');
-    document.cookie = 'fs_token=;path=/;max-age=0';
-    setToken(null);
+  const logout = useCallback(async () => {
+    try {
+      // ✅ SECURITY: Call logout endpoint to clear httpOnly cookie
+      await authApi.logout();
+    } catch (e) {
+      // Continue even if logout API call fails
+    }
     setUser(null);
     setOrg(null);
+    setIsAuthenticated(false);
     window.location.href = '/login';
   }, []);
 
   return (
     <AuthCtx.Provider value={{
-      user, org, token,
-      isAuthenticated: !!token,
+      user, org, token: null,
+      isAuthenticated,
       isLoading, login, logout
     }}>
       {children}
