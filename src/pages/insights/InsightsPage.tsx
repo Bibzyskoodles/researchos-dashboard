@@ -34,36 +34,42 @@ const CAPABILITIES = [
     label: "Question Intelligence",
     desc: "Scores every question on effectiveness, skip rate, and sentiment — so you know which questions work and which to redesign.",
     color: BLUE,
+    tab: "questions",
   },
   {
     Icon: Users,
     label: "Demographic Intelligence",
     desc: "Breaks down findings by gender, age, location, and any field in your data — revealing which segments hold the strongest signals.",
     color: PURPLE,
+    tab: "demographics",
   },
   {
     Icon: Zap,
     label: "Signal Fidelity",
     desc: "Measures how well your research intent flows from questionnaire design through enumerator delivery to the final responses.",
     color: AMBER,
+    tab: "signal",
   },
   {
     Icon: BookOpen,
     label: "Evidence Engine",
     desc: "Every insight is traceable. Themes and conclusions are grounded in direct quotes pulled from your interviews — nothing fabricated.",
     color: GREEN,
+    tab: "intelligence",
   },
   {
     Icon: MessageSquare,
     label: "Ask Your Research",
     desc: "Ask any natural-language question and get evidence-backed answers drawn from your actual interviews — not an LLM guessing.",
     color: BLUE,
+    tab: "ask",
   },
   {
     Icon: Download,
     label: "Intelligence Workbooks",
     desc: "Export your full analysis as DOCX, PPTX, or XLSX — presentation-ready and structured for stakeholder reporting.",
     color: "#374151",
+    tab: "intelligence",
   },
 ];
 
@@ -194,13 +200,21 @@ function AdaHero({ firstProjectId }: { firstProjectId: string }) {
   );
 }
 
-function CapabilityGrid() {
+function CapabilityGrid({ firstProjectId }: { firstProjectId: string }) {
+  const navigate = useNavigate();
   return (
     <div>
       <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.9, marginBottom: 12 }}>What Ada can do for your research</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-        {CAPABILITIES.map(({ Icon, label, desc, color }) => (
-          <div key={label} style={{ background: "white", borderRadius: 12, padding: "16px 16px", border: "1px solid #E8EDF5", display: "flex", gap: 12, alignItems: "flex-start" }}>
+        {CAPABILITIES.map(({ Icon, label, desc, color, tab }) => (
+          <motion.div
+            key={label}
+            whileHover={{ y: -2, boxShadow: "0 6px 24px rgba(37,99,235,.1)" }}
+            onClick={() => navigate(`/insights/${firstProjectId}?tab=${tab}`)}
+            style={{ background: "white", borderRadius: 12, padding: "16px 16px", border: "1px solid #E8EDF5", display: "flex", gap: 12, alignItems: "flex-start", cursor: "pointer", transition: "border-color .15s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}44`; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E8EDF5"; }}
+          >
             <div style={{ width: 34, height: 34, borderRadius: 9, background: `${color}12`, display: "grid", placeItems: "center", flexShrink: 0 }}>
               <Icon size={16} color={color} />
             </div>
@@ -208,7 +222,7 @@ function CapabilityGrid() {
               <div style={{ fontSize: 12.5, fontWeight: 700, color: "#080D1A", marginBottom: 5 }}>{label}</div>
               <div style={{ fontSize: 11.5, color: "#6B7280", lineHeight: 1.55 }}>{desc}</div>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>
@@ -270,7 +284,7 @@ export default function InsightsPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <AdaHero firstProjectId={firstProjectId} />
-      <CapabilityGrid />
+      <CapabilityGrid firstProjectId={firstProjectId} />
 
       <div>
         <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.9, marginBottom: 12 }}>Your Projects</div>
