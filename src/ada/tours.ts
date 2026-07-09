@@ -158,7 +158,7 @@ export const TOURS: GuidedTour[] = [
       {
         id: 'full-mti',
         route: '/insights',
-        speech: "Inside each project you'll find the Multi-Theme Intelligence panel. MTI is something I'm genuinely proud of — it identifies the recurring themes across your interviews: what people are consistently talking about, what they're carefully avoiding, and where there are contradictions between what they say and what other data suggests. It surfaces things a human analyst would take days to find.",
+        speech: "Inside each project you'll find the Signal Fidelity panel. This is something I'm genuinely proud of — it identifies the recurring themes across your interviews: what people are consistently talking about, what they're carefully avoiding, and where there are contradictions between what they say and what other data suggests. It surfaces things a human analyst would take days to find.",
         waitForUser: true,
       },
       {

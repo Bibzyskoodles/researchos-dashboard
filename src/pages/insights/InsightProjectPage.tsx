@@ -6,7 +6,7 @@ import { useAda } from "../../ada/AdaContext";
 import { insightScoreApi } from "../../services/api";
 import { InsightProject, InsightReport, InsightSubmission } from "../../types";
 import { ChevronLeft, Download, AlertCircle } from "lucide-react";
-import MTIPanel from "./rie/MTIPanel";
+import SignalFidelityPanel from "./rie/SignalFidelityPanel";
 import QuestionIntelligencePanel from "./rie/QuestionIntelligencePanel";
 import DemographicIntelligencePanel from "./rie/DemographicIntelligencePanel";
 import AskResearchPanel from "./rie/AskResearchPanel";
@@ -416,7 +416,7 @@ export default function InsightProjectPage() {
           {activeTab === "intelligence" && <IntelligenceTab projectId={id} project={project} />}
           {activeTab === "questions" && <QuestionIntelligencePanel projectId={id} />}
           {activeTab === "demographics" && <DemographicIntelligencePanel projectId={id} />}
-          {activeTab === "signal" && <MTIPanel projectId={id} />}
+          {activeTab === "signal" && <SignalFidelityPanel projectId={id} />}
           {activeTab === "ask" && <AskResearchPanel projectId={id} report={report} />}
         </motion.div>
       </AnimatePresence>

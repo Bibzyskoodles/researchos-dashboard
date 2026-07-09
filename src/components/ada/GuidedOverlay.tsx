@@ -95,29 +95,27 @@ function stopAudio(audioRef: React.MutableRefObject<HTMLAudioElement | null>) {
 // Ada travels to stand beside the spotlight target. She avoids covering the
 // element by sitting to its left (or right when near the left edge).
 
-function getAdaPos(rect: HighlightRect | null): { x: number; y: number } {
+function getAdaPos(rect: HighlightRect | null, size: number = 56): { x: number; y: number } {
   const W = window.innerWidth;
   const H = window.innerHeight;
-  const SIZE = 56;
   const SIDEBAR = 228;
-  const BUBBLE_H = 240; // rough height of speech bubble
+  const BUBBLE_H = 240;
 
   if (!rect) {
-    // No target: Ada rests at center-screen, above the bubble
     return {
-      x: W / 2 - SIZE / 2,
-      y: H - BUBBLE_H - SIZE - 32,
+      x: W / 2 - size / 2,
+      y: H - BUBBLE_H - size - 32,
     };
   }
 
   const spCenterY = rect.y + rect.height / 2;
   const goLeft = (rect.x + rect.width / 2) > (W * 0.55);
 
-  let x = goLeft
-    ? Math.max(SIDEBAR + 8, rect.x - SIZE - 20)
-    : Math.min(W - SIZE - 8, rect.x + rect.width + 20);
+  const x = goLeft
+    ? Math.max(SIDEBAR + 8, rect.x - size - 20)
+    : Math.min(W - size - 8, rect.x + rect.width + 20);
 
-  let y = Math.max(60, Math.min(H - BUBBLE_H - SIZE - 16, spCenterY - SIZE / 2));
+  const y = Math.max(60, Math.min(H - BUBBLE_H - size - 16, spCenterY - size / 2));
 
   return { x, y };
 }
@@ -178,18 +176,23 @@ function Spotlight({ rect, label }: { rect: HighlightRect; label?: string }) {
 
 // ─── Physical Ada Avatar ────────────────────────────────────────────────────
 
+const ADA_FULL = 56;
+const ADA_PEA = 22;
+
 function AdaAvatar({ rect, isSpeaking }: { rect: HighlightRect | null; isSpeaking: boolean }) {
-  const pos = getAdaPos(rect);
+  const isPea = !!rect;
+  const size = isPea ? ADA_PEA : ADA_FULL;
+  const pos = getAdaPos(rect, size);
 
   return (
     <motion.div
-      animate={{ left: pos.x, top: pos.y }}
+      animate={{ left: pos.x, top: pos.y, width: size, height: size }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      style={{ position: 'absolute', zIndex: 12, pointerEvents: 'none', width: 56, height: 56 }}
+      style={{ position: 'absolute', zIndex: 12, pointerEvents: 'none' }}
     >
-      {/* Ambient glow when speaking */}
+      {/* Ambient glow — only at full size */}
       <AnimatePresence>
-        {isSpeaking && (
+        {isSpeaking && !isPea && (
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: [0.4, 0.7, 0.4], scale: [1, 1.18, 1] }}
@@ -205,12 +208,12 @@ function AdaAvatar({ rect, isSpeaking }: { rect: HighlightRect | null; isSpeakin
 
       {/* Avatar circle */}
       <motion.div
-        animate={{ scale: isSpeaking ? [1, 1.04, 1] : 1 }}
-        transition={{ duration: 1.2, repeat: isSpeaking ? Infinity : 0, ease: 'easeInOut' }}
+        animate={{ scale: isSpeaking && !isPea ? [1, 1.04, 1] : 1 }}
+        transition={{ duration: 1.2, repeat: isSpeaking && !isPea ? Infinity : 0, ease: 'easeInOut' }}
         style={{
-          width: 56, height: 56, borderRadius: '50%', overflow: 'hidden',
-          border: `2.5px solid ${isSpeaking ? BLUE : 'rgba(255,255,255,0.3)'}`,
-          boxShadow: isSpeaking
+          width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden',
+          border: `${isPea ? 1.5 : 2.5}px solid ${isSpeaking ? BLUE : 'rgba(255,255,255,0.3)'}`,
+          boxShadow: isSpeaking && !isPea
             ? `0 0 0 3px rgba(37,99,235,0.2), 0 8px 24px rgba(8,13,26,0.5)`
             : '0 4px 16px rgba(8,13,26,0.4)',
           transition: 'border-color 0.3s',
@@ -223,9 +226,9 @@ function AdaAvatar({ rect, isSpeaking }: { rect: HighlightRect | null; isSpeakin
         />
       </motion.div>
 
-      {/* Speaking bars badge */}
+      {/* Speaking bars badge — only at full size */}
       <AnimatePresence>
-        {isSpeaking && (
+        {isSpeaking && !isPea && (
           <motion.div
             initial={{ opacity: 0, scale: 0.7 }}
             animate={{ opacity: 1, scale: 1 }}

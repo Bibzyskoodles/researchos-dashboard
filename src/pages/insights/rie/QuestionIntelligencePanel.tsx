@@ -57,7 +57,7 @@ function QuestionCard({ q, index }: { q: QuestionIntel; index: number }) {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {q.category && <span style={{ fontSize: 10.5, fontWeight: 700, color: BLUE, background: "#EFF6FF", borderRadius: 4, padding: "1px 6px" }}>{q.category}</span>}
             {q.skip_rate !== undefined && q.skip_rate > 0.15 && <span style={{ fontSize: 10.5, fontWeight: 700, color: AMBER, background: "#FFFBEB", borderRadius: 4, padding: "1px 6px" }}>High skip rate</span>}
-            {q.mti !== undefined && q.mti < 55 && <span style={{ fontSize: 10.5, fontWeight: 700, color: RED, background: "#FEF2F2", borderRadius: 4, padding: "1px 6px" }}>Low MTI</span>}
+            {q.mti !== undefined && q.mti < 55 && <span style={{ fontSize: 10.5, fontWeight: 700, color: RED, background: "#FEF2F2", borderRadius: 4, padding: "1px 6px" }}>Low SFI</span>}
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, flexShrink: 0, alignItems: "center" }}>
@@ -76,7 +76,7 @@ function QuestionCard({ q, index }: { q: QuestionIntel; index: number }) {
               <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
                 {q.response_rate !== undefined && <ScorePill value={Math.round(q.response_rate * 100)} label="Response %" color={GREEN} />}
                 {q.skip_rate !== undefined && <ScorePill value={Math.round(q.skip_rate * 100)} label="Skip %" color={q.skip_rate > 0.2 ? RED : AMBER} />}
-                {q.mti !== undefined && <ScorePill value={q.mti} label="MTI" color={q.mti >= 75 ? GREEN : q.mti >= 55 ? AMBER : RED} />}
+                {q.mti !== undefined && <ScorePill value={q.mti} label="SFI" color={q.mti >= 75 ? GREEN : q.mti >= 55 ? AMBER : RED} />}
                 {q.confidence !== undefined && <ScorePill value={Math.round(q.confidence * 100)} label="Confidence" color={BLUE} />}
               </div>
 

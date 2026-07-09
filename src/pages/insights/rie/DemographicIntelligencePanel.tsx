@@ -72,7 +72,7 @@ function SegmentBar({ segment, maxCount, color }: { segment: DemographicSegment;
             <div style={{ borderTop: "1px solid #F8FAFF", padding: "12px 14px 14px" }}>
               {segment.mti_avg !== undefined && (
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#EFF6FF", borderRadius: 6, padding: "3px 9px", marginBottom: 10 }}>
-                  <span style={{ fontSize: 11, color: "#1E40AF", fontWeight: 700 }}>MTI: {segment.mti_avg}</span>
+                  <span style={{ fontSize: 11, color: "#1E40AF", fontWeight: 700 }}>SFI: {segment.mti_avg}</span>
                 </div>
               )}
               {segment.themes && segment.themes.length > 0 && (
