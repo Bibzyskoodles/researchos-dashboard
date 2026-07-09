@@ -33,9 +33,11 @@ export default function ExperienceLauncher() {
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             style={{
               position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-              zIndex: 1900, width: 520, background: 'white', borderRadius: 20,
+              zIndex: 1900, width: 520, maxWidth: 'calc(100vw - 32px)',
+              maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
+              background: 'white', borderRadius: 20,
               boxShadow: '0 24px 80px rgba(8,13,26,0.28), 0 4px 16px rgba(8,13,26,0.1)',
-              overflow: 'hidden', fontFamily: 'Inter, sans-serif',
+              fontFamily: 'Inter, sans-serif',
             }}
           >
             {/* Header */}

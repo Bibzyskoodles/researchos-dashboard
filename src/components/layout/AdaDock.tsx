@@ -30,7 +30,8 @@ async function speak(
   onEnd?: () => void
 ): Promise<void> {
   if (!voiceOn) { onEnd?.(); return; }
-  const clean = stripMarkdown(text);
+  const clean = stripMarkdown(text)
+    .replace(/\bAda\b/g, 'Ay-dah');
   if (!clean) { onEnd?.(); return; }
 
   // --- OpenAI TTS (natural neural voice) ---
@@ -40,7 +41,7 @@ async function speak(
       const res = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
         headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "tts-1-hd", input: clean, voice: "nova", speed: 1.0 }),
+        body: JSON.stringify({ model: "tts-1-hd", input: clean, voice: "shimmer", speed: 1.0 }),
       });
       if (res.ok) {
         const blob = await res.blob();

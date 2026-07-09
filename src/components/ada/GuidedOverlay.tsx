@@ -1,21 +1,27 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useGuidedExperience } from '../../ada/GuidedExperienceContext';
+import { useGuidedExperience, HighlightRect } from '../../ada/GuidedExperienceContext';
 
 const BLUE = '#2463EB';
 const DARK = '#0C1128';
 
-// Speak text via OpenAI TTS or Web Speech fallback
 async function speakStep(
   text: string,
   audioRef: React.MutableRefObject<HTMLAudioElement | null>,
+  onStart?: () => void,
   onEnd?: () => void
 ): Promise<void> {
   const OAI_KEY = process.env.REACT_APP_OPENAI_KEY || '';
-  const clean = text.replace(/\n/g, ' ').trim();
+  // Phonetic fixes before TTS (prevents "A-D-A" acronym pronunciation)
+  const clean = text
+    .replace(/\n/g, ' ')
+    .replace(/\bAda\b/g, 'Ay-dah')
+    .trim();
   if (!clean) { onEnd?.(); return; }
+
+  onStart?.();
 
   if (OAI_KEY) {
     try {
@@ -23,7 +29,7 @@ async function speakStep(
       const res = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: { Authorization: `Bearer ${OAI_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'tts-1-hd', input: clean, voice: 'nova', speed: 1.0 }),
+        body: JSON.stringify({ model: 'tts-1-hd', input: clean, voice: 'shimmer', speed: 1.0 }),
       });
       if (res.ok) {
         const blob = await res.blob();
@@ -38,7 +44,6 @@ async function speakStep(
     } catch { /* fall through */ }
   }
 
-  // Web Speech fallback
   const synth = window.speechSynthesis;
   if (!synth) { onEnd?.(); return; }
   synth.cancel();
@@ -62,97 +67,162 @@ function stopAudio(audioRef: React.MutableRefObject<HTMLAudioElement | null>) {
   window.speechSynthesis?.cancel();
 }
 
+// Smooth spotlight: single div that animates between positions
+function Spotlight({ rect, label }: { rect: HighlightRect; label?: string }) {
+  const pad = { x: 10, y: 8 };
+  const left = Math.max(228, rect.x - pad.x);
+  const top = Math.max(60, rect.y - pad.y);
+  const width = Math.min(window.innerWidth - left - 8, rect.width + pad.x * 2);
+  const height = Math.min(window.innerHeight - top - 160, rect.height + pad.y * 2);
+  const centerX = left + width / 2;
+
+  return (
+    <>
+      {/* Clickable backdrop that blocks the overlay from receiving events outside the spotlight */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'all' }} onClick={e => e.stopPropagation()} />
+
+      {/* Spotlight window — transparent with outward box-shadow creating the dark curtain */}
+      <motion.div
+        animate={{ left, top, width, height }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        style={{
+          position: 'absolute',
+          borderRadius: 10,
+          boxShadow: '0 0 0 9999px rgba(8,13,26,0.78)',
+          zIndex: 2,
+          pointerEvents: 'none',
+        }}
+      >
+        {/* Animated border */}
+        <motion.div
+          animate={{ opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+          style={{
+            position: 'absolute', inset: 0, borderRadius: 10,
+            border: `2px solid ${BLUE}`,
+            outline: '4px solid rgba(37,99,235,0.12)',
+          }}
+        />
+        {/* Corner accents */}
+        {[
+          { top: -2, left: -2, borderTop: `3px solid ${BLUE}`, borderLeft: `3px solid ${BLUE}`, borderTopLeftRadius: 10 },
+          { top: -2, right: -2, borderTop: `3px solid ${BLUE}`, borderRight: `3px solid ${BLUE}`, borderTopRightRadius: 10 },
+          { bottom: -2, left: -2, borderBottom: `3px solid ${BLUE}`, borderLeft: `3px solid ${BLUE}`, borderBottomLeftRadius: 10 },
+          { bottom: -2, right: -2, borderBottom: `3px solid ${BLUE}`, borderRight: `3px solid ${BLUE}`, borderBottomRightRadius: 10 },
+        ].map((s, i) => (
+          <div key={i} style={{ position: 'absolute', width: 14, height: 14, ...s }} />
+        ))}
+      </motion.div>
+
+      {/* Label above spotlight */}
+      {label && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.25 }}
+          style={{
+            position: 'absolute',
+            left: centerX,
+            top: Math.max(8, top - 34),
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            background: BLUE,
+            color: 'white',
+            fontSize: 10.5,
+            fontWeight: 700,
+            letterSpacing: 0.3,
+            padding: '4px 12px',
+            borderRadius: 20,
+            fontFamily: 'Inter, sans-serif',
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 2px 8px rgba(37,99,235,0.4)',
+          }}
+        >
+          ↑ {label}
+        </motion.div>
+      )}
+    </>
+  );
+}
+
 export default function GuidedOverlay() {
   const { store, currentStep, nextStep, prevStep, exitTour, setHighlight } = useGuidedExperience();
   const navigate = useNavigate();
   const location = useLocation();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasSpokenRef = useRef<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Navigate and highlight when step changes
+  // Navigate + find target on step change
   useEffect(() => {
     if (!store.active || !currentStep) return;
 
-    // Navigate to route if needed
     if (currentStep.route && location.pathname !== currentStep.route) {
       navigate(currentStep.route);
     }
 
-    // Find and highlight target element
-    const findTarget = () => {
-      if (!currentStep.target) { setHighlight(null); return; }
+    if (!currentStep.target) { setHighlight(null); return; }
+
+    setHighlight(null);
+    const tryFind = (delay: number) => setTimeout(() => {
       const el = document.querySelector(`[data-ada-target="${currentStep.target}"]`);
       if (el) {
-        const rect = el.getBoundingClientRect();
-        setHighlight({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
-      } else {
-        setHighlight(null);
-        // Retry after page renders
-        const t = setTimeout(() => {
-          const el2 = document.querySelector(`[data-ada-target="${currentStep.target}"]`);
-          if (el2) {
-            const rect2 = el2.getBoundingClientRect();
-            setHighlight({ x: rect2.left, y: rect2.top, width: rect2.width, height: rect2.height });
-          }
-        }, 600);
-        return () => clearTimeout(t);
+        const r = el.getBoundingClientRect();
+        if (r.width > 20 && r.height > 10) {
+          setHighlight({ x: r.left, y: r.top, width: r.width, height: r.height });
+        }
       }
-    };
+    }, delay);
 
-    const cleanup = findTarget();
-    return cleanup;
+    const t1 = tryFind(250);
+    const t2 = tryFind(900);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.active, store.stepIndex, currentStep?.id]);
 
-  // Speak when step changes
+  // TTS on step change
   useEffect(() => {
     if (!store.active || !currentStep) return;
     if (hasSpokenRef.current === currentStep.id) return;
     hasSpokenRef.current = currentStep.id;
     stopAudio(audioRef);
-    speakStep(currentStep.speech, audioRef, () => {});
+    setIsSpeaking(false);
+    speakStep(
+      currentStep.speech,
+      audioRef,
+      () => setIsSpeaking(true),
+      () => setIsSpeaking(false)
+    );
     return () => stopAudio(audioRef);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.active, currentStep?.id]);
 
-  // Stop audio on exit
+  // Cleanup on exit
   useEffect(() => {
-    if (!store.active) { stopAudio(audioRef); hasSpokenRef.current = null; }
+    if (!store.active) { stopAudio(audioRef); hasSpokenRef.current = null; setIsSpeaking(false); }
   }, [store.active]);
 
-  const handleExit = useCallback(() => {
-    stopAudio(audioRef);
-    exitTour();
-  }, [exitTour]);
+  // Keyboard navigation
+  useEffect(() => {
+    if (!store.active) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'Enter') { stopAudio(audioRef); hasSpokenRef.current = null; nextStep(); }
+      if (e.key === 'ArrowLeft') { stopAudio(audioRef); hasSpokenRef.current = null; prevStep(); }
+      if (e.key === 'Escape') { stopAudio(audioRef); exitTour(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [store.active, nextStep, prevStep, exitTour]);
 
-  const handleNext = useCallback(() => {
-    stopAudio(audioRef);
-    hasSpokenRef.current = null;
-    nextStep();
-  }, [nextStep]);
-
-  const handlePrev = useCallback(() => {
-    stopAudio(audioRef);
-    hasSpokenRef.current = null;
-    prevStep();
-  }, [prevStep]);
+  const handleExit = useCallback(() => { stopAudio(audioRef); setIsSpeaking(false); exitTour(); }, [exitTour]);
+  const handleNext = useCallback(() => { stopAudio(audioRef); setIsSpeaking(false); hasSpokenRef.current = null; nextStep(); }, [nextStep]);
+  const handlePrev = useCallback(() => { stopAudio(audioRef); setIsSpeaking(false); hasSpokenRef.current = null; prevStep(); }, [prevStep]);
 
   if (!store.active || !currentStep || !store.tour) return null;
 
   const totalSteps = store.tour.steps.length;
-  const progress = ((store.stepIndex + 1) / totalSteps) * 100;
   const { highlightRect } = store;
-
-  // Compute Ada mini position relative to highlight
-  const adaMiniX = highlightRect ? Math.max(16, highlightRect.x - 60) : 32;
-  const adaMiniY = highlightRect
-    ? Math.min(window.innerHeight - 160, highlightRect.y + highlightRect.height / 2 - 40)
-    : window.innerHeight / 2 - 100;
-
-  // Speech bubble position
-  const bubbleX = highlightRect ? Math.min(window.innerWidth - 360, highlightRect.x + highlightRect.width + 16) : adaMiniX + 80;
-  const bubbleY = Math.max(16, adaMiniY - 20);
-
   const isFirst = store.stepIndex === 0;
   const isLast = store.stepIndex === totalSteps - 1;
 
@@ -167,164 +237,169 @@ export default function GuidedOverlay() {
           transition={{ duration: 0.3 }}
           style={{ position: 'fixed', inset: 0, zIndex: 2000, pointerEvents: 'none' }}
         >
-          {/* Dark overlay */}
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,13,26,0.72)', pointerEvents: 'all' }} onClick={e => e.stopPropagation()} />
-
-          {/* Spotlight cutout — rendered as a positioned div over the target */}
-          {highlightRect && (
-            <motion.div
-              key={`spotlight-${currentStep.id}`}
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              style={{
-                position: 'absolute',
-                left: Math.max(0, highlightRect.x - 12),
-                top: Math.max(0, highlightRect.y - 12),
-                width: highlightRect.width + 24,
-                height: highlightRect.height + 24,
-                borderRadius: 12,
-                boxShadow: '0 0 0 9999px rgba(8,13,26,0.72)',
-                border: `2px solid ${BLUE}`,
-                outline: `6px solid rgba(37,99,235,0.18)`,
-                pointerEvents: 'none',
-                zIndex: 1,
-              }}
+          {/* When no target: full dark overlay */}
+          {!highlightRect && (
+            <div
+              style={{ position: 'absolute', inset: 0, background: 'rgba(8,13,26,0.78)', pointerEvents: 'all' }}
+              onClick={e => e.stopPropagation()}
             />
           )}
 
-          {/* Progress bar */}
+          {/* Spotlight (only when target exists) */}
+          {highlightRect && (
+            <Spotlight rect={highlightRect} label={currentStep.targetLabel} />
+          )}
+
+          {/* Progress bar — thin line at very top */}
           <motion.div
-            style={{ position: 'absolute', top: 0, left: 0, height: 3, background: BLUE, zIndex: 5, pointerEvents: 'none' }}
-            initial={{ width: `${((store.stepIndex) / totalSteps) * 100}%` }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
+            animate={{ width: `${((store.stepIndex + 1) / totalSteps) * 100}%` }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            style={{ position: 'absolute', top: 0, left: 0, height: 2, background: BLUE, zIndex: 20, pointerEvents: 'none' }}
           />
 
-          {/* Exit button */}
-          <button
-            onClick={handleExit}
-            style={{
-              position: 'absolute', top: 16, right: 16, zIndex: 10,
-              width: 36, height: 36, borderRadius: 10,
-              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
-              cursor: 'pointer', display: 'grid', placeItems: 'center', color: 'rgba(255,255,255,0.7)',
-              pointerEvents: 'all',
-            }}
-          >
-            <X size={16} />
-          </button>
-
-          {/* Step counter */}
+          {/* Top bar */}
           <div style={{
-            position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
-            fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)',
-            background: 'rgba(0,0,0,0.4)', padding: '4px 12px', borderRadius: 20,
-            letterSpacing: 0.5, fontFamily: 'Inter, sans-serif', pointerEvents: 'none',
+            position: 'absolute', top: 12, left: 0, right: 0, zIndex: 20,
+            display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10,
+            pointerEvents: 'none',
           }}>
-            {store.tour.name} · {store.stepIndex + 1} of {totalSteps}
+            <div style={{
+              background: 'rgba(8,13,26,0.7)', backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              padding: '5px 14px', borderRadius: 20,
+              fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.5)',
+              fontFamily: 'Inter, sans-serif', letterSpacing: 0.3,
+            }}>
+              {store.tour.name}
+            </div>
+            <button
+              onClick={handleExit}
+              style={{
+                width: 30, height: 30, borderRadius: 8, pointerEvents: 'all',
+                background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+                cursor: 'pointer', display: 'grid', placeItems: 'center', color: 'rgba(255,255,255,0.5)',
+              }}
+            >
+              <X size={13} />
+            </button>
           </div>
 
-          {/* Ada mini avatar — animated position */}
-          {!highlightRect && (
-            <motion.div
-              key={`ada-${currentStep.id}`}
-              initial={{ opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-              style={{ position: 'absolute', left: 40, top: '50%', transform: 'translateY(-50%)', zIndex: 6, pointerEvents: 'none' }}
-            >
-              <div style={{ width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', border: `3px solid ${BLUE}`, boxShadow: '0 0 24px rgba(37,99,235,0.5)' }}>
-                <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 15%' }} />
-              </div>
-            </motion.div>
-          )}
-
-          {/* Ada mini avatar near highlight */}
-          {highlightRect && (
-            <motion.div
-              key={`ada-hl-${currentStep.id}`}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
-              style={{ position: 'absolute', left: adaMiniX, top: adaMiniY, zIndex: 10, pointerEvents: 'none' }}
-            >
-              <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', border: `2.5px solid ${BLUE}`, boxShadow: '0 0 20px rgba(37,99,235,0.6)' }}>
-                <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 15%' }} />
-              </div>
-              <motion.div
-                animate={{ scale: [0.95, 1.3], opacity: [0.6, 0] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
-                style={{ position: 'absolute', inset: -4, borderRadius: '50%', border: `2px solid ${BLUE}`, pointerEvents: 'none' }}
-              />
-            </motion.div>
-          )}
-
-          {/* Speech bubble */}
+          {/* Ada + speech bubble — always bottom-center */}
           <motion.div
             key={`bubble-${currentStep.id}`}
-            initial={{ opacity: 0, y: 16, scale: 0.95 }}
+            initial={{ opacity: 0, y: 24, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
             style={{
               position: 'absolute',
-              left: highlightRect ? bubbleX : 108,
-              top: highlightRect ? bubbleY : window.innerHeight / 2 - 120,
-              maxWidth: 360,
+              bottom: 28,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 500,
+              maxWidth: 'calc(100vw - 48px)',
               background: 'white',
-              borderRadius: '6px 18px 18px 18px',
-              padding: '16px 18px 14px',
-              boxShadow: '0 16px 48px rgba(8,13,26,0.35), 0 2px 8px rgba(8,13,26,0.15)',
-              border: '1px solid rgba(37,99,235,0.12)',
-              zIndex: 8,
+              borderRadius: 20,
+              boxShadow: '0 24px 64px rgba(8,13,26,0.45), 0 4px 16px rgba(8,13,26,0.2)',
+              border: '1px solid rgba(255,255,255,0.9)',
+              zIndex: 15,
               pointerEvents: 'all',
               fontFamily: 'Inter, sans-serif',
+              overflow: 'hidden',
             }}
           >
-            <p style={{ margin: 0, fontSize: 13.5, color: '#1F2937', lineHeight: 1.65, fontWeight: 450 }}>
-              {currentStep.speech}
-            </p>
+            {/* Subtle top accent */}
+            <div style={{ height: 3, background: `linear-gradient(to right, ${BLUE}, #7C3AED)` }} />
 
-            {/* Controls */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, justifyContent: 'space-between' }}>
-              <button
-                onClick={handlePrev}
-                disabled={isFirst}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '6px 12px', borderRadius: 8, border: '1px solid #E2E8F0',
-                  background: 'white', color: isFirst ? '#CBD5E1' : '#6B7280',
-                  cursor: isFirst ? 'default' : 'pointer', fontSize: 12, fontWeight: 600,
-                  fontFamily: 'Inter, sans-serif',
-                }}
-              >
-                <ChevronLeft size={13} /> Back
-              </button>
+            <div style={{ padding: '18px 20px 16px' }}>
+              {/* Step pills */}
+              <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 16, alignItems: 'center' }}>
+                {Array.from({ length: totalSteps }, (_, i) => (
+                  <motion.div
+                    key={i}
+                    animate={{
+                      width: i === store.stepIndex ? 22 : 6,
+                      background: i < store.stepIndex ? BLUE : i === store.stepIndex ? BLUE : '#E2E8F0',
+                      opacity: i > store.stepIndex ? 0.45 : 1,
+                    }}
+                    transition={{ duration: 0.28, ease: 'easeOut' }}
+                    style={{ height: 6, borderRadius: 3, flexShrink: 0 }}
+                  />
+                ))}
+              </div>
 
-              <button
-                onClick={handleExit}
-                style={{
-                  padding: '6px 12px', borderRadius: 8, border: 'none',
-                  background: 'none', color: '#9CA3AF', cursor: 'pointer',
-                  fontSize: 11.5, fontFamily: 'Inter, sans-serif',
-                }}
-              >
-                Exit tour
-              </button>
+              {/* Ada avatar + speech */}
+              <div style={{ display: 'flex', gap: 13, alignItems: 'flex-start', marginBottom: 16 }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: '50%', overflow: 'hidden',
+                    border: `2px solid ${isSpeaking ? BLUE : '#E2E8F0'}`,
+                    boxShadow: isSpeaking ? `0 0 0 3px rgba(37,99,235,0.15)` : 'none',
+                    transition: 'border-color 0.2s, box-shadow 0.2s',
+                  }}>
+                    <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 15%' }} />
+                  </div>
+                  {/* Speaking wave dots */}
+                  {isSpeaking && (
+                    <div style={{
+                      position: 'absolute', bottom: -2, right: -2,
+                      background: BLUE, borderRadius: 10, padding: '2px 5px',
+                      display: 'flex', gap: 2, alignItems: 'center',
+                      border: '2px solid white',
+                    }}>
+                      {[0, 1, 2].map(i => (
+                        <motion.div
+                          key={i}
+                          animate={{ scaleY: [0.4, 1, 0.4] }}
+                          transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
+                          style={{ width: 2, height: 6, background: 'white', borderRadius: 1 }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-              <button
-                onClick={handleNext}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '6px 16px', borderRadius: 8, border: 'none',
-                  background: isLast ? DARK : BLUE,
-                  color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                  fontFamily: 'Inter, sans-serif',
-                  boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
-                }}
-              >
-                {isLast ? 'Finish' : 'Next'} {!isLast && <ChevronRight size={13} />}
-              </button>
+                <p style={{ margin: 0, fontSize: 13.5, color: '#1F2937', lineHeight: 1.7, flex: 1, fontWeight: 400 }}>
+                  {currentStep.speech}
+                </p>
+              </div>
+
+              {/* Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #F1F5F9', paddingTop: 14 }}>
+                <button
+                  onClick={handlePrev}
+                  disabled={isFirst}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '7px 14px', borderRadius: 8, border: '1px solid #E2E8F0',
+                    background: 'white', color: isFirst ? '#D1D5DB' : '#6B7280',
+                    cursor: isFirst ? 'default' : 'pointer', fontSize: 12, fontWeight: 600,
+                    fontFamily: 'Inter, sans-serif',
+                  }}
+                >
+                  <ChevronLeft size={13} /> Back
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 10.5, color: '#CBD5E1', fontFamily: 'Inter, sans-serif' }}>
+                    ← → to navigate · Esc to exit
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleNext}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '7px 18px', borderRadius: 8, border: 'none',
+                    background: isLast ? DARK : BLUE,
+                    color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                    fontFamily: 'Inter, sans-serif',
+                    boxShadow: isLast ? '0 2px 8px rgba(8,13,26,0.35)' : '0 2px 10px rgba(37,99,235,0.4)',
+                  }}
+                >
+                  {isLast ? 'Finish tour' : 'Next'} {!isLast && <ChevronRight size={13} />}
+                </button>
+              </div>
             </div>
           </motion.div>
         </motion.div>
