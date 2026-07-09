@@ -67,7 +67,7 @@ const CAPABILITIES = [
   },
 ];
 
-function AdaHero({ firstProjectId }: { firstProjectId: string | null }) {
+function AdaHero({ firstProjectId }: { firstProjectId: string }) {
   const navigate = useNavigate();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
@@ -144,17 +144,15 @@ function AdaHero({ firstProjectId }: { firstProjectId: string | null }) {
               <motion.div key="cta" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: "flex", gap: 10, marginBottom: 24 }}>
                 <button
                   onClick={() => { setAnswered("begin"); setTimeout(() => goTo(), 350); }}
-                  disabled={!firstProjectId}
-                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 10, background: firstProjectId ? BLUE : "#374151", border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: firstProjectId ? "pointer" : "not-allowed", transition: "opacity .15s" }}
-                  onMouseEnter={e => firstProjectId && ((e.currentTarget as HTMLButtonElement).style.opacity = ".85")}
+                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 10, background: BLUE, border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "opacity .15s" }}
+                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.opacity = ".85")}
                   onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}>
                   Begin Analysis <ArrowRight size={13} />
                 </button>
                 <button
                   onClick={() => { setAnswered("review"); setTimeout(() => goTo("interviews"), 350); }}
-                  disabled={!firstProjectId}
-                  style={{ padding: "9px 20px", borderRadius: 10, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.14)", color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 600, cursor: firstProjectId ? "pointer" : "not-allowed", transition: "background .15s" }}
-                  onMouseEnter={e => firstProjectId && ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.14)")}
+                  style={{ padding: "9px 20px", borderRadius: 10, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.14)", color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "background .15s" }}
+                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.14)")}
                   onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.08)")}>
                   Review Interviews First
                 </button>
@@ -264,7 +262,10 @@ export default function InsightsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const firstProjectId = projects[0]?.id ?? null;
+  // Hardcoded fallback so Ada's briefing buttons always navigate somewhere.
+  // Once the API returns a real project, that takes precedence.
+  const FALLBACK_PROJECT = "658464e5-09dc-4b99-a664-05690de9921a";
+  const firstProjectId = projects[0]?.id ?? FALLBACK_PROJECT;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
