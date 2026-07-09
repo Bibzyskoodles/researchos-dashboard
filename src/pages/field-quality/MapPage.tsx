@@ -6,7 +6,7 @@ import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { MapPin, Clock, X, Layers, ZoomIn, ZoomOut } from "lucide-react";
 
-const GOOGLE_MAPS_KEY = "AIzaSyCk1TrF9CuY1rOHruxsfRy1M9aZuKTTylo";
+const GOOGLE_MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY || "AIzaSyCk1TrF9CuY1rOHruxsfRy1M9aZuKTTylo";
 
 const GREEN  = "#059669";
 const AMBER  = "#D97706";
@@ -169,7 +169,10 @@ export default function MapPage() {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 108px)", flexDirection: "column", gap: 12, color: "#6B7280" }}>
         <MapPin size={28} color="#DC2626" />
-        <div style={{ fontSize: 14 }}>Map failed to load. Please check your network.</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>Google Maps failed to load</div>
+        <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', maxWidth: 340 }}>
+          Check that the Maps JavaScript API is enabled in Google Cloud Console and that <strong>researchos-dashboard.vercel.app</strong> is an allowed referrer for the API key.
+        </div>
       </div>
     );
   }
