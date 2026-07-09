@@ -5,7 +5,7 @@ import { Submission } from '../../types';
 import {
   Shield, Clock, Zap, Users, MapPin, ChevronDown,
   Navigation, RotateCcw, FileText, Play, Download,
-  CheckCircle2, XCircle, Sliders, Flag,
+  CheckCircle2, XCircle, Sliders, Flag, Trash2, Calendar, AlertTriangle,
 } from 'lucide-react';
 import { usePlatform } from '../../platform/PlatformProvider';
 
@@ -30,6 +30,8 @@ interface RuleConfig {
   maxFlagRate: number;
   maxSpeedKmh: number;
   geoSigma: number;
+  retentionDays90: number;
+  retentionDays365: number;
 }
 
 interface ViolationDetail {
@@ -53,9 +55,11 @@ const RULE_META: Record<string, { label: string; desc: string; color: string; ic
   contaminated_enumerator:{ label: 'Enumerator Contamination',  desc: 'All submissions from enumerators whose overall flag rate exceeds your threshold. The entire body of work becomes suspect.',  color: PURPLE, icon: Users,  category: 'Enumerators' },
   speed_violation:        { label: 'Speed-of-Light Violations',  desc: 'Consecutive GPS positions from the same enumerator imply travel faster than any vehicle can achieve. GPS was fabricated.', color: RED,    icon: Navigation,    category: 'Advanced' },
   geo_outlier:            { label: 'Geographic Outliers',        desc: 'Submissions captured far outside the GPS cluster of your study area.',              color: BLUE,   icon: MapPin,        category: 'Advanced' },
+  stale_90d:              { label: 'Older than 90 days',         desc: 'Submissions collected more than 90 days ago. Stale data can distort longitudinal analysis. Adjust the threshold.',      color: AMBER,  icon: Calendar,      category: 'Retention' },
+  stale_1y:               { label: 'Older than 1 year',          desc: 'Submissions older than your retention window. Many data protection laws (NDPA, GDPR) require timely deletion of research data.', color: RED, icon: Trash2, category: 'Retention' },
 };
 
-const CATEGORY_ORDER = ['FieldScore', 'Score', 'Duration', 'Enumerators', 'Advanced'];
+const CATEGORY_ORDER = ['FieldScore', 'Score', 'Duration', 'Enumerators', 'Advanced', 'Retention'];
 
 const DEFAULT_RULES: RuleState[] = [
   { id: 'rejected',                enabled: true  },
@@ -66,11 +70,14 @@ const DEFAULT_RULES: RuleState[] = [
   { id: 'contaminated_enumerator', enabled: true  },
   { id: 'speed_violation',         enabled: true  },
   { id: 'geo_outlier',             enabled: false },
+  { id: 'stale_90d',               enabled: false },
+  { id: 'stale_1y',                enabled: false },
 ];
 
 const DEFAULT_CONFIG: RuleConfig = {
   minScore: 40, minDuration: 5, maxDuration: 180,
   maxFlagRate: 0.3, maxSpeedKmh: 120, geoSigma: 2.5,
+  retentionDays90: 90, retentionDays365: 365,
 };
 
 // ─── Toggle switch ────────────────────────────────────────────────────────────
@@ -137,6 +144,10 @@ export default function DataCleaningPage() {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const [purgeResult, setPurgeResult] = useState<{ success: number; failed: number } | null>(null);
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
+  const [anonymizeGps, setAnonymizeGps] = useState(false);
   const [rules, setRules] = useState<RuleState[]>(DEFAULT_RULES);
   const [config, setConfig] = useState<RuleConfig>(DEFAULT_CONFIG);
   const [tab, setTab] = useState<'removed' | 'by-rule' | 'provenance'>('removed');
@@ -230,11 +241,15 @@ export default function DataCleaningPage() {
     }
 
     // Per-rule hit sets
+    const now = Date.now();
+    const ms90 = config.retentionDays90 * 86400000;
+    const ms365 = config.retentionDays365 * 86400000;
     const hits: Record<string, Set<string>> = {
       rejected: new Set(), flagged: new Set(), low_score: new Set(),
       too_fast: new Set(), abandoned: new Set(), contaminated_enumerator: new Set(),
       speed_violation: new Set(speedViolations.keys()),
       geo_outlier: geoOutliers,
+      stale_90d: new Set(), stale_1y: new Set(),
     };
     for (const sub of submissions) {
       if (sub.verdict === 'REJECT') hits.rejected.add(sub.submission_id);
@@ -244,6 +259,11 @@ export default function DataCleaningPage() {
       if (dur > 0 && dur < config.minDuration) hits.too_fast.add(sub.submission_id);
       if (dur > config.maxDuration) hits.abandoned.add(sub.submission_id);
       if (contaminatedEnums.has(sub.enumerator_id)) hits.contaminated_enumerator.add(sub.submission_id);
+      if (sub.scored_at) {
+        const age = now - new Date(sub.scored_at).getTime();
+        if (age > ms90) hits.stale_90d.add(sub.submission_id);
+        if (age > ms365) hits.stale_1y.add(sub.submission_id);
+      }
     }
 
     // Combine enabled rules
@@ -324,16 +344,40 @@ export default function DataCleaningPage() {
     URL.revokeObjectURL(url);
   }, [analysis, rules]);
 
+  const purgeData = useCallback(async () => {
+    if (!analysis?.removedIds.size) return;
+    setPurging(true);
+    setShowPurgeModal(false);
+    const ids = Array.from(analysis.removedIds);
+    const results = await Promise.allSettled(ids.map(id => dashboardApi.deleteSubmission(id)));
+    const success = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+    setPurgeResult({ success, failed });
+    setPurging(false);
+    if (success > 0) {
+      setSubmissions(prev => prev.filter(s => !analysis.removedIds.has(s.submission_id)));
+    }
+  }, [analysis]);
+
   const exportClean = useCallback(() => {
     if (!analysis) return;
-    const headers = ['submission_id', 'enumerator_id', 'verdict', 'overall_score', 'duration_mins', 'scored_at'];
-    const rows = analysis.kept.map(s =>
-      [s.submission_id, s.enumerator_id, s.verdict, s.overall_score, s.duration_mins ?? '', s.scored_at ?? ''].join(','));
+    const headers = ['submission_id', 'enumerator_id', 'verdict', 'overall_score', 'duration_mins', 'scored_at',
+      ...(anonymizeGps ? ['gps_lat', 'gps_lon'] : [])];
+    const rows = analysis.kept.map(s => {
+      const base = [s.submission_id, s.enumerator_id, s.verdict, s.overall_score, s.duration_mins ?? '', s.scored_at ?? ''];
+      if (anonymizeGps && s.gps?.lat && s.gps?.lon) {
+        // Reduce to 3 decimal places ≈ 111m precision — removes individual-level GPS detail
+        base.push(s.gps.lat.toFixed(3), s.gps.lon.toFixed(3));
+      } else if (anonymizeGps) {
+        base.push('', '');
+      }
+      return base.join(',');
+    });
     const csv = [headers.join(','), ...rows].join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const a = document.createElement('a'); a.href = url; a.download = 'clean-dataset.csv'; a.click();
     URL.revokeObjectURL(url);
-  }, [analysis]);
+  }, [analysis, anonymizeGps]);
 
   // Group rules by category
   const rulesByCategory = useMemo(() => {
@@ -365,14 +409,30 @@ export default function DataCleaningPage() {
               : 'No data'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={exportProvenance} disabled={!analysis}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', fontSize: 12.5, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
             <FileText size={13} /> Provenance Report
           </button>
+          <button
+            onClick={() => setAnonymizeGps(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: `1px solid ${anonymizeGps ? BLUE : '#E2E8F0'}`, borderRadius: 8, background: anonymizeGps ? BLUE + '10' : 'white', fontSize: 12.5, fontWeight: 600, color: anonymizeGps ? BLUE : '#374151', cursor: 'pointer' }}>
+            <MapPin size={13} /> {anonymizeGps ? 'GPS Anonymized' : 'Anonymize GPS'}
+          </button>
           <button onClick={exportClean} disabled={!analysis}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', fontSize: 12.5, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
             <Download size={13} /> Export Clean CSV
+          </button>
+          <button onClick={() => setShowPurgeModal(true)} disabled={purging || !analysis?.removedIds.size || !!purgeResult}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: `1px solid ${purgeResult ? GREEN : '#FECACA'}`, borderRadius: 8,
+              background: purgeResult ? GREEN + '10' : '#FEF2F2', fontSize: 12.5, fontWeight: 600,
+              color: purgeResult ? GREEN : analysis?.removedIds.size ? RED : '#9CA3AF',
+              cursor: purging || !analysis?.removedIds.size || !!purgeResult ? 'not-allowed' : 'pointer',
+            }}>
+            {purgeResult ? <><CheckCircle2 size={13} /> {purgeResult.success} Purged</> :
+             purging ? <><RotateCcw size={13} style={{ animation: 'spin 1s linear infinite' }} /> Purging…</> :
+             <><Trash2 size={13} /> Purge Records</>}
           </button>
           <button onClick={applyClean} disabled={applying || !analysis?.removedIds.size || applied}
             style={{
@@ -463,6 +523,14 @@ export default function DataCleaningPage() {
                             {rule.enabled && rule.id === 'geo_outlier' && (
                               <ThresholdSlider label="Sigma threshold" value={config.geoSigma} min={1} max={5} step={0.5} unit="σ"
                                 onChange={v => setConfig(c => ({ ...c, geoSigma: v }))} />
+                            )}
+                            {rule.enabled && rule.id === 'stale_90d' && (
+                              <ThresholdSlider label="Days threshold" value={config.retentionDays90} min={30} max={180} step={10} unit="d"
+                                onChange={v => setConfig(c => ({ ...c, retentionDays90: v }))} />
+                            )}
+                            {rule.enabled && rule.id === 'stale_1y' && (
+                              <ThresholdSlider label="Days threshold" value={config.retentionDays365} min={180} max={730} step={30} unit="d"
+                                onChange={v => setConfig(c => ({ ...c, retentionDays365: v }))} />
                             )}
                           </div>
                         );
@@ -728,6 +796,40 @@ export default function DataCleaningPage() {
           </div>
         </div>
       </div>
+
+      {/* Purge confirmation modal */}
+      <AnimatePresence>
+        {showPurgeModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(8,13,26,.6)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setShowPurgeModal(false)}>
+            <motion.div initial={{ scale: .94, opacity: 0, y: 12 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: .94, opacity: 0 }}
+              style={{ background: 'white', borderRadius: 16, padding: 28, maxWidth: 440, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,.25)' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: '#FEF2F2', border: '1px solid #FECACA', display: 'grid', placeItems: 'center', marginBottom: 16 }}>
+                <AlertTriangle size={20} color={RED} />
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: '#080D1A', marginBottom: 8 }}>Permanently delete {analysis?.removedIds.size} submissions?</div>
+              <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6, marginBottom: 20 }}>
+                This will <strong>permanently delete</strong> the flagged submissions from your database. This action cannot be undone. A provenance report will be your only audit trail.
+              </div>
+              <div style={{ background: '#FFFBEB', borderRadius: 8, padding: '10px 14px', border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', marginBottom: 20 }}>
+                <strong>Tip:</strong> Download the Provenance Report first. It documents every rule that triggered each removal.
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setShowPurgeModal(false)}
+                  style={{ flex: 1, padding: '10px 0', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button onClick={purgeData}
+                  style={{ flex: 1, padding: '10px 0', border: 'none', borderRadius: 8, background: RED, fontSize: 13, fontWeight: 700, color: 'white', cursor: 'pointer' }}>
+                  Delete permanently
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

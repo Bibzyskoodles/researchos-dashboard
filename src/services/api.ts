@@ -50,6 +50,10 @@ export const dashboardApi = {
     api.post('/kobo/import', { asset_uid, limit }),
   uploadSubmissions: (submissions: object[]) =>
     api.post('/api/submissions/upload', { submissions }),
+  deleteSubmission: (id: string) =>
+    api.delete(`/api/submissions/${id}`),
+  bulkDelete: (ids: string[]) =>
+    api.post('/api/submissions/bulk-delete', { ids }),
 };
 
 export const questionnaireApi = {
