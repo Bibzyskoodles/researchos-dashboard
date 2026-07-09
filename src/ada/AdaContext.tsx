@@ -9,12 +9,13 @@ interface GuideTarget {
 }
 
 // Commands Ada can issue to adjust the UI when the user asks. She can filter,
-// highlight, navigate and switch project — never delete or submit.
+// highlight, navigate, switch project, and change settings — never delete or submit.
 export type AdaCommand =
   | { type: 'FILTER_SUBMISSIONS'; verdict: 'PASS' | 'FLAG' | 'REJECT' | 'ALL' }
   | { type: 'HIGHLIGHT_ENUMERATOR'; id: string }
   | { type: 'NAVIGATE_TO'; path: string }
-  | { type: 'SWITCH_PROJECT'; id: string };
+  | { type: 'SWITCH_PROJECT'; id: string }
+  | { type: 'CHANGE_SETTING'; key: string; value: any; label: string };
 
 // Map a natural-language message to a command intent, or null if none.
 export function parseAdaCommand(text: string): AdaCommand | null {
@@ -63,6 +64,145 @@ export function parseAdaCommand(text: string): AdaCommand | null {
       if (t.includes(key)) return { type: 'NAVIGATE_TO', path: pages[key] };
     }
   }
+
+  // ── Settings changes ─────────────────────────────────────────────────────
+
+  // Ada personality
+  if (/(ada|make her|make you|set you|set ada).*(friendly|warm|casual|personal)/.test(t) ||
+      /(friendl(y|ier)|warmer|more casual|more personal).*mode/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaPersonality', value: 'friendly', label: 'Ada set to Friendly mode' };
+  }
+  if (/(ada|make her|make you|set you|set ada).*(concise|brief|short|minimal|direct)/.test(t) ||
+      /(concise|minimal|direct|brief).*mode/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaPersonality', value: 'concise', label: 'Ada set to Concise mode' };
+  }
+  if (/(ada|make her|make you|set you|set ada).*(professional|formal|enterprise)/.test(t) ||
+      /(professional|formal).*mode/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaPersonality', value: 'professional', label: 'Ada set to Professional mode' };
+  }
+
+  // Ada behaviour toggles
+  if (/(turn on|enable|activate).*(proactive|briefing)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaProactive', value: true, label: 'Proactive briefings enabled' };
+  }
+  if (/(turn off|disable|stop).*(proactive|briefing)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaProactive', value: false, label: 'Proactive briefings disabled' };
+  }
+  if (/(turn on|enable|activate).*(element guidance|guidance|highlight)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaGuidance', value: true, label: 'Element guidance enabled' };
+  }
+  if (/(turn off|disable|stop).*(element guidance|guidance|highlight)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaGuidance', value: false, label: 'Element guidance disabled' };
+  }
+  if (/(turn on|enable|activate).*(daily|morning|summary|brief)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaBrief', value: true, label: 'Daily summary brief enabled' };
+  }
+  if (/(turn off|disable|stop).*(daily|morning|summary|brief)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaBrief', value: false, label: 'Daily summary brief disabled' };
+  }
+  if (/(turn on|enable).*(celebration|milestone)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaCelebrations', value: true, label: 'Milestone celebrations enabled' };
+  }
+  if (/(turn off|disable|stop).*(celebration|milestone)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'adaCelebrations', value: false, label: 'Milestone celebrations disabled' };
+  }
+
+  // Language
+  const langMap: Record<string, string> = {
+    english: 'English', french: 'French', arabic: 'Arabic', portuguese: 'Portuguese',
+    swahili: 'Swahili', hausa: 'Hausa', yoruba: 'Yoruba', igbo: 'Igbo',
+  };
+  const langMatch = t.match(/(change|set|switch).*(language|lang).*?(?:to\s+)?(\w+)/);
+  if (langMatch) {
+    const lang = langMap[langMatch[3]];
+    if (lang) return { type: 'CHANGE_SETTING', key: 'language', value: lang, label: `Primary language set to ${lang}` };
+  }
+
+  // Timezone
+  const tzMap: Record<string, string> = {
+    lagos: 'Africa/Lagos', 'africa/lagos': 'Africa/Lagos',
+    utc: 'UTC', london: 'Europe/London', 'new york': 'America/New_York',
+    'new_york': 'America/New_York', 'kolkata': 'Asia/Kolkata', india: 'Asia/Kolkata',
+  };
+  if (/(change|set|switch).*(timezone|time zone)/.test(t)) {
+    for (const [key, tz] of Object.entries(tzMap)) {
+      if (t.includes(key)) return { type: 'CHANGE_SETTING', key: 'timezone', value: tz, label: `Timezone set to ${tz}` };
+    }
+  }
+
+  // Notifications
+  if (/(turn on|enable).*(email).*(notif|alert)/.test(t) || /(email).*(notif|alert).*(on|enable)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'notifyEmail', value: true, label: 'Email notifications enabled' };
+  }
+  if (/(turn off|disable|stop).*(email).*(notif|alert)/.test(t) || /(email).*(notif|alert).*(off|disable)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'notifyEmail', value: false, label: 'Email notifications disabled' };
+  }
+  if (/(turn on|enable).*(slack).*(notif|alert)/.test(t) || /(slack).*(notif|alert).*(on|enable)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'notifySlack', value: true, label: 'Slack notifications enabled' };
+  }
+  if (/(turn off|disable|stop).*(slack).*(notif|alert)/.test(t) || /(slack).*(notif|alert).*(off|disable)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'notifySlack', value: false, label: 'Slack notifications disabled' };
+  }
+  if (/(turn off|disable|stop).*(in.?app).*(notif|alert)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'notifyInApp', value: false, label: 'In-app notifications disabled' };
+  }
+  if (/(turn on|enable).*(in.?app).*(notif|alert)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'notifyInApp', value: true, label: 'In-app notifications enabled' };
+  }
+
+  // Research defaults — GPS accuracy
+  const gpsMatch = t.match(/(gps|accuracy|tolerance).*?(\d+)\s*(m|meter|metre)?/);
+  if (gpsMatch && /(set|change|update|gps|accuracy)/.test(t)) {
+    const val = Math.min(500, Math.max(10, Number(gpsMatch[2])));
+    return { type: 'CHANGE_SETTING', key: 'gpsAccuracy', value: val, label: `GPS accuracy set to ${val}m` };
+  }
+
+  // Pass threshold
+  const passMatch = t.match(/(pass|score|threshold).*?(\d+)/);
+  if (passMatch && /(set|change|update|lower|raise|increase|decrease).*(pass|threshold)/.test(t)) {
+    const val = Math.min(100, Math.max(0, Number(passMatch[2])));
+    return { type: 'CHANGE_SETTING', key: 'passThreshold', value: val, label: `Pass threshold set to ${val}` };
+  }
+
+  // Duplicate detection threshold
+  const dupMatch = t.match(/(duplicate|dup|similarity).*?(\d+)(%)?/);
+  if (dupMatch && /(set|change|update).*(dup|duplicate|similarity)/.test(t)) {
+    const val = Math.min(100, Math.max(50, Number(dupMatch[2])));
+    return { type: 'CHANGE_SETTING', key: 'dupThreshold', value: val, label: `Duplicate threshold set to ${val}%` };
+  }
+
+  // Min/max interview duration
+  const minMatch = t.match(/(min(imum)?|fastest|shortest).*?(\d+)\s*(min|minute)?/);
+  if (minMatch && /(set|change|update).*(min|duration|interview)/.test(t)) {
+    const val = Math.min(60, Math.max(1, Number(minMatch[3])));
+    return { type: 'CHANGE_SETTING', key: 'minDuration', value: val, label: `Minimum interview duration set to ${val} mins` };
+  }
+  const maxMatch = t.match(/(max(imum)?|longest|slowest).*?(\d+)\s*(min|minute)?/);
+  if (maxMatch && /(set|change|update).*(max|duration|interview)/.test(t)) {
+    const val = Math.min(360, Math.max(30, Number(maxMatch[3])));
+    return { type: 'CHANGE_SETTING', key: 'maxDuration', value: val, label: `Maximum interview duration set to ${val} mins` };
+  }
+
+  // Session timeout
+  const sessionMap: Record<string, string> = {
+    '1 hour': '1h', '1h': '1h', '4 hour': '4h', '4h': '4h',
+    '8 hour': '8h', '8h': '8h', '24 hour': '24h', '24h': '24h', '1 day': '24h',
+    '7 day': '7d', '7d': '7d', '1 week': '7d',
+  };
+  if (/(session|logout|timeout)/.test(t)) {
+    for (const [key, val] of Object.entries(sessionMap)) {
+      if (t.includes(key)) return { type: 'CHANGE_SETTING', key: 'sessionTimeout', value: val, label: `Session timeout set to ${val}` };
+    }
+  }
+
+  // 2FA
+  if (/(turn on|enable|activate).*(2fa|two.factor|two factor)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'twoFa', value: true, label: 'Two-factor authentication enabled' };
+  }
+  if (/(turn off|disable).*(2fa|two.factor|two factor)/.test(t)) {
+    return { type: 'CHANGE_SETTING', key: 'twoFa', value: false, label: 'Two-factor authentication disabled' };
+  }
+
   return null;
 }
 

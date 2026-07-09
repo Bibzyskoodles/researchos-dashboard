@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Layers, Users, Shield, Palette, Puzzle, Brain,
@@ -10,6 +10,7 @@ import {
 import { useAda } from "../../ada/AdaContext";
 import { useIndustry } from "../../store/IndustryContext";
 import { useAuth } from "../../store/AuthContext";
+import { useSettings } from "../../store/SettingsContext";
 import { authApi } from "../../services/api";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 
@@ -212,9 +213,11 @@ function OrgSection() {
 
 function WorkspaceSection() {
   const { org } = useAuth();
+  const { settings, changeSetting } = useSettings();
   const [wsName, setWsName] = useState(org?.name || "My Workspace");
   const [desc, setDesc] = useState("Primary workspace for Q3 2025 fieldwork");
-  const [lang, setLang] = useState("English");
+  const lang = settings.language;
+  const setLang = (v: string) => changeSetting('language', v);
   const [saved, setSaved] = useState(false);
   const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
   return (
@@ -481,11 +484,17 @@ function IntegrationsSection() {
 }
 
 function AdaSection() {
-  const [personality, setPersonality] = useState("professional");
-  const [proactive, setProactive] = useState(true);
-  const [brief, setBrief] = useState(true);
-  const [guidance, setGuidance] = useState(true);
-  const [celebrations, setCelebrations] = useState(true);
+  const { settings, changeSetting } = useSettings();
+  const personality = settings.adaPersonality;
+  const setPersonality = (v: string) => changeSetting('adaPersonality', v as any);
+  const proactive = settings.adaProactive;
+  const setProactive = (v: boolean) => changeSetting('adaProactive', v);
+  const brief = settings.adaBrief;
+  const setBrief = (v: boolean) => changeSetting('adaBrief', v);
+  const guidance = settings.adaGuidance;
+  const setGuidance = (v: boolean) => changeSetting('adaGuidance', v);
+  const celebrations = settings.adaCelebrations;
+  const setCelebrations = (v: boolean) => changeSetting('adaCelebrations', v);
   const model = "claude-sonnet-5";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -533,12 +542,19 @@ function AdaSection() {
 }
 
 function ResearchSection() {
-  const [gps, setGps] = useState(50);
-  const [dupThreshold, setDupThreshold] = useState(85);
-  const [minDuration, setMinDuration] = useState(8);
-  const [maxDuration, setMaxDuration] = useState(120);
-  const [mediaRetention, setMediaRetention] = useState("90");
-  const [passThreshold, setPassThreshold] = useState(70);
+  const { settings, changeSetting } = useSettings();
+  const gps = settings.gpsAccuracy;
+  const setGps = (v: number) => changeSetting('gpsAccuracy', v);
+  const dupThreshold = settings.dupThreshold;
+  const setDupThreshold = (v: number) => changeSetting('dupThreshold', v);
+  const minDuration = settings.minDuration;
+  const setMinDuration = (v: number) => changeSetting('minDuration', v);
+  const maxDuration = settings.maxDuration;
+  const setMaxDuration = (v: number) => changeSetting('maxDuration', v);
+  const mediaRetention = settings.mediaRetention;
+  const setMediaRetention = (v: string) => changeSetting('mediaRetention', v);
+  const passThreshold = settings.passThreshold;
+  const setPassThreshold = (v: number) => changeSetting('passThreshold', v);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
@@ -661,9 +677,12 @@ function ChangePasswordCard() {
 }
 
 function SecuritySection() {
-  const [twoFa, setTwoFa] = useState(false);
+  const { settings, changeSetting } = useSettings();
+  const twoFa = settings.twoFa;
+  const setTwoFa = (v: boolean) => changeSetting('twoFa', v);
+  const sessionTimeout = settings.sessionTimeout;
+  const setSessionTimeout = (v: string) => changeSetting('sessionTimeout', v);
   const [sso, setSso] = useState(false);
-  const [sessionTimeout, setSessionTimeout] = useState("8h");
   const [ipRestrict, setIpRestrict] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -697,6 +716,7 @@ function SecuritySection() {
 }
 
 function NotificationsSection() {
+  const { settings, changeSetting } = useSettings();
   const channels = [{id:"email",label:"Email"},{id:"slack",label:"Slack"},{id:"inapp",label:"In-App"}];
   const events = [
     {label:"New Submission Scored",desc:"When FieldScore processes a new submission"},
@@ -707,13 +727,48 @@ function NotificationsSection() {
     {label:"Storage Warning",desc:"When storage exceeds 80%"},
     {label:"Integration Error",desc:"When a connected integration fails"},
   ];
+  // Per-event prefs seeded from global channel toggles from Ada-controllable settings
   const [prefs, setPrefs] = useState<Record<string,Record<string,boolean>>>(() => {
     const init: Record<string,Record<string,boolean>> = {};
-    events.forEach(e => { init[e.label] = {email:true,slack:false,inapp:true}; });
+    events.forEach(e => { init[e.label] = {email:settings.notifyEmail,slack:settings.notifySlack,inapp:settings.notifyInApp}; });
     return init;
   });
+  // When global channel settings change (e.g. Ada turned off Slack), sync all rows
+  const prevEmail = useRef(settings.notifyEmail);
+  const prevSlack = useRef(settings.notifySlack);
+  const prevInApp = useRef(settings.notifyInApp);
+  useEffect(() => {
+    const emailChanged = prevEmail.current !== settings.notifyEmail;
+    const slackChanged = prevSlack.current !== settings.notifySlack;
+    const inAppChanged = prevInApp.current !== settings.notifyInApp;
+    if (emailChanged || slackChanged || inAppChanged) {
+      setPrefs(p => {
+        const next = { ...p };
+        for (const key of Object.keys(next)) {
+          next[key] = { ...next[key] };
+          if (emailChanged) next[key].email = settings.notifyEmail;
+          if (slackChanged) next[key].slack = settings.notifySlack;
+          if (inAppChanged) next[key].inapp = settings.notifyInApp;
+        }
+        return next;
+      });
+      prevEmail.current = settings.notifyEmail;
+      prevSlack.current = settings.notifySlack;
+      prevInApp.current = settings.notifyInApp;
+    }
+  }, [settings.notifyEmail, settings.notifySlack, settings.notifyInApp]);
+
   const toggle = (event: string, channel: string) => {
-    setPrefs(p => ({...p,[event]:{...p[event],[channel]:!p[event][channel]}}));
+    setPrefs(p => {
+      const next = {...p,[event]:{...p[event],[channel]:!p[event][channel]}};
+      // Keep global setting in sync if user manually toggles a channel column uniformly
+      const allOff = Object.values(next).every(r => !r[channel]);
+      const allOn = Object.values(next).every(r => r[channel]);
+      if (channel === 'email' && (allOff || allOn)) changeSetting('notifyEmail', allOn);
+      if (channel === 'slack' && (allOff || allOn)) changeSetting('notifySlack', allOn);
+      if (channel === 'inapp' && (allOff || allOn)) changeSetting('notifyInApp', allOn);
+      return next;
+    });
   };
   return (
     <SettingsCard style={{ padding: 24, overflowX: "auto" }}>

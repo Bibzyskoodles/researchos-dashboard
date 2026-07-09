@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useAda, parseAdaCommand, AdaCommand } from "../../ada/AdaContext";
+import { useSettings, AdaChangeableSettings } from "../../store/SettingsContext";
 import { useGuidedExperience } from "../../ada/GuidedExperienceContext";
 import { adaApi, dashboardApi } from "../../services/api";
 import { X, Send, Mic, BarChart2, Map, FileText, Users, Zap, MessageSquare, Volume2, VolumeX } from "lucide-react";
@@ -190,6 +191,7 @@ function edgeTarget(edge: string, along: number): { x: string; y: string } {
 
 export default function AdaDock() {
   const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage, dispatchCommand } = useAda();
+  const { changeSetting } = useSettings();
   const { store: guidedStore } = useGuidedExperience();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -300,8 +302,10 @@ export default function AdaDock() {
     if (cmd.type === "NAVIGATE_TO") {
       navigatePage(cmd.path.replace("/", ""));
       setTimeout(() => navigate(cmd.path), 350);
+    } else if (cmd.type === "CHANGE_SETTING") {
+      changeSetting(cmd.key as keyof AdaChangeableSettings, cmd.value);
     }
-  }, [dispatchCommand, navigatePage, navigate]);
+  }, [dispatchCommand, navigatePage, navigate, changeSetting]);
 
   const currentPage = useMemo(() => {
     const p = location.pathname.replace("/", "").split("/")[0];
