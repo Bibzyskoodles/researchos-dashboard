@@ -88,7 +88,7 @@ interface Message {
   timestamp: Date;
 }
 
-const INTRO_MESSAGE = "Good afternoon. I'm Ada — ResearchOS's AI Research Partner. I work with field research teams across Sub-Saharan Africa, and I understand the pressures you're both navigating — keeping fieldwork quality high across geographies, managing enumerator performance at scale, and giving clients the confidence that the data they're making decisions on is clean. That's exactly what ResearchOS was built for. I'd love to walk you through how we do that — but first, is there a specific challenge you'd like to start with? I'm here to have a real conversation, not just a demo.";
+const INTRO_MESSAGE = "Good afternoon. I'm Ada — the AI Research Partner inside ResearchOS. FieldScore is what brought you here today, and rightly so — it's the verification and trust scoring engine at the core of everything. What I'd love to do is show you the full picture around it: live field monitoring, enumerator performance, AI-driven analysis, and reporting — all connected. But first, what's the specific challenge on your mind? I'd rather start with what matters to you than walk through slides.";
 
 export default function MeetingAdaPage() {
   const [messages, setMessages] = useState<Message[]>([]);

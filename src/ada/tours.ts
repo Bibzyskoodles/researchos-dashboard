@@ -27,7 +27,7 @@ export const TOURS: GuidedTour[] = [
     demoIntro: {
       id: 'demo-exec-intro',
       route: '/overview',
-      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — ResearchOS's AI Research Partner. I know your time is valuable, so I'm going to keep this sharp. What you're about to see is not a slide deck and not a recording — I'm going to navigate the real platform live, with real data, and show you exactly how we solve the problems that field research teams in Sub-Saharan Africa deal with every single day. Interrupt me whenever you like. Let's begin.",
+      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — the AI Research Partner inside ResearchOS. FieldScore is the engine underneath all of this — the verification and scoring layer that I understand brought you to the table. Today I want to show you the full picture: what FieldScore does, and the intelligence platform built around it. Live, real data, no slides. Stop me whenever you like. Let's begin.",
       waitForUser: true,
     },
 
@@ -88,7 +88,7 @@ export const TOURS: GuidedTour[] = [
     demoIntro: {
       id: 'demo-full-intro',
       route: '/overview',
-      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — ResearchOS's AI Research Partner. Over the next fifteen minutes I'm going to walk you through the full platform — live, not recorded. I've been briefed on the kinds of challenges Ipsos faces running field research across Sub-Saharan Africa, so I'll frame each capability in terms of what it actually solves for your teams. Please stop me at any point. Let's start with the dashboard.",
+      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — the AI Research Partner inside ResearchOS. FieldScore is what you heard about — it's the verification and trust scoring engine at the heart of this platform. What I'm going to show you today is everything built around it: from live field monitoring to AI analysis to client-ready reporting. Fifteen minutes, live, real data. Please stop me at any point — this is a conversation, not a presentation. Let's start with the dashboard.",
       waitForUser: true,
     },
 
