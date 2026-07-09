@@ -30,6 +30,7 @@ function levenshtein(a: string, b: string): number {
   return dp[m][n];
 }
 
+// ─── Standardization dictionaries ─────────────────────────────────────────────
 const CANONICAL_PLACES: string[] = [
   'Lagos','Abuja','Kano','Ibadan','Port Harcourt','Kaduna','Enugu','Benin City',
   'Onitsha','Warri','Aba','Jos','Sokoto','Maiduguri','Calabar','Uyo','Abeokuta',
@@ -42,13 +43,77 @@ const CANONICAL_PLACES: string[] = [
   'Kigali','Lusaka','Harare','Maputo','Windhoek','Gaborone','Lilongwe',
 ];
 
+// canonical → accepted variants (exact, case-insensitive)
+const CATEGORICAL_DICTS: Record<string, { canonical: string; variants: string[]; category: string }[]> = {
+  Gender: [
+    { canonical: 'Male',   variants: ['male','M','m','MALE','Man','man','MAN','Males','Boy','boy'], category: 'Gender' },
+    { canonical: 'Female', variants: ['female','F','f','FEMALE','Woman','woman','WOMAN','Females','Girl','girl','Fem','fem'], category: 'Gender' },
+    { canonical: 'Other',  variants: ['other','OTHER','Non-binary','non-binary','Nonbinary','Prefer not to say','N/A','n/a'], category: 'Gender' },
+  ],
+  'Yes / No': [
+    { canonical: 'Yes', variants: ['yes','YES','Y','y','1','True','true','TRUE','Yep','yep','Yea','yea','Affirmative','affirmative'], category: 'Yes / No' },
+    { canonical: 'No',  variants: ['no','NO','N','n','0','False','false','FALSE','Nope','nope','Negative','negative'], category: 'Yes / No' },
+  ],
+  Education: [
+    { canonical: 'None',             variants: ['none','NONE','No formal education','no education','Nil','nil','Illiterate','illiterate','0'], category: 'Education' },
+    { canonical: 'Primary',          variants: ['primary','PRIMARY','Pri','pri','Primary school','Primary School','Pry','pry','Elementary','elementary'], category: 'Education' },
+    { canonical: 'Secondary',        variants: ['secondary','SECONDARY','Sec','sec','Secondary school','Secondary School','High school','High School','O-level','O level','WAEC'], category: 'Education' },
+    { canonical: 'Tertiary',         variants: ['tertiary','TERTIARY','University','university','Tert','tert','Higher education','Higher Education','Degree','degree','HND','BSc','BA','B.Sc','B.A','Graduate'], category: 'Education' },
+    { canonical: 'Postgraduate',     variants: ['postgraduate','Postgrad','postgrad','Masters','masters','MSc','M.Sc','PhD','phd','Ph.D'], category: 'Education' },
+    { canonical: 'Vocational',       variants: ['vocational','VOCATIONAL','Voc','voc','Technical','technical','Trade','trade','OND','NCE'], category: 'Education' },
+  ],
+  'Marital Status': [
+    { canonical: 'Single',   variants: ['single','SINGLE','Unmarried','unmarried','Never married','never married','S'], category: 'Marital Status' },
+    { canonical: 'Married',  variants: ['married','MARRIED','Wed','wed','Spouse','spouse','M'], category: 'Marital Status' },
+    { canonical: 'Divorced', variants: ['divorced','DIVORCED','Div','div','Separated','separated','Sep','sep'], category: 'Marital Status' },
+    { canonical: 'Widowed',  variants: ['widowed','WIDOWED','Widow','widow','Widower','widower','W'], category: 'Marital Status' },
+  ],
+  'Employment': [
+    { canonical: 'Employed',    variants: ['employed','EMPLOYED','Working','working','Full-time','Full time','fulltime','Salary','salary','Staff','staff'], category: 'Employment' },
+    { canonical: 'Self-Employed', variants: ['self-employed','Self employed','selfemployed','SELF-EMPLOYED','Business','business','Entrepreneur','entrepreneur','Trader','trader','Farmer','farmer'], category: 'Employment' },
+    { canonical: 'Unemployed',  variants: ['unemployed','UNEMPLOYED','Not working','not working','Jobless','jobless','No work','no work'], category: 'Employment' },
+    { canonical: 'Student',     variants: ['student','STUDENT','Schooling','schooling','In school','in school','Scholar','scholar'], category: 'Employment' },
+    { canonical: 'Retired',     variants: ['retired','RETIRED','Pensioner','pensioner','Pension','pension'], category: 'Employment' },
+  ],
+  Religion: [
+    { canonical: 'Christianity', variants: ['christianity','christian','Christian','CHRISTIAN','Xtian','xtian','CAN','Christ','Christ.'], category: 'Religion' },
+    { canonical: 'Islam',        variants: ['islam','ISLAM','Muslim','muslim','MUSLIM','Islamic','islamic','Moslem','moslem'], category: 'Religion' },
+    { canonical: 'Traditional',  variants: ['traditional','TRADITIONAL','Trad','trad','African Traditional','Indigenous','indigenous','ATR'], category: 'Religion' },
+    { canonical: 'None',         variants: ['none','NONE','No religion','Atheist','atheist','Agnostic','agnostic','Non-religious','non-religious'], category: 'Religion' },
+  ],
+  Platform: [
+    { canonical: 'ODK Collect',   variants: ['odk','ODK','OpenDataKit','opendatakit','Odk','OdkCollect','ODKCollect'], category: 'Platform' },
+    { canonical: 'KoBoToolbox',   variants: ['kobo','Kobo','KOBO','KoboToolbox','koboToolbox','KoBoCollect','kobocollect','Kobotoolbox'], category: 'Platform' },
+    { canonical: 'CAPI',          variants: ['capi','Capi','Computer-assisted','computer-assisted','Device','device'], category: 'Platform' },
+    { canonical: 'Paper',         variants: ['paper','PAPER','Paper form','paper form','Physical','physical','Manual','manual','Hard copy','hard copy'], category: 'Platform' },
+    { canonical: 'SurveyCTO',     variants: ['surveycto','SurveyCto','surveyCTO','SURVEYCTO','Scto','scto'], category: 'Platform' },
+    { canonical: 'CommCare',      variants: ['commcare','CommCare','COMMCARE','Commcare'], category: 'Platform' },
+  ],
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'Location':       '#2463EB',
+  'Gender':         '#7C3AED',
+  'Yes / No':       '#059669',
+  'Education':      '#D97706',
+  'Marital Status': '#DC2626',
+  'Employment':     '#0891B2',
+  'Religion':       '#BE185D',
+  'Platform':       '#374151',
+  'Enumerator ID':  '#6B7280',
+  'Supervisor':     '#D97706',
+  'Flags':          '#DC2626',
+  'Custom':         '#2463EB',
+};
+
 interface TextCorrection {
   raw: string;
   canonical: string;
   distance: number;
   count: number;
   submissionIds: string[];
-  field: string;
+  category: string;
+  matchType: 'fuzzy' | 'exact-variant' | 'case' | 'custom';
 }
 
 interface CustomCorrection {
@@ -57,35 +122,138 @@ interface CustomCorrection {
 }
 
 function detectTextCorrections(submissions: Submission[]): TextCorrection[] {
+  const results: TextCorrection[] = [];
+  const seen = new Set<string>(); // raw+category dedupe
+
+  // ── 1. GPS Address — fuzzy location matching ─────────────────────────────
   const addrMap = new Map<string, string[]>();
   for (const sub of submissions) {
     if (!sub.gps?.address) continue;
-    const parts = sub.gps.address.split(',').map((p: string) => p.trim()).filter(Boolean);
-    for (const part of parts.slice(0, 3)) {
-      if (part.length < 2) continue;
-      const key = `addr:${part}`;
-      if (!addrMap.has(key)) addrMap.set(key, []);
-      addrMap.get(key)!.push(sub.submission_id);
-    }
+    sub.gps.address.split(',').map((p: string) => p.trim()).filter(Boolean).slice(0, 3).forEach(part => {
+      if (part.length < 2) return;
+      if (!addrMap.has(part)) addrMap.set(part, []);
+      addrMap.get(part)!.push(sub.submission_id);
+    });
   }
-
-  const corrections: TextCorrection[] = [];
-  for (const [key, subIds] of Array.from(addrMap.entries())) {
-    const raw = key.replace(/^addr:/, '');
+  for (const [raw, subIds] of Array.from(addrMap.entries())) {
     const rawLower = raw.toLowerCase();
     let bestCanonical = '', bestDist = Infinity;
     for (const canonical of CANONICAL_PLACES) {
-      const canonLower = canonical.toLowerCase();
-      if (rawLower === canonLower) { bestDist = 0; bestCanonical = canonical; break; }
-      const dist = levenshtein(rawLower, canonLower);
-      const threshold = Math.max(1, Math.floor(Math.min(rawLower.length, canonLower.length) * 0.25));
+      const cl = canonical.toLowerCase();
+      if (rawLower === cl) { bestDist = 0; break; }
+      const dist = levenshtein(rawLower, cl);
+      const threshold = Math.max(1, Math.floor(Math.min(rawLower.length, cl.length) * 0.25));
       if (dist <= threshold && dist < bestDist) { bestDist = dist; bestCanonical = canonical; }
     }
     if (bestDist > 0 && bestDist < Infinity && bestCanonical) {
-      corrections.push({ raw, canonical: bestCanonical, distance: bestDist, count: subIds.length, submissionIds: subIds, field: 'GPS Address' });
+      const key = `${raw}→Location`;
+      if (!seen.has(key)) { seen.add(key); results.push({ raw, canonical: bestCanonical, distance: bestDist, count: subIds.length, submissionIds: subIds, category: 'Location', matchType: 'fuzzy' }); }
     }
   }
-  return corrections.sort((a, b) => b.count - a.count || a.distance - b.distance);
+
+  // ── 2. Categorical survey response values — exact variant matching ────────
+  for (const [catName, entries] of Object.entries(CATEGORICAL_DICTS)) {
+    const variantMap = new Map<string, string>(); // variant_lower → canonical
+    for (const entry of entries) {
+      for (const v of entry.variants) variantMap.set(v.toLowerCase(), entry.canonical);
+    }
+
+    // For Platform category, check the actual platform field
+    if (catName === 'Platform') {
+      const platformBuckets = new Map<string, string[]>();
+      for (const sub of submissions) {
+        const val = sub.platform;
+        if (!val) continue;
+        const canon = variantMap.get(val.toLowerCase());
+        if (canon && canon !== val) {
+          if (!platformBuckets.has(val)) platformBuckets.set(val, []);
+          platformBuckets.get(val)!.push(sub.submission_id);
+        }
+      }
+      for (const [raw, subIds] of Array.from(platformBuckets.entries())) {
+        const canon = variantMap.get(raw.toLowerCase())!;
+        const key = `${raw}→${catName}`;
+        if (!seen.has(key)) { seen.add(key); results.push({ raw, canonical: canon, distance: 1, count: subIds.length, submissionIds: subIds, category: catName, matchType: 'exact-variant' }); }
+      }
+      continue;
+    }
+
+    // For other categorical dicts: scan GPS address tokens as a proxy for embedded survey values
+    // Real survey response fields would extend this when the API exposes them
+    const rawFieldSub: Record<string, string[]> = {};
+    for (const sub of submissions) {
+      const checkTokens: string[] = [];
+      if (sub.gps?.address) checkTokens.push(...sub.gps.address.split(',').map((p: string) => p.trim()));
+      // supervisor_action often contains categorical values like "approved", "rejected", "reviewed"
+      if (sub.supervisor_action) checkTokens.push(sub.supervisor_action);
+      for (const token of checkTokens) {
+        const canon = variantMap.get(token.toLowerCase());
+        if (canon && canon !== token) {
+          const rk = `${token}::${catName}`;
+          if (!rawFieldSub[rk]) rawFieldSub[rk] = [];
+          rawFieldSub[rk].push(sub.submission_id);
+        }
+      }
+    }
+    for (const [rk, subIds] of Object.entries(rawFieldSub)) {
+      const raw = rk.split('::')[0];
+      const canon = variantMap.get(raw.toLowerCase())!;
+      const key = `${raw}→${catName}`;
+      if (!seen.has(key)) { seen.add(key); results.push({ raw, canonical: canon, distance: 1, count: subIds.length, submissionIds: subIds, category: catName, matchType: 'exact-variant' }); }
+    }
+  }
+
+  // ── 3. Enumerator ID casing inconsistencies ───────────────────────────────
+  const enumCaseMap = new Map<string, Map<string, string[]>>(); // lower → (actual → subIds)
+  for (const sub of submissions) {
+    const eid = sub.enumerator_id;
+    if (!eid) continue;
+    const lower = eid.toLowerCase();
+    if (!enumCaseMap.has(lower)) enumCaseMap.set(lower, new Map());
+    const variants = enumCaseMap.get(lower)!;
+    if (!variants.has(eid)) variants.set(eid, []);
+    variants.get(eid)!.push(sub.submission_id);
+  }
+  for (const [, variants] of Array.from(enumCaseMap.entries())) {
+    if (variants.size <= 1) continue;
+    // Pick the most frequent variant as canonical
+    const sorted = Array.from(variants.entries()).sort((a, b) => b[1].length - a[1].length);
+    const canonical = sorted[0][0];
+    for (const [raw, subIds] of sorted.slice(1)) {
+      const key = `${raw}→Enumerator ID`;
+      if (!seen.has(key)) { seen.add(key); results.push({ raw, canonical, distance: 0, count: subIds.length, submissionIds: subIds, category: 'Enumerator ID', matchType: 'case' }); }
+    }
+  }
+
+  // ── 4. Flags label normalisation ─────────────────────────────────────────
+  const flagVariants: Record<string, Record<string, string[]>> = {};
+  const FLAG_CANON: Record<string, string> = {
+    'gps_drift': 'gps_drift', 'gps drift': 'gps_drift', 'GPS Drift': 'gps_drift',
+    'duplicate': 'duplicate', 'Duplicate': 'duplicate', 'DUPLICATE': 'duplicate', 'dup': 'duplicate',
+    'speed': 'speed_violation', 'speed_violation': 'speed_violation', 'Speed Violation': 'speed_violation',
+    'low_score': 'low_score', 'low score': 'low_score', 'Low Score': 'low_score',
+    'audio': 'audio_issue', 'audio_issue': 'audio_issue', 'Audio Issue': 'audio_issue',
+    'image': 'image_issue', 'image_issue': 'image_issue', 'Image Issue': 'image_issue',
+  };
+  for (const sub of submissions) {
+    const flags = Array.isArray(sub.flags) ? sub.flags : (sub.flags ? [sub.flags] : []);
+    for (const flag of flags) {
+      const canon = FLAG_CANON[flag];
+      if (canon && canon !== flag) {
+        if (!flagVariants[flag]) flagVariants[flag] = {};
+        if (!flagVariants[flag][canon]) flagVariants[flag][canon] = [];
+        flagVariants[flag][canon].push(sub.submission_id);
+      }
+    }
+  }
+  for (const [raw, canonMap] of Object.entries(flagVariants)) {
+    for (const [canon, subIds] of Object.entries(canonMap)) {
+      const key = `${raw}→Flags`;
+      if (!seen.has(key)) { seen.add(key); results.push({ raw, canonical: canon, distance: 1, count: subIds.length, submissionIds: subIds, category: 'Flags', matchType: 'exact-variant' }); }
+    }
+  }
+
+  return results.sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
 }
 
 // ─── Haversine distance (km) ──────────────────────────────────────────────────
@@ -233,6 +401,7 @@ export default function DataCleaningPage() {
   const [addingCustom, setAddingCustom] = useState(false);
   const [customRaw, setCustomRaw] = useState('');
   const [customCanonical, setCustomCanonical] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(CATEGORY_ORDER));
 
   useEffect(() => {
@@ -381,7 +550,7 @@ export default function DataCleaningPage() {
       const affected = submissions.filter(s =>
         s.gps?.address?.split(',').some((p: string) => p.trim().toLowerCase() === cc.raw.toLowerCase())
       );
-      return { raw: cc.raw, canonical: cc.canonical, distance: 1, count: affected.length, submissionIds: affected.map(s => s.submission_id), field: 'Custom' };
+      return { raw: cc.raw, canonical: cc.canonical, distance: 1, count: affected.length, submissionIds: affected.map(s => s.submission_id), category: 'Custom', matchType: 'custom' as const };
     });
     return [...detected, ...customMapped];
   }, [submissions, customCorrections]);
@@ -867,8 +1036,8 @@ export default function DataCleaningPage() {
                     {textCorrections.length > 0 && (
                       <button
                         onClick={() => {
-                          const all = new Set(textCorrections.map(c => `${c.raw}→${c.canonical}`));
-                          setApprovedFixes(prev => prev.size === all.size ? new Set() : all);
+                          const allKeys = textCorrections.map(c => `${c.raw}→${c.canonical}`);
+                          setApprovedFixes(prev => prev.size === allKeys.length ? new Set() : new Set(allKeys));
                         }}
                         style={{ padding: '6px 12px', border: '1px solid #E2E8F0', borderRadius: 7, background: 'white', fontSize: 11.5, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
                         {approvedFixes.size === textCorrections.length ? 'Deselect All' : 'Select All'}
@@ -922,6 +1091,32 @@ export default function DataCleaningPage() {
                   )}
                 </AnimatePresence>
 
+                {/* Category filter pills */}
+                {textCorrections.length > 0 && (() => {
+                  const cats = ['All', ...Array.from(new Set(textCorrections.map(c => c.category)))];
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {cats.map(cat => {
+                        const active = categoryFilter === cat;
+                        const color = CATEGORY_COLORS[cat] || '#374151';
+                        const count = cat === 'All' ? textCorrections.length : textCorrections.filter(c => c.category === cat).length;
+                        return (
+                          <button key={cat} onClick={() => setCategoryFilter(cat)}
+                            style={{
+                              padding: '4px 11px', borderRadius: 20, border: `1px solid ${active ? color : '#E2E8F0'}`,
+                              background: active ? color + '15' : 'white', cursor: 'pointer',
+                              fontSize: 11, fontWeight: 600, color: active ? color : '#9CA3AF',
+                              transition: 'all .15s', display: 'flex', alignItems: 'center', gap: 5,
+                            }}>
+                            {cat}
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '0px 4px', borderRadius: 3, background: active ? color + '20' : '#F1F5F9', color: active ? color : '#9CA3AF' }}>{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
                 {/* Correction list */}
                 {textCorrections.length === 0 ? (
                   <div style={{ padding: '32px 0', textAlign: 'center' }}>
@@ -930,74 +1125,76 @@ export default function DataCleaningPage() {
                     <div style={{ fontSize: 12, color: '#9CA3AF' }}>
                       {submissions.length === 0
                         ? 'Load submission data to analyse text values.'
-                        : 'All address values match known canonical forms. Use "Add Rule" to create a custom correction.'}
+                        : 'All values match known canonical forms. Use "Add Rule" to create a custom correction.'}
                     </div>
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {textCorrections.map((c, i) => {
-                      const key = `${c.raw}→${c.canonical}`;
-                      const approved = approvedFixes.has(key);
-                      const isCustom = c.field === 'Custom';
-                      const confidence = Math.max(0, Math.round((1 - c.distance / Math.max(c.raw.length, c.canonical.length)) * 100));
-                      return (
-                        <motion.div key={key} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
-                            borderRadius: 10, border: `1px solid ${approved ? GREEN + '30' : '#E8EDF5'}`,
-                            background: approved ? GREEN + '06' : '#FAFBFF',
-                            transition: 'all .15s',
-                          }}>
-                          {/* Approve checkbox */}
-                          <button onClick={() => setApprovedFixes(prev => {
-                              const n = new Set(prev);
-                              n.has(key) ? n.delete(key) : n.add(key);
-                              return n;
-                            })}
+                ) : (() => {
+                  const visible = categoryFilter === 'All' ? textCorrections : textCorrections.filter(c => c.category === categoryFilter);
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {visible.map((c, i) => {
+                        const key = `${c.raw}→${c.canonical}`;
+                        const approved = approvedFixes.has(key);
+                        const isCustom = c.matchType === 'custom';
+                        const catColor = CATEGORY_COLORS[c.category] || '#374151';
+                        const confidence = c.matchType === 'fuzzy'
+                          ? Math.max(0, Math.round((1 - c.distance / Math.max(c.raw.length, c.canonical.length)) * 100))
+                          : null;
+                        return (
+                          <motion.div key={key} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}
                             style={{
-                              width: 18, height: 18, borderRadius: 5, border: `2px solid ${approved ? GREEN : '#D1D5DB'}`,
-                              background: approved ? GREEN : 'white', display: 'grid', placeItems: 'center',
-                              cursor: 'pointer', flexShrink: 0, transition: 'all .15s',
+                              display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
+                              borderRadius: 10, border: `1px solid ${approved ? GREEN + '30' : '#E8EDF5'}`,
+                              background: approved ? GREEN + '06' : '#FAFBFF',
+                              transition: 'all .15s',
                             }}>
-                            {approved && <Check size={10} color="white" strokeWidth={3} />}
-                          </button>
+                            {/* Approve checkbox */}
+                            <button onClick={() => setApprovedFixes(prev => {
+                                const n = new Set(Array.from(prev));
+                                n.has(key) ? n.delete(key) : n.add(key);
+                                return n;
+                              })}
+                              style={{
+                                width: 18, height: 18, borderRadius: 5, border: `2px solid ${approved ? GREEN : '#D1D5DB'}`,
+                                background: approved ? GREEN : 'white', display: 'grid', placeItems: 'center',
+                                cursor: 'pointer', flexShrink: 0, transition: 'all .15s',
+                              }}>
+                              {approved && <Check size={10} color="white" strokeWidth={3} />}
+                            </button>
 
-                          {/* Before → After */}
-                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
-                            <code style={{ fontSize: 12.5, fontFamily: 'monospace', fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 5 }}>{c.raw}</code>
-                            <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>→</span>
-                            <code style={{ fontSize: 12.5, fontFamily: 'monospace', fontWeight: 700, color: '#059669', background: '#F0FDF4', padding: '2px 8px', borderRadius: 5 }}>{c.canonical}</code>
-                          </div>
+                            {/* Before → After */}
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
+                              <code style={{ fontSize: 12.5, fontFamily: 'monospace', fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 5 }}>{c.raw}</code>
+                              <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>→</span>
+                              <code style={{ fontSize: 12.5, fontFamily: 'monospace', fontWeight: 700, color: '#059669', background: '#F0FDF4', padding: '2px 8px', borderRadius: 5 }}>{c.canonical}</code>
+                            </div>
 
-                          {/* Meta chips */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', padding: '2px 7px', borderRadius: 4, background: '#F1F5F9' }}>
-                              {c.field}
-                            </span>
-                            {!isCustom && (
-                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: confidence >= 80 ? GREEN + '18' : AMBER + '18', color: confidence >= 80 ? GREEN : AMBER }}>
-                                {confidence}% match
-                              </span>
-                            )}
-                            {isCustom && (
-                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: BLUE + '18', color: BLUE }}>custom</span>
-                            )}
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', minWidth: 28, textAlign: 'right', fontFamily: 'monospace' }}>
-                              {c.count}
-                            </span>
-                            <span style={{ fontSize: 10, color: '#9CA3AF' }}>sub{c.count !== 1 ? 's' : ''}</span>
-                            {isCustom && (
-                              <button onClick={() => setCustomCorrections(prev => prev.filter(cc => !(cc.raw === c.raw && cc.canonical === c.canonical)))}
-                                style={{ padding: 3, border: 'none', background: 'none', cursor: 'pointer', color: '#CBD5E1', lineHeight: 0 }}>
-                                <X size={11} />
-                              </button>
-                            )}
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                )}
+                            {/* Meta chips */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: catColor + '15', color: catColor }}>{c.category}</span>
+                              {c.matchType === 'case' && (
+                                <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: '#F1F5F9', color: '#9CA3AF' }}>casing</span>
+                              )}
+                              {confidence !== null && (
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: confidence >= 80 ? GREEN + '18' : AMBER + '18', color: confidence >= 80 ? GREEN : AMBER }}>
+                                  {confidence}% match
+                                </span>
+                              )}
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', minWidth: 28, textAlign: 'right', fontFamily: 'monospace' }}>{c.count}</span>
+                              <span style={{ fontSize: 10, color: '#9CA3AF' }}>sub{c.count !== 1 ? 's' : ''}</span>
+                              {isCustom && (
+                                <button onClick={() => setCustomCorrections(prev => prev.filter(cc => !(cc.raw === c.raw && cc.canonical === c.canonical)))}
+                                  style={{ padding: 3, border: 'none', background: 'none', cursor: 'pointer', color: '#CBD5E1', lineHeight: 0 }}>
+                                  <X size={11} />
+                                </button>
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
                 {/* Apply summary */}
                 {approvedFixes.size > 0 && (
