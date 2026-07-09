@@ -185,7 +185,10 @@ export default function SubmissionDetailPage(){
             </div>
             <div style={{height:200}}>
               <MapContainer center={[lat,lon]} zoom={14} style={{height:"100%",width:"100%"}} scrollWheelZoom={false}>
-                <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}{r}.png" attribution=""/>
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                />
                 <CircleMarker center={[lat,lon]} radius={10} pathOptions={{color:"white",weight:2,fillColor:BLUE,fillOpacity:1}}/>
               </MapContainer>
             </div>
