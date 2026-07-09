@@ -6,7 +6,6 @@ import WorkspacePhase from './WorkspacePhase';
 import { ConsultationState, GeneratedQuestionnaire, QuestionnaireState } from './types';
 
 const BLUE = '#2463EB';
-const DARK = '#080D1A';
 
 const GENERATING_MESSAGES = [
   "I'm designing your questionnaire now. Structuring it to build rapport before sensitive topics...",
@@ -29,12 +28,12 @@ function GeneratingPhase({ consultation }: { consultation: ConsultationState }) 
 
   return (
     <div style={{
-      minHeight: '100vh', background: DARK, display: 'flex',
+      height: '100%', background: '#F8FAFF', display: 'flex',
       flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       fontFamily: 'Inter, sans-serif', padding: 24,
     }}>
-      <div style={{ maxWidth: 480, textAlign: 'center' }}>
-        <div style={{ position: 'relative', width: 80, height: 80, margin: '0 auto 32px' }}>
+      <div style={{ maxWidth: 440, textAlign: 'center' }}>
+        <div style={{ position: 'relative', width: 72, height: 72, margin: '0 auto 28px' }}>
           <motion.div
             animate={{ scale: [1, 1.15, 1] }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
@@ -44,7 +43,7 @@ function GeneratingPhase({ consultation }: { consultation: ConsultationState }) 
             }}
           />
           <div style={{
-            width: 80, height: 80, borderRadius: '50%', overflow: 'hidden',
+            width: 72, height: 72, borderRadius: '50%', overflow: 'hidden',
             background: `linear-gradient(135deg, ${BLUE}, #7C3AED)`,
           }}>
             <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -58,7 +57,7 @@ function GeneratingPhase({ consultation }: { consultation: ConsultationState }) 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            style={{ color: 'rgba(255,255,255,0.8)', fontSize: 15, lineHeight: 1.6, margin: '0 0 32px' }}
+            style={{ color: '#374151', fontSize: 14, lineHeight: 1.6, margin: '0 0 28px' }}
           >
             {GENERATING_MESSAGES[msgIndex]}
           </motion.p>
@@ -73,7 +72,7 @@ function GeneratingPhase({ consultation }: { consultation: ConsultationState }) 
         </div>
 
         {consultation.platform && (
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 16 }}>
+          <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 14 }}>
             Optimised for {consultation.platform}
           </p>
         )}

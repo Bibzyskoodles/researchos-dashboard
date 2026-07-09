@@ -15,7 +15,6 @@ interface Props {
 }
 
 const BLUE = '#2463EB';
-const DARK = '#080D1A';
 
 const OPENING = "Before we design your questionnaire, I need to understand your research. Tell me — what decision will this data help you make?";
 
@@ -44,11 +43,7 @@ Keep your tone warm, expert, and concise. You're a senior consultant, not a chat
 function parseStateUpdate(text: string): Partial<ConsultationState> | null {
   const match = text.match(/\[STATE_UPDATE:({.*?})\]/s);
   if (!match) return null;
-  try {
-    return JSON.parse(match[1]);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(match[1]); } catch { return null; }
 }
 
 function cleanText(text: string): string {
@@ -57,6 +52,8 @@ function cleanText(text: string): string {
     .replace(/\[READY_TO_GENERATE\]/g, '')
     .trim();
 }
+
+const CONSULTATION_FIELDS = ['decision', 'audience', 'context', 'language', 'platform'];
 
 export default function ConsultationPhase({ onReady }: Props) {
   const [messages, setMessages] = useState<Message[]>([
@@ -147,55 +144,41 @@ ${userMsgs}`;
   }, [input, sending, messages, consultation, buildBrief, onReady]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  const progress = [
-    consultation.decision, consultation.audience, consultation.context,
-    consultation.language, consultation.platform,
-  ].filter(Boolean).length;
+  const progress = CONSULTATION_FIELDS.filter(f => consultation[f as keyof ConsultationState]).length;
 
   return (
     <div style={{
-      minHeight: '100vh', background: DARK,
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'flex-start', fontFamily: 'Inter, sans-serif',
+      height: '100%', display: 'flex', flexDirection: 'column',
+      background: '#F8FAFF', fontFamily: 'Inter, sans-serif',
     }}>
       {/* Header */}
       <div style={{
-        width: '100%', maxWidth: 720, padding: '48px 24px 0',
+        padding: '20px 24px 16px', borderBottom: '1px solid #E8EDF5',
+        background: 'white', display: 'flex', alignItems: 'center', gap: 14,
       }}>
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{ textAlign: 'center', marginBottom: 40 }}
-        >
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: `linear-gradient(135deg, ${BLUE}, #7C3AED)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px', fontSize: 28,
-          }}>
-            <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+          background: `linear-gradient(135deg, ${BLUE}, #7C3AED)`,
+        }}>
+          <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Ada — Research Consultant</div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }}>
+            Helping you design a rigorous questionnaire
           </div>
-          <h1 style={{ color: 'white', fontSize: 24, fontWeight: 700, margin: '0 0 8px' }}>
-            Research Consultation
-          </h1>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: 0 }}>
-            Ada will guide you through designing a rigorous questionnaire
-          </p>
-        </motion.div>
-
-        {/* Progress */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>
-          {[1,2,3,4,5].map(i => (
+        </div>
+        {/* Progress dots */}
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+          {CONSULTATION_FIELDS.map((_, i) => (
             <div key={i} style={{
-              flex: 1, height: 3, borderRadius: 2,
-              background: i <= progress ? BLUE : 'rgba(255,255,255,0.1)',
-              transition: 'background 0.4s',
+              width: 7, height: 7, borderRadius: '50%',
+              background: i < progress ? BLUE : '#E5E7EB',
+              transition: 'background 0.3s',
             }} />
           ))}
         </div>
@@ -203,42 +186,40 @@ ${userMsgs}`;
 
       {/* Messages */}
       <div style={{
-        width: '100%', maxWidth: 720, flex: 1,
-        padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 16,
-        overflowY: 'auto', paddingBottom: 160,
+        flex: 1, overflowY: 'auto', padding: '20px 24px',
+        display: 'flex', flexDirection: 'column', gap: 14,
       }}>
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => (
             <motion.div
               key={i}
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.25 }}
               style={{
                 display: 'flex',
                 justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                gap: 12, alignItems: 'flex-start',
+                gap: 10, alignItems: 'flex-start',
               }}
             >
               {msg.role === 'ada' && (
                 <div style={{
-                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                  background: `linear-gradient(135deg, ${BLUE}, #7C3AED)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14, overflow: 'hidden',
+                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                  overflow: 'hidden', background: `linear-gradient(135deg, ${BLUE}, #7C3AED)`,
                 }}>
-                  <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                 </div>
               )}
               <div style={{
-                maxWidth: '75%',
-                padding: '12px 16px',
-                borderRadius: msg.role === 'ada' ? '4px 16px 16px 16px' : '16px 4px 16px 16px',
-                background: msg.role === 'ada' ? 'rgba(255,255,255,0.07)' : BLUE,
-                color: 'white',
-                fontSize: 14,
-                lineHeight: 1.6,
-                whiteSpace: 'pre-wrap',
+                maxWidth: '72%',
+                padding: '11px 15px',
+                borderRadius: msg.role === 'ada' ? '4px 14px 14px 14px' : '14px 4px 14px 14px',
+                background: msg.role === 'ada' ? 'white' : BLUE,
+                color: msg.role === 'ada' ? '#111827' : 'white',
+                fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                boxShadow: msg.role === 'ada' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                border: msg.role === 'ada' ? '1px solid #E8EDF5' : 'none',
               }}>
                 {msg.text}
               </div>
@@ -247,28 +228,25 @@ ${userMsgs}`;
         </AnimatePresence>
 
         {sending && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            style={{ display: 'flex', gap: 12, alignItems: 'center' }}
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <div style={{
-              width: 32, height: 32, borderRadius: '50%',
+              width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
               background: `linear-gradient(135deg, ${BLUE}, #7C3AED)`,
-              overflow: 'hidden',
             }}>
-              <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             </div>
             <div style={{
-              padding: '12px 16px', borderRadius: '4px 16px 16px 16px',
-              background: 'rgba(255,255,255,0.07)',
-              display: 'flex', gap: 6, alignItems: 'center',
+              padding: '11px 15px', borderRadius: '4px 14px 14px 14px',
+              background: 'white', border: '1px solid #E8EDF5',
+              display: 'flex', gap: 5, alignItems: 'center',
             }}>
               {[0, 1, 2].map(i => (
                 <motion.div key={i}
                   animate={{ opacity: [0.3, 1, 0.3] }}
                   transition={{ duration: 1.2, delay: i * 0.2, repeat: Infinity }}
-                  style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.5)' }}
+                  style={{ width: 5, height: 5, borderRadius: '50%', background: '#9CA3AF' }}
                 />
               ))}
             </div>
@@ -279,45 +257,36 @@ ${userMsgs}`;
 
       {/* Input */}
       <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'linear-gradient(to top, #080D1A 80%, transparent)',
-        padding: '24px',
-        display: 'flex', justifyContent: 'center',
+        padding: '14px 24px', borderTop: '1px solid #E8EDF5',
+        background: 'white', display: 'flex', gap: 10, alignItems: 'flex-end',
       }}>
-        <div style={{
-          width: '100%', maxWidth: 720,
-          display: 'flex', gap: 12, alignItems: 'flex-end',
-        }}>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Tell Ada about your research..."
-            rows={1}
-            style={{
-              flex: 1, padding: '14px 16px',
-              borderRadius: 14, border: '1px solid rgba(255,255,255,0.15)',
-              background: 'rgba(255,255,255,0.07)', color: 'white',
-              fontSize: 14, fontFamily: 'Inter, sans-serif', resize: 'none',
-              outline: 'none', lineHeight: 1.5, maxHeight: 120,
-            }}
-          />
-          <motion.button
-            onClick={send}
-            disabled={!input.trim() || sending}
-            whileTap={{ scale: 0.95 }}
-            style={{
-              width: 48, height: 48, borderRadius: 12, border: 'none',
-              background: !input.trim() || sending ? 'rgba(255,255,255,0.1)' : BLUE,
-              color: 'white', cursor: !input.trim() || sending ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <Send size={18} />
-          </motion.button>
-        </div>
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Tell Ada about your research..."
+          rows={1}
+          style={{
+            flex: 1, padding: '10px 14px', borderRadius: 12,
+            border: '1px solid #E2E8F0', background: '#F8FAFF',
+            color: '#111827', fontSize: 13.5, fontFamily: 'Inter, sans-serif',
+            resize: 'none', outline: 'none', lineHeight: 1.5, maxHeight: 100,
+          }}
+        />
+        <motion.button
+          onClick={send}
+          disabled={!input.trim() || sending}
+          whileTap={{ scale: 0.95 }}
+          style={{
+            width: 42, height: 42, borderRadius: 11, border: 'none',
+            background: !input.trim() || sending ? '#E5E7EB' : BLUE,
+            color: 'white', cursor: !input.trim() || sending ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}
+        >
+          <Send size={16} />
+        </motion.button>
       </div>
     </div>
   );

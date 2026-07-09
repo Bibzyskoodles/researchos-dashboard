@@ -1,7 +1,6 @@
 import axios from 'axios';
 
-// ✅ SECURITY: Use environment variable for API URL (defaults to relative)
-const BASE_URL = process.env.REACT_APP_FIELDSCORE_API_URL || '/api';
+const BASE_URL = process.env.REACT_APP_API_URL || 'https://web-production-f5bab.up.railway.app';
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -9,29 +8,20 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// ✅ SECURITY: Don't manually add token - it's in httpOnly cookie
-// Removed interceptor that read from localStorage
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('fs_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      // ✅ SECURITY: Backend clears httpOnly cookie automatically
-      // Frontend doesn't need to do anything
-      const currentPath = window.location.pathname;
-      window.location.href = `/login?expired=true&returnTo=${encodeURIComponent(currentPath)}`;
-    }
-    // ✅ SECURITY: Sanitize error messages to hide server details
-    if (err.response?.data?.error) {
-      const message = err.response.data.error;
-      if (typeof message === 'string' &&
-          (message.includes('KOBO_API_TOKEN') ||
-           message.includes('OPENAI_API_KEY') ||
-           message.includes('environ') ||
-           message.includes('set on the server'))) {
-        // Replace sensitive error details with generic message
-        err.response.data.error = 'An error occurred. Please try again.';
-      }
+      localStorage.removeItem('fs_token');
+      localStorage.removeItem('fs_user');
+      document.cookie = 'fs_token=;path=/;max-age=0';
+      window.location.href = '/login';
     }
     return Promise.reject(err);
   }
