@@ -7,12 +7,12 @@ interface UseAdaGreetingOptions {
 }
 
 const GREETINGS: Record<string, string> = {
-  submissions: "I have reviewed your submissions. I noticed 2 flagged entries — both from ENID0010 with duplicate media. Want me to walk you through them?",
-  enumerators: "I have analysed enumerator performance. ENID0010 has completed the most interviews but has 2 flags. Want a detailed breakdown?",
-  map: "I can see your submission coverage across Lagos. All GPS coordinates verified within Nigeria. No impossible travel detected.",
-  insights: "I found 16 verified interviews ready for analysis. Based on what I can see, I expect themes around community perceptions and service access barriers. Shall I begin?",
-  reports: "I have already prepared a draft executive summary from your 16 verified submissions. Want me to generate the full report?",
-  integrations: "Your KoboToolbox integration is healthy. 18 submissions received. Want to connect another platform or check your webhook URL?",
+  submissions: "Hey! I've been looking at your submissions — there are 2 flagged entries, both from ENID0010 with duplicate media. Want me to walk you through what I found?",
+  enumerators: "I've been keeping an eye on team performance! ENID0010 has the most interviews but has picked up 2 flags along the way. Want a detailed breakdown of what's happening there?",
+  map: "I'm looking at your GPS coverage across Lagos right now. Everything checks out — all coordinates verified within Nigeria, no impossible travel detected. Pretty clean data!",
+  insights: "Good news — I've found 16 verified interviews ready for analysis. From what I can see, I'm already picking up themes around community perceptions and service access. Want me to run the full analysis?",
+  reports: "I've had a look at your 16 verified submissions and I'm ready to generate whenever you are. Want me to start with an executive summary, or go straight to the full report?",
+  integrations: "Your KoboToolbox integration is looking healthy — 18 submissions have come through so far. Want to connect another platform, or shall I pull up your webhook details?",
 };
 
 export function useAdaGreeting({ page, delay = 1200 }: UseAdaGreetingOptions) {

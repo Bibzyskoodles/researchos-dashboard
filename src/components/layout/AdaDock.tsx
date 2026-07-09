@@ -92,34 +92,34 @@ function stopSpeech(audioRef: React.MutableRefObject<HTMLAudioElement | null>) {
 // Page-aware suggested prompts
 const PAGE_PROMPTS: Record<string, { icon: React.ElementType; text: string }[]> = {
   overview: [
-    { icon: BarChart2, text: "What does today's data tell us?" },
-    { icon: Zap,       text: "Which submissions need my attention?" },
-    { icon: Users,     text: "How are my enumerators performing?" },
+    { icon: BarChart2, text: "What's standing out in today's data?" },
+    { icon: Zap,       text: "What needs my attention right now?" },
+    { icon: Users,     text: "How's my team performing overall?" },
   ],
   submissions: [
-    { icon: Zap,       text: "Summarise the flagged submissions" },
-    { icon: Users,     text: "Which enumerator has the most flags?" },
-    { icon: BarChart2, text: "What's the average quality score?" },
+    { icon: Zap,       text: "Walk me through the flagged submissions" },
+    { icon: Users,     text: "Who's generating the most flags?" },
+    { icon: BarChart2, text: "What's the overall quality looking like?" },
   ],
   enumerators: [
-    { icon: Users,     text: "Who is my top performer?" },
-    { icon: Zap,       text: "Any enumerators I should be concerned about?" },
-    { icon: BarChart2, text: "Compare performance across the team" },
+    { icon: Users,     text: "Who's my star performer right now?" },
+    { icon: Zap,       text: "Anyone I should be worried about?" },
+    { icon: BarChart2, text: "How does the team compare overall?" },
   ],
   map: [
-    { icon: Map,       text: "Are there any GPS anomalies?" },
-    { icon: Zap,       text: "Which areas have the lowest scores?" },
-    { icon: BarChart2, text: "Is coverage even across locations?" },
+    { icon: Map,       text: "Any GPS anomalies I should know about?" },
+    { icon: Zap,       text: "Where are the lowest scoring areas?" },
+    { icon: BarChart2, text: "Is my coverage balanced across locations?" },
   ],
   insights: [
-    { icon: MessageSquare, text: "What are the key themes in my data?" },
-    { icon: BarChart2,     text: "Which questions performed poorly?" },
-    { icon: Zap,           text: "What does signal fidelity tell us?" },
+    { icon: MessageSquare, text: "What are the big themes in my data?" },
+    { icon: BarChart2,     text: "Which questions didn't land well?" },
+    { icon: Zap,           text: "What's signal fidelity telling us?" },
   ],
   reports: [
-    { icon: FileText,  text: "Generate an executive summary" },
-    { icon: BarChart2, text: "What should I highlight for my client?" },
-    { icon: Zap,       text: "Any red flags before I deliver?" },
+    { icon: FileText,  text: "Generate an executive summary for me" },
+    { icon: BarChart2, text: "What should I lead with for the client?" },
+    { icon: Zap,       text: "Any red flags before I send this?" },
   ],
 };
 
@@ -538,7 +538,7 @@ export default function AdaDock() {
                     <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
                   </div>
                   <div style={{ background: "#F8FAFF", border: "1px solid #E8EDF5", borderRadius: "4px 16px 16px 16px", padding: "12px 14px", maxWidth: 300 }}>
-                    <RichText content={"Hello! I'm Ada, your AI research analyst. I have access to your live data and can help you **understand patterns, investigate submissions, or prepare insights**.\n\nWhat would you like to explore?"} />
+                    <RichText content={"Hey! I'm Ada — your research intelligence layer. I'm connected to your live data right now, so feel free to ask me **anything about your submissions, your team, or your findings**.\n\nWhat would you like to dig into?"} />
                   </div>
                 </motion.div>
               )}
