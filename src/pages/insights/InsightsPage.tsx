@@ -5,7 +5,7 @@ import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { insightScoreApi, adaApi } from "../../services/api";
 import { InsightProject } from "../../types";
-import { ChevronRight, Clock, ArrowRight } from "lucide-react";
+import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download } from "lucide-react";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -29,13 +29,46 @@ function timeSince(iso: string) {
 }
 
 const CAPABILITIES = [
-  "Question Intelligence", "MTI™", "Demographic Intelligence",
-  "Evidence Engine", "Ask Your Research", "Intelligence Workbooks",
+  {
+    Icon: BarChart2,
+    label: "Question Intelligence",
+    desc: "Scores every question on effectiveness, skip rate, and sentiment — so you know which questions work and which to redesign.",
+    color: BLUE,
+  },
+  {
+    Icon: Users,
+    label: "Demographic Intelligence",
+    desc: "Breaks down findings by gender, age, location, and any field in your data — revealing which segments hold the strongest signals.",
+    color: PURPLE,
+  },
+  {
+    Icon: Zap,
+    label: "Signal Fidelity",
+    desc: "Measures how well your research intent flows from questionnaire design through enumerator delivery to the final responses.",
+    color: AMBER,
+  },
+  {
+    Icon: BookOpen,
+    label: "Evidence Engine",
+    desc: "Every insight is traceable. Themes and conclusions are grounded in direct quotes pulled from your interviews — nothing fabricated.",
+    color: GREEN,
+  },
+  {
+    Icon: MessageSquare,
+    label: "Ask Your Research",
+    desc: "Ask any natural-language question and get evidence-backed answers drawn from your actual interviews — not an LLM guessing.",
+    color: BLUE,
+  },
+  {
+    Icon: Download,
+    label: "Intelligence Workbooks",
+    desc: "Export your full analysis as DOCX, PPTX, or XLSX — presentation-ready and structured for stakeholder reporting.",
+    color: "#374151",
+  },
 ];
 
-const ACTIVE_PROJECT = "658464e5-09dc-4b99-a664-05690de9921a";
-
-function AdaHero({ onBegin, onReview }: { onBegin: () => void; onReview: () => void }) {
+function AdaHero({ firstProjectId }: { firstProjectId: string | null }) {
+  const navigate = useNavigate();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,28 +89,25 @@ function AdaHero({ onBegin, onReview }: { onBegin: () => void; onReview: () => v
     }
   }, [question, loading]);
 
+  const goTo = (tab?: string) => {
+    if (!firstProjectId) return;
+    navigate(tab ? `/insights/${firstProjectId}?tab=${tab}` : `/insights/${firstProjectId}`);
+  };
+
   return (
     <div style={{
-      background: "linear-gradient(135deg, #0C1128 0%, #0F172A 50%, #140E2B 100%)",
+      background: "linear-gradient(135deg, #0C1128 0%, #0F172A 55%, #140E2B 100%)",
       borderRadius: 20, overflow: "hidden", position: "relative",
       boxShadow: "0 24px 80px rgba(8,13,26,.35)",
       border: "1px solid rgba(255,255,255,.06)",
     }}>
-      {/* Glow orbs */}
       <div style={{ position: "absolute", top: -80, left: 80, width: 320, height: 320, borderRadius: "50%", background: "radial-gradient(circle, rgba(37,99,235,.18) 0%, transparent 70%)", pointerEvents: "none" }} />
       <div style={{ position: "absolute", bottom: -60, right: 120, width: 240, height: 240, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,.12) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-      {/* Main briefing row */}
-      <div style={{ display: "flex", alignItems: "center", gap: 0, position: "relative", zIndex: 1 }}>
-
-        {/* Ada portrait column */}
+      <div style={{ display: "flex", alignItems: "stretch", position: "relative", zIndex: 1 }}>
+        {/* Ada portrait */}
         <div style={{ width: 148, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "32px 0 0", alignSelf: "flex-end" }}>
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            style={{ position: "relative" }}
-          >
-            {/* Pulse ring */}
+          <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} style={{ position: "relative" }}>
             <motion.div
               animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
@@ -93,7 +123,6 @@ function AdaHero({ onBegin, onReview }: { onBegin: () => void; onReview: () => v
           </div>
         </div>
 
-        {/* Divider */}
         <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,.06)", flexShrink: 0 }} />
 
         {/* Briefing + ask */}
@@ -107,26 +136,31 @@ function AdaHero({ onBegin, onReview }: { onBegin: () => void; onReview: () => v
             I found 16 verified interviews ready for analysis.
           </div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,.52)", lineHeight: 1.65, marginBottom: 20, maxWidth: 480 }}>
-            I expect themes around community perceptions, service access barriers, and unmet household needs. I can run Question Intelligence, MTI™, and Demographic analysis right now.
+            I expect themes around community perceptions, service access barriers, and unmet household needs. I can run Question Intelligence, Signal Fidelity, and Demographic analysis right now.
           </div>
 
           <AnimatePresence mode="wait">
             {answered === null ? (
               <motion.div key="cta" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-                <button onClick={() => { setAnswered("begin"); setTimeout(onBegin, 350); }}
-                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 10, background: BLUE, border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "opacity .15s" }}
-                  onMouseEnter={e => (e.currentTarget.style.opacity = ".85")} onMouseLeave={e => (e.currentTarget.style.opacity = "1")}>
+                <button
+                  onClick={() => { setAnswered("begin"); setTimeout(() => goTo(), 350); }}
+                  disabled={!firstProjectId}
+                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 10, background: firstProjectId ? BLUE : "#374151", border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: firstProjectId ? "pointer" : "not-allowed", transition: "opacity .15s" }}
+                  onMouseEnter={e => firstProjectId && ((e.currentTarget as HTMLButtonElement).style.opacity = ".85")}
+                  onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}>
                   Begin Analysis <ArrowRight size={13} />
                 </button>
-                <button onClick={() => { setAnswered("review"); setTimeout(onReview, 350); }}
-                  style={{ padding: "9px 20px", borderRadius: 10, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.14)", color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "background .15s" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,.14)")} onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,.08)")}>
+                <button
+                  onClick={() => { setAnswered("review"); setTimeout(() => goTo("interviews"), 350); }}
+                  disabled={!firstProjectId}
+                  style={{ padding: "9px 20px", borderRadius: 10, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.14)", color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 600, cursor: firstProjectId ? "pointer" : "not-allowed", transition: "background .15s" }}
+                  onMouseEnter={e => firstProjectId && ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.14)")}
+                  onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.08)")}>
                   Review Interviews First
                 </button>
               </motion.div>
             ) : (
-              <motion.div key="ack" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                style={{ fontSize: 13, color: "#60A5FA", fontWeight: 600, marginBottom: 24 }}>
+              <motion.div key="ack" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} style={{ fontSize: 13, color: "#60A5FA", fontWeight: 600, marginBottom: 24 }}>
                 {answered === "begin" ? "Opening Research Intelligence Engine…" : "Opening interviews…"}
               </motion.div>
             )}
@@ -147,7 +181,6 @@ function AdaHero({ onBegin, onReview }: { onBegin: () => void; onReview: () => v
                 {loading ? "Searching…" : "Ask"}
               </button>
             </div>
-
             <AnimatePresence>
               {answer && (
                 <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -159,12 +192,24 @@ function AdaHero({ onBegin, onReview }: { onBegin: () => void; onReview: () => v
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Capability strip */}
-      <div style={{ borderTop: "1px solid rgba(255,255,255,.05)", padding: "12px 32px 12px 148px", display: "flex", gap: 8, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
-        {CAPABILITIES.map(cap => (
-          <div key={cap} style={{ fontSize: 10.5, fontWeight: 600, color: "rgba(255,255,255,.35)", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 20, padding: "3px 10px", letterSpacing: 0.2 }}>
-            {cap}
+function CapabilityGrid() {
+  return (
+    <div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.9, marginBottom: 12 }}>What Ada can do for your research</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        {CAPABILITIES.map(({ Icon, label, desc, color }) => (
+          <div key={label} style={{ background: "white", borderRadius: 12, padding: "16px 16px", border: "1px solid #E8EDF5", display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: `${color}12`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Icon size={16} color={color} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: "#080D1A", marginBottom: 5 }}>{label}</div>
+              <div style={{ fontSize: 11.5, color: "#6B7280", lineHeight: 1.55 }}>{desc}</div>
+            </div>
           </div>
         ))}
       </div>
@@ -189,7 +234,7 @@ function ProjectCard({ project, onClick }: { project: InsightProject; onClick: (
           {project.status === "complete" && (
             <>
               <span style={{ color: "#D1D5DB" }}>·</span>
-              <span style={{ fontSize: 10.5, fontWeight: 700, color: PURPLE, background: "#F5F3FF", borderRadius: 4, padding: "1px 6px" }}>MTI™ · Questions · Demographics</span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: PURPLE, background: "#F5F3FF", borderRadius: 4, padding: "1px 6px" }}>Signal Fidelity · Questions · Demographics</span>
             </>
           )}
         </div>
@@ -219,12 +264,12 @@ export default function InsightsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const firstProjectId = projects[0]?.id ?? null;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <AdaHero
-        onBegin={() => navigate(`/insights/${ACTIVE_PROJECT}`)}
-        onReview={() => navigate(`/insights/${ACTIVE_PROJECT}?tab=interviews`)}
-      />
+      <AdaHero firstProjectId={firstProjectId} />
+      <CapabilityGrid />
 
       <div>
         <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.9, marginBottom: 12 }}>Your Projects</div>

@@ -39,9 +39,6 @@ export default function Sidebar() {
         <div style={{ fontSize: 11.5, fontWeight: 600, color: BLUE, lineHeight: 1.3, paddingLeft: 2 }}>
           Intelligence for Better Decisions
         </div>
-        <div style={{ fontSize: 9.5, color: '#9CA3AF', letterSpacing: 0.5, textTransform: 'uppercase', paddingLeft: 2, fontWeight: 500 }}>
-          by Intelligency AI
-        </div>
       </div>
 
       {/* Nav */}

@@ -17,7 +17,7 @@ const AMBER = "#D97706";
 const RED = "#DC2626";
 const PURPLE = "#7C3AED";
 
-type Tab = "interviews" | "intelligence" | "questions" | "demographics" | "mti" | "ask";
+type Tab = "interviews" | "intelligence" | "questions" | "demographics" | "signal" | "ask";
 
 function AdaBriefing({ message, action, actionLabel }: {
   message: string; action?: () => void; actionLabel?: string;
@@ -319,7 +319,7 @@ const TABS: { key: Tab; label: string; badge?: string }[] = [
   { key: "intelligence", label: "Intelligence" },
   { key: "questions", label: "Questions" },
   { key: "demographics", label: "Demographics" },
-  { key: "mti", label: "MTI™" },
+  { key: "signal", label: "Signal Fidelity" },
   { key: "ask", label: "Ask Your Research" },
 ];
 
@@ -405,7 +405,6 @@ export default function InsightProjectPage() {
           <button key={t.key} onClick={() => setTab(t.key)}
             style={{ padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: activeTab === t.key ? 700 : 500, color: activeTab === t.key ? BLUE : "#6B7280", borderBottom: `2px solid ${activeTab === t.key ? BLUE : "transparent"}`, marginBottom: -1, transition: "all .15s", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
             {t.label}
-            {t.key === "mti" && <span style={{ fontSize: 9, fontWeight: 800, color: PURPLE, background: "#F5F3FF", borderRadius: 4, padding: "1px 5px" }}>IP</span>}
             {t.key === "ask" && <span style={{ fontSize: 9, fontWeight: 800, color: GREEN, background: "#ECFDF5", borderRadius: 4, padding: "1px 5px" }}>NEW</span>}
           </button>
         ))}
@@ -417,7 +416,7 @@ export default function InsightProjectPage() {
           {activeTab === "intelligence" && <IntelligenceTab projectId={id} project={project} />}
           {activeTab === "questions" && <QuestionIntelligencePanel projectId={id} />}
           {activeTab === "demographics" && <DemographicIntelligencePanel projectId={id} />}
-          {activeTab === "mti" && <MTIPanel projectId={id} />}
+          {activeTab === "signal" && <MTIPanel projectId={id} />}
           {activeTab === "ask" && <AskResearchPanel projectId={id} report={report} />}
         </motion.div>
       </AnimatePresence>
