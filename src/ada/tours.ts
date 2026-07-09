@@ -1,11 +1,11 @@
 export interface GuidedStep {
   id: string;
   speech: string;
-  route?: string;           // navigate here before showing this step
-  target?: string;          // data-ada-target attribute value to highlight
-  targetLabel?: string;     // human-readable label shown above the spotlight
-  waitForUser?: boolean;    // show "Next" button, don't auto-advance
-  autoAdvanceMs?: number;   // auto-advance after N ms (default: waitForUser)
+  route?: string;
+  target?: string;
+  targetLabel?: string;
+  waitForUser?: boolean;
+  autoAdvanceMs?: number;
 }
 
 export interface GuidedTour {
@@ -14,6 +14,7 @@ export interface GuidedTour {
   durationLabel: string;
   description: string;
   steps: GuidedStep[];
+  demoIntro?: GuidedStep; // prepended in demo mode — Ada introduces herself to the room
 }
 
 export const TOURS: GuidedTour[] = [
@@ -22,11 +23,19 @@ export const TOURS: GuidedTour[] = [
     name: 'Executive Tour',
     durationLabel: '5 minutes',
     description: 'The essential overview — what ResearchOS does and why it matters.',
+
+    demoIntro: {
+      id: 'demo-exec-intro',
+      route: '/overview',
+      speech: "Good afternoon, everyone. I'm Ada — FieldScore's AI Research Partner. For those of you joining us today, thank you for your time. I've already reviewed the platform's active projects and current data before this session. What you're about to see is not a recorded walkthrough. I'm going to navigate the real application live, explain what each capability does, and answer your questions as we go. Please feel free to interrupt me at any point — I genuinely welcome it. Let's begin.",
+      waitForUser: true,
+    },
+
     steps: [
       {
         id: 'exec-welcome',
         route: '/overview',
-        speech: "Hey, welcome! I'm Ada, the intelligence layer powering this platform. I'm really glad you're here. Over the next five minutes, I'm going to show you exactly what ResearchOS can do — and I promise, no slides, no videos. We're doing this live, right inside the real application. Ready? Let's go.",
+        speech: "Hey, welcome! I'm Ada — your research intelligence layer. I'm really glad you're here. Over the next five minutes, I'm going to show you exactly what ResearchOS can do — and I promise, no slides, no videos. We're doing this live, right inside the real application. Ready? Let's go.",
         waitForUser: true,
       },
       {
@@ -69,11 +78,20 @@ export const TOURS: GuidedTour[] = [
       },
     ],
   },
+
   {
     id: 'complete',
     name: 'Complete Guided Experience',
     durationLabel: '15 minutes',
     description: 'Every capability, demonstrated live inside the platform.',
+
+    demoIntro: {
+      id: 'demo-full-intro',
+      route: '/overview',
+      speech: "Good afternoon. I'm Ada — the intelligence layer powering FieldScore. Over the next fifteen minutes or so, I'm going to walk you through every capability this platform has to offer. This is a live demonstration, not a recording. Every page you see me navigate, every data point I reference — it's all real. If you'd like to explore something in more depth at any point, please ask. I'm here to demonstrate and to answer. Let's begin with the overview.",
+      waitForUser: true,
+    },
+
     steps: [
       {
         id: 'full-welcome',
@@ -146,7 +164,7 @@ export const TOURS: GuidedTour[] = [
       {
         id: 'full-question-intel',
         route: '/insights',
-        speech: "Question Intelligence scores every question in your questionnaire. Which questions produced really useful data? Which ones confused respondents or got inconsistent answers? Which ones should be redesigned before the next wave? This feedback loop is what makes research programmes actually improve over time rather than repeating the same mistakes. I think it's one of the most underrated features here.",
+        speech: "Question Intelligence scores every question in your questionnaire. Which questions produced really useful data? Which ones confused respondents or got inconsistent answers? Which ones should be redesigned before the next wave? This feedback loop is what makes research programmes actually improve over time rather than repeating the same mistakes.",
         waitForUser: true,
       },
       {

@@ -34,7 +34,24 @@ export function parseAdaCommand(text: string): AdaCommand | null {
   if (/(reject|rejected|failed)/.test(t)) return { type: 'FILTER_SUBMISSIONS', verdict: 'REJECT' };
   if (/(passed|passing|approved|clean)/.test(t)) return { type: 'FILTER_SUBMISSIONS', verdict: 'PASS' };
 
-  // Navigation intents
+  // Navigation intents (explicit + config)
+  const navPatterns: [RegExp, string][] = [
+    [/(go to|open|take me to|show me the|navigate to|set up|configure|connect|manage)\s+(overview|dashboard)/, '/overview'],
+    [/(go to|open|take me to|show me the|navigate to)\s+submission/, '/submissions'],
+    [/(go to|open|take me to|show me the|navigate to)\s+enumerator/, '/enumerators'],
+    [/(go to|open|take me to|show me the|navigate to)\s+(map|coverage)/, '/map'],
+    [/(go to|open|take me to|show me the|navigate to)\s+(insight|analysis)/, '/insights'],
+    [/(go to|open|take me to|show me the|navigate to)\s+report/, '/reports'],
+    [/(go to|open|take me to|show me the|navigate to|build|create)\s+questionnaire/, '/questionnaire'],
+    [/(go to|open|take me to|show me|navigate to|set up|configure|manage|change)\s+(setting|branding|brand|logo|organization|org|permission|role|notification|user|team|member)/, '/settings'],
+    [/(go to|open|take me to|show me|navigate to|set up|configure|connect)\s+(integration|kobo|kobotoolbox|webhook)/, '/integrations'],
+  ];
+
+  for (const [pattern, path] of navPatterns) {
+    if (pattern.test(t)) return { type: 'NAVIGATE_TO', path };
+  }
+
+  // Catch-all navigation
   if (/(go to|open|take me to|show me the|navigate to)/.test(t)) {
     const pages: Record<string, string> = {
       overview: '/overview', dashboard: '/overview', submission: '/submissions',
