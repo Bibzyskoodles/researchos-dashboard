@@ -210,14 +210,14 @@ export default function OverviewPage() {
           <div style={{ width: 220, flexShrink: 0, padding: "28px 20px 28px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.3)", textTransform: "uppercase", letterSpacing: .8, marginBottom: 4 }}>Recommended</div>
             {[
-              s.flag_count > 0 ? `Review ${s.flag_count} flagged submission${s.flag_count > 1 ? "s" : ""}` : null,
-              `Analyse ${s.pass_count} verified responses`,
-              "Generate interim report",
+              s.flag_count > 0 ? { label: `Review ${s.flag_count} flagged submission${s.flag_count > 1 ? "s" : ""}`, to: "/submissions" } : null,
+              { label: `Analyse ${s.pass_count} verified responses`, to: "/insights" },
+              { label: "Generate interim report", to: "/reports" },
             ].filter(Boolean).map((action: any, i) => (
-              <motion.div key={i} whileHover={{ x: 3 }}
+              <motion.div key={i} whileHover={{ x: 3 }} onClick={() => nav(action.to)}
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 10, cursor: "pointer" }}>
                 <div style={{ width: 20, height: 20, borderRadius: 5, background: "rgba(37,99,235,.4)", display: "grid", placeItems: "center", fontSize: 9.5, fontWeight: 700, color: "#93C5FD", flexShrink: 0 }}>{i + 1}</div>
-                <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.8)" }}>{action}</div>
+                <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.8)" }}>{action.label}</div>
                 <ArrowRight size={12} color="rgba(255,255,255,.3)" />
               </motion.div>
             ))}

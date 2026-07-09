@@ -202,7 +202,7 @@ function OrgSection() {
           <div style={{ padding: 16, borderRadius: 10, border: "1px solid #FEE2E2", background: "#FFF5F5" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: RED, marginBottom: 4 }}>Delete Organisation</div>
             <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>This will permanently delete your organisation and all data. This action cannot be undone.</div>
-            <button style={{ ...BTN_GHOST, color: RED, borderColor: "#FEE2E2", fontSize: 12 }}>Delete Organisation</button>
+            <button onClick={() => { if (window.confirm("Are you sure? This permanently deletes your organisation and cannot be undone.")) alert("Deletion requested — please contact support to complete this action."); }} style={{ ...BTN_GHOST, color: RED, borderColor: "#FEE2E2", fontSize: 12 }}>Delete Organisation</button>
           </div>
         </SettingsGroup>
       </SettingsCard>
@@ -214,6 +214,8 @@ function WorkspaceSection() {
   const [wsName, setWsName] = useState("Lagos Retail Audit");
   const [desc, setDesc] = useState("Primary workspace for Q3 2025 fieldwork");
   const [lang, setLang] = useState("English");
+  const [saved, setSaved] = useState(false);
+  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
   return (
     <SettingsCard style={{ padding: 24 }}>
       <SettingsGroup label="Workspace Configuration">
@@ -233,7 +235,7 @@ function WorkspaceSection() {
           <Badge label={p.status} color={p.status === "active" ? GREEN : AMBER} />
         </div>
       ))}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Workspace</button></div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button onClick={save} style={BTN_PRIMARY}>{saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Workspace"}</button></div>
     </SettingsCard>
   );
 }
@@ -335,6 +337,14 @@ function RolesSection() {
 }
 
 function BrandingSection() {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [brandSaved, setBrandSaved] = useState(false);
+  const saveBrand = () => { setBrandSaved(true); setTimeout(() => setBrandSaved(false), 2000); };
+  const logoInputRef = React.useRef<HTMLInputElement>(null);
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setLogoUrl(URL.createObjectURL(file));
+  };
   const templates = [
     { icon: "📊", label: "PowerPoint Template", hint: ".pptx — Used for presentation outputs", accepted: ".pptx" },
     { icon: "📝", label: "Word Template", hint: ".docx — Used for written report exports", accepted: ".docx" },
@@ -348,8 +358,9 @@ function BrandingSection() {
           <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
             <div>
               <div style={{ ...LABEL }}>Organisation Logo</div>
-              <div style={{ width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", display: "grid", placeItems: "center", background: "#F8FAFF", cursor: "pointer" }}>
-                <div style={{ textAlign: "center" }}><Upload size={20} color="#CBD5E1" /><div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div></div>
+              <input ref={logoInputRef} type="file" accept=".png,.svg,.jpg,.jpeg" style={{ display: "none" }} onChange={handleLogoFile} />
+              <div onClick={() => logoInputRef.current?.click()} style={{ width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", display: "grid", placeItems: "center", background: "#F8FAFF", cursor: "pointer", overflow: "hidden" }}>
+                {logoUrl ? <img src={logoUrl} alt="logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <div style={{ textAlign: "center" }}><Upload size={20} color="#CBD5E1" /><div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div></div>}
               </div>
               <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 6 }}>PNG, SVG · Max 2MB</div>
             </div>
@@ -375,6 +386,9 @@ function BrandingSection() {
             </div>
           </div>
         </SettingsGroup>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+          <button onClick={saveBrand} style={BTN_PRIMARY}>{brandSaved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Branding"}</button>
+        </div>
       </SettingsCard>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Report Templates">
@@ -987,7 +1001,12 @@ function BillingSection() {
 
 function ApiSection() {
   const [showKey, setShowKey] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
   const mockKey = "rsos_live_a8f3k2x9p1mq7w4n6j0d5e";
+  const copyKey = () => {
+    navigator.clipboard.writeText(mockKey).catch(() => {});
+    setKeyCopied(true); setTimeout(() => setKeyCopied(false), 2000);
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
@@ -997,7 +1016,7 @@ function ApiSection() {
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input readOnly value={showKey ? mockKey : "rsos_live_••••••••••••••••••"} style={{ ...INPUT, fontFamily: "monospace", fontSize: 12, color: "#374151", flex: 1 }} />
               <button onClick={() => setShowKey(!showKey)} style={{ ...BTN_GHOST, padding: "9px 12px" }}>{showKey ? <EyeOff size={14} /> : <Eye size={14} />}</button>
-              <button style={{ ...BTN_GHOST, padding: "9px 12px" }}><Copy size={14} /></button>
+              <button onClick={copyKey} style={{ ...BTN_GHOST, padding: "9px 12px", color: keyCopied ? GREEN : undefined }}>{keyCopied ? <Check size={14} /> : <Copy size={14} />}</button>
             </div>
             <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6 }}>Created 1 Jun 2025 · Last used 2h ago</div>
           </div>

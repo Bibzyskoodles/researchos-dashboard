@@ -175,8 +175,8 @@ function SetupInstructions({ platform, webhookUrl, onCopyUrl }: SetupInstruction
   );
 }
 
-interface PlatformCardProps { platform: Platform; webhookUrl: string; onSetupOpen: (id: string) => void; isExpanded: boolean; onCopyUrl: () => void; }
-function PlatformCard({ platform, webhookUrl, onSetupOpen, isExpanded, onCopyUrl }: PlatformCardProps) {
+interface PlatformCardProps { platform: Platform; webhookUrl: string; onSetupOpen: (id: string) => void; isExpanded: boolean; onCopyUrl: () => void; onNotify: (name: string) => void; }
+function PlatformCard({ platform, webhookUrl, onSetupOpen, isExpanded, onCopyUrl, onNotify }: PlatformCardProps) {
   const isActive = platform.status === "active";
   const isAvailable = platform.status === "available";
   const isComingSoon = platform.status === "coming-soon";
@@ -207,7 +207,7 @@ function PlatformCard({ platform, webhookUrl, onSetupOpen, isExpanded, onCopyUrl
               </button>
             )}
             {isComingSoon && (
-              <button style={{ display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:7,background:"#F1F5F9",border:"1px solid #E2E8F0",color:"#9CA3AF",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif" }}>
+              <button onClick={() => onNotify(platform.name)} style={{ display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:7,background:"#F1F5F9",border:"1px solid #E2E8F0",color:"#9CA3AF",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif" }}>
                 <Bell size={11} /> Notify me
               </button>
             )}
@@ -230,7 +230,11 @@ export default function IntegrationsPage() {
   const activeCount = platforms.filter(p => p.status === "active").length;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [urlCopied, setUrlCopied] = useState(false);
+  const [toast, setToast] = useState("");
   const { setOpen, addMessage, setState } = useAda();
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
+  const handleNotify = (name: string) => showToast(`We'll notify you when ${name} integration is available`);
 
   // KoboToolbox pull/import (testing helper)
   const [assetUid, setAssetUid] = useState("");
@@ -355,7 +359,7 @@ export default function IntegrationsPage() {
         <div style={{ fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:0.7,marginBottom:14 }}>Platforms</div>
         <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14 }}>
           {platforms.map(platform => (
-            <PlatformCard key={platform.id} platform={platform} webhookUrl={webhookUrl} onSetupOpen={handleSetupOpen} isExpanded={expandedId===platform.id} onCopyUrl={handleCopyUrl} />
+            <PlatformCard key={platform.id} platform={platform} webhookUrl={webhookUrl} onSetupOpen={handleSetupOpen} isExpanded={expandedId===platform.id} onCopyUrl={handleCopyUrl} onNotify={handleNotify} />
           ))}
         </div>
       </div>
@@ -373,6 +377,12 @@ export default function IntegrationsPage() {
           </div>
         ))}
       </div>
+
+      {toast && (
+        <div style={{ position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#111827",color:"white",padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:500,zIndex:9999,boxShadow:"0 4px 16px rgba(0,0,0,.3)",pointerEvents:"none" }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

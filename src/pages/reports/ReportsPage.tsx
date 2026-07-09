@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Download, Sparkles, Clock, CheckCircle } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
+import { insightScoreApi } from "../../services/api";
 
 const BLUE="#2463EB",GREEN="#059669",PURPLE="#7C3AED";
 
@@ -15,14 +16,34 @@ const REPORT_TYPES=[
 export default function ReportsPage(){
   const [generating,setGenerating]=useState<string|null>(null);
   const [generated,setGenerated]=useState<string[]>([]);
+  const [toast,setToast]=useState("");
   useAdaGreeting({ page: "reports" });
+
+  const showToast=(msg:string)=>{
+    setToast(msg);
+    setTimeout(()=>setToast(""),3000);
+  };
 
   const generate=(id:string)=>{
     setGenerating(id);
     setTimeout(()=>{
       setGenerating(null);
       setGenerated(prev=>[...prev,id]);
+      showToast("Report generated — ready to download");
     },3000);
+  };
+
+  const download=(r:{id:string;title:string})=>{
+    const format = r.id==="executive"?"pptx":r.id==="technical"?"xlsx":"docx";
+    const projectId="658464e5-09dc-4b99-a664-05690de9921a";
+    insightScoreApi.downloadReport(projectId,format)
+      .then(res=>{
+        const url=URL.createObjectURL(new Blob([res.data]));
+        const a=document.createElement("a");
+        a.href=url; a.download=`${r.title.replace(/\s+/g,"-").toLowerCase()}.${format}`;
+        a.click(); URL.revokeObjectURL(url);
+      })
+      .catch(()=>showToast("Download coming soon — report will be available once backend is configured"));
   };
 
   return(
@@ -66,7 +87,7 @@ export default function ReportsPage(){
               <div style={{display:"flex",gap:8}}>
                 {isDone?(
                   <>
-                    <button style={{flex:1,padding:"9px",borderRadius:8,background:GREEN,border:"none",cursor:"pointer",fontSize:12.5,fontWeight:600,color:"white",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontFamily:"Inter,sans-serif"}}>
+                    <button onClick={()=>download(r)} style={{flex:1,padding:"9px",borderRadius:8,background:GREEN,border:"none",cursor:"pointer",fontSize:12.5,fontWeight:600,color:"white",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontFamily:"Inter,sans-serif"}}>
                       <Download size={13}/> Download
                     </button>
                     <button onClick={()=>generate(r.id)}
@@ -109,12 +130,17 @@ export default function ReportsPage(){
                   <div style={{fontSize:13,fontWeight:600,color:"#080D1A"}}>{r.title}</div>
                   <div style={{fontSize:11,color:"#9CA3AF"}}>Generated just now · Lagos Retail Audit</div>
                 </div>
-                <button style={{display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:7,background:"#EFF6FF",border:"none",cursor:"pointer",fontSize:12,fontWeight:600,color:BLUE,fontFamily:"Inter,sans-serif"}}>
+                <button onClick={()=>download(r)} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:7,background:"#EFF6FF",border:"none",cursor:"pointer",fontSize:12,fontWeight:600,color:BLUE,fontFamily:"Inter,sans-serif"}}>
                   <Download size={12}/> Download
                 </button>
               </div>
             );
           })}
+        </div>
+      )}
+      {toast&&(
+        <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#111827",color:"white",padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:500,zIndex:9999,boxShadow:"0 4px 16px rgba(0,0,0,.3)",pointerEvents:"none"}}>
+          {toast}
         </div>
       )}
     </div>

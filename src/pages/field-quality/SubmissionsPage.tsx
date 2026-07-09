@@ -153,7 +153,13 @@ export default function SubmissionsPage(){
             style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:refreshing?"not-allowed":"pointer",opacity:refreshing?.6:1}}>
             <RefreshCw size={13} style={{animation:refreshing?"spin 1s linear infinite":"none"}}/>{refreshing?"Refreshing…":"Refresh"}
           </button>
-          <button style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:"pointer"}}>
+          <button onClick={()=>{
+            const headers=["submission_id","enumerator_id","verdict","overall_score","duration_mins","scored_at"];
+            const rows=filtered.map(s=>[s.submission_id,s.enumerator_id,s.verdict,s.overall_score,s.duration_mins??'',s.scored_at??''].join(","));
+            const csv=[headers.join(","),...rows].join("\n");
+            const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+            const a=document.createElement("a");a.href=url;a.download="submissions.csv";a.click();URL.revokeObjectURL(url);
+          }} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:"pointer"}}>
             <Download size={13}/> Export CSV
           </button>
         </div>

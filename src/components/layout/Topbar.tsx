@@ -361,6 +361,8 @@ export default function Topbar({ onRefresh }: TopbarProps) {
           </AnimatePresence>
         </div>
         <button
+          onClick={() => nav('/settings')}
+          title="Help & Settings"
           style={iconBtnStyle}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLButtonElement).style.background = colors.surfaceHover;
@@ -371,18 +373,21 @@ export default function Topbar({ onRefresh }: TopbarProps) {
         >
           <HelpCircle size={18} />
         </button>
-        <div style={{
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          background: `linear-gradient(135deg, ${colors.primary}, ${colors.primaryLight})`,
-          display: 'grid',
-          placeItems: 'center',
-          fontSize: 14,
-          fontWeight: 700,
-          color: colors.white,
-          cursor: 'pointer',
-        }}>
+        <div
+          onClick={() => nav('/settings')}
+          title="Account settings"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            background: `linear-gradient(135deg, ${colors.primary}, ${colors.primaryLight})`,
+            display: 'grid',
+            placeItems: 'center',
+            fontSize: 14,
+            fontWeight: 700,
+            color: colors.white,
+            cursor: 'pointer',
+          }}>
           {user?.name?.charAt(0) || 'U'}
         </div>
       </div>
