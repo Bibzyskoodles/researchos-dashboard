@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
-import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
-import { useIsMobile } from "../../hooks/useIsMobile";
+import { useLocation } from "react-router-dom";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -29,19 +27,36 @@ function ScoreRing({score,size=48}:{score:number;size?:number}){
 }
 
 function EngineBar({label,value,color,icon}:{label:string;value:number;color:string;icon:React.ReactNode}){
+  const notScored = value === 0 || value === null || value === undefined;
+  const safeVal = notScored ? 0 : Math.min(100, Math.max(0, Math.round(value)));
   return(
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #F8FAFF"}}>
       <div style={{width:24,height:24,borderRadius:6,background:color+"18",display:"grid",placeItems:"center",flexShrink:0}}>{icon}</div>
       <div style={{flex:1}}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
           <span style={{fontSize:11.5,fontWeight:600,color:"#374151"}}>{label}</span>
-          <span style={{fontSize:11,fontWeight:700,fontFamily:"monospace",color:clr(value)}}>{value}/100</span>
+          {notScored
+            ? <span style={{fontSize:11,fontWeight:600,color:"#CBD5E1"}}>Not scored</span>
+            : <span style={{fontSize:11,fontWeight:700,fontFamily:"monospace",color:clr(safeVal)}}>{safeVal}/100</span>}
         </div>
         <div style={{height:3,background:"#EEF2F8",borderRadius:2,overflow:"hidden"}}>
-          <motion.div style={{height:"100%",background:color,borderRadius:2}}
-            initial={{width:0}} animate={{width:`${value}%`}} transition={{duration:0.8,ease:"easeOut"}}/>
+          {!notScored && (
+            <motion.div style={{height:"100%",background:color,borderRadius:2}}
+              initial={{width:0}} animate={{width:`${safeVal}%`}} transition={{duration:0.8,ease:"easeOut"}}/>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function MediaBadge({type,status,score}:{type:"image"|"audio";status:string;score:number}){
+  const color = clr(score);
+  const icon = type === "image" ? <Camera size={10}/> : <Mic size={10}/>;
+  const label = type === "image" ? "Photo" : "Audio";
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:4,padding:"2px 7px",borderRadius:5,background:color+"15",border:`1px solid ${color}30`,fontSize:10,fontWeight:600,color}}>
+      {icon}{label} {score > 0 ? score : status}
     </div>
   );
 }
@@ -49,182 +64,162 @@ function EngineBar({label,value,color,icon}:{label:string;value:number;color:str
 export default function SubmissionsPage(){
   const [subs,setSubs]=useState<Submission[]>([]);
   const [loading,setLoading]=useState(true);
+  const [refreshing,setRefreshing]=useState(false);
+  const [error,setError]=useState<string|null>(null);
   const [selected,setSelected]=useState<Submission|null>(null);
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
-  const [bulkSelected,setBulkSelected]=useState<Set<string>>(new Set());
-  const selectAllRef=React.useRef<HTMLInputElement>(null);
-  const isMobile=useIsMobile();
-  const navigate=useNavigate();
+  const location = useLocation();
   useAdaGreeting({ page: "submissions" });
-  useAdaAttention({ x: 0.88, y: 0.35 }, { delay: 2000, returnAfterMs: 5000 });
+  const { addMessage, setState } = useAdaContext();
 
-  const { guideToElement, store } = useAdaContext();
-
-  // React to Ada commands ("show only flagged", "highlight ENID0010")
-  useEffect(() => {
-    const c = store.command;
-    if (!c) return;
-    if (c.type === "FILTER_SUBMISSIONS") setFilter(c.verdict);
-    else if (c.type === "HIGHLIGHT_ENUMERATOR") { setSearch(c.id); setFilter("ALL"); }
-  }, [store.command]);
+  const load = useCallback((isRefresh=false)=>{
+    if(isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
+    dashboardApi.getSubmissions({limit:100})
+      .then(r=>{
+        const submissions = r.data.submissions || r.data || [];
+        setSubs(Array.isArray(submissions) ? submissions : []);
+      })
+      .catch(()=>{
+        setError("Could not load submissions. Check your connection and try refreshing.");
+      })
+      .finally(()=>{ setLoading(false); setRefreshing(false); });
+  },[]);
 
   useEffect(()=>{
-    let cancelled = false;
-    const load = (initial: boolean) => {
-      dashboardApi.getSubmissions({limit:50})
-        .then(r=>{
-          if (cancelled) return;
-          const submissions = r.data.submissions || [];
-          setSubs(submissions);
-          if(initial && submissions.some((s: Submission) => s.verdict === "FLAG")){
-            setTimeout(() => guideToElement("flagged-row", 3000), 1500);
-          }
-        })
-        .catch(()=>{})
-        .finally(()=>{ if(initial && !cancelled) setLoading(false); });
+    const params = new URLSearchParams(location.search);
+    const q = params.get("q");
+    if(q) setSearch(q);
+    load();
+  },[load, location.search]);
+
+  useEffect(()=>{
+    const handler = () => {
+      load(true);
+      setState("thinking");
+      setTimeout(()=>{
+        setState("speaking");
+        addMessage({ id: Date.now().toString(), role:"assistant", content:"Refreshing submissions now — pulling the latest data from your connected platforms.", timestamp: new Date().toISOString(), page:"submissions" });
+        setTimeout(()=>setState("idle"),3000);
+      },600);
     };
-    load(true);
-    const id = setInterval(() => load(false), 30000);
-    return () => { cancelled = true; clearInterval(id); };
-  },[guideToElement]);
+    window.addEventListener("researchos:refresh",handler);
+    return ()=>window.removeEventListener("researchos:refresh",handler);
+  },[load,setState,addMessage]);
 
   const filtered=subs.filter(s=>{
     if(filter!=="ALL"&&s.verdict!==filter)return false;
-    if(search&&!s.submission_id.toLowerCase().includes(search.toLowerCase())&&!s.enumerator_id.toLowerCase().includes(search.toLowerCase()))return false;
+    const q = search.toLowerCase();
+    if(q&&!s.submission_id.toLowerCase().includes(q)&&!s.enumerator_id.toLowerCase().includes(q))return false;
     return true;
   });
-
-  useEffect(()=>{
-    if(!selectAllRef.current)return;
-    if(filtered.length===0){
-      selectAllRef.current.checked=false;
-      (selectAllRef.current as any).indeterminate=false;
-    }else if(bulkSelected.size===filtered.length){
-      selectAllRef.current.checked=true;
-      (selectAllRef.current as any).indeterminate=false;
-    }else if(bulkSelected.size>0){
-      selectAllRef.current.checked=false;
-      (selectAllRef.current as any).indeterminate=true;
-    }else{
-      selectAllRef.current.checked=false;
-      (selectAllRef.current as any).indeterminate=false;
-    }
-  },[bulkSelected,filtered]);
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
         <div>
           <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>Submissions</h1>
-          <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>{subs.length} total · {subs.filter(s=>s.verdict==="PASS").length} passed · {subs.filter(s=>s.verdict==="FLAG").length} flagged</p>
+          <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>
+            {loading ? "Loading…" : `${subs.length} total · ${subs.filter(s=>s.verdict==="PASS").length} passed · ${subs.filter(s=>s.verdict==="FLAG").length} flagged`}
+          </p>
         </div>
-        <button style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:"pointer"}}>
-          <Download size={13}/> Export CSV
-        </button>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>load(true)} disabled={refreshing}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:refreshing?"not-allowed":"pointer",opacity:refreshing?.6:1}}>
+            <RefreshCw size={13} style={{animation:refreshing?"spin 1s linear infinite":"none"}}/>{refreshing?"Refreshing…":"Refresh"}
+          </button>
+          <button style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:"pointer"}}>
+            <Download size={13}/> Export CSV
+          </button>
+        </div>
       </div>
+
+      {error&&(
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,fontSize:12.5,color:RED}}>
+          <AlertTriangle size={14}/>
+          <span>{error}</span>
+          <button onClick={()=>load(true)} style={{marginLeft:"auto",fontSize:12,fontWeight:600,color:RED,background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Retry</button>
+        </div>
+      )}
+
+      {!loading&&!error&&subs.length===0&&(
+        <div style={{padding:"20px 24px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:12,fontSize:12.5,color:"#92400E",lineHeight:1.6}}>
+          <strong>No submissions yet.</strong> Make sure your KoboToolbox form is connected:<br/>
+          1. Go to <strong>Integrations</strong> → copy your webhook URL<br/>
+          2. In KoboToolbox: Form Settings → REST Services → paste the URL → Save<br/>
+          3. Submit a test response, then click <strong>Refresh</strong> above.
+        </div>
+      )}
 
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <div style={{display:"flex",alignItems:"center",gap:8,background:"white",border:"1px solid #E2E8F0",borderRadius:8,padding:"7px 12px",flex:1,maxWidth:300}}>
           <Search size={13} color="#9CA3AF"/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search submissions..."
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by ID or enumerator…"
+            maxLength={100}
             style={{border:"none",background:"transparent",fontSize:12.5,fontFamily:"Inter,sans-serif",outline:"none",flex:1}}/>
+          {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#9CA3AF",padding:0}}><X size={12}/></button>}
         </div>
         <div style={{display:"flex",gap:6}}>
           {["ALL","PASS","FLAG","REJECT"].map(v=>(
-            <motion.button key={v} onClick={()=>setFilter(v)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:11.5,fontWeight:600,cursor:"pointer",transition:"all .2s cubic-bezier(0.25,0.46,0.45,0.94)",
+            <button key={v} onClick={()=>setFilter(v)}
+              style={{padding:"6px 14px",borderRadius:7,border:"1px solid",fontSize:11.5,fontWeight:600,cursor:"pointer",transition:"all .15s",
                 borderColor:filter===v?BLUE:"#E2E8F0",
                 background:filter===v?BLUE:"white",
-                color:filter===v?"white":"#6B7280",
-                boxShadow:filter===v?"0 2px 8px rgba(36,99,235,0.15)":"none"}}>
+                color:filter===v?"white":"#6B7280"}}>
               {v}
-            </motion.button>
+            </button>
           ))}
         </div>
       </div>
 
-      {bulkSelected.size > 0 && (
-        <motion.div initial={{y:20,opacity:0}} animate={{y:0,opacity:1}}
-          style={{position:"sticky",bottom:16,left:0,right:0,background:BLUE,borderRadius:12,padding:"12px 20px",display:"flex",alignItems:"center",gap:16,color:"white",boxShadow:"0 8px 32px rgba(36,99,235,.2)",marginLeft:16,marginRight:16}}>
-          <span style={{fontSize:13,fontWeight:600}}>✓ {bulkSelected.size} selected</span>
-          <button onClick={()=>setBulkSelected(new Set())} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:6,padding:"5px 12px",color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>Clear</button>
-          <div style={{flex:1}}/>
-          <button style={{background:"white",color:BLUE,border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Approve All</button>
-          <button style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:6,padding:"6px 14px",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Reject All</button>
-        </motion.div>
-      )}
-
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":(selected?"1fr 380px":"1fr"),gap:16,alignItems:"start"}}>
+      <div style={{display:"grid",gridTemplateColumns:selected?"1fr 400px":"1fr",gap:16,alignItems:"start"}}>
         <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
-          {!loading && filtered.length > 0 && (
-            <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 20px",borderBottom:"1px solid #F8FAFF",background:"#FAFBFF"}}>
-              <input ref={selectAllRef} type="checkbox"
-                onChange={(e)=>{
-                  const newSelected = new Set<string>();
-                  if(e.target.checked){
-                    filtered.forEach(s => newSelected.add(s.submission_id));
-                  }
-                  setBulkSelected(newSelected);
-                }}
-                style={{cursor:"pointer",width:18,height:18,accentColor:BLUE}}/>
-              <span style={{fontSize:12,fontWeight:600,color:"#6B7280"}}>
-                {bulkSelected.size > 0 ? `${bulkSelected.size} selected` : `Select all (${filtered.length})`}
-              </span>
-            </div>
-          )}
           {loading?(
-            <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading submissions...</div>
+            <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading submissions…</div>
           ):filtered.length===0?(
-            <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>No submissions found</div>
+            <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>No submissions match your filter</div>
           ):filtered.map((sub,i)=>{
-            const isFirstFlag = sub.verdict==="FLAG" && !filtered.slice(0,i).some(s=>s.verdict==="FLAG");
+            const imgScore = sub.checks?.image?.score ?? 0;
+            const audScore = sub.checks?.audio?.score ?? 0;
             return(
-            <motion.div key={sub.submission_id}
-              whileHover={{background:"#F8FAFF", boxShadow: "0 1px 3px rgba(0,61,165,0.08)"}}
-              data-ada-target={isFirstFlag ? "flagged-row" : undefined}
+            <motion.div key={sub.submission_id} onClick={()=>setSelected(selected?.submission_id===sub.submission_id?null:sub)}
+              whileHover={{background:"#FAFBFF"}}
+              data-ada-target={sub.verdict==="FLAG"&&!filtered.slice(0,i).some(s=>s.verdict==="FLAG")?"flagged-row":undefined}
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",borderBottom:i<filtered.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
                 background:selected?.submission_id===sub.submission_id?"#F0F7FF":"white",
-                borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent",
-                transition:"all 0.2s cubic-bezier(0.25,0.46,0.45,0.94)"}}>
-              <input type="checkbox" checked={bulkSelected.has(sub.submission_id)}
-                onChange={(e)=>{e.stopPropagation();const s=new Set(bulkSelected);if(e.target.checked)s.add(sub.submission_id);else s.delete(sub.submission_id);setBulkSelected(s);}}
-                onClick={(e)=>e.stopPropagation()}
-                style={{cursor:"pointer",width:18,height:18,accentColor:BLUE}}/>
-              <div onClick={()=>navigate(`/submissions/${sub.submission_id}`)} style={{flex:1,display:"flex",alignItems:"center",gap:12}}>
+                borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
               <ScoreRing score={sub.overall_score}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                    <span style={{fontSize:11,fontFamily:"monospace",color:"#6B7280"}}>{sub.submission_id.substring(0,12)}…</span>
-                    <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:vbg(sub.verdict),color:vc(sub.verdict)}}>{sub.verdict}</span>
-                    <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:"#EFF6FF",color:BLUE,fontFamily:"monospace"}}>{sub.overall_score}/100</span>
-                  </div>
-                  <div style={{fontSize:12,color:"#374151",fontWeight:500,marginBottom:3}}>{sub.enumerator_id}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:12,fontSize:11,color:"#9CA3AF"}}>
-                    {sub.gps?.address&&<span style={{display:"flex",alignItems:"center",gap:3}}><MapPin size={10}/>{sub.gps.address.split(",").slice(0,2).join(",")}</span>}
-                    {sub.duration_mins&&<span style={{display:"flex",alignItems:"center",gap:3}}><Clock size={10}/>{Math.round(Number(sub.duration_mins))}m</span>}
-                  </div>
-                  {sub.flags&&(
-                    <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
-                      {(Array.isArray(sub.flags)?sub.flags:sub.flags.split(",").filter(Boolean)).map(f=>(
-                        <span key={f} style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:4,background:"#F1F5F9",color:"#6B7280"}}>{f.trim().replace(/_/g," ")}</span>
-                      ))}
-                    </div>
-                  )}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                  <span style={{fontSize:11,fontFamily:"monospace",color:"#6B7280"}}>{sub.submission_id.substring(0,12)}…</span>
+                  <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:vbg(sub.verdict),color:vc(sub.verdict)}}>{sub.verdict}</span>
+                  {imgScore>0&&<MediaBadge type="image" status={sub.checks?.image?.status||""} score={imgScore}/>}
+                  {audScore>0&&<MediaBadge type="audio" status={sub.checks?.audio?.status||""} score={audScore}/>}
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:10,color:"#9CA3AF"}}>{new Date(sub.scored_at).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</div>
-                    <div style={{fontSize:10,color:"#CBD5E1"}}>{new Date(sub.scored_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
-                  </div>
-                  <ChevronRight size={14} color={selected?.submission_id===sub.submission_id?BLUE:"#CBD5E1"}/>
+                <div style={{fontSize:12,color:"#374151",fontWeight:500,marginBottom:3}}>{sub.enumerator_id}</div>
+                <div style={{display:"flex",alignItems:"center",gap:12,fontSize:11,color:"#9CA3AF"}}>
+                  {sub.gps?.address&&<span style={{display:"flex",alignItems:"center",gap:3}}><MapPin size={10}/>{sub.gps.address.split(",").slice(0,2).join(",")}</span>}
+                  {sub.duration_mins&&<span style={{display:"flex",alignItems:"center",gap:3}}><Clock size={10}/>{Math.round(Number(sub.duration_mins))}m</span>}
                 </div>
+                {sub.flags&&(
+                  <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
+                    {sub.flags.split(",").filter(Boolean).map(f=>(
+                      <span key={f} style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:4,background:"#F1F5F9",color:"#6B7280"}}>{f.trim().replace(/_/g," ")}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:10,color:"#9CA3AF"}}>{new Date(sub.scored_at).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</div>
+                  <div style={{fontSize:10,color:"#CBD5E1"}}>{new Date(sub.scored_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
+                </div>
+                <ChevronRight size={14} color={selected?.submission_id===sub.submission_id?BLUE:"#CBD5E1"}/>
               </div>
             </motion.div>
-          );})}
-        </div>
+          );})}        </div>
 
         <AnimatePresence>
           {selected&&(
@@ -240,16 +235,63 @@ export default function SubmissionsPage(){
                   <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#9CA3AF",padding:4}}><X size={16}/></button>
                 </div>
               </div>
-
               <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16,maxHeight:"calc(100vh - 200px)",overflowY:"auto"}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,background:vbg(selected.verdict),border:`1px solid ${vc(selected.verdict)}22`}}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:vc(selected.verdict),flexShrink:0}}/>
                   <div>
                     <div style={{fontSize:12.5,fontWeight:700,color:vc(selected.verdict)}}>{selected.verdict}</div>
-                    <div style={{fontSize:11,color:"#6B7280",marginTop:1}}>{selected.supervisor_action}</div>
+                    <div style={{fontSize:11,color:"#6B7280",marginTop:1}}>{selected.supervisor_action||"No action required"}</div>
                   </div>
                 </div>
-
+                {selected.checks?.image&&(
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8,display:"flex",alignItems:"center",gap:5}}><Camera size={11}/>Image Quality</div>
+                    <div style={{background:"#F8FAFF",borderRadius:10,padding:"12px 14px",border:"1px solid #E8EDF5"}}>
+                      {selected.checks.image.score > 0 ? (
+                        <>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                            <span style={{fontSize:12,color:"#374151",fontWeight:500,textTransform:"capitalize"}}>{selected.checks.image.status}</span>
+                            <span style={{fontSize:13,fontWeight:800,color:clr(selected.checks.image.score),fontFamily:"monospace"}}>{selected.checks.image.score}/100</span>
+                          </div>
+                          <div style={{height:4,background:"#E8EDF5",borderRadius:2,overflow:"hidden",marginBottom:8}}>
+                            <div style={{height:"100%",width:`${selected.checks.image.score}%`,background:clr(selected.checks.image.score),borderRadius:2}}/>
+                          </div>
+                          {selected.checks.image.finding&&<div style={{fontSize:11.5,color:"#6B7280",fontStyle:"italic"}}>"{ selected.checks.image.finding}"</div>}
+                        </>
+                      ) : (
+                        <div style={{fontSize:12,color:"#9CA3AF"}}>No image submitted or engine did not score this submission.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {selected.checks?.audio&&(
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8,display:"flex",alignItems:"center",gap:5}}><Mic size={11}/>Audio Quality</div>
+                    <div style={{background:"#F8FAFF",borderRadius:10,padding:"12px 14px",border:"1px solid #E8EDF5"}}>
+                      {selected.checks.audio.score > 0 ? (
+                        <>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                            <span style={{fontSize:12,color:"#374151",fontWeight:500,textTransform:"capitalize"}}>{selected.checks.audio.status}</span>
+                            <span style={{fontSize:13,fontWeight:800,color:clr(selected.checks.audio.score),fontFamily:"monospace"}}>{selected.checks.audio.score}/100</span>
+                          </div>
+                          <div style={{height:4,background:"#E8EDF5",borderRadius:2,overflow:"hidden",marginBottom:8}}>
+                            <div style={{height:"100%",width:`${selected.checks.audio.score}%`,background:clr(selected.checks.audio.score),borderRadius:2}}/>
+                          </div>
+                          {selected.checks.audio.finding&&<div style={{fontSize:11.5,color:"#6B7280",fontStyle:"italic"}}>"{ selected.checks.audio.finding}"</div>}
+                        </>
+                      ) : (
+                        <div style={{fontSize:12,color:"#9CA3AF"}}>No audio submitted or engine did not score this submission.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Quality Engines</div>
+                  <EngineBar label="GPS Accuracy"  value={selected.gps?.accuracy_m ? Math.max(0,100-selected.gps.accuracy_m) : 92} color={BLUE}   icon={<MapPin size={12} color={BLUE}/>}/>
+                  <EngineBar label="Image Quality" value={selected.checks?.image?.score??0}  color={PURPLE} icon={<Camera size={12} color={PURPLE}/>}/>
+                  <EngineBar label="Audio Quality" value={selected.checks?.audio?.score??0}  color={GREEN}  icon={<Mic size={12} color={GREEN}/>}/>
+                  <EngineBar label="Duration"      value={selected.duration_mins ? Math.min(100, Math.round((Number(selected.duration_mins)/60)*100)) : 0} color={AMBER} icon={<Clock size={12} color={AMBER}/>}/>
+                </div>
                 {selected.gps&&(
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Location</div>
@@ -260,40 +302,30 @@ export default function SubmissionsPage(){
                       </div>
                       <div style={{fontSize:11,color:"#9CA3AF",fontFamily:"monospace"}}>
                         {selected.gps.lat}, {selected.gps.lon}
-                        {selected.gps.accuracy_m&&<span> · ±{selected.gps.accuracy_m}m accuracy</span>}
+                        {selected.gps.accuracy_m&&<span> · ±{selected.gps.accuracy_m}m</span>}
                       </div>
                     </div>
                   </div>
                 )}
-
-                <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Quality Engines</div>
-                  <EngineBar label="GPS Accuracy" value={92} color={BLUE} icon={<MapPin size={12} color={BLUE}/>}/>
-                  <EngineBar label="Image Quality" value={selected.checks?.image?.score||0} color={PURPLE} icon={<Camera size={12} color={PURPLE}/>}/>
-                  <EngineBar label="Audio Quality" value={selected.checks?.audio?.score||0} color={GREEN} icon={<Mic size={12} color={GREEN}/>}/>
-                  <EngineBar label="Duration" value={85} color={AMBER} icon={<Clock size={12} color={AMBER}/>}/>
-                </div>
-
                 {selected.flags&&(
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Flags</div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {(Array.isArray(selected.flags)?selected.flags:selected.flags.split(",").filter(Boolean)).map(f=>(
+                      {selected.flags.split(",").filter(Boolean).map(f=>(
                         <span key={f} style={{fontSize:11,fontWeight:600,padding:"4px 10px",borderRadius:6,background:"#FEF2F2",color:RED,border:"1px solid #FECACA"}}>{f.trim().replace(/_/g," ")}</span>
                       ))}
                     </div>
                   </div>
                 )}
-
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Details</div>
-                  {[
-                    ["Submission ID", selected.submission_id.substring(0,16)+"…"],
-                    ["Platform", selected.platform||"KoboToolbox"],
-                    ["Duration", selected.duration_mins?Math.round(Number(selected.duration_mins))+"m":"—"],
-                    ["Scored at", new Date(selected.scored_at).toLocaleString("en-GB")],
-                    ["Grade", selected.grade],
-                  ].map(([k,v])=>(
+                  {([
+                    ["Submission ID", selected.submission_id.substring(0,20)+"…"],
+                    ["Platform",      selected.platform||"KoboToolbox"],
+                    ["Duration",      selected.duration_mins?Math.round(Number(selected.duration_mins))+"m":"—"],
+                    ["Scored at",     new Date(selected.scored_at).toLocaleString("en-GB")],
+                    ["Grade",         selected.grade],
+                  ] as [string,string][]).map(([k,v])=>(
                     <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #F8FAFF",fontSize:11.5}}>
                       <span style={{color:"#9CA3AF"}}>{k}</span>
                       <span style={{fontWeight:600,color:"#374151",fontFamily:k==="Submission ID"?"monospace":"inherit"}}>{v}</span>
