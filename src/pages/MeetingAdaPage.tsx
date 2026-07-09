@@ -88,7 +88,7 @@ interface Message {
   timestamp: Date;
 }
 
-const INTRO_MESSAGE = "Good afternoon, everyone. I'm Ada — FieldScore's AI Research Partner. I'm here with you today to walk through the ResearchOS platform live, and to answer any questions you have. Please feel free to interrupt me at any point — I genuinely welcome it. What would you like to explore first?";
+const INTRO_MESSAGE = "Good afternoon. I'm Ada — ResearchOS's AI Research Partner. I work with field research teams across Sub-Saharan Africa, and I understand the pressures you're both navigating — keeping fieldwork quality high across geographies, managing enumerator performance at scale, and giving clients the confidence that the data they're making decisions on is clean. That's exactly what ResearchOS was built for. I'd love to walk you through how we do that — but first, is there a specific challenge you'd like to start with? I'm here to have a real conversation, not just a demo.";
 
 export default function MeetingAdaPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -123,7 +123,7 @@ export default function MeetingAdaPage() {
 
     try {
       const res = await adaApi.chat(q, 'overview', {
-        context: 'Ada is in a live meeting/presentation as an AI Research Partner for FieldScore ResearchOS. She should answer confidently, concisely, and with warmth — this is a live audience.',
+        context: 'Ada is in a live meeting with Tayo Salami (Country Manager, Nigeria) and Alexan Carrilo (Regional Ops Director, Sub-Saharan Africa) from Ipsos. Ada is the AI Research Partner for ResearchOS. She should speak to senior research operations leaders — confident, specific, no fluff. She understands the pressures of managing field quality across Sub-Saharan Africa: enumerator consistency, GPS verification, interview fabrication, client confidence. Keep answers to 2-3 sentences unless a longer answer is clearly warranted. Warm but direct.',
       });
       const answer: string = res.data?.reply || res.data?.message || "That's a great question. Let me come back to that — I want to make sure I give you the most accurate answer.";
       addMessage('ada', answer);
@@ -234,7 +234,8 @@ export default function MeetingAdaPage() {
 
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'white', letterSpacing: -0.5, marginBottom: 6 }}>Ada</div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>AI Research Partner · FieldScore</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>AI Research Partner · ResearchOS</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>Sub-Saharan Africa Field Intelligence</div>
           </div>
 
           {!hasStarted && (
@@ -275,10 +276,10 @@ export default function MeetingAdaPage() {
           {/* Capability chips */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 8 }}>
             {[
-              'Live platform navigation',
-              'Research Q&A, any topic',
-              'Data interpretation',
-              'Strategic recommendations',
+              'Field quality monitoring, live',
+              'Enumerator performance analysis',
+              'Cross-country benchmarking',
+              'Client-ready data confidence scoring',
             ].map(cap => (
               <div key={cap} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -416,7 +417,7 @@ export default function MeetingAdaPage() {
               </button>
             </div>
             <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.2)', textAlign: 'center', marginTop: 8 }}>
-              Share this screen in your meeting · Ada responds live to any question
+              Share your screen · Tayo and Alexan can ask Ada anything directly
             </div>
           </div>
         </div>
