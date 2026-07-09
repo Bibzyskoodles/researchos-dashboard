@@ -9,33 +9,50 @@ const AMBER = "#D97706";
 const RED = "#DC2626";
 const PURPLE = "#7C3AED";
 
-interface MTIQuestion {
+interface IFIQuestion {
   question_id: string;
   question_text: string;
-  mti: number;
+  score: number;
   response_count: number;
   issues: string[];
 }
-interface MTIEnumerator {
+interface IFIEnumerator {
   enumerator_id: string;
-  mti: number;
+  score: number;
   interview_count: number;
   trend?: string;
 }
-interface MTIFlag {
+interface IFIFlag {
   severity: "low" | "medium" | "high";
   type: string;
   description: string;
   recommendation: string;
   evidence_count?: number;
 }
-interface MTIData {
+interface IFIData {
   overall: number;
   benchmark?: number;
   interpretation?: string;
-  per_question?: MTIQuestion[];
-  per_enumerator?: MTIEnumerator[];
-  flags?: MTIFlag[];
+  per_question?: IFIQuestion[];
+  per_enumerator?: IFIEnumerator[];
+  flags?: IFIFlag[];
+}
+
+function normaliseData(raw: any): IFIData {
+  return {
+    overall: raw.overall,
+    benchmark: raw.benchmark,
+    interpretation: raw.interpretation,
+    flags: raw.flags,
+    per_question: (raw.per_question || []).map((q: any) => ({
+      ...q,
+      score: q.score ?? q.mti ?? 0,
+    })),
+    per_enumerator: (raw.per_enumerator || []).map((e: any) => ({
+      ...e,
+      score: e.score ?? e.mti ?? 0,
+    })),
+  };
 }
 
 function ScoreDial({ score, size = 120, label }: { score: number; size?: number; label?: string }) {
@@ -73,7 +90,7 @@ function SeverityBadge({ severity }: { severity: "low" | "medium" | "high" }) {
   return <span style={{ fontSize: 10, fontWeight: 700, color, background: bg, borderRadius: 4, padding: "2px 7px" }}>{label}</span>;
 }
 
-function MTIPendingState() {
+function IFIPendingState() {
   const { t } = usePlatform();
   return (
     <div style={{ background: "white", borderRadius: 16, border: "1px solid #E8EDF5", overflow: "hidden" }}>
@@ -84,15 +101,14 @@ function MTIPendingState() {
               <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#A78BFA" }} />
               <span style={{ fontSize: 9.5, fontWeight: 700, color: "#C4B5FD", letterSpacing: 1, textTransform: "uppercase" }}>Proprietary Framework</span>
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "white", marginBottom: 8 }}>Meaning Transfer Intelligence™</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "white", marginBottom: 8 }}>Intent Fidelity Index™</div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,.6)", lineHeight: 1.6, maxWidth: 520 }}>
-              MTI measures whether the intended meaning of each research question was successfully transferred from design through enumerator delivery to respondent understanding. It is fundamentally different from data quality or transcription accuracy.
+              IFI measures whether the intended meaning of each research question was successfully preserved from design through enumerator delivery to respondent understanding. It is fundamentally different from data quality or transcription accuracy.
             </div>
           </div>
           <div style={{ display: "flex", gap: 20, flexShrink: 0 }}>
             {["Intent", "Question", "Delivery", "Understanding", "Response"].map((stage, i) => (
               <div key={stage} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                {i > 0 && <div style={{ position: "absolute", width: 1, height: 1 }} />}
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: `rgba(124,58,237,${0.15 + i * 0.08})`, border: "1px solid rgba(124,58,237,.4)", display: "grid", placeItems: "center", fontSize: 14 }}>
                   {["🎯", "❓", "🗣️", "💡", "📝"][i]}
                 </div>
@@ -106,7 +122,7 @@ function MTIPendingState() {
       <div style={{ padding: "24px 32px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#F8FAFF", border: "1px solid #DBEAFE", borderRadius: 10, padding: "14px 18px", marginBottom: 20 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: AMBER }} />
-          <div style={{ fontSize: 13, color: "#1E40AF" }}>MTI scores will appear here once Ada completes analysis of the interview responses.</div>
+          <div style={{ fontSize: 13, color: "#1E40AF" }}>IFI scores will appear here once Ada completes analysis of the interview responses.</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
           {["Per Question", `Per ${t('enumerator','Enumerator')}`, "Per Region", "Per Language"].map(dim => (
@@ -124,21 +140,21 @@ function MTIPendingState() {
   );
 }
 
-export default function MTIPanel({ projectId }: { projectId: string }) {
+export default function IFIPanel({ projectId }: { projectId: string }) {
   const { t } = usePlatform();
-  const [data, setData] = useState<MTIData | null>(null);
+  const [data, setData] = useState<IFIData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    (insightScoreApi as any).getMTI?.(projectId)
-      .then((r: any) => { if (r.data?.overall !== undefined) setData(r.data); })
+    (insightScoreApi as any).getIFI?.(projectId)
+      .then((r: any) => { if (r.data?.overall !== undefined) setData(normaliseData(r.data)); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  if (loading) return <div style={{ padding: "40px 0", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>Loading MTI...</div>;
-  if (!data) return <MTIPendingState />;
+  if (loading) return <div style={{ padding: "40px 0", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>Loading Intent Fidelity Index...</div>;
+  if (!data) return <IFIPendingState />;
 
   const color = (s: number) => s >= 75 ? GREEN : s >= 55 ? AMBER : RED;
   const questions = data.per_question || [];
@@ -149,13 +165,13 @@ export default function MTIPanel({ projectId }: { projectId: string }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ background: "linear-gradient(135deg, #1A1F3E, #0F172A)", borderRadius: 16, padding: "28px 32px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-          <ScoreDial score={data.overall} size={140} label="Overall MTI" />
+          <ScoreDial score={data.overall} size={140} label="Overall IFI" />
           <div style={{ flex: 1 }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(124,58,237,.2)", border: "1px solid rgba(124,58,237,.3)", borderRadius: 6, padding: "3px 10px", marginBottom: 10 }}>
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: "#C4B5FD", letterSpacing: 1, textTransform: "uppercase" }}>Meaning Transfer Intelligence™</span>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: "#C4B5FD", letterSpacing: 1, textTransform: "uppercase" }}>Intent Fidelity Index™</span>
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "white", marginBottom: 8 }}>
-              {data.overall >= 75 ? "Strong meaning transfer across all dimensions" : data.overall >= 55 ? "Moderate transfer — some questions need review" : "Low transfer detected — intervention recommended"}
+              {data.overall >= 75 ? "Strong intent fidelity across all dimensions" : data.overall >= 55 ? "Moderate fidelity — some questions need review" : "Low fidelity detected — intervention recommended"}
             </div>
             {data.interpretation && <div style={{ fontSize: 13, color: "rgba(255,255,255,.6)", lineHeight: 1.6 }}>{data.interpretation}</div>}
             {data.benchmark !== undefined && (
@@ -189,18 +205,18 @@ export default function MTIPanel({ projectId }: { projectId: string }) {
       {questions.length > 0 && (
         <div style={{ background: "white", borderRadius: 14, border: "1px solid #E8EDF5", overflow: "hidden" }}>
           <div style={{ padding: "14px 20px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Question MTI Breakdown</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Question IFI Breakdown</div>
             <div style={{ fontSize: 11, color: "#9CA3AF" }}>{questions.length} questions</div>
           </div>
-          {[...questions].sort((a, b) => a.mti - b.mti).map((q, i) => (
+          {[...questions].sort((a, b) => a.score - b.score).map((q, i) => (
             <div key={q.question_id || i}>
               <div onClick={() => setExpanded(expanded === q.question_id ? null : q.question_id)}
                 style={{ padding: "12px 20px", borderBottom: "1px solid #F1F5F9", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, background: expanded === q.question_id ? "#F8FAFF" : "white" }}>
                 <div style={{ width: 48, height: 14, background: "#F1F5F9", borderRadius: 7, overflow: "hidden", flexShrink: 0 }}>
-                  <motion.div animate={{ width: `${q.mti}%` }} transition={{ duration: 0.8, delay: i * 0.05 }}
-                    style={{ height: "100%", background: color(q.mti), borderRadius: 7 }} />
+                  <motion.div animate={{ width: `${q.score}%` }} transition={{ duration: 0.8, delay: i * 0.05 }}
+                    style={{ height: "100%", background: color(q.score), borderRadius: 7 }} />
                 </div>
-                <div style={{ width: 36, fontSize: 13, fontWeight: 800, color: color(q.mti), fontFamily: "monospace", flexShrink: 0 }}>{q.mti}</div>
+                <div style={{ width: 36, fontSize: 13, fontWeight: 800, color: color(q.score), fontFamily: "monospace", flexShrink: 0 }}>{q.score}</div>
                 <div style={{ flex: 1, fontSize: 12.5, color: "#374151", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{q.question_text}</div>
                 {q.issues?.length > 0 && <div style={{ fontSize: 11, fontWeight: 600, color: AMBER, background: "#FFFBEB", borderRadius: 4, padding: "2px 7px", flexShrink: 0 }}>{q.issues.length} issue{q.issues.length !== 1 ? "s" : ""}</div>}
               </div>
@@ -225,13 +241,13 @@ export default function MTIPanel({ projectId }: { projectId: string }) {
       {enumerators.length > 0 && (
         <div style={{ background: "white", borderRadius: 14, border: "1px solid #E8EDF5", overflow: "hidden" }}>
           <div style={{ padding: "14px 20px", borderBottom: "1px solid #F1F5F9" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{t('enumerator','Enumerator')} MTI Comparison</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{t('enumerator','Enumerator')} IFI Comparison</div>
           </div>
           <div style={{ padding: "16px 20px", display: "flex", flexWrap: "wrap", gap: 12 }}>
-            {[...enumerators].sort((a, b) => b.mti - a.mti).map((e, i) => (
+            {[...enumerators].sort((a, b) => b.score - a.score).map((e, i) => (
               <div key={e.enumerator_id || i} style={{ background: "#F8FAFF", borderRadius: 10, padding: "12px 14px", border: "1px solid #E8EDF5", minWidth: 140 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>{e.enumerator_id}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: color(e.mti), fontFamily: "monospace" }}>{e.mti}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: color(e.score), fontFamily: "monospace" }}>{e.score}</div>
                 <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>{e.interview_count} interview{e.interview_count !== 1 ? "s" : ""}</div>
                 {e.trend && (
                   <div style={{ fontSize: 10, fontWeight: 600, color: e.trend === "improving" ? GREEN : e.trend === "declining" ? RED : "#9CA3AF", marginTop: 4 }}>
@@ -245,11 +261,11 @@ export default function MTIPanel({ projectId }: { projectId: string }) {
       )}
 
       <div style={{ background: "linear-gradient(135deg, #EFF6FF, #F8FAFF)", borderRadius: 12, border: "1px solid #DBEAFE", padding: "16px 20px" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>What is MTI?</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>What is IFI?</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {[
-            { score: "80–100", label: "Excellent", desc: "Meaning transferred with high fidelity across all dimensions" },
-            { score: "55–79", label: "Moderate", desc: "Some meaning loss detected — targeted redesign recommended" },
+            { score: "80–100", label: "Excellent", desc: "Intent preserved with high fidelity across all dimensions" },
+            { score: "55–79", label: "Moderate", desc: "Some intent loss detected — targeted redesign recommended" },
             { score: "0–54", label: "Low", desc: "Significant misalignment — questionnaire or coaching intervention needed" },
           ].map(({ score, label, desc }) => (
             <div key={score} style={{ background: "white", borderRadius: 8, padding: "10px 12px", border: "1px solid #E8EDF5" }}>

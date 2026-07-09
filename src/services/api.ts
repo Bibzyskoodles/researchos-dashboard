@@ -121,7 +121,8 @@ export const insightScoreApi = {
   downloadReport: (id: string, format: 'docx' | 'pptx' | 'xlsx') =>
     insightApi.get(`/projects/${id}/report`, { params: { format }, responseType: 'blob' }),
   getSubmissions: (id: string) => insightApi.get(`/projects/${id}/submissions`),
-  getSignalFidelity: (id: string) => insightApi.get(`/projects/${id}/mti`),
+  getSignalFidelity: (id: string) => insightApi.get(`/projects/${id}/signal-fidelity`),
+  getIFI: (id: string) => insightApi.get(`/projects/${id}/intent-fidelity`),
   getQuestionIntelligence: (id: string) => insightApi.get(`/projects/${id}/question-intelligence`),
   getDemographics: (id: string, field?: string) =>
     insightApi.get(`/projects/${id}/demographics`, { params: field ? { field } : {} }),
