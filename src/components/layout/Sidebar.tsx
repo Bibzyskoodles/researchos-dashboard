@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { usePlatform } from '../../platform/PlatformProvider';
@@ -8,6 +9,12 @@ import { useIndustry } from '../../store/IndustryContext';
 import { LogOut, Sparkles, Video, ChevronDown, RefreshCw } from 'lucide-react';
 
 const BLUE = '#2463EB';
+
+interface SidebarProps {
+  isMobile?: boolean;
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}
 
 const MODE_ICONS: Record<string, string> = {
   research_agency: '🔬',
@@ -19,7 +26,7 @@ const MODE_ICONS: Record<string, string> = {
   consultancy:     '💼',
 };
 
-export default function Sidebar() {
+export default function Sidebar({ isMobile, mobileOpen, onClose }: SidebarProps) {
   const { user, org, logout } = useAuth();
   const { navigatePage } = useAda();
   const { navigation } = usePlatform();
@@ -27,7 +34,12 @@ export default function Sidebar() {
   const { sessionIndustry, setSessionIndustry, vocab, INDUSTRIES, isSessionOverride, clearSessionOverride } = useIndustry();
   const [modePicker, setModePicker] = useState(false);
 
-  return (
+  const handleNavClick = (to: string) => {
+    navigatePage(to.replace('/', ''));
+    if (isMobile && onClose) onClose();
+  };
+
+  const sidebarContent = (
     <aside style={{
       width: 220,
       background: '#FFFFFF',
@@ -36,6 +48,7 @@ export default function Sidebar() {
       flexDirection: 'column',
       flexShrink: 0,
       overflow: 'hidden',
+      height: '100%',
     }}>
       {/* Logo */}
       <div style={{
@@ -69,7 +82,7 @@ export default function Sidebar() {
               <NavLink
                 key={item.to}
                 to={item.to}
-                onClick={() => navigatePage(item.to.replace('/', ''))}
+                onClick={() => handleNavClick(item.to)}
                 style={({ isActive }) => ({
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '7px 10px', borderRadius: 7, marginBottom: 1,
@@ -238,4 +251,29 @@ export default function Sidebar() {
       </div>
     </aside>
   );
+
+  if (isMobile) {
+    return (
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            key="sidebar-drawer"
+            initial={{ x: -220 }}
+            animate={{ x: 0 }}
+            exit={{ x: -220 }}
+            transition={{ type: 'tween', duration: 0.22 }}
+            style={{
+              position: 'fixed', top: 0, left: 0, bottom: 0,
+              width: 220, zIndex: 200,
+              boxShadow: '4px 0 24px rgba(0,0,0,0.18)',
+            }}
+          >
+            {sidebarContent}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
+  return sidebarContent;
 }

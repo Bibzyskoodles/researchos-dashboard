@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, HelpCircle, RefreshCw, Search } from 'lucide-react';
+import { Bell, HelpCircle, RefreshCw, Search, Menu } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { dashboardApi } from '../../services/api';
 import { usePlatform } from '../../platform/PlatformProvider';
@@ -14,9 +14,10 @@ interface Sub {
 
 interface TopbarProps {
   onRefresh?: () => void;
+  onMenuClick?: () => void;
 }
 
-export default function Topbar({ onRefresh }: TopbarProps) {
+export default function Topbar({ onRefresh, onMenuClick }: TopbarProps) {
   const { user } = useAuth();
   const { t } = usePlatform();
   const nav = useNavigate();
@@ -134,6 +135,19 @@ export default function Topbar({ onRefresh }: TopbarProps) {
       gap: spacing.lg,
       flexShrink: 0,
     }}>
+      {/* Hamburger — mobile only */}
+      {onMenuClick && (
+        <button
+          onClick={onMenuClick}
+          style={{ ...iconBtnStyle, border: 'none', marginRight: 4 }}
+          title="Menu"
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = colors.surfaceHover; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+        >
+          <Menu size={20} />
+        </button>
+      )}
+
       {/* Project switcher */}
       <div style={{ position: 'relative' }}>
         <div
