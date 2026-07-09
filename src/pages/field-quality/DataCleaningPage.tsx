@@ -6,10 +6,87 @@ import {
   Shield, Clock, Zap, Users, MapPin, ChevronDown,
   Navigation, RotateCcw, FileText, Play, Download,
   CheckCircle2, XCircle, Sliders, Flag, Trash2, Calendar, AlertTriangle,
+  Type, Check, Plus, X,
 } from 'lucide-react';
 import { usePlatform } from '../../platform/PlatformProvider';
 
 const BLUE = '#2463EB', GREEN = '#059669', AMBER = '#D97706', RED = '#DC2626', PURPLE = '#7C3AED';
+
+// ─── Text standardization ─────────────────────────────────────────────────────
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp: number[][] = [];
+  for (let i = 0; i <= m; i++) { dp[i] = [i]; for (let j = 1; j <= n; j++) dp[i][j] = 0; }
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i-1] === b[j-1]
+        ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+
+const CANONICAL_PLACES: string[] = [
+  'Lagos','Abuja','Kano','Ibadan','Port Harcourt','Kaduna','Enugu','Benin City',
+  'Onitsha','Warri','Aba','Jos','Sokoto','Maiduguri','Calabar','Uyo','Abeokuta',
+  'Akure','Osogbo','Ilorin','Owerri','Asaba','Bauchi','Yola','Makurdi','Lafia',
+  'Gusau','Birnin Kebbi','Dutse','Jalingo','Damaturu','Gombe','Lokoja','Minna',
+  'Awka','Umuahia','Abakaliki','Ado Ekiti','Ikeja','Surulere','Lekki',
+  'Victoria Island','Ajah','Yaba','Agege','Alimosho','Ikorodu','Mushin',
+  'Nairobi','Accra','Kampala','Dar es Salaam','Addis Ababa','Dakar','Freetown',
+  'Bamako','Ouagadougou','Conakry','Abidjan','Kumasi','Douala','Yaoundé',
+  'Kigali','Lusaka','Harare','Maputo','Windhoek','Gaborone','Lilongwe',
+];
+
+interface TextCorrection {
+  raw: string;
+  canonical: string;
+  distance: number;
+  count: number;
+  submissionIds: string[];
+  field: string;
+}
+
+interface CustomCorrection {
+  raw: string;
+  canonical: string;
+}
+
+function detectTextCorrections(submissions: Submission[]): TextCorrection[] {
+  const addrMap = new Map<string, string[]>();
+  for (const sub of submissions) {
+    if (!sub.gps?.address) continue;
+    const parts = sub.gps.address.split(',').map((p: string) => p.trim()).filter(Boolean);
+    for (const part of parts.slice(0, 3)) {
+      if (part.length < 2) continue;
+      const key = `addr:${part}`;
+      if (!addrMap.has(key)) addrMap.set(key, []);
+      addrMap.get(key)!.push(sub.submission_id);
+    }
+  }
+
+  const corrections: TextCorrection[] = [];
+  for (const [key, subIds] of Array.from(addrMap.entries())) {
+    const raw = key.replace(/^addr:/, '');
+    const rawLower = raw.toLowerCase();
+    let bestCanonical = '', bestDist = Infinity;
+    for (const canonical of CANONICAL_PLACES) {
+      const canonLower = canonical.toLowerCase();
+      if (rawLower === canonLower) { bestDist = 0; bestCanonical = canonical; break; }
+      const dist = levenshtein(rawLower, canonLower);
+      const threshold = Math.max(1, Math.floor(Math.min(rawLower.length, canonLower.length) * 0.25));
+      if (dist <= threshold && dist < bestDist) { bestDist = dist; bestCanonical = canonical; }
+    }
+    if (bestDist > 0 && bestDist < Infinity && bestCanonical) {
+      corrections.push({ raw, canonical: bestCanonical, distance: bestDist, count: subIds.length, submissionIds: subIds, field: 'GPS Address' });
+    }
+  }
+  return corrections.sort((a, b) => b.count - a.count || a.distance - b.distance);
+}
 
 // ─── Haversine distance (km) ──────────────────────────────────────────────────
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -150,7 +227,12 @@ export default function DataCleaningPage() {
   const [anonymizeGps, setAnonymizeGps] = useState(false);
   const [rules, setRules] = useState<RuleState[]>(DEFAULT_RULES);
   const [config, setConfig] = useState<RuleConfig>(DEFAULT_CONFIG);
-  const [tab, setTab] = useState<'removed' | 'by-rule' | 'provenance'>('removed');
+  const [tab, setTab] = useState<'removed' | 'by-rule' | 'provenance' | 'text-fix'>('removed');
+  const [approvedFixes, setApprovedFixes] = useState<Set<string>>(new Set());
+  const [customCorrections, setCustomCorrections] = useState<CustomCorrection[]>([]);
+  const [addingCustom, setAddingCustom] = useState(false);
+  const [customRaw, setCustomRaw] = useState('');
+  const [customCanonical, setCustomCanonical] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(CATEGORY_ORDER));
 
   useEffect(() => {
@@ -293,6 +375,21 @@ export default function DataCleaningPage() {
     };
   }, [submissions, rules, config]);
 
+  const textCorrections = useMemo(() => {
+    const detected = detectTextCorrections(submissions);
+    const customMapped: TextCorrection[] = customCorrections.map(cc => {
+      const affected = submissions.filter(s =>
+        s.gps?.address?.split(',').some((p: string) => p.trim().toLowerCase() === cc.raw.toLowerCase())
+      );
+      return { raw: cc.raw, canonical: cc.canonical, distance: 1, count: affected.length, submissionIds: affected.map(s => s.submission_id), field: 'Custom' };
+    });
+    return [...detected, ...customMapped];
+  }, [submissions, customCorrections]);
+
+  const approvedTextCount = useMemo(() =>
+    textCorrections.filter(c => approvedFixes.has(`${c.raw}→${c.canonical}`)).reduce((a, c) => a + c.count, 0),
+  [textCorrections, approvedFixes]);
+
   const applyClean = useCallback(async () => {
     if (!analysis?.removedIds.size) return;
     setApplying(true);
@@ -359,14 +456,30 @@ export default function DataCleaningPage() {
     }
   }, [analysis]);
 
+  const applyTextFix = useCallback((address: string): string => {
+    if (!approvedFixes.size) return address;
+    let fixed = address;
+    for (const correction of textCorrections) {
+      const key = `${correction.raw}→${correction.canonical}`;
+      if (!approvedFixes.has(key)) continue;
+      const parts = fixed.split(',');
+      fixed = parts.map((p: string) => {
+        const trimmed = p.trim();
+        return trimmed.toLowerCase() === correction.raw.toLowerCase() ? p.replace(trimmed, correction.canonical) : p;
+      }).join(',');
+    }
+    return fixed;
+  }, [approvedFixes, textCorrections]);
+
   const exportClean = useCallback(() => {
     if (!analysis) return;
     const headers = ['submission_id', 'enumerator_id', 'verdict', 'overall_score', 'duration_mins', 'scored_at',
+      'gps_address',
       ...(anonymizeGps ? ['gps_lat', 'gps_lon'] : [])];
     const rows = analysis.kept.map(s => {
-      const base = [s.submission_id, s.enumerator_id, s.verdict, s.overall_score, s.duration_mins ?? '', s.scored_at ?? ''];
+      const fixedAddr = s.gps?.address ? applyTextFix(s.gps.address) : '';
+      const base = [s.submission_id, s.enumerator_id, s.verdict, s.overall_score, s.duration_mins ?? '', s.scored_at ?? '', `"${fixedAddr}"`];
       if (anonymizeGps && s.gps?.lat && s.gps?.lon) {
-        // Reduce to 3 decimal places ≈ 111m precision — removes individual-level GPS detail
         base.push(s.gps.lat.toFixed(3), s.gps.lon.toFixed(3));
       } else if (anonymizeGps) {
         base.push('', '');
@@ -377,7 +490,7 @@ export default function DataCleaningPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const a = document.createElement('a'); a.href = url; a.download = 'clean-dataset.csv'; a.click();
     URL.revokeObjectURL(url);
-  }, [analysis, anonymizeGps]);
+  }, [analysis, anonymizeGps, applyTextFix]);
 
   // Group rules by category
   const rulesByCategory = useMemo(() => {
@@ -600,7 +713,7 @@ export default function DataCleaningPage() {
           <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E8EDF5', overflow: 'hidden', boxShadow: '0 2px 12px rgba(10,15,28,.06)' }}>
             {/* Tab bar */}
             <div style={{ display: 'flex', borderBottom: '1px solid #F1F5F9', background: '#FAFBFF' }}>
-              {([['removed', 'Submissions to Remove'], ['by-rule', 'By Rule'], ['provenance', 'Provenance Trail']] as const).map(([id, label]) => (
+              {([['removed', 'Submissions to Remove'], ['by-rule', 'By Rule'], ['text-fix', 'Text Standardizer'], ['provenance', 'Provenance Trail']] as const).map(([id, label]) => (
                 <button key={id} onClick={() => setTab(id)}
                   style={{
                     padding: '12px 18px', background: 'none', border: 'none', cursor: 'pointer',
@@ -613,6 +726,11 @@ export default function DataCleaningPage() {
                   {id === 'removed' && analysis && (
                     <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: analysis.removedIds.size ? RED + '18' : '#F1F5F9', color: analysis.removedIds.size ? RED : '#9CA3AF' }}>
                       {analysis.removedIds.size}
+                    </span>
+                  )}
+                  {id === 'text-fix' && textCorrections.length > 0 && (
+                    <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: AMBER + '18', color: AMBER }}>
+                      {textCorrections.length}
                     </span>
                   )}
                 </button>
@@ -728,6 +846,175 @@ export default function DataCleaningPage() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab: Text Standardizer */}
+            {tab === 'text-fix' && (
+              <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                {/* Header row */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>Value Standardization</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                      Detected inconsistent text values across submission data. Approve corrections to apply in your clean export.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    {textCorrections.length > 0 && (
+                      <button
+                        onClick={() => {
+                          const all = new Set(textCorrections.map(c => `${c.raw}→${c.canonical}`));
+                          setApprovedFixes(prev => prev.size === all.size ? new Set() : all);
+                        }}
+                        style={{ padding: '6px 12px', border: '1px solid #E2E8F0', borderRadius: 7, background: 'white', fontSize: 11.5, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                        {approvedFixes.size === textCorrections.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setAddingCustom(true); setCustomRaw(''); setCustomCanonical(''); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: `1px solid ${BLUE}40`, borderRadius: 7, background: BLUE + '08', fontSize: 11.5, fontWeight: 600, color: BLUE, cursor: 'pointer' }}>
+                      <Plus size={11} /> Add Rule
+                    </button>
+                  </div>
+                </div>
+
+                {/* Custom rule composer */}
+                <AnimatePresence>
+                  {addingCustom && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                      style={{ overflow: 'hidden' }}>
+                      <div style={{ background: '#F8FAFF', borderRadius: 10, border: `1px solid ${BLUE}25`, padding: '14px 16px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', flexShrink: 0 }}>Replace</div>
+                        <input
+                          value={customRaw} onChange={e => setCustomRaw(e.target.value)}
+                          placeholder="e.g. Lago"
+                          style={{ flex: 1, minWidth: 100, padding: '7px 10px', borderRadius: 7, border: '1px solid #E2E8F0', fontSize: 13, fontFamily: 'monospace', outline: 'none' }}
+                        />
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', flexShrink: 0 }}>with</div>
+                        <input
+                          value={customCanonical} onChange={e => setCustomCanonical(e.target.value)}
+                          placeholder="e.g. Lagos"
+                          style={{ flex: 1, minWidth: 100, padding: '7px 10px', borderRadius: 7, border: '1px solid #E2E8F0', fontSize: 13, fontFamily: 'monospace', outline: 'none' }}
+                        />
+                        <button
+                          onClick={() => {
+                            if (customRaw.trim() && customCanonical.trim()) {
+                              setCustomCorrections(prev => [...prev, { raw: customRaw.trim(), canonical: customCanonical.trim() }]);
+                              const key = `${customRaw.trim()}→${customCanonical.trim()}`;
+                              setApprovedFixes(prev => new Set(Array.from(prev).concat(key)));
+                            }
+                            setAddingCustom(false);
+                          }}
+                          disabled={!customRaw.trim() || !customCanonical.trim()}
+                          style={{ padding: '7px 14px', border: 'none', borderRadius: 7, background: BLUE, fontSize: 12, fontWeight: 700, color: 'white', cursor: 'pointer', flexShrink: 0 }}>
+                          <Check size={12} />
+                        </button>
+                        <button onClick={() => setAddingCustom(false)}
+                          style={{ padding: '7px 10px', border: '1px solid #E2E8F0', borderRadius: 7, background: 'white', fontSize: 12, cursor: 'pointer', color: '#9CA3AF', flexShrink: 0 }}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Correction list */}
+                {textCorrections.length === 0 ? (
+                  <div style={{ padding: '32px 0', textAlign: 'center' }}>
+                    <Type size={28} color="#D1D5DB" style={{ marginBottom: 10 }} />
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: '#374151', marginBottom: 4 }}>No text inconsistencies detected</div>
+                    <div style={{ fontSize: 12, color: '#9CA3AF' }}>
+                      {submissions.length === 0
+                        ? 'Load submission data to analyse text values.'
+                        : 'All address values match known canonical forms. Use "Add Rule" to create a custom correction.'}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {textCorrections.map((c, i) => {
+                      const key = `${c.raw}→${c.canonical}`;
+                      const approved = approvedFixes.has(key);
+                      const isCustom = c.field === 'Custom';
+                      const confidence = Math.max(0, Math.round((1 - c.distance / Math.max(c.raw.length, c.canonical.length)) * 100));
+                      return (
+                        <motion.div key={key} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
+                            borderRadius: 10, border: `1px solid ${approved ? GREEN + '30' : '#E8EDF5'}`,
+                            background: approved ? GREEN + '06' : '#FAFBFF',
+                            transition: 'all .15s',
+                          }}>
+                          {/* Approve checkbox */}
+                          <button onClick={() => setApprovedFixes(prev => {
+                              const n = new Set(prev);
+                              n.has(key) ? n.delete(key) : n.add(key);
+                              return n;
+                            })}
+                            style={{
+                              width: 18, height: 18, borderRadius: 5, border: `2px solid ${approved ? GREEN : '#D1D5DB'}`,
+                              background: approved ? GREEN : 'white', display: 'grid', placeItems: 'center',
+                              cursor: 'pointer', flexShrink: 0, transition: 'all .15s',
+                            }}>
+                            {approved && <Check size={10} color="white" strokeWidth={3} />}
+                          </button>
+
+                          {/* Before → After */}
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
+                            <code style={{ fontSize: 12.5, fontFamily: 'monospace', fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 5 }}>{c.raw}</code>
+                            <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>→</span>
+                            <code style={{ fontSize: 12.5, fontFamily: 'monospace', fontWeight: 700, color: '#059669', background: '#F0FDF4', padding: '2px 8px', borderRadius: 5 }}>{c.canonical}</code>
+                          </div>
+
+                          {/* Meta chips */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', padding: '2px 7px', borderRadius: 4, background: '#F1F5F9' }}>
+                              {c.field}
+                            </span>
+                            {!isCustom && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: confidence >= 80 ? GREEN + '18' : AMBER + '18', color: confidence >= 80 ? GREEN : AMBER }}>
+                                {confidence}% match
+                              </span>
+                            )}
+                            {isCustom && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: BLUE + '18', color: BLUE }}>custom</span>
+                            )}
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', minWidth: 28, textAlign: 'right', fontFamily: 'monospace' }}>
+                              {c.count}
+                            </span>
+                            <span style={{ fontSize: 10, color: '#9CA3AF' }}>sub{c.count !== 1 ? 's' : ''}</span>
+                            {isCustom && (
+                              <button onClick={() => setCustomCorrections(prev => prev.filter(cc => !(cc.raw === c.raw && cc.canonical === c.canonical)))}
+                                style={{ padding: 3, border: 'none', background: 'none', cursor: 'pointer', color: '#CBD5E1', lineHeight: 0 }}>
+                                <X size={11} />
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Apply summary */}
+                {approvedFixes.size > 0 && (
+                  <div style={{ borderRadius: 10, background: GREEN + '0A', border: `1px solid ${GREEN}25`, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: GREEN }}>
+                        <Check size={12} style={{ marginRight: 5, verticalAlign: 'middle' }} />
+                        {approvedFixes.size} correction{approvedFixes.size !== 1 ? 's' : ''} approved · {approvedTextCount} submission{approvedTextCount !== 1 ? 's' : ''} affected
+                      </div>
+                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                        Corrections apply when you export the clean CSV. Source data is not modified.
+                      </div>
+                    </div>
+                    <button onClick={exportClean}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: 'none', borderRadius: 8, background: GREEN, fontSize: 12, fontWeight: 700, color: 'white', cursor: 'pointer', flexShrink: 0 }}>
+                      <Download size={12} /> Export with Fixes
+                    </button>
                   </div>
                 )}
               </div>
