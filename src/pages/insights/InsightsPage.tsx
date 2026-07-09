@@ -299,7 +299,7 @@ export default function InsightsPage() {
             <div style={{ fontSize: 12.5, color: "#9CA3AF" }}>Ada will brief you here once interviews are ready for analysis.</div>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div data-ada-target="insights-projects" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {projects.map(p => <ProjectCard key={p.id} project={p} onClick={() => navigate(`/insights/${p.id}`)} />)}
           </div>
         )}

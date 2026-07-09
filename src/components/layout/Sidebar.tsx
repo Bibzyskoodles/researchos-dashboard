@@ -3,7 +3,8 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { usePlatform } from '../../platform/PlatformProvider';
-import { LogOut } from 'lucide-react';
+import { useGuidedExperience } from '../../ada/GuidedExperienceContext';
+import { LogOut, Sparkles } from 'lucide-react';
 
 const BLUE = '#2463EB';
 
@@ -11,6 +12,7 @@ export default function Sidebar() {
   const { user, org, logout } = useAuth();
   const { navigatePage } = useAda();
   const { navigation } = usePlatform();
+  const { showLauncher } = useGuidedExperience();
 
   return (
     <aside style={{
@@ -87,8 +89,27 @@ export default function Sidebar() {
         ))}
       </div>
 
+      {/* Learn with Ada */}
+      <div style={{ padding: '6px 8px', borderTop: '1px solid #F1F5F9' }}>
+        <button
+          onClick={showLauncher}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            width: '100%', padding: '8px 10px', borderRadius: 8,
+            background: 'linear-gradient(135deg, #EFF4FF, #F5F0FF)',
+            border: '1px solid #C7D2FE', cursor: 'pointer',
+            fontFamily: 'Inter, sans-serif', transition: 'all .15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #DBEAFE, #EDE9FE)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #EFF4FF, #F5F0FF)'; }}
+        >
+          <Sparkles size={13} color={BLUE} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: BLUE }}>Learn with Ada</span>
+        </button>
+      </div>
+
       {/* User */}
-      <div style={{ padding: '10px 8px', borderTop: '1px solid #F1F5F9' }}>
+      <div style={{ padding: '10px 8px' }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '7px 8px', borderRadius: 7,

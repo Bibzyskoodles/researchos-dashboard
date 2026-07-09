@@ -158,7 +158,7 @@ export default function QuestionnairePage() {
   }, [state.unsavedChanges]);
 
   return (
-    <div style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div data-ada-target="questionnaire-builder" style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <AnimatePresence mode="wait">
         {state.phase === 'consultation' && (
           <motion.div key="consultation" style={{ flex: 1, overflow: 'auto' }}

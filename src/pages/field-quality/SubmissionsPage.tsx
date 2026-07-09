@@ -229,7 +229,7 @@ export default function SubmissionsPage(){
       </AnimatePresence>
 
       <div style={{display:"grid",gridTemplateColumns:selected?"1fr 400px":"1fr",gap:16,alignItems:"start"}}>
-        <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
+        <div data-ada-target="submissions-table" style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
           {!loading && filtered.length > 0 && (
             <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 20px",borderBottom:"1px solid #F1F5F9",background:"#FAFBFF"}}>
               <div onClick={toggleAll} style={{cursor:"pointer",color:allChecked?BLUE:someChecked?"#94A3B8":"#CBD5E1",flexShrink:0,display:"grid",placeItems:"center"}}>

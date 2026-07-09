@@ -207,7 +207,7 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          <div style={{ width: 220, flexShrink: 0, padding: "28px 20px 28px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 }}>
+          <div data-ada-target="overview-actions" style={{ width: 220, flexShrink: 0, padding: "28px 20px 28px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.3)", textTransform: "uppercase", letterSpacing: .8, marginBottom: 4 }}>Recommended</div>
             {[
               s.flag_count > 0 ? { label: `Review ${s.flag_count} flagged submission${s.flag_count > 1 ? "s" : ""}`, to: "/submissions" } : null,
@@ -226,7 +226,7 @@ export default function OverviewPage() {
       </motion.div>
 
       {/* KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 14 }}>
+      <div data-ada-target="overview-stats" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 14 }}>
         <KpiCard label="Total Submissions" value={s.total_submissions} sub="Lagos Retail Audit" trend={s.score_trend} color="#080D1A" sparkData={chartScores} />
         <KpiCard label="Avg Trust Score" value={`${s.avg_score}`} sub={s.avg_score >= 80 ? "Excellent quality" : "Good quality"} color={GREEN} sparkData={chartScores} />
         <KpiCard label="Pass Rate" value={`${s.pass_rate}%`} sub={`${s.pass_count} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />

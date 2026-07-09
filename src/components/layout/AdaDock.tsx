@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useAda, parseAdaCommand, AdaCommand } from "../../ada/AdaContext";
+import { useGuidedExperience } from "../../ada/GuidedExperienceContext";
 import { adaApi, dashboardApi } from "../../services/api";
 import { X, Send, Mic, BarChart2, Map, FileText, Users, Zap, MessageSquare, Volume2, VolumeX } from "lucide-react";
 import { Submission } from "../../types";
@@ -10,11 +11,8 @@ import { Submission } from "../../types";
 const BLUE = "#2463EB";
 const GREEN = "#059669";
 
-// ElevenLabs voice ID — Rachel (natural, warm female voice)
-const EL_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
-const EL_KEY = process.env.REACT_APP_ELEVENLABS_KEY || "";
+const OAI_KEY = process.env.REACT_APP_OPENAI_KEY || "";
 
-// Strip markdown for speech
 function stripMarkdown(text: string): string {
   return text
     .replace(/\*\*([^*]+)\*\*/g, "$1")
@@ -24,7 +22,7 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-// Neural TTS via ElevenLabs if key available, else Web Speech API
+// Neural TTS: OpenAI tts-1-hd (nova voice) → Web Speech fallback
 async function speak(
   text: string,
   voiceOn: boolean,
@@ -35,19 +33,14 @@ async function speak(
   const clean = stripMarkdown(text);
   if (!clean) { onEnd?.(); return; }
 
-  // --- ElevenLabs (natural neural voice) ---
-  if (EL_KEY) {
+  // --- OpenAI TTS (natural neural voice) ---
+  if (OAI_KEY) {
     try {
-      // Stop any playing audio
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE_ID}/stream`, {
+      const res = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
-        headers: { "xi-api-key": EL_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: clean,
-          model_id: "eleven_turbo_v2",
-          voice_settings: { stability: 0.4, similarity_boost: 0.75, style: 0.35, use_speaker_boost: true },
-        }),
+        headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "tts-1-hd", input: clean, voice: "nova", speed: 1.0 }),
       });
       if (res.ok) {
         const blob = await res.blob();
@@ -62,7 +55,7 @@ async function speak(
     } catch { /* fall through to Web Speech */ }
   }
 
-  // --- Web Speech fallback (Google neural voices are decent on Chrome) ---
+  // --- Web Speech fallback ---
   const synth = window.speechSynthesis;
   if (!synth) { onEnd?.(); return; }
   synth.cancel();
@@ -71,7 +64,6 @@ async function speak(
     const utt = new SpeechSynthesisUtterance(clean);
     utt.rate = 1.0;
     utt.pitch = 1.0;
-    // Prefer Google neural voices (Chrome), then any female, then any English
     const voices = synth.getVoices();
     const preferred =
       voices.find(v => /google.*female|google.*uk.*female/i.test(v.name)) ||
@@ -177,6 +169,7 @@ function edgeTarget(edge: string, along: number): { x: string; y: string } {
 
 export default function AdaDock() {
   const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage, dispatchCommand } = useAda();
+  const { store: guidedStore } = useGuidedExperience();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [listening, setListening] = useState(false);
@@ -441,9 +434,9 @@ export default function AdaDock() {
 
   return (
     <>
-      {/* Floating avatar */}
+      {/* Floating avatar — hidden during guided experience */}
       <AnimatePresence>
-        {visible && (
+        {visible && !guidedStore.active && (
           <motion.div
             key="ada-dock"
             style={{ position: "fixed", left: `${x * 100}vw`, top: `${y * 100}vh`, transform: "translate(-50%,-50%)", zIndex: 1000, cursor: "pointer" }}
@@ -649,7 +642,7 @@ export default function AdaDock() {
                 </motion.button>
               </div>
               <div style={{ fontSize: 10, color: "#CBD5E1", textAlign: "center", marginTop: 7 }}>
-                {EL_KEY ? "Ada · Neural voice (ElevenLabs)" : "Ada · Voice enabled"} · {handsFree ? "Hands-free mode on" : "Tap mic for voice"}
+                {OAI_KEY ? "Ada · Neural voice (OpenAI)" : "Ada · Voice enabled"} · {handsFree ? "Hands-free mode on" : "Tap mic for voice"}
               </div>
             </div>
           </motion.div>

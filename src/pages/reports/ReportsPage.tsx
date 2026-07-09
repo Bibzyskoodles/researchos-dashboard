@@ -67,7 +67,7 @@ export default function ReportsPage(){
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}}>
+      <div data-ada-target="reports-list" style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}}>
         {REPORT_TYPES.map(r=>{
           const isDone=generated.includes(r.id);
           const isGenerating=generating===r.id;

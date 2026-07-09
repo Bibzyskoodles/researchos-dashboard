@@ -55,7 +55,7 @@ export default function MapPage() {
   ].filter(Boolean) as { key: string; label: string; value: number; color: string }[];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "calc(100vh - 108px)" }}>
+    <div data-ada-target="coverage-map" style={{ display: "flex", flexDirection: "column", gap: 12, height: "calc(100vh - 108px)" }}>
 
       {/* Compact header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
