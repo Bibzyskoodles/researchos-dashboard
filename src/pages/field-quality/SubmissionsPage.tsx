@@ -132,13 +132,16 @@ export default function SubmissionsPage(){
         </div>
         <div style={{display:"flex",gap:6}}>
           {["ALL","PASS","FLAG","REJECT"].map(v=>(
-            <button key={v} onClick={()=>setFilter(v)}
-              style={{padding:"6px 14px",borderRadius:7,border:"1px solid",fontSize:11.5,fontWeight:600,cursor:"pointer",transition:"all .15s",
+            <motion.button key={v} onClick={()=>setFilter(v)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:11.5,fontWeight:600,cursor:"pointer",transition:"all .2s cubic-bezier(0.25,0.46,0.45,0.94)",
                 borderColor:filter===v?BLUE:"#E2E8F0",
                 background:filter===v?BLUE:"white",
-                color:filter===v?"white":"#6B7280"}}>
+                color:filter===v?"white":"#6B7280",
+                boxShadow:filter===v?"0 2px 8px rgba(36,99,235,0.15)":"none"}}>
               {v}
-            </button>
+            </motion.button>
           ))}
         </div>
       </div>
@@ -180,11 +183,12 @@ export default function SubmissionsPage(){
             const isFirstFlag = sub.verdict==="FLAG" && !filtered.slice(0,i).some(s=>s.verdict==="FLAG");
             return(
             <motion.div key={sub.submission_id}
-              whileHover={{background:"#FAFBFF"}}
+              whileHover={{background:"#F8FAFF", boxShadow: "0 1px 3px rgba(0,61,165,0.08)"}}
               data-ada-target={isFirstFlag ? "flagged-row" : undefined}
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",borderBottom:i<filtered.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
                 background:selected?.submission_id===sub.submission_id?"#F0F7FF":"white",
-                borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
+                borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent",
+                transition:"all 0.2s cubic-bezier(0.25,0.46,0.45,0.94)"}}>
               <input type="checkbox" checked={bulkSelected.has(sub.submission_id)}
                 onChange={(e)=>{e.stopPropagation();const s=new Set(bulkSelected);if(e.target.checked)s.add(sub.submission_id);else s.delete(sub.submission_id);setBulkSelected(s);}}
                 onClick={(e)=>e.stopPropagation()}
