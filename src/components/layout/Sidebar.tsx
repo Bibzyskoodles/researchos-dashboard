@@ -35,22 +35,12 @@ export default function Sidebar() {
           alt="ResearchOS"
           style={{
             width: '100%',
-            maxWidth: 140,
+            maxWidth: 210,
             height: 'auto',
             objectFit: 'contain',
             display: 'block',
           }}
         />
-        <div style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color: colors.textTertiary,
-          textAlign: 'center',
-          lineHeight: 1.4,
-          letterSpacing: 0.3,
-        }}>
-          AI-Powered<br />Data Quality
-        </div>
       </div>
 
       {/* Nav */}
