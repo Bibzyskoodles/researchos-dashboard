@@ -271,6 +271,19 @@ export default function GuidedOverlay() {
   const isDemo = store.mode === 'demo';
   const isDemoIntroStep = isDemo && currentStep?.id?.startsWith('demo-');
 
+  // Measure a target element and update highlight rect
+  const measureTarget = useCallback((target: string) => {
+    const el = document.querySelector(`[data-ada-target="${target}"]`);
+    if (el) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 20 && r.height > 10) {
+        setHighlight({ x: r.left, y: r.top, width: r.width, height: r.height });
+        return true;
+      }
+    }
+    return false;
+  }, [setHighlight]);
+
   // Navigate + find target on step change
   useEffect(() => {
     if (!store.active || !currentStep) return;
@@ -280,19 +293,23 @@ export default function GuidedOverlay() {
     if (!currentStep.target) { setHighlight(null); return; }
 
     setHighlight(null);
-    const tryFind = (delay: number) => setTimeout(() => {
-      const el = document.querySelector(`[data-ada-target="${currentStep.target}"]`);
-      if (el) {
-        const r = el.getBoundingClientRect();
-        if (r.width > 20 && r.height > 10) setHighlight({ x: r.left, y: r.top, width: r.width, height: r.height });
-      }
-    }, delay);
-
-    const t1 = tryFind(260);
-    const t2 = tryFind(950);
+    const t1 = setTimeout(() => measureTarget(currentStep.target!), 280);
+    const t2 = setTimeout(() => measureTarget(currentStep.target!), 1000);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.active, store.stepIndex, currentStep?.id]);
+
+  // Re-measure on scroll/resize so spotlight tracks the element
+  useEffect(() => {
+    if (!store.active || !currentStep?.target) return;
+    const refresh = () => measureTarget(currentStep.target!);
+    window.addEventListener('scroll', refresh, { passive: true, capture: true });
+    window.addEventListener('resize', refresh, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', refresh, true);
+      window.removeEventListener('resize', refresh);
+    };
+  }, [store.active, currentStep?.target, measureTarget]);
 
   // TTS on step change (skip if answering a question)
   useEffect(() => {
@@ -449,7 +466,7 @@ export default function GuidedOverlay() {
           {/* Physical Ada avatar — travels independently to stand beside elements */}
           <AdaAvatar rect={highlightRect} isSpeaking={isSpeaking} />
 
-          {/* Speech bubble — always bottom-center */}
+          {/* Speech bubble — bottom-left, clear of main content */}
           <motion.div
             key={`bubble-${currentStep.id}-${showQAAnswer ? 'qa' : 'step'}`}
             initial={{ opacity: 0, y: 20, scale: 0.97 }}
@@ -457,8 +474,8 @@ export default function GuidedOverlay() {
             exit={{ opacity: 0, y: 20 }}
             transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
             style={{
-              position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-              width: 520, maxWidth: 'calc(100vw - 48px)',
+              position: 'absolute', bottom: 20, left: 240,
+              width: 420, maxWidth: 'calc(100vw - 260px)',
               background: 'white', borderRadius: 20,
               boxShadow: '0 28px 72px rgba(8,13,26,0.5), 0 4px 16px rgba(8,13,26,0.2)',
               border: '1px solid rgba(255,255,255,0.92)',

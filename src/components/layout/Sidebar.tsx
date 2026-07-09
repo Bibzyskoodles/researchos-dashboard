@@ -4,7 +4,7 @@ import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { usePlatform } from '../../platform/PlatformProvider';
 import { useGuidedExperience } from '../../ada/GuidedExperienceContext';
-import { LogOut, Sparkles } from 'lucide-react';
+import { LogOut, Sparkles, Video } from 'lucide-react';
 
 const BLUE = '#2463EB';
 
@@ -89,8 +89,8 @@ export default function Sidebar() {
         ))}
       </div>
 
-      {/* Learn with Ada */}
-      <div style={{ padding: '6px 8px', borderTop: '1px solid #F1F5F9' }}>
+      {/* Learn with Ada + Meeting */}
+      <div style={{ padding: '6px 8px', borderTop: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: 5 }}>
         <button
           onClick={showLauncher}
           style={{
@@ -106,6 +106,23 @@ export default function Sidebar() {
           <Sparkles size={13} color={BLUE} />
           <span style={{ fontSize: 12, fontWeight: 600, color: BLUE }}>Learn with Ada</span>
         </button>
+        <a
+          href="/meeting"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            width: '100%', padding: '7px 10px', borderRadius: 8,
+            background: 'rgba(220,38,38,0.05)',
+            border: '1px solid rgba(220,38,38,0.2)', cursor: 'pointer',
+            fontFamily: 'Inter, sans-serif', textDecoration: 'none', transition: 'all .15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(220,38,38,0.1)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(220,38,38,0.05)'; }}
+        >
+          <Video size={13} color="#DC2626" />
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#DC2626' }}>Meeting Ada</span>
+        </a>
       </div>
 
       {/* User */}

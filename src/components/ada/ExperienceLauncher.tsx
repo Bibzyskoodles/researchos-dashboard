@@ -33,9 +33,9 @@ export default function ExperienceLauncher() {
             exit={{ opacity: 0, scale: 0.94, y: 16 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             style={{
-              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+              position: 'fixed', top: 40, left: '50%', transform: 'translateX(-50%)',
               zIndex: 1900, width: 520, maxWidth: 'calc(100vw - 32px)',
-              maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
+              maxHeight: 'calc(100vh - 64px)', overflowY: 'auto',
               background: 'white', borderRadius: 20,
               boxShadow: '0 24px 80px rgba(8,13,26,0.28), 0 4px 16px rgba(8,13,26,0.1)',
               fontFamily: 'Inter, sans-serif',

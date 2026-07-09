@@ -19,6 +19,7 @@ import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 import PricingPage from './pages/PricingPage';
 import QuestionnairePage from './pages/questionnaire/QuestionnairePage';
 import PublicPreview from './pages/questionnaire/PublicPreview';
+import MeetingAdaPage from './pages/MeetingAdaPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -40,6 +41,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/meeting" element={<MeetingAdaPage />} />
       <Route path="/preview/:token" element={<PublicPreview />} />
       <Route path="/" element={
         <ProtectedRoute>
