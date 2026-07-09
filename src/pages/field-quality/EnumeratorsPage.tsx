@@ -46,8 +46,8 @@ export default function EnumeratorsPage(){
           const medals=["🥇","🥈","🥉"];
           const col=COLORS[i];
           return(
-            <motion.div key={e.enumerator_id} whileHover={{y:-3}}
-              style={{background:"white",borderRadius:16,padding:"20px",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)",cursor:"pointer",position:"relative",overflow:"hidden"}}
+            <motion.div key={e.enumerator_id} whileHover={{y:-4, boxShadow: "0 8px 24px rgba(0,61,165,0.12)"}}
+              style={{background:"white",borderRadius:16,padding:"20px",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)",cursor:"pointer",position:"relative",overflow:"hidden",transition:"all 0.3s cubic-bezier(0.25,0.46,0.45,0.94)"}}
               onClick={()=>setSelected(selected?.enumerator_id===e.enumerator_id?null:e)}>
               <div style={{position:"absolute",top:0,right:0,width:80,height:80,borderRadius:"0 0 0 80px",background:col+"12"}}/>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12}}>
@@ -85,11 +85,12 @@ export default function EnumeratorsPage(){
           {enums.map((e,i)=>{
             const col=COLORS[i%COLORS.length];
             return(
-              <motion.div key={e.enumerator_id} whileHover={{background:"#FAFBFF"}}
+              <motion.div key={e.enumerator_id} whileHover={{background:"#F8FAFF", boxShadow: "0 1px 3px rgba(0,61,165,0.08)"}}
                 onClick={()=>setSelected(selected?.enumerator_id===e.enumerator_id?null:e)}
                 style={{display:"flex",alignItems:"center",gap:12,padding:"12px 20px",borderBottom:i<enums.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
                   background:selected?.enumerator_id===e.enumerator_id?"#F0F7FF":"white",
-                  borderLeft:selected?.enumerator_id===e.enumerator_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
+                  borderLeft:selected?.enumerator_id===e.enumerator_id?`3px solid ${BLUE}`:"3px solid transparent",
+                  transition:"all 0.2s cubic-bezier(0.25,0.46,0.45,0.94)"}}>
                 <div style={{fontSize:12,fontWeight:700,fontFamily:"monospace",color:i<3?AMBER:"#9CA3AF",width:20}}>{i+1}</div>
                 <div style={{width:36,height:36,borderRadius:"50%",background:col,display:"grid",placeItems:"center",fontSize:11,fontWeight:700,color:"white",flexShrink:0}}>{e.enumerator_id.slice(-2)}</div>
                 <div style={{flex:1}}>
