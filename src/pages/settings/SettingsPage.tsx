@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Layers, Users, Shield, Palette, Puzzle, Brain,
@@ -7,6 +7,9 @@ import {
   Upload, Plus, Trash2, Eye, EyeOff, Copy, Zap, Globe,
   Download, ExternalLink, X,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from "recharts";
 import { useAda } from "../../ada/AdaContext";
 
 const BLUE = "#2463EB";
@@ -658,38 +661,364 @@ function NotificationsSection() {
   );
 }
 
-function BillingSection() {
-  const plan = {name:"Professional",price:"$299/month",subs:500,users:10,storage:"10 GB"};
-  const usage = {subs:182,users:3,storage:"2.4 GB"};
+// ─── Billing mock data ────────────────────────────────────────────────────────
+const MOCK_BILLING = {
+  plan: "Professional",
+  status: "active" as "active" | "trial" | "expired",
+  cycle_start: "2026-07-01",
+  cycle_end: "2026-07-31",
+  days_remaining: 24,
+  days_total: 31,
+  currency: "NGN" as "NGN" | "USD",
+  monthly_price: 350000,
+  next_billing: "2026-08-01",
+  capacity: [
+    { key: "fieldscore",     label: "FieldScore Verifications",      icon: "🔍", used: 347, total: 2000, color: "#2463EB" },
+    { key: "insightscore",   label: "Qualitative Interviews Analysed",icon: "💬", used: 12,  total: 200,  color: "#7C3AED" },
+    { key: "reports",        label: "Executive Reports Generated",    icon: "📄", used: 3,   total: 20,   color: "#059669" },
+    { key: "presentations",  label: "PowerPoint Presentations",       icon: "📊", used: 1,   total: 10,   color: "#D97706" },
+    { key: "questionnaires", label: "Questionnaires Generated",       icon: "📋", used: 0,   total: 5,    color: "#06B6D4" },
+  ],
+  intelligence_credits: { used: 1240, total: 5000, label: "Research Intelligence Credits" },
+  credits_breakdown: [
+    { label: "FieldScore AI scoring",    value: 890,  color: "#2463EB" },
+    { label: "InsightScore analysis",    value: 280,  color: "#7C3AED" },
+    { label: "Report generation",        value: 70,   color: "#059669" },
+  ],
+  usage_history: [
+    { month: "May",  fieldscore: 210, insightscore: 8,  reports: 2 },
+    { month: "Jun",  fieldscore: 290, insightscore: 10, reports: 3 },
+    { month: "Jul",  fieldscore: 347, insightscore: 12, reports: 3 },
+  ],
+  invoice_history: [
+    { date: "2026-07-01", amount: 350000, status: "paid", ref: "INV-2026-007" },
+    { date: "2026-06-01", amount: 350000, status: "paid", ref: "INV-2026-006" },
+    { date: "2026-05-01", amount: 350000, status: "paid", ref: "INV-2026-005" },
+  ],
+};
+
+// ─── Animated counter ─────────────────────────────────────────────────────────
+function AnimatedNumber({ target }: { target: number }) {
+  const [display, setDisplay] = useState(0);
+  const raf = useRef<number>(0);
+  useEffect(() => {
+    const start = performance.now();
+    const duration = 900;
+    function tick(now: number) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(ease * target));
+      if (t < 1) raf.current = requestAnimationFrame(tick);
+    }
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [target]);
+  return <>{display.toLocaleString()}</>;
+}
+
+// ─── Animated capacity bar ────────────────────────────────────────────────────
+function CapacityBar({ pct, color, animate: shouldAnimate }: { pct: number; color: string; animate: boolean }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <SettingsCard style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div><div style={{ fontSize: 20, fontWeight: 800, color: "#111827", letterSpacing: -0.5 }}>{plan.name}</div><div style={{ fontSize: 13, color: "#9CA3AF" }}>{plan.price} · Renews 1 August 2025</div></div>
-          <div style={{ display: "flex", gap: 8 }}><button style={{ ...BTN_GHOST, fontSize: 12 }}>Change Plan</button><button style={{ ...BTN_PRIMARY, fontSize: 12 }}>Upgrade to Enterprise</button></div>
+    <div style={{ height: 6, background: "#F1F5F9", borderRadius: 3, overflow: "hidden" }}>
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: shouldAnimate ? `${pct}%` : 0 }}
+        transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}
+        style={{ height: "100%", background: color, borderRadius: 3 }}
+      />
+    </div>
+  );
+}
+
+// ─── Cycle ring ───────────────────────────────────────────────────────────────
+function CycleRing({ used, total }: { used: number; total: number }) {
+  const r = 42;
+  const circ = 2 * Math.PI * r;
+  const pct = used / total;
+  return (
+    <svg width={108} height={108} viewBox="0 0 108 108">
+      <circle cx={54} cy={54} r={r} fill="none" stroke="rgba(255,255,255,.1)" strokeWidth={8} />
+      <motion.circle
+        cx={54} cy={54} r={r} fill="none"
+        stroke="#2463EB" strokeWidth={8}
+        strokeLinecap="round"
+        strokeDasharray={circ}
+        initial={{ strokeDashoffset: circ }}
+        animate={{ strokeDashoffset: circ * (1 - pct) }}
+        transition={{ duration: 1.1, ease: "easeOut" }}
+        transform="rotate(-90 54 54)"
+      />
+      <text x={54} y={50} textAnchor="middle" fill="white" fontSize={20} fontWeight={800} fontFamily="Inter,sans-serif">{total - used}</text>
+      <text x={54} y={66} textAnchor="middle" fill="rgba(255,255,255,.5)" fontSize={9} fontFamily="Inter,sans-serif">DAYS LEFT</text>
+    </svg>
+  );
+}
+
+// ─── Toast helper ─────────────────────────────────────────────────────────────
+function useToast() {
+  const [msg, setMsg] = useState<string | null>(null);
+  const show = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 2200); };
+  return { msg, show };
+}
+
+// ─── BillingSection ───────────────────────────────────────────────────────────
+function BillingSection() {
+  const { addMessage, setState } = useAda();
+  const [currency, setCurrency] = useState<"NGN" | "USD">(MOCK_BILLING.currency);
+  const [barsReady, setBarsReady] = useState(false);
+  const toast = useToast();
+
+  const B = MOCK_BILLING;
+  const rate = 1600;
+  const fmt = (n: number) => currency === "NGN"
+    ? `₦${n.toLocaleString()}`
+    : `$${(n / rate).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  const statusColor = B.status === "active" ? GREEN : B.status === "trial" ? AMBER : RED;
+  const statusLabel = B.status === "active" ? "Active" : B.status === "trial" ? "Trial" : "Expired";
+
+  const primaryUsagePct = Math.round((B.capacity[0].used / B.capacity[0].total) * 100);
+  const adaMsg =
+    primaryUsagePct < 50
+      ? `You're in great shape this month. ${B.capacity[0].used.toLocaleString()} of your ${B.capacity[0].total.toLocaleString()} verifications used. Plenty of capacity for your current projects.`
+      : primaryUsagePct < 80
+      ? `You've used about half your monthly capacity. If you have more fieldwork planned this month, you may want to keep an eye on your FieldScore verifications.`
+      : `You're approaching your monthly limit on FieldScore verifications. I'd recommend reviewing your remaining projects or considering an upgrade before your cycle resets.`;
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setState("thinking");
+      setTimeout(() => {
+        setState("speaking");
+        addMessage({ id: Date.now().toString(), role: "assistant", content: adaMsg, timestamp: new Date().toISOString(), page: "settings-billing" });
+        setTimeout(() => setState("idle"), 4000);
+      }, 600);
+    }, 1200);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { const t = setTimeout(() => setBarsReady(true), 200); return () => clearTimeout(t); }, []);
+
+  const handleDownload = () => toast.show("Invoice download coming soon.");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* Toast */}
+      <AnimatePresence>
+        {toast.msg && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{ position: "fixed", top: 20, right: 24, zIndex: 9999, background: "#111827", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,.25)" }}>
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Currency toggle */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 11.5, color: "#9CA3AF" }}>Currency:</span>
+        {(["NGN", "USD"] as const).map(c => (
+          <button key={c} onClick={() => setCurrency(c)} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #E2E8F0", background: currency === c ? BLUE : "white", color: currency === c ? "white" : "#6B7280", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif", transition: "all .15s" }}>
+            {c === "NGN" ? "₦ NGN" : "$ USD"}
+          </button>
+        ))}
+        {currency === "USD" && <span style={{ fontSize: 10.5, color: "#9CA3AF" }}>≈ ₦1,600/$1</span>}
+      </div>
+
+      {/* Plan hero */}
+      <div style={{ background: "linear-gradient(135deg,#1A1F3E 0%,#0F172A 40%,#1E1B4B 100%)", borderRadius: 18, padding: 28, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200, background: "radial-gradient(circle,rgba(36,99,235,.25) 0%,transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 20 }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.35)", textTransform: "uppercase" as const, letterSpacing: 1, marginBottom: 8 }}>Current Plan</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <span style={{ fontSize: 28, fontWeight: 900, color: "white", letterSpacing: -1 }}>{B.plan}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: `${statusColor}28`, color: statusColor, border: `1px solid ${statusColor}40` }}>{statusLabel}</span>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "white", letterSpacing: -0.5, marginBottom: 4 }}>{fmt(B.monthly_price)}<span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,255,255,.4)" }}>/month</span></div>
+            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.35)", marginBottom: 18 }}>Billed monthly · Cancel anytime</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,.45)", marginBottom: 18 }}>Next billing: <span style={{ color: "rgba(255,255,255,.7)", fontWeight: 600 }}>{B.next_billing}</span></div>
+            <button style={{ ...BTN_PRIMARY, fontSize: 12.5, padding: "10px 20px", background: BLUE, boxShadow: "0 4px 14px rgba(36,99,235,.45)" }}>Upgrade Plan →</button>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 20, padding: "12px 14px", background: "rgba(255,255,255,.06)", borderRadius: 10, border: "1px solid rgba(255,255,255,.1)" }}>
+              <img src="/ada-avatar.jpg" alt="Ada" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,.65)", lineHeight: 1.55 }}>
+                "You're on track this month. At your current usage rate you'll have plenty of capacity remaining when this cycle resets."
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <CycleRing used={B.days_total - B.days_remaining} total={B.days_total} />
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", textAlign: "center" }}>Resets {B.next_billing}</div>
+          </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-          {[{label:"Submissions",used:usage.subs,total:plan.subs,noBar:false},{label:"Team Members",used:usage.users,total:plan.users,noBar:false},{label:"Storage",used:usage.storage,total:plan.storage,noBar:true}].map(m => (
-            <div key={m.label} style={{ padding: "14px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8" }}>
-              <div style={{ ...LABEL, marginBottom: 6 }}>{m.label}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#111827", letterSpacing: -0.5 }}>{m.used}<span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>/{m.total}</span></div>
-              {!m.noBar && <div style={{ height: 3, background: "#E2E8F0", borderRadius: 2, marginTop: 8, overflow: "hidden" }}><div style={{ height: "100%", width: `${(Number(m.used) / Number(m.total)) * 100}%`, background: BLUE, borderRadius: 2 }} /></div>}
+      </div>
+
+      {/* Capacity summary */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 4 }}>Research Capacity This Month</div>
+          <div style={{ fontSize: 12.5, color: "#6B7280" }}>All limits reset on {B.next_billing}</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${B.capacity.length},1fr)`, gap: 12, marginBottom: 20, overflowX: "auto" as const }}>
+          {B.capacity.map(cap => {
+            const pct = Math.round((cap.used / cap.total) * 100);
+            return (
+              <div key={cap.key} style={{ minWidth: 110, padding: "12px 14px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8" }}>
+                <div style={{ fontSize: 16, marginBottom: 4 }}>{cap.icon}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.6, marginBottom: 6, lineHeight: 1.3 }}>{cap.label}</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", letterSpacing: -0.5, marginBottom: 2 }}>
+                  <AnimatedNumber target={cap.used} /><span style={{ fontSize: 11, fontWeight: 400, color: "#9CA3AF" }}>/{cap.total.toLocaleString()}</span>
+                </div>
+                <CapacityBar pct={pct} color={cap.color} animate={barsReady} />
+                <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 4 }}>{pct}% used</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {B.capacity.map(cap => {
+            const pct = Math.round((cap.used / cap.total) * 100);
+            const remaining = cap.total - cap.used;
+            const isWarn = pct >= 80 && pct < 95;
+            const isCrit = pct >= 95;
+            const borderColor = isCrit ? RED : isWarn ? AMBER : "#EEF2F8";
+            const bgColor = isCrit ? "#FEF2F2" : isWarn ? "#FFFBEB" : "#F8FAFF";
+            return (
+              <motion.div key={cap.key}
+                animate={isWarn ? { boxShadow: ["0 0 0 0 rgba(217,119,6,.15)", "0 0 0 4px rgba(217,119,6,.05)", "0 0 0 0 rgba(217,119,6,.15)"] } : {}}
+                transition={{ repeat: Infinity, duration: 2.5 }}
+                style={{ padding: "14px 16px", background: bgColor, borderRadius: 10, border: `1px solid ${borderColor}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 18 }}>{cap.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{cap.label}</div>
+                    <div style={{ fontSize: 11, color: "#9CA3AF" }}>{remaining.toLocaleString()} remaining</div>
+                  </div>
+                  <div style={{ textAlign: "right" as const }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", letterSpacing: -0.5 }}><AnimatedNumber target={cap.used} /><span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>/{cap.total.toLocaleString()}</span></div>
+                    <div style={{ fontSize: 10.5, color: pct >= 80 ? (isCrit ? RED : AMBER) : "#9CA3AF", fontWeight: pct >= 80 ? 700 : 400 }}>{pct}%</div>
+                  </div>
+                </div>
+                <CapacityBar pct={pct} color={cap.color} animate={barsReady} />
+                {isWarn && <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11.5, color: AMBER, fontWeight: 600 }}><AlertTriangle size={12} /> Approaching limit — monitor usage</div>}
+                {isCrit && <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11.5, color: RED, fontWeight: 600 }}><AlertTriangle size={12} /> Limit critical — contact us to upgrade</div>}
+              </motion.div>
+            );
+          })}
+        </div>
+      </SettingsCard>
+
+      {/* Intelligence Credits */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 4 }}>Research Intelligence Credits</div>
+            <div style={{ fontSize: 12.5, color: "#6B7280" }}>Used across all AI-powered features — verifications, analysis, reports</div>
+          </div>
+          <div style={{ textAlign: "right" as const }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#111827", letterSpacing: -0.5 }}>
+              <AnimatedNumber target={B.intelligence_credits.used} />
+              <span style={{ fontSize: 13, fontWeight: 400, color: "#9CA3AF" }}>/{B.intelligence_credits.total.toLocaleString()}</span>
+            </div>
+            <div style={{ fontSize: 11.5, color: "#9CA3AF" }}>{Math.round((B.intelligence_credits.used / B.intelligence_credits.total) * 100)}% used</div>
+          </div>
+        </div>
+        <div style={{ height: 12, background: "#F1F5F9", borderRadius: 6, overflow: "hidden", marginBottom: 16 }}>
+          <motion.div
+            initial={{ width: 0 }} animate={{ width: barsReady ? `${Math.round((B.intelligence_credits.used / B.intelligence_credits.total) * 100)}%` : 0 }}
+            transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+            style={{ height: "100%", background: "linear-gradient(90deg,#2463EB,#7C3AED)", borderRadius: 6 }}
+          />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {B.credits_breakdown.map(row => {
+            const pct = Math.round((row.value / B.intelligence_credits.total) * 100);
+            return (
+              <div key={row.label}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>{row.label}</div>
+                  <div style={{ fontSize: 12, color: "#6B7280" }}>{row.value.toLocaleString()} credits</div>
+                </div>
+                <div style={{ height: 4, background: "#F1F5F9", borderRadius: 2, overflow: "hidden" }}>
+                  <motion.div initial={{ width: 0 }} animate={{ width: barsReady ? `${pct}%` : 0 }} transition={{ duration: 0.8, ease: "easeOut", delay: 0.3 }}
+                    style={{ height: "100%", background: row.color, borderRadius: 2 }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 14, fontSize: 11.5, color: "#9CA3AF", display: "flex", alignItems: "center", gap: 5 }}>
+          <RefreshCw size={11} /> Credits replenish each Research Cycle
+        </div>
+      </SettingsCard>
+
+      {/* Usage Trend */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 4 }}>Monthly Usage History</div>
+        <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 20 }}>Last 3 research cycles</div>
+        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+          {[{ label: "FieldScore", color: "#2463EB" }, { label: "InsightScore", color: "#7C3AED" }, { label: "Reports", color: "#059669" }].map(l => (
+            <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#6B7280" }}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, background: l.color }} />{l.label}
             </div>
           ))}
         </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={B.usage_history} barCategoryGap="30%" barGap={3}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={36} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E8EDF5", fontSize: 12, fontFamily: "Inter,sans-serif" }} />
+            <Bar dataKey="fieldscore"   name="FieldScore"   fill="#2463EB" radius={[4,4,0,0]} />
+            <Bar dataKey="insightscore" name="InsightScore" fill="#7C3AED" radius={[4,4,0,0]} />
+            <Bar dataKey="reports"      name="Reports"      fill="#059669" radius={[4,4,0,0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </SettingsCard>
+
+      {/* Invoice History */}
       <SettingsCard style={{ padding: 24 }}>
-        <SettingsGroup label="Recent Invoices">
-          {[{date:"1 Jul 2025",amount:"$299.00",status:"paid"},{date:"1 Jun 2025",amount:"$299.00",status:"paid"},{date:"1 May 2025",amount:"$299.00",status:"paid"}].map(inv => (
-            <div key={inv.date} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "#F8FAFF", border: "1px solid #EEF2F8" }}>
-              <div style={{ fontSize: 18 }}>🧾</div>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{inv.amount}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{inv.date}</div></div>
-              <Badge label={inv.status} color={GREEN} />
-              <button style={{ ...BTN_GHOST, fontSize: 11, padding: "5px 10px", display: "flex", alignItems: "center", gap: 4 }}><Download size={11} /> PDF</button>
-            </div>
-          ))}
-        </SettingsGroup>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 16 }}>Invoice History</div>
+        <div style={{ overflowX: "auto" as const }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #F1F5F9" }}>
+                {["Date", "Reference", "Amount", "Status", ""].map(h => (
+                  <th key={h} style={{ ...LABEL, padding: "0 12px 10px", textAlign: "left" as const, whiteSpace: "nowrap" as const }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {B.invoice_history.map(inv => (
+                <tr key={inv.ref} style={{ borderBottom: "1px solid #F8FAFF" }}>
+                  <td style={{ padding: "12px", color: "#374151" }}>{inv.date}</td>
+                  <td style={{ padding: "12px", color: "#374151", fontFamily: "monospace", fontSize: 11.5 }}>{inv.ref}</td>
+                  <td style={{ padding: "12px", color: "#111827", fontWeight: 700 }}>{fmt(inv.amount)}</td>
+                  <td style={{ padding: "12px" }}><Badge label="✅ Paid" color={GREEN} /></td>
+                  <td style={{ padding: "12px" }}>
+                    <button onClick={handleDownload} style={{ ...BTN_GHOST, fontSize: 11, padding: "5px 10px", display: "flex", alignItems: "center", gap: 4 }}>
+                      <Download size={11} /> Download
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </SettingsCard>
+
+      {/* Upgrade path */}
+      {(B.status === "trial" || B.plan === "Starter") && (
+        <SettingsCard style={{ padding: 24, border: `1px solid ${BLUE}30`, background: "#F8FBFF" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", letterSpacing: -0.4, marginBottom: 6 }}>Ready to grow? 🚀</div>
+          <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 18 }}>Upgrade to Professional for more capacity and priority support.</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <a href="mailto:bibilade@intelligencyai.com.ng" style={{ ...BTN_GHOST, fontSize: 12.5, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>Talk to Sales</a>
+            <button style={{ ...BTN_PRIMARY, fontSize: 12.5 }}>Start Upgrade</button>
+          </div>
+        </SettingsCard>
+      )}
     </div>
   );
 }
