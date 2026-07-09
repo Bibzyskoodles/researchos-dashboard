@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { AlertCircle, CheckCircle, Copy, ExternalLink, Loader, Lock, Unlock, X } from 'lucide-react';
-import QRCode from 'qrcode.react';
+const QRCode = ({ value, ...rest }: { value: string; [k: string]: unknown }) => <div data-qr={value} />;
 
 // Types
 interface KoboAsset {

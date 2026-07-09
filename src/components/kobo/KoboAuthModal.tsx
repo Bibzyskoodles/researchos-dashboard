@@ -18,7 +18,7 @@ interface KoboServer {
   url: string;
 }
 
-interface ConnectionStatus {
+export interface ConnectionStatus {
   state: 'idle' | 'testing' | 'connected' | 'error' | 'disconnected';
   username?: string;
   message?: string;

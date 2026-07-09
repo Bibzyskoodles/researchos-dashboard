@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import KoboAuthModal from './KoboAuthModal';
-import { KoboConnectionResult } from './kobo.types';
+import { KoboConnectionResult } from '../../services/kobo/kobo.types';
 
 /**
  * Example integration of KoboAuthModal component
