@@ -21,14 +21,17 @@ export default function Sidebar() {
       {/* Logo */}
       <div style={{
         padding: '16px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
-        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4,
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
       }}>
         <img
           src="/researchos-logo.png"
           alt="ResearchOS"
           style={{ width: '100%', maxWidth: 150, height: 'auto', objectFit: 'contain', display: 'block' }}
         />
-        <div style={{ fontSize: 9, color: 'rgba(255,255,255,.28)', letterSpacing: 1, textTransform: 'uppercase', paddingLeft: 2 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#2463EB', lineHeight: 1.3, paddingLeft: 2 }}>
+          Intelligence for Better Decisions
+        </div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,.32)', letterSpacing: 0.5, textTransform: 'uppercase', paddingLeft: 2, fontWeight: 500 }}>
           by Intelligency AI
         </div>
       </div>
