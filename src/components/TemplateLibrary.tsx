@@ -284,11 +284,7 @@ export default function TemplateLibrary({ onTemplateClone }: { onTemplateClone?:
                     ...CARD_STYLE,
                     cursor: "pointer",
                     padding: 20,
-                    transition: "all 0.2s ease",
-                    ":hover": {
-                      boxShadow: "0 8px 16px rgba(10,15,28,.1)",
-                      transform: "translateY(-2px)"
-                    }
+                    transition: "all 0.2s ease"
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLElement).style.boxShadow = "0 8px 16px rgba(10,15,28,.1)";

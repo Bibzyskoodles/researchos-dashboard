@@ -60,8 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthCtx.Provider value={{
-      user, org,
-      // ✅ SECURITY: Never expose token in context
+      user, org, token: null,
       isAuthenticated,
       isLoading, login, logout
     }}>
