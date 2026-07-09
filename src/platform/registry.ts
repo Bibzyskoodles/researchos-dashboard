@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, FileText, Users, Map, Sparkles, ClipboardList, BookOpen, Puzzle, Settings, Shield,
+  LayoutDashboard, FileText, Users, Map, Sparkles, ClipboardList, BookOpen, Puzzle, Settings, Shield, Target,
 } from "lucide-react";
 import { Capability, CapabilityId, LicenseTier, NavSectionRef } from "./types";
 
@@ -34,6 +34,11 @@ export const CAPABILITIES: Capability[] = [
     id: "insightscore", name: "InsightScore", description: "Qualitative analysis",
     requiredLicense: "professional",
     navigation: [{ to: "/insights", label: "AI Analysis", icon: Sparkles, section: INTELLIGENCE, order: 0 }],
+  },
+  {
+    id: "outcome-intelligence", name: "Outcome Intelligence", description: "Retroactive study objective analysis",
+    requiredLicense: "professional",
+    navigation: [{ to: "/outcome", label: "Outcome Intelligence", icon: Target, section: INTELLIGENCE, order: 1 }],
   },
   {
     id: "questionnaire", name: "Questionnaire", description: "AI questionnaire design",

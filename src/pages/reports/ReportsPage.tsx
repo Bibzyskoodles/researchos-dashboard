@@ -3,19 +3,24 @@ import { motion } from "framer-motion";
 import { Download, Sparkles, Clock, CheckCircle, ChevronDown } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { insightScoreApi } from "../../services/api";
+import { usePlatform } from "../../platform/PlatformProvider";
 
 const BLUE = "#2463EB", GREEN = "#059669", PURPLE = "#7C3AED";
 
-const REPORT_TYPES = [
-  { id: "executive", title: "Executive Summary",        desc: "High-level overview for senior stakeholders — key findings, pass rate, trust score, recommendations.", icon: "📊", time: "~30 seconds", format: "pptx" as const },
-  { id: "technical", title: "Technical Quality Report", desc: "Full verification engine breakdown — GPS, audio, image, duration, duplicate checks per enumerator.",    icon: "🔬", time: "~45 seconds", format: "xlsx" as const },
-  { id: "enumerator", title: "Enumerator Performance", desc: "Individual scorecards and comparative rankings — who to retain, retrain, or remove.",                   icon: "👤", time: "~20 seconds", format: "docx" as const },
-  { id: "client",    title: "Client Delivery Report",   desc: "Branded, client-ready report with methodology, findings, and data confidence statement.",               icon: "📋", time: "~60 seconds", format: "docx" as const },
-];
+function getReportTypes(t: (key: string, fallback: string) => string) {
+  return [
+    { id: "executive",  title: "Executive Summary",        desc: "High-level overview for senior stakeholders — key findings, pass rate, trust score, recommendations.", icon: "📊", time: "~30 seconds", format: "pptx" as const },
+    { id: "technical",  title: "Technical Quality Report", desc: `Full verification engine breakdown — GPS, audio, image, duration, duplicate checks per ${t('enumerator','enumerator')}.`, icon: "🔬", time: "~45 seconds", format: "xlsx" as const },
+    { id: "enumerator", title: `${t('enumerator','Enumerator')} Performance`, desc: `Individual scorecards and comparative rankings — who to retain, retrain, or remove.`, icon: "👤", time: "~20 seconds", format: "docx" as const },
+    { id: "client",     title: "Client Delivery Report",   desc: "Branded, client-ready report with methodology, findings, and data confidence statement.",               icon: "📋", time: "~60 seconds", format: "docx" as const },
+  ];
+}
 
 interface Project { id: string; name: string; status?: string; submission_count?: number; }
 
 export default function ReportsPage() {
+  const { t } = usePlatform();
+  const REPORT_TYPES = getReportTypes(t);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);

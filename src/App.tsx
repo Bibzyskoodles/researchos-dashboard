@@ -14,6 +14,7 @@ import MapPage from './pages/field-quality/MapPage';
 import DataCleaningPage from './pages/field-quality/DataCleaningPage';
 import InsightsPage from './pages/insights/InsightsPage';
 import InsightProjectPage from './pages/insights/InsightProjectPage';
+import OutcomeIntelligencePage from './pages/insights/OutcomeIntelligencePage';
 import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import IntegrationsPage from './pages/field-quality/IntegrationsPage';
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="clean" element={<DataCleaningPage />} />
         <Route path="insights" element={<InsightsPage />} />
         <Route path="insights/:id" element={<InsightProjectPage />} />
+        <Route path="outcome" element={<OutcomeIntelligencePage />} />
         <Route path="questionnaire" element={<QuestionnairePage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />

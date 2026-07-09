@@ -6,6 +6,7 @@ import { useAda } from "../../ada/AdaContext";
 import { insightScoreApi } from "../../services/api";
 import { InsightProject, InsightReport, InsightSubmission } from "../../types";
 import { ChevronLeft, Download, AlertCircle } from "lucide-react";
+import { usePlatform } from "../../platform/PlatformProvider";
 import SignalFidelityPanel from "./rie/SignalFidelityPanel";
 import QuestionIntelligencePanel from "./rie/QuestionIntelligencePanel";
 import DemographicIntelligencePanel from "./rie/DemographicIntelligencePanel";
@@ -89,6 +90,7 @@ function Section({ title, color = "#374151", children }: { title: string; color?
 function InterviewsTab({ projectId }: { projectId: string }) {
   const [subs, setSubs] = useState<InsightSubmission[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t } = usePlatform();
   const clr = (s: number) => s >= 70 ? GREEN : s >= 45 ? AMBER : RED;
 
   useEffect(() => {
@@ -113,7 +115,7 @@ function InterviewsTab({ projectId }: { projectId: string }) {
       ) : (
         <div style={{ background: "white", borderRadius: 14, border: "1px solid #E8EDF5", overflow: "hidden" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px 120px", padding: "10px 16px", background: "#F8FAFF", borderBottom: "1px solid #E8EDF5" }}>
-            {["Enumerator", "Score", "Date", "Location"].map(h => (
+            {[t('enumerator', 'Enumerator'), "Score", "Date", "Location"].map(h => (
               <div key={h} style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.6 }}>{h}</div>
             ))}
           </div>

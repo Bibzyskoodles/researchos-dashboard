@@ -7,7 +7,7 @@ import { LucideIcon } from "lucide-react";
 
 export type CapabilityId =
   | "overview" | "fieldscore" | "insightscore" | "questionnaire"
-  | "reports" | "integrations" | "settings";
+  | "reports" | "integrations" | "settings" | "outcome-intelligence";
 
 export type LicenseTier = "starter" | "professional" | "enterprise";
 

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, HelpCircle, RefreshCw, Search } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { dashboardApi } from '../../services/api';
+import { usePlatform } from '../../platform/PlatformProvider';
 import { colors, spacing, typography, transitions, radius, shadows } from '../../designTokens';
 
 interface Sub {
@@ -17,6 +18,7 @@ interface TopbarProps {
 
 export default function Topbar({ onRefresh }: TopbarProps) {
   const { user } = useAuth();
+  const { t } = usePlatform();
   const nav = useNavigate();
   const [subs, setSubs] = useState<Sub[]>([]);
   const [query, setQuery] = useState('');
@@ -213,7 +215,7 @@ export default function Topbar({ onRefresh }: TopbarProps) {
             onKeyDown={e => {
               if (e.key === 'Enter' && results[0]) go(results[0].submission_id);
             }}
-            placeholder="Search submissions or enumerators…"
+            placeholder={`Search submissions or ${t('enumerators', 'enumerators')}…`}
             style={{
               border: 'none',
               background: 'transparent',
