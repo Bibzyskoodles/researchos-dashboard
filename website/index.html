@@ -70,9 +70,11 @@ button{font-family:var(--font)}
 .btn-light{background:#fff;color:var(--blue-deep)}
 .btn-light:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(255,255,255,.18)}
 
-/* scroll reveal */
-.reveal{opacity:0;transform:translateY(26px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
-.reveal.in{opacity:1;transform:none}
+/* scroll reveal — rise + focus */
+.reveal{opacity:0;transform:translateY(26px);filter:blur(7px);transition:opacity .8s var(--ease),transform .8s var(--ease),filter .8s var(--ease)}
+.reveal.in{opacity:1;transform:none;filter:none}
+/* scroll progress */
+#progress{position:fixed;top:0;left:0;height:2.5px;width:0;background:linear-gradient(90deg,var(--blue),#22D3EE);z-index:1000;transition:width .1s linear}
 @media(prefers-reduced-motion:reduce){
   .reveal{opacity:1;transform:none;transition:none}
   *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
@@ -204,17 +206,70 @@ button{font-family:var(--font)}
 /* ============================================================
    LIFECYCLE
    ============================================================ */
-.lifecycle{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-top:56px}
+.pipeline{position:relative;margin-top:64px}
+.pipe-line{position:absolute;left:2%;right:2%;top:-22px;height:2px;background:repeating-linear-gradient(90deg,var(--blue) 0 10px,transparent 10px 20px);background-size:20px 2px;opacity:.35;animation:pipeFlow 1.2s linear infinite}
+@keyframes pipeFlow{to{background-position:20px 0}}
+@media(max-width:960px){.pipe-line{display:none}}
+.lifecycle{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
 @media(max-width:960px){.lifecycle{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:560px){.lifecycle{grid-template-columns:repeat(2,1fr)}}
 .stage{background:#fff;border:1px solid var(--border);border-radius:var(--r-xl);padding:22px 18px;box-shadow:var(--shadow-sm);position:relative;transition:transform .25s var(--ease),box-shadow .25s var(--ease)}
-.stage:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg)}
+.stage:hover{transform:translateY(-5px);box-shadow:var(--shadow-lg)}
 .stage .num{font-size:10px;font-weight:800;color:var(--ink-4);letter-spacing:1px}
 .stage .icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;margin:12px 0 12px}
 .stage h3{font-size:15px;font-weight:700;letter-spacing:-.3px}
 .stage p{font-size:12px;color:var(--ink-3);margin-top:6px;line-height:1.55}
-.stage.hot{border-color:rgba(36,99,235,.4);box-shadow:0 8px 28px rgba(36,99,235,.14)}
-.stage.hot::before{content:"FIELDSCORE CORE";position:absolute;top:-9px;left:16px;font-size:8.5px;font-weight:800;letter-spacing:.8px;background:var(--blue);color:#fff;padding:3px 8px;border-radius:999px}
+/* stages FieldScore runs */
+.stage.fs{border-top:3px solid var(--blue)}
+.stage.fs .num::after{content:"FIELDSCORE";margin-left:8px;font-size:7.5px;font-weight:800;letter-spacing:.8px;color:var(--blue);background:var(--blue-lighter);padding:2.5px 7px;border-radius:999px;vertical-align:1px}
+.stage.hot{border-color:rgba(36,99,235,.4);border-top:3px solid var(--blue);box-shadow:0 8px 28px rgba(36,99,235,.14)}
+/* the one stage that is NOT FieldScore — your collection tools */
+.stage.ext{background:#FBFCFE;border:1.5px dashed #C9D6EC;box-shadow:none;border-top:3px dashed #C9D6EC}
+.stage.ext .num::after{content:"YOUR TOOLS";margin-left:8px;font-size:7.5px;font-weight:800;letter-spacing:.8px;color:var(--ink-4);background:var(--border-light);padding:2.5px 7px;border-radius:999px;vertical-align:1px}
+.stage.ext h3,.stage.ext p{color:var(--ink-3)}
+.stage.ext .ext-tools{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+.stage.ext .ext-tools span{font-size:8.5px;font-weight:700;letter-spacing:.3px;color:var(--ink-3);background:#fff;border:1px solid var(--border);border-radius:5px;padding:2.5px 6px}
+.pipe-legend{display:flex;gap:22px;justify-content:center;margin-top:28px;flex-wrap:wrap;font-size:12px;color:var(--ink-3);font-weight:500}
+.pipe-legend span{display:inline-flex;align-items:center;gap:8px}
+.pipe-legend i{width:22px;height:3px;border-radius:2px;display:inline-block}
+.pipe-legend .l-fs i{background:var(--blue)}
+.pipe-legend .l-ext i{background:repeating-linear-gradient(90deg,#C9D6EC 0 4px,transparent 4px 8px)}
+
+/* ============================================================
+   INTERACTIVE VERIFICATION DEMO
+   ============================================================ */
+.vdemo{display:grid;grid-template-columns:1fr 1.15fr;gap:20px;margin-top:56px;align-items:stretch}
+@media(max-width:860px){.vdemo{grid-template-columns:1fr}}
+.vd-sub{background:#fff;border:1px solid var(--border);border-radius:var(--r-2xl);box-shadow:var(--shadow-md);padding:26px;position:relative;overflow:hidden}
+.vd-sub .vd-tag{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--ink-4)}
+.vd-sub h3{font-size:17px;font-weight:800;letter-spacing:-.4px;margin-top:6px;font-family:Menlo,Consolas,monospace;font-size:15px}
+.vd-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.vd-meta .m{background:var(--bg);border:1px solid var(--border-light);border-radius:10px;padding:10px 12px}
+.vd-meta .m b{display:block;font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-4)}
+.vd-meta .m span{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.vd-stamp{position:absolute;top:18px;right:-8px;font-size:15px;font-weight:900;letter-spacing:2px;padding:8px 22px;border:3px solid;border-radius:8px;transform:rotate(8deg) scale(3);opacity:0;transition:transform .45s cubic-bezier(.2,2.2,.4,1),opacity .3s}
+.vd-stamp.show{transform:rotate(8deg) scale(1);opacity:1}
+.vd-stamp.pass{color:var(--green);border-color:var(--green);background:#ECFDF5}
+.vd-stamp.flag{color:var(--amber);border-color:var(--amber);background:#FFFBEB}
+.vd-stamp.rej{color:var(--red);border-color:var(--red);background:#FEF2F2}
+.vd-checks{background:#fff;border:1px solid var(--border);border-radius:var(--r-2xl);box-shadow:var(--shadow-md);padding:26px;display:flex;flex-direction:column}
+.vd-checks h4{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--ink-4);margin-bottom:16px}
+.chk{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-light);font-size:13.5px;color:var(--ink-2);font-weight:500}
+.chk:last-of-type{border-bottom:none}
+.chk .st{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;font-size:11px;font-weight:800;background:var(--border-light);color:var(--ink-4);transition:all .25s}
+.chk.running .st{background:var(--blue-lighter);color:var(--blue)}
+.chk.running .st::after{content:"";width:11px;height:11px;border:2px solid var(--blue);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.chk.ok .st{background:#ECFDF5;color:var(--green)}
+.chk.warn .st{background:#FFFBEB;color:var(--amber)}
+.chk.bad .st{background:#FEF2F2;color:var(--red)}
+.chk .detail{margin-left:auto;font-size:11px;color:var(--ink-4);opacity:0;transition:opacity .3s;text-align:right}
+.chk.done .detail{opacity:1}
+.vd-ada{display:flex;gap:10px;align-items:flex-start;margin-top:18px;background:linear-gradient(120deg,var(--blue-lighter),#F5F0FF);border:1px solid #DBE4FF;border-radius:12px;padding:12px 14px;opacity:0;transform:translateY(8px);transition:all .4s var(--ease);min-height:58px}
+.vd-ada.show{opacity:1;transform:none}
+.vd-ada .a{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0;position:relative;overflow:hidden}
+.vd-ada p{font-size:12.5px;color:var(--ink-2);line-height:1.55}
+.vd-run{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
 
 /* ============================================================
    VERIFICATION ENGINES
@@ -228,7 +283,9 @@ button{font-family:var(--font)}
 .engine-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px;position:relative}
 @media(max-width:900px){.engine-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.engine-grid{grid-template-columns:1fr}}
-.engine-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:var(--r-xl);padding:26px;backdrop-filter:blur(6px);transition:background .25s,border-color .25s,transform .25s var(--ease)}
+.engine-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:var(--r-xl);padding:26px;backdrop-filter:blur(6px);transition:background .25s,border-color .25s,transform .25s var(--ease);position:relative;overflow:hidden}
+.engine-card::after{content:"";position:absolute;inset:0;background:radial-gradient(240px circle at var(--mx,50%) var(--my,50%),rgba(91,141,239,.16),transparent 65%);opacity:0;transition:opacity .35s;pointer-events:none}
+.engine-card:hover::after{opacity:1}
 .engine-card:hover{background:rgba(255,255,255,.08);border-color:rgba(91,141,239,.45);transform:translateY(-3px)}
 .engine-card .e-icon{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;margin-bottom:16px;font-size:18px}
 .engine-card h3{font-size:16px;font-weight:700;letter-spacing:-.3px}
@@ -273,7 +330,9 @@ button{font-family:var(--font)}
 .industries{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px}
 @media(max-width:900px){.industries{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.industries{grid-template-columns:1fr}}
-.ind-card{background:#fff;border:1px solid var(--border);border-radius:var(--r-xl);padding:26px;box-shadow:var(--shadow-sm);transition:transform .25s var(--ease),box-shadow .25s var(--ease),border-color .25s}
+.ind-card{background:#fff;border:1px solid var(--border);border-radius:var(--r-xl);padding:26px;box-shadow:var(--shadow-sm);transition:transform .25s var(--ease),box-shadow .25s var(--ease),border-color .25s;position:relative;overflow:hidden}
+.ind-card::after{content:"";position:absolute;inset:0;background:radial-gradient(260px circle at var(--mx,50%) var(--my,50%),rgba(36,99,235,.07),transparent 65%);opacity:0;transition:opacity .35s;pointer-events:none}
+.ind-card:hover::after{opacity:1}
 .ind-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);border-color:rgba(36,99,235,.35)}
 .ind-card .i-emoji{font-size:26px}
 .ind-card h3{font-size:16px;font-weight:700;letter-spacing:-.3px;margin-top:14px}
@@ -342,6 +401,7 @@ button{font-family:var(--font)}
 </style>
 </head>
 <body>
+<div id="progress" aria-hidden="true"></div>
 
 <!-- ================= NAV ================= -->
 <nav class="nav" id="nav">
@@ -441,16 +501,63 @@ button{font-family:var(--font)}
   <div class="container">
     <div class="reveal">
       <div class="eyebrow">The Platform</div>
-      <h2 class="h2">One intelligence layer across the entire research lifecycle</h2>
-      <p class="lede">Every research project follows the same journey. FieldScore doesn't bolt on at the end — it verifies, learns and improves quality at every stage.</p>
+      <h2 class="h2">Keep your collection tools.<br/>FieldScore runs everything else.</h2>
+      <p class="lede">Your teams keep collecting with KoboToolbox, ODK or SurveyCTO — nothing changes in the field. FieldScore takes over every other stage of the lifecycle: design, verification, analysis, reporting and improvement.</p>
     </div>
-    <div class="lifecycle">
-      <div class="stage reveal"><div class="num">01</div><div class="icon" style="background:#EFF4FF">📝</div><h3>Design</h3><p>AI-assisted questionnaire design with built-in question intelligence.</p></div>
-      <div class="stage reveal"><div class="num">02</div><div class="icon" style="background:#F5F0FF">📱</div><h3>Collect</h3><p>Connect KoboToolbox, ODK or your own tools. Data flows in live.</p></div>
-      <div class="stage hot reveal"><div class="num">03</div><div class="icon" style="background:#ECFDF5">🛡</div><h3>Verify</h3><p>Every submission scored across five engines the moment it arrives.</p></div>
-      <div class="stage reveal"><div class="num">04</div><div class="icon" style="background:#FFFBEB">🧠</div><h3>Analyse</h3><p>Themes, sentiment, demographics and question-level intelligence.</p></div>
-      <div class="stage reveal"><div class="num">05</div><div class="icon" style="background:#EFF4FF">📊</div><h3>Deliver</h3><p>Executive reports, PowerPoint, Word and Excel — generated in minutes.</p></div>
-      <div class="stage reveal"><div class="num">06</div><div class="icon" style="background:#FEF2F2">🔁</div><h3>Improve</h3><p>Field-team scorecards feed back into the next wave of fieldwork.</p></div>
+    <div class="pipeline">
+      <div class="pipe-line" aria-hidden="true"></div>
+      <div class="lifecycle">
+        <div class="stage fs reveal"><div class="num">01</div><div class="icon" style="background:#EFF4FF">📝</div><h3>Design</h3><p>AI-assisted questionnaire design with built-in question intelligence.</p></div>
+        <div class="stage ext reveal"><div class="num">02</div><div class="icon" style="background:#F1F5F9">📱</div><h3>Collect</h3><p>Data collection stays in the tools your field teams already know.</p><div class="ext-tools"><span>KoboToolbox</span><span>ODK</span><span>SurveyCTO</span></div></div>
+        <div class="stage hot reveal"><div class="num">03</div><div class="icon" style="background:#ECFDF5">🛡</div><h3>Verify</h3><p>Every submission scored across five engines the moment it arrives.</p></div>
+        <div class="stage fs reveal"><div class="num">04</div><div class="icon" style="background:#FFFBEB">🧠</div><h3>Analyse</h3><p>Themes, sentiment, demographics and question-level intelligence.</p></div>
+        <div class="stage fs reveal"><div class="num">05</div><div class="icon" style="background:#EFF4FF">📊</div><h3>Deliver</h3><p>Executive reports, PowerPoint, Word and Excel — generated in minutes.</p></div>
+        <div class="stage fs reveal"><div class="num">06</div><div class="icon" style="background:#FEF2F2">🔁</div><h3>Improve</h3><p>Field-team scorecards feed back into the next wave of fieldwork.</p></div>
+      </div>
+      <div class="pipe-legend reveal">
+        <span class="l-fs"><i></i> Powered by FieldScore</span>
+        <span class="l-ext"><i></i> Your existing collection tools — we plug straight in</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= INTERACTIVE VERIFICATION DEMO ================= -->
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="reveal">
+      <div class="eyebrow">Try It</div>
+      <h2 class="h2">Run a verification yourself</h2>
+      <p class="lede">This is a real submission scenario from the field. Press run and watch the five engines work — exactly what happens to every submission, in under a minute.</p>
+    </div>
+    <div class="vdemo reveal">
+      <div class="vd-sub">
+        <div class="vd-stamp" id="vdStamp">PASS</div>
+        <div class="vd-tag">Incoming submission</div>
+        <h3 id="vdId">SUB-420494-LG</h3>
+        <div class="vd-meta">
+          <div class="m"><b>Field Officer</b><span id="vdOff">FO-LAG-004</span></div>
+          <div class="m"><b>Location</b><span id="vdLoc">Lekki Phase I, Lagos</span></div>
+          <div class="m"><b>Duration</b><span id="vdDur">24 min</span></div>
+          <div class="m"><b>Media</b><span id="vdMed">2 photos · 1 audio</span></div>
+        </div>
+        <div class="vd-ada" id="vdAda">
+          <div class="a">A<img src="ada-avatar.jpg" alt="" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></div>
+          <p id="vdAdaText"></p>
+        </div>
+        <div class="vd-run">
+          <button class="btn btn-primary" id="vdRun" style="padding:12px 24px;font-size:14px">▶ Run Verification</button>
+          <button class="btn btn-ghost" id="vdNext" style="padding:12px 20px;font-size:14px;display:none">Try the next submission →</button>
+        </div>
+      </div>
+      <div class="vd-checks">
+        <h4>Verification engines</h4>
+        <div class="chk" data-eng="gps"><span class="st">•</span> GPS Verification <span class="detail"></span></div>
+        <div class="chk" data-eng="img"><span class="st">•</span> Image Intelligence <span class="detail"></span></div>
+        <div class="chk" data-eng="aud"><span class="st">•</span> Audio Analysis <span class="detail"></span></div>
+        <div class="chk" data-eng="tim"><span class="st">•</span> Timing Forensics <span class="detail"></span></div>
+        <div class="chk" data-eng="dup"><span class="st">•</span> Duplicate Detection <span class="detail"></span></div>
+      </div>
     </div>
   </div>
 </section>
@@ -814,7 +921,7 @@ button{font-family:var(--font)}
       var ph = Math.PI * (1 + Math.sqrt(5)) * gi;
       pts.push([Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)]);
     }
-    var rot = 0.6, pulses = [], heroVisible = true;
+    var rot = 0.6, pulses = [], arcs = [], heroVisible = true;
     new IntersectionObserver(function(en){ heroVisible = en[0].isIntersecting; }).observe(cv);
 
     function drawGlobe(){
@@ -835,6 +942,34 @@ button{font-family:var(--font)}
         gctx.arc(sx, sy, (0.7 + depth * 1.5) * DPR, 0, 6.2832);
         gctx.fillStyle = 'rgba(91,141,239,' + (0.05 + depth * 0.5).toFixed(3) + ')';
         gctx.fill();
+      }
+      // connection arcs — submissions travelling between field sites
+      if (!reduced && Math.random() < 0.012 && arcs.length < 4) {
+        var a1 = Math.floor(Math.random() * N), b1 = Math.floor(Math.random() * N);
+        arcs.push({ a: a1, b: b1, t: 0 });
+      }
+      function proj(p){
+        var px2 = p[0] * cosr + p[2] * sinr, pz2 = -p[0] * sinr + p[2] * cosr;
+        return [cx + px2 * R, cy + p[1] * R * 0.98, pz2];
+      }
+      for (var k = arcs.length - 1; k >= 0; k--) {
+        var A = arcs[k]; A.t += 0.012;
+        var pa = proj(pts[A.a]), pb = proj(pts[A.b]);
+        if (pa[2] > -0.15 && pb[2] > -0.15) {
+          var mx2 = (pa[0] + pb[0]) / 2, my2 = (pa[1] + pb[1]) / 2 - R * 0.28;
+          var tEnd = Math.min(A.t, 1), fade = A.t > 1 ? Math.max(0, 1 - (A.t - 1) * 2.5) : 1;
+          gctx.beginPath();
+          gctx.moveTo(pa[0], pa[1]);
+          var SEG = 26;
+          for (var si = 1; si <= SEG * tEnd; si++) {
+            var tt = si / SEG;
+            gctx.lineTo((1-tt)*(1-tt)*pa[0] + 2*(1-tt)*tt*mx2 + tt*tt*pb[0], (1-tt)*(1-tt)*pa[1] + 2*(1-tt)*tt*my2 + tt*tt*pb[1]);
+          }
+          gctx.strokeStyle = 'rgba(34,211,238,' + (0.5 * fade).toFixed(3) + ')';
+          gctx.lineWidth = 1 * DPR;
+          gctx.stroke();
+        }
+        if (A.t > 1.45) arcs.splice(k, 1);
       }
       for (var j = pulses.length - 1; j >= 0; j--) {
         var P = pulses[j]; P.r += 1.1 * DPR;
@@ -875,6 +1010,90 @@ button{font-family:var(--font)}
       if (winEl) winEl.style.transform = '';
       if (hostEl) hostEl.style.translate = '';
       if (avatarEl) avatarEl.style.rotate = '';
+    });
+  }
+
+  // — Scroll progress bar
+  var prog = document.getElementById('progress');
+  window.addEventListener('scroll', function(){
+    var d = document.documentElement;
+    prog.style.width = (d.scrollTop / (d.scrollHeight - d.clientHeight) * 100) + '%';
+  }, {passive:true});
+
+  // — Cursor spotlight on cards
+  document.querySelectorAll('.engine-card, .ind-card').forEach(function(card){
+    card.addEventListener('mousemove', function(e){
+      var r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+      card.style.setProperty('--my', (e.clientY - r.top) + 'px');
+    });
+  });
+
+  // — Interactive verification demo
+  var SCENARIOS = [
+    { id:'SUB-420494-LG', off:'FO-LAG-004', loc:'Lekki Phase I, Lagos', dur:'24 min', med:'2 photos · 1 audio',
+      checks:{gps:['ok','1m accuracy · inside zone'],img:['ok','original · quality 91'],aud:['ok','speech verified · 22 min'],tim:['ok','within expected range'],dup:['ok','no matches found']},
+      verdict:['pass','PASS · 94/100'], ada:'Clean interview. GPS resolved to 1-metre accuracy inside the assigned zone, the audio contains a full conversation, and every media file is original. No action needed.' },
+    { id:'SUB-118207-KN', off:'FO-KANO-012', loc:'Fagge, Kano', dur:'6 min', med:'1 photo · 1 audio',
+      checks:{gps:['ok','8m accuracy · inside zone'],img:['ok','original · quality 84'],aud:['warn','only 4 min of speech'],tim:['warn','6 min for a 25-min questionnaire'],dup:['ok','no matches found']},
+      verdict:['flag','FLAG · 58/100'], ada:'This needs a human look. A 25-minute questionnaire finished in 6 minutes, and the recording only captures 4 minutes of speech. I’ve queued it for supervisor review.' },
+    { id:'SUB-903311-AB', off:'FO-ABJ-021', loc:'Garki, Abuja', dur:'21 min', med:'2 photos · 1 audio',
+      checks:{gps:['ok','3m accuracy · inside zone'],img:['bad','photo reused from SUB-887, 3 days ago'],aud:['ok','speech verified · 19 min'],tim:['ok','within expected range'],dup:['bad','duplicate media detected'],},
+      verdict:['rej','REJECT · 21/100'], ada:'I’ve seen this photo before — it appeared in a submission three days ago from the same officer. This one is rejected and the officer’s trust score has been updated.' }
+  ];
+  var scen = 0, running = false;
+  var vdRun = document.getElementById('vdRun'), vdNext = document.getElementById('vdNext');
+  var vdStamp = document.getElementById('vdStamp'), vdAda = document.getElementById('vdAda'), vdAdaText = document.getElementById('vdAdaText');
+  var chks = document.querySelectorAll('.chk');
+  function loadScenario(s){
+    document.getElementById('vdId').textContent = s.id;
+    document.getElementById('vdOff').textContent = s.off;
+    document.getElementById('vdLoc').textContent = s.loc;
+    document.getElementById('vdDur').textContent = s.dur;
+    document.getElementById('vdMed').textContent = s.med;
+    vdStamp.className = 'vd-stamp';
+    vdAda.classList.remove('show');
+    chks.forEach(function(c){ c.className = 'chk'; c.querySelector('.st').textContent = '•'; c.querySelector('.detail').textContent = ''; });
+    vdNext.style.display = 'none';
+    vdRun.style.display = '';
+  }
+  if (vdRun) {
+    vdRun.addEventListener('click', function(){
+      if (running) return; running = true;
+      var s = SCENARIOS[scen];
+      vdRun.style.display = 'none';
+      var order = ['gps','img','aud','tim','dup'], step = 0;
+      (function next(){
+        if (step > 0) {
+          var prev = document.querySelector('.chk[data-eng="' + order[step-1] + '"]');
+          var res = s.checks[order[step-1]];
+          prev.classList.remove('running');
+          prev.classList.add(res[0], 'done');
+          prev.querySelector('.st').textContent = res[0] === 'ok' ? '✓' : res[0] === 'warn' ? '!' : '✕';
+          prev.querySelector('.detail').textContent = res[1];
+        }
+        if (step < order.length) {
+          var cur = document.querySelector('.chk[data-eng="' + order[step] + '"]');
+          cur.classList.add('running');
+          cur.querySelector('.st').textContent = '';
+          step++;
+          setTimeout(next, reduced ? 60 : 620 + Math.random() * 380);
+        } else {
+          vdStamp.textContent = s.verdict[1];
+          vdStamp.classList.add(s.verdict[0], 'show');
+          setTimeout(function(){
+            vdAdaText.textContent = s.ada;
+            vdAda.classList.add('show');
+            vdNext.style.display = '';
+            running = false;
+          }, reduced ? 60 : 550);
+        }
+      })();
+    });
+    vdNext.addEventListener('click', function(){
+      scen = (scen + 1) % SCENARIOS.length;
+      loadScenario(SCENARIOS[scen]);
+      setTimeout(function(){ vdRun.click(); }, 350);
     });
   }
 
