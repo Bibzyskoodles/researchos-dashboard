@@ -1,18 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { usePlatform } from '../../platform/PlatformProvider';
 import { useGuidedExperience } from '../../ada/GuidedExperienceContext';
-import { LogOut, Sparkles, Video } from 'lucide-react';
+import { useIndustry } from '../../store/IndustryContext';
+import { LogOut, Sparkles, Video, ChevronDown, RefreshCw } from 'lucide-react';
 
 const BLUE = '#2463EB';
+
+const MODE_ICONS: Record<string, string> = {
+  research_agency: '🔬',
+  ngo:             '🌍',
+  fmcg:            '🛒',
+  government:      '🏛',
+  health:          '🏥',
+  education:       '📚',
+  consultancy:     '💼',
+};
 
 export default function Sidebar() {
   const { user, org, logout } = useAuth();
   const { navigatePage } = useAda();
   const { navigation } = usePlatform();
   const { showLauncher } = useGuidedExperience();
+  const { sessionIndustry, setSessionIndustry, vocab, INDUSTRIES, isSessionOverride, clearSessionOverride } = useIndustry();
+  const [modePicker, setModePicker] = useState(false);
 
   return (
     <aside style={{
@@ -87,6 +100,66 @@ export default function Sidebar() {
             ))}
           </div>
         ))}
+      </div>
+
+      {/* Project Mode switcher */}
+      <div style={{ padding: '6px 8px', borderTop: '1px solid #F1F5F9', position: 'relative' }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: '#CBD5E1', letterSpacing: 1, textTransform: 'uppercase', padding: '0 2px', marginBottom: 4 }}>
+          Project Mode
+        </div>
+        <button
+          onClick={() => setModePicker(p => !p)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+            padding: '7px 10px', borderRadius: 8, cursor: 'pointer',
+            background: isSessionOverride ? '#EFF6FF' : '#F8FAFF',
+            border: `1px solid ${isSessionOverride ? '#BFDBFE' : '#E8EDF5'}`,
+            fontFamily: 'Inter, sans-serif', transition: 'all .15s',
+          }}
+        >
+          <span style={{ fontSize: 14 }}>{MODE_ICONS[sessionIndustry]}</span>
+          <span style={{ flex: 1, fontSize: 11.5, fontWeight: 600, color: isSessionOverride ? BLUE : '#6B7280', textAlign: 'left' as const, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+            {vocab.label}
+          </span>
+          <ChevronDown size={11} color={isSessionOverride ? BLUE : '#9CA3AF'} style={{ transform: modePicker ? 'rotate(180deg)' : 'none', transition: 'transform .2s', flexShrink: 0 }} />
+        </button>
+
+        {modePicker && (
+          <div style={{
+            position: 'absolute', bottom: 'calc(100% + 4px)', left: 8, right: 8,
+            background: 'white', borderRadius: 10, border: '1px solid #E2E8F0',
+            boxShadow: '0 -8px 24px rgba(10,15,28,.12)', zIndex: 100, overflow: 'hidden',
+          }}>
+            <div style={{ padding: '8px 10px 6px', fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: .7 }}>
+              What are you collecting today?
+            </div>
+            {INDUSTRIES.map(ind => (
+              <div
+                key={ind.key}
+                onClick={() => { setSessionIndustry(ind.key as any); setModePicker(false); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 10px', cursor: 'pointer',
+                  background: sessionIndustry === ind.key ? '#EFF6FF' : 'white',
+                  transition: 'background .1s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = '#F8FAFF'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = sessionIndustry === ind.key ? '#EFF6FF' : 'white'; }}
+              >
+                <span style={{ fontSize: 14 }}>{MODE_ICONS[ind.key]}</span>
+                <span style={{ fontSize: 12, fontWeight: sessionIndustry === ind.key ? 600 : 500, color: sessionIndustry === ind.key ? BLUE : '#374151' }}>{ind.label}</span>
+              </div>
+            ))}
+            {isSessionOverride && (
+              <div
+                onClick={() => { clearSessionOverride(); setModePicker(false); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderTop: '1px solid #F1F5F9', cursor: 'pointer', color: '#9CA3AF', fontSize: 11.5 }}
+              >
+                <RefreshCw size={11} /> Reset to org default
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Learn with Ada + Meeting */}

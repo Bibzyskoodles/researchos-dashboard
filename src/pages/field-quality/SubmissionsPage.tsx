@@ -6,6 +6,7 @@ import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshC
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
 import { useLocation } from "react-router-dom";
+import { usePlatform } from "../../platform/PlatformProvider";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -72,6 +73,7 @@ export default function SubmissionsPage(){
   const [checkedIds,setCheckedIds]=useState<Set<string>>(new Set());
   const [bulkActing,setBulkActing]=useState("");
   const location = useLocation();
+  const { t } = usePlatform();
   useAdaGreeting({ page: "submissions" });
   const { addMessage, setState } = useAdaContext();
 
@@ -185,7 +187,7 @@ export default function SubmissionsPage(){
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <div style={{display:"flex",alignItems:"center",gap:8,background:"white",border:"1px solid #E2E8F0",borderRadius:8,padding:"7px 12px",flex:1,maxWidth:300}}>
           <Search size={13} color="#9CA3AF"/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by ID or enumerator…"
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search by ID or ${t("enumerator","enumerator")}…`}
             maxLength={100}
             style={{border:"none",background:"transparent",fontSize:12.5,fontFamily:"Inter,sans-serif",outline:"none",flex:1}}/>
           {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#9CA3AF",padding:0}}><X size={12}/></button>}
