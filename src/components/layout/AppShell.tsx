@@ -6,9 +6,16 @@ import Topbar from "./Topbar";
 import AdaDock from "./AdaDock";
 import { useAda } from "../../ada/AdaContext";
 
+// Pages where a Refresh button is meaningful
+const REFRESHABLE = ["/submissions", "/overview", "/enumerators", "/map"];
+
 export default function AppShell() {
   const location = useLocation();
   useAda();
+
+  const handleRefresh = REFRESHABLE.includes(location.pathname)
+    ? () => window.dispatchEvent(new Event("researchos:refresh"))
+    : undefined;
 
   return (
     <div style={{
@@ -17,7 +24,7 @@ export default function AppShell() {
     }}>
       <Sidebar />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <Topbar />
+        <Topbar onRefresh={handleRefresh} />
         <AnimatePresence mode="wait">
           <motion.main
             key={location.pathname}
