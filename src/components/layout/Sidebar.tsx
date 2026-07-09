@@ -35,7 +35,7 @@ export default function Sidebar() {
           alt="ResearchOS"
           style={{
             width: '100%',
-            maxWidth: 140,
+            maxWidth: 108,
             height: 'auto',
             objectFit: 'contain',
             display: 'block',
