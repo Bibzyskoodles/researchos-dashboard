@@ -17,7 +17,10 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
+      // Clear all auth state — never leave a partial session
       localStorage.removeItem('fs_token');
+      localStorage.removeItem('fs_user');
+      document.cookie = 'fs_token=;path=/;max-age=0';
       window.location.href = '/login';
     }
     return Promise.reject(err);
