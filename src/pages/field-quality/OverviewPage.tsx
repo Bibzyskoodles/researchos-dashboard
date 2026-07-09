@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { dashboardApi } from "../../services/api";
@@ -100,6 +101,7 @@ export default function OverviewPage() {
   const { user } = useAuth();
   const { setState, setOpen, guideToElement } = useAda();
   const { vocab } = useIndustry();
+  const nav = useNavigate();
   const isMobile = useIsMobile();
   useAdaAttention({ x: 0.72, y: 0.22 }, { delay: 2500, returnAfterMs: 5000 });
   const hr = new Date().getHours();
@@ -122,7 +124,6 @@ export default function OverviewPage() {
         .finally(() => { if (initial && !cancelled) setLoading(false); });
     };
     load(true);
-    // Real-time: silently refresh every 30s (no spinner, no repeated Ada guidance)
     const id = setInterval(() => load(false), 30000);
     return () => { cancelled = true; clearInterval(id); };
   }, [setState, guideToElement]);
@@ -144,7 +145,7 @@ export default function OverviewPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-      {/* Ada Hero — large, gradient, immersive */}
+      {/* Ada Hero */}
       <motion.div
         initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
         style={{
@@ -154,15 +155,12 @@ export default function OverviewPage() {
           boxShadow: "0 8px 40px rgba(8,13,26,.2)",
         }}
       >
-        {/* Background glow */}
         <div style={{ position: "absolute", top: -60, right: 200, width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle,rgba(37,99,235,.25),transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", bottom: -40, left: 100, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,58,237,.15),transparent 70%)", pointerEvents: "none" }} />
 
         <div style={{ display: "flex", alignItems: "stretch", position: "relative", zIndex: 1, flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: isMobile ? "center" : "flex-start" }}>
-          {/* Ada — large and prominent */}
           <div style={{ width: 180, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "20px 10px 0", position: "relative" }}>
             <div style={{ position: "relative", width: 140, height: 140, flexShrink: 0 }}>
-              {/* Pulse ring — emanates from Ada's centre, hidden behind her until it clears her edge */}
               <motion.div
                 animate={{ scale: [0.95, 1.4], opacity: [0.6, 0] }}
                 transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut", repeatDelay: 1.5 }}
@@ -186,7 +184,6 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          {/* Briefing content */}
           <div style={{ flex: 1, padding: "28px 24px" }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(37,99,235,.2)", border: "1px solid rgba(37,99,235,.3)", borderRadius: 6, padding: "3px 10px", marginBottom: 12 }}>
               <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#60A5FA" }} />
@@ -210,7 +207,6 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          {/* Recommended actions */}
           <div style={{ width: 220, flexShrink: 0, padding: "28px 20px 28px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.3)", textTransform: "uppercase", letterSpacing: .8, marginBottom: 4 }}>Recommended</div>
             {[
@@ -229,7 +225,7 @@ export default function OverviewPage() {
         </div>
       </motion.div>
 
-      {/* KPI Cards with sparklines */}
+      {/* KPI Cards */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 14 }}>
         <KpiCard label="Total Submissions" value={s.total_submissions} sub="Lagos Retail Audit" trend={s.score_trend} color="#080D1A" sparkData={chartScores} />
         <KpiCard label="Avg Trust Score" value={`${s.avg_score}`} sub={s.avg_score >= 80 ? "Excellent quality" : "Good quality"} color={GREEN} sparkData={chartScores} />
@@ -247,12 +243,12 @@ export default function OverviewPage() {
               <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>Submission Activity</div>
               <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>Real-time intelligence feed</div>
             </div>
-            <motion.span whileHover={{ x: 2 }} style={{ fontSize: 11, fontWeight: 600, color: BLUE, cursor: "pointer", display: "flex", alignItems: "center", gap: 3 }}>
+            <motion.span whileHover={{ x: 2 }} onClick={() => nav("/submissions")} style={{ fontSize: 11, fontWeight: 600, color: BLUE, cursor: "pointer", display: "flex", alignItems: "center", gap: 3 }}>
               View all <ArrowRight size={11} />
             </motion.span>
           </div>
           {data.recent_submissions.slice(0, 6).map((sub, i) => (
-            <motion.div key={sub.submission_id} whileHover={{ background: "#FAFBFF" }}
+            <motion.div key={sub.submission_id} whileHover={{ background: "#FAFBFF" }} onClick={() => nav(`/submissions/${sub.submission_id}`)}
               style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 20px", borderBottom: i < 5 ? "1px solid #F8FAFF" : "none", cursor: "pointer" }}>
               <div style={{ width: 42, flexShrink: 0, textAlign: "right" }}>
                 <div style={{ fontSize: 10, fontFamily: "monospace", color: "#9CA3AF" }}>
@@ -304,13 +300,13 @@ export default function OverviewPage() {
           <div style={{ background: "white", borderRadius: 16, overflow: "hidden", border: "1px solid #E8EDF5", boxShadow: "0 2px 12px rgba(10,15,28,.06)" }}>
             <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between" }}>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>{cap(vocab.enumerators)}</div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: BLUE, cursor: "pointer" }}>View all →</span>
+              <span onClick={() => nav("/enumerators")} style={{ fontSize: 11, fontWeight: 600, color: BLUE, cursor: "pointer" }}>View all →</span>
             </div>
             {data.enumerators.slice(0, 4).map((e, i) => {
               const cols = [BLUE, PURPLE, GREEN, AMBER];
               const col = cols[i % cols.length];
               return (
-                <motion.div key={e.enumerator_id} whileHover={{ background: "#FAFBFF" }}
+                <motion.div key={e.enumerator_id} whileHover={{ background: "#FAFBFF" }} onClick={() => nav("/enumerators")}
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 20px", borderBottom: i < 3 ? "1px solid #F8FAFF" : "none", cursor: "pointer" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "monospace", color: i < 3 ? AMBER : "#9CA3AF", width: 16 }}>{i+1}</div>
                   <div style={{ width: 28, height: 28, borderRadius: "50%", background: col, display: "grid", placeItems: "center", fontSize: 10, fontWeight: 700, color: "white", flexShrink: 0 }}>
@@ -334,10 +330,10 @@ export default function OverviewPage() {
             <div style={{ background: "white", borderRadius: 16, overflow: "hidden", border: "1px solid #FED7AA", boxShadow: "0 2px 12px rgba(217,119,6,.08)" }}>
               <div style={{ padding: "14px 20px 10px", borderBottom: "1px solid #FEF3C7", display: "flex", justifyContent: "space-between" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>⚠ Requires Attention</div>
-                <span style={{ fontSize: 11, fontWeight: 600, color: AMBER, cursor: "pointer" }}>View all</span>
+                <span onClick={() => nav("/submissions?q=FLAG")} style={{ fontSize: 11, fontWeight: 600, color: AMBER, cursor: "pointer" }}>View all</span>
               </div>
               {data.alerts.slice(0, 2).map((a, i) => (
-                <motion.div key={a.submission_id} whileHover={{ background: "#FFFBEB" }}
+                <motion.div key={a.submission_id} whileHover={{ background: "#FFFBEB" }} onClick={() => nav(`/submissions/${a.submission_id}`)}
                   data-ada-target={i === 0 ? "alert-item" : undefined}
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: "1px solid #FEF3C7", cursor: "pointer" }}>
                   <div style={{ width: 28, height: 28, borderRadius: 7, background: "#FEF3C7", display: "grid", placeItems: "center", fontSize: 13, flexShrink: 0 }}>🚩</div>
