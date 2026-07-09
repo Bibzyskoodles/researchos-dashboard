@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, HelpCircle, Search } from 'lucide-react';
+import { Bell, HelpCircle, RefreshCw, Search } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { dashboardApi } from '../../services/api';
 import { colors, spacing, typography, transitions, radius, shadows } from '../../designTokens';
@@ -11,7 +11,11 @@ interface Sub {
   overall_score: number; project_id?: string;
 }
 
-export default function Topbar() {
+interface TopbarProps {
+  onRefresh?: () => void;
+}
+
+export default function Topbar({ onRefresh }: TopbarProps) {
   const { user } = useAuth();
   const nav = useNavigate();
   const [subs, setSubs] = useState<Sub[]>([]);
@@ -251,6 +255,21 @@ export default function Topbar() {
 
       {/* Right */}
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, marginLeft: 'auto' }}>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            style={iconBtnStyle}
+            title="Refresh"
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = colors.surfaceHover;
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            }}
+          >
+            <RefreshCw size={18} />
+          </button>
+        )}
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => {
