@@ -4,7 +4,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useAda, parseAdaCommand, AdaCommand } from "../../ada/AdaContext";
 import { adaApi, dashboardApi } from "../../services/api";
-import { X, Send, Mic, ChevronDown, BarChart2, Map, FileText, Users, Zap, MessageSquare } from "lucide-react";
+import { X, Send, Mic, BarChart2, Map, FileText, Users, Zap, MessageSquare, Volume2, VolumeX } from "lucide-react";
+import { Submission } from "../../types";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -93,6 +94,30 @@ function edgeTarget(edge: string, along: number): { x: string; y: string } {
   }
 }
 
+// Speak text via browser TTS, returning true if supported
+function speak(text: string, voiceOn: boolean): void {
+  if (!voiceOn) return;
+  const synth = window.speechSynthesis;
+  if (!synth) return;
+  synth.cancel();
+  // Strip markdown before speaking
+  const clean = text
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/^[-•*]\s/gm, "")
+    .replace(/\n+/g, ". ");
+  const utt = new SpeechSynthesisUtterance(clean);
+  utt.rate = 1.05;
+  utt.pitch = 1.05;
+  // Prefer a female English voice
+  const voices = synth.getVoices();
+  const preferred = voices.find(v =>
+    /female|woman|girl|samantha|victoria|karen|zira|aria|nova|siri/i.test(v.name) &&
+    /en/i.test(v.lang)
+  ) || voices.find(v => /en/i.test(v.lang));
+  if (preferred) utt.voice = preferred;
+  synth.speak(utt);
+}
+
 export default function AdaDock() {
   const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage, dispatchCommand } = useAda();
   const [input, setInput] = useState("");
@@ -100,7 +125,8 @@ export default function AdaDock() {
   const [listening, setListening] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [visible, setVisible] = useState(true);
-  const [statsCtx, setStatsCtx] = useState<Record<string, unknown>>({});
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [subs, setSubs] = useState<Submission[]>([]);
   const recognitionRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,12 +134,51 @@ export default function AdaDock() {
   const navigate = useNavigate();
   const prevPathRef = useRef(location.pathname);
 
-  // Grab live stats to give Ada real context
+  // Grab live submissions so Ada can answer date/count questions accurately
   useEffect(() => {
-    dashboardApi.getStats()
-      .then(r => setStatsCtx(r.data || {}))
+    dashboardApi.getSubmissions({ limit: 200 })
+      .then(r => setSubs(r.data?.submissions || []))
       .catch(() => {});
   }, []);
+
+  // Build a rich data summary Ada can reference
+  const dataContext = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todaySubs = subs.filter(s => (s.scored_at || s.submission_date || "").slice(0, 10) === today);
+    const passed = subs.filter(s => s.verdict === "PASS");
+    const flagged = subs.filter(s => s.verdict === "FLAG");
+    const rejected = subs.filter(s => s.verdict === "REJECT");
+    const avgScore = subs.length ? Math.round(subs.reduce((a, s) => a + s.overall_score, 0) / subs.length) : 0;
+    const enumeratorMap: Record<string, { total: number; flags: number; avgScore: number }> = {};
+    subs.forEach(s => {
+      if (!enumeratorMap[s.enumerator_id]) enumeratorMap[s.enumerator_id] = { total: 0, flags: 0, avgScore: 0 };
+      enumeratorMap[s.enumerator_id].total++;
+      if (s.verdict === "FLAG" || s.verdict === "REJECT") enumeratorMap[s.enumerator_id].flags++;
+      enumeratorMap[s.enumerator_id].avgScore += s.overall_score;
+    });
+    Object.values(enumeratorMap).forEach(e => { e.avgScore = Math.round(e.avgScore / e.total); });
+    return {
+      today,
+      total_submissions: subs.length,
+      submissions_today: todaySubs.length,
+      pass_count: passed.length,
+      flag_count: flagged.length,
+      reject_count: rejected.length,
+      avg_score: avgScore,
+      pass_rate: subs.length ? Math.round((passed.length / subs.length) * 100) : 0,
+      enumerators: Object.entries(enumeratorMap)
+        .map(([id, e]) => ({ id, ...e }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10),
+      recent: subs.slice(0, 5).map(s => ({
+        id: s.submission_id,
+        enumerator: s.enumerator_id,
+        verdict: s.verdict,
+        score: s.overall_score,
+        date: (s.scored_at || s.submission_date || "").slice(0, 10),
+      })),
+    };
+  }, [subs]);
 
   // Load conversation memory once
   useEffect(() => {
@@ -175,23 +240,31 @@ export default function AdaDock() {
     if (localCmd) applyCommand(localCmd);
     try {
       const res = await adaApi.chat(msg, currentPage, {
-        stats: statsCtx,
+        data: dataContext,
         history: store.messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
       });
       const reply: string = res.data?.reply || res.data?.message || "I'm having trouble connecting right now. Try again in a moment.";
       const aiCmd: AdaCommand | null = res.data?.command || null;
       addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: reply, timestamp: new Date().toISOString() });
       setState("speaking");
+      // Speak the reply after voices load
+      if (window.speechSynthesis && window.speechSynthesis.getVoices().length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => { speak(reply, voiceOn); };
+      } else {
+        speak(reply, voiceOn);
+      }
       setTimeout(() => setState("idle"), 3000);
       if (aiCmd && !localCmd) applyCommand(aiCmd);
     } catch {
-      addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: "I lost connection to the server. Please check your network and try again.", timestamp: new Date().toISOString() });
+      const errMsg = "I lost connection to the server. Please check your network and try again.";
+      addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: errMsg, timestamp: new Date().toISOString() });
+      speak(errMsg, voiceOn);
       setState("idle");
     } finally {
       setSending(false);
       setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     }
-  }, [input, sending, setState, addMessage, applyCommand, currentPage, statsCtx, store.messages]);
+  }, [input, sending, setState, addMessage, applyCommand, currentPage, dataContext, store.messages, voiceOn]);
 
   const startVoice = () => {
     const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -294,13 +367,14 @@ export default function AdaDock() {
               </div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button
-                  onClick={() => setOpen(false)}
-                  style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.1)", cursor: "pointer", display: "grid", placeItems: "center", color: "rgba(255,255,255,.5)" }}
+                  onClick={() => { setVoiceOn(v => { if (v) window.speechSynthesis?.cancel(); return !v; }); }}
+                  title={voiceOn ? "Mute Ada" : "Unmute Ada"}
+                  style={{ width: 28, height: 28, borderRadius: 8, background: voiceOn ? "rgba(37,99,235,.35)" : "rgba(255,255,255,.08)", border: `1px solid ${voiceOn ? "rgba(37,99,235,.5)" : "rgba(255,255,255,.1)"}`, cursor: "pointer", display: "grid", placeItems: "center", color: voiceOn ? "#93C5FD" : "rgba(255,255,255,.5)", transition: "all .15s" }}
                 >
-                  <ChevronDown size={14} />
+                  {voiceOn ? <Volume2 size={13} /> : <VolumeX size={13} />}
                 </button>
                 <button
-                  onClick={() => setOpen(false)}
+                  onClick={() => { window.speechSynthesis?.cancel(); setOpen(false); }}
                   style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.1)", cursor: "pointer", display: "grid", placeItems: "center", color: "rgba(255,255,255,.5)" }}
                 >
                   <X size={14} />
