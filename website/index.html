@@ -85,11 +85,15 @@ button{font-family:var(--font)}
 .nav{position:fixed;top:0;left:0;right:0;z-index:900;background:rgba(255,255,255,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid transparent;transition:border-color .25s}
 .nav.scrolled{border-bottom-color:var(--border)}
 .nav-inner{max-width:1200px;margin:0 auto;padding:0 24px;height:66px;display:flex;align-items:center;gap:36px}
-.logo{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;letter-spacing:-.5px;color:var(--ink)}
-/* LOGO: swap this mark for the real logo image when shared */
-.logo-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--purple));display:grid;place-items:center;flex-shrink:0}
-.logo-mark svg{width:16px;height:16px}
-.logo span b{color:var(--blue)}
+/* FieldScore wordmark — FIELD navy, SCORE blue, globe as the O */
+.logo{display:inline-flex;flex-direction:column;gap:3px;line-height:1}
+.fs-word{display:inline-flex;align-items:center;font-weight:900;font-size:21px;letter-spacing:.4px}
+.fs-word .f1{color:#0A1230}
+.fs-word .f2{color:var(--blue)}
+.fs-word .fs-globe{width:17px;height:17px;margin:0 1.5px;flex-shrink:0;animation:globeSpin 24s linear infinite;transform-origin:center}
+@keyframes globeSpin{to{transform:rotate(360deg)}}
+.fs-tag{font-size:7.2px;font-weight:700;letter-spacing:2.4px;color:var(--ink-3);white-space:nowrap}
+.fs-tag b{color:var(--blue);font-weight:800}
 .nav-links{display:flex;gap:26px;font-size:14px;font-weight:500;color:var(--ink-3)}
 .nav-links a{transition:color .15s}
 .nav-links a:hover{color:var(--ink)}
@@ -109,20 +113,28 @@ button{font-family:var(--font)}
 /* ============================================================
    HERO
    ============================================================ */
-.hero{position:relative;padding:170px 0 0;background:
-  radial-gradient(1100px 520px at 78% -10%,rgba(36,99,235,.10),transparent 60%),
-  radial-gradient(800px 400px at 12% 8%,rgba(124,58,237,.06),transparent 60%),
-  var(--bg)}
-.hero-grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(36,99,235,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(36,99,235,.045) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse 70% 55% at 50% 22%,#000 30%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse 70% 55% at 50% 22%,#000 30%,transparent 75%);pointer-events:none}
-.hero-inner{position:relative;max-width:1200px;margin:0 auto;padding:0 24px;text-align:center}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:999px;background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-sm);font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:28px}
-.hero-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2.2s infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(5,150,105,.5)}55%{box-shadow:0 0 0 7px rgba(5,150,105,0)}}
-.hero h1{font-size:clamp(38px,6.4vw,72px);font-weight:900;letter-spacing:-2.6px;line-height:1.04;color:var(--blue-deep);text-wrap:balance}
-.hero h1 .accent{background:linear-gradient(120deg,var(--blue),var(--blue-light));-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero .sub{font-size:clamp(16px,2vw,19px);color:var(--ink-3);max-width:660px;margin:24px auto 0;text-wrap:balance}
+.hero{position:relative;padding:170px 0 0;overflow:hidden;background:
+  radial-gradient(1000px 600px at 50% -10%,rgba(36,99,235,.28),transparent 62%),
+  radial-gradient(700px 400px at 88% 30%,rgba(124,58,237,.14),transparent 60%),
+  linear-gradient(180deg,#070D24 0%,var(--blue-deep) 55%,var(--navy-2) 100%)}
+#globe{position:absolute;left:50%;top:-40px;transform:translateX(-50%);width:min(1100px,120vw);height:760px;pointer-events:none;opacity:.85;
+  mask-image:radial-gradient(ellipse 62% 58% at 50% 40%,#000 35%,transparent 76%);
+  -webkit-mask-image:radial-gradient(ellipse 62% 58% at 50% 40%,#000 35%,transparent 76%)}
+.hero-grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(91,141,239,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(91,141,239,.06) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse 70% 55% at 50% 22%,#000 30%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse 70% 55% at 50% 22%,#000 30%,transparent 75%);pointer-events:none}
+.hero-inner{position:relative;max-width:1200px;margin:0 auto;padding:0 24px;text-align:center;z-index:2}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);font-size:13px;font-weight:600;color:rgba(255,255,255,.85);margin-bottom:28px}
+.hero-badge .dot{width:7px;height:7px;border-radius:50%;background:#4ADE80;animation:pulse 2.2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.5)}55%{box-shadow:0 0 0 7px rgba(74,222,128,0)}}
+.hero h1{font-size:clamp(38px,6.4vw,72px);font-weight:900;letter-spacing:-2.6px;line-height:1.04;color:#fff;text-wrap:balance;text-shadow:0 2px 40px rgba(10,18,48,.5)}
+.hero h1 .accent{background:linear-gradient(115deg,#5B8DEF 10%,#22D3EE 90%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .sub{font-size:clamp(16px,2vw,19px);color:rgba(255,255,255,.62);max-width:660px;margin:24px auto 0;text-wrap:balance}
 .hero-ctas{display:flex;gap:14px;justify-content:center;margin-top:36px;flex-wrap:wrap}
-.hero-note{font-size:12.5px;color:var(--ink-4);margin-top:16px}
+.hero-note{font-size:12.5px;color:rgba(255,255,255,.4);margin-top:16px}
+.hero .btn-ghost{color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.26)}
+.hero .btn-ghost:hover{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.5)}
+/* dashboard assembles itself */
+.asm{opacity:0;transform:translateY(18px);animation:rowIn .7s var(--ease) forwards}
+.hero-window.spotlight{box-shadow:0 0 0 2px rgba(91,141,239,.55),0 32px 90px rgba(36,99,235,.35);transition:box-shadow .6s var(--ease)}
 
 /* hero product frame */
 .hero-product{position:relative;max-width:1060px;margin:72px auto 0;padding:0 24px}
@@ -171,10 +183,15 @@ button{font-family:var(--font)}
 .eng em{font-style:normal;font-weight:700;width:26px;text-align:right;font-variant-numeric:tabular-nums}
 
 /* Ada greeting */
-.ada-greet{position:absolute;right:6px;top:-26px;display:flex;align-items:flex-end;gap:10px;z-index:5;opacity:0;transform:translateY(14px);animation:adaIn .7s 1.4s var(--ease) forwards}
+.ada-greet{position:absolute;right:6px;top:-38px;display:flex;align-items:flex-end;gap:10px;z-index:5;opacity:0;transform:translateY(14px);animation:adaIn .7s 1.4s var(--ease) forwards;will-change:transform}
 @keyframes adaIn{to{opacity:1;transform:none}}
-.ada-bubble{background:#fff;border:1px solid var(--border);border-radius:14px 14px 4px 14px;box-shadow:var(--shadow-lg);padding:12px 16px;font-size:12.5px;color:var(--ink-2);max-width:250px;line-height:1.5}
+.ada-bubble{background:#fff;border:1px solid var(--border);border-radius:14px 14px 4px 14px;box-shadow:var(--shadow-lg);padding:12px 16px;font-size:12.5px;color:var(--ink-2);max-width:260px;line-height:1.5;min-height:20px}
 .ada-bubble b{color:var(--blue)}
+.ada-greet .ada-avatar{width:56px;height:56px;font-size:18px;animation:breathe 4.6s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.02)}}
+.ada-greet.active .ada-avatar{box-shadow:0 0 0 3px rgba(91,141,239,.55),0 6px 22px rgba(36,99,235,.5)}
+.ada-bubble .caret{display:inline-block;width:7px;height:13px;background:var(--blue);margin-left:2px;vertical-align:-2px;animation:caretBlink .9s steps(1) infinite}
+@keyframes caretBlink{50%{opacity:0}}
 .ada-avatar{position:relative;overflow:hidden;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;box-shadow:0 4px 14px rgba(36,99,235,.4);border:2.5px solid #fff;flex-shrink:0}
 @media(max-width:760px){.ada-greet{display:none}}
 
@@ -329,11 +346,11 @@ button{font-family:var(--font)}
 <!-- ================= NAV ================= -->
 <nav class="nav" id="nav">
   <div class="nav-inner">
-    <a class="logo" href="#top">
-      <span class="logo-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <a class="logo" href="#top" aria-label="FieldScore home">
+      <span class="fs-word">
+        <span class="f1">FIELD</span><span class="f2">SC</span><svg class="fs-globe" viewBox="0 0 24 24" fill="none" stroke="#2463EB" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><ellipse cx="12" cy="12" rx="4.2" ry="9.5"/><path d="M2.5 12h19M4 7h16M4 17h16"/></svg><span class="f2">RE</span>
       </span>
-      <span>Field<b>Score</b></span>
+      <span class="fs-tag">VERIFY. ANALYZE. <b>DECIDE.</b></span>
     </a>
     <div class="nav-links">
       <a href="#platform">Platform</a>
@@ -352,38 +369,40 @@ button{font-family:var(--font)}
 
 <!-- ================= HERO ================= -->
 <header class="hero" id="top">
+  <canvas id="globe" aria-hidden="true"></canvas>
   <div class="hero-grid-bg" aria-hidden="true"></div>
   <div class="hero-inner">
-    <div class="hero-badge"><span class="dot"></span> Continuous field verification, live</div>
+    <div class="hero-badge"><span class="dot"></span> Verifying fieldwork across the globe, right now</div>
     <h1>Verify every interview.<br/><span class="accent">Trust every decision.</span></h1>
     <p class="sub">FieldScore continuously verifies field operations, detects fraud as it happens, analyses research quality, and helps organizations deliver trustworthy insights at scale.</p>
     <div class="hero-ctas">
-      <a class="btn btn-primary" href="#book-demo">Book a Demo</a>
-      <a class="btn btn-ghost" href="https://researchos-dashboard.vercel.app" target="_blank" rel="noopener">Explore the Live Platform →</a>
+      <button class="btn btn-light" id="meetAda">✦ Meet Ada</button>
+      <a class="btn btn-primary" href="https://calendly.com/intelligency/strategy" target="_blank" rel="noopener">Book a Demo</a>
+      <a class="btn btn-ghost" href="https://researchos-dashboard.vercel.app" target="_blank" rel="noopener">Explore the Platform →</a>
     </div>
     <div class="hero-note">Built for research agencies, NGOs, government and enterprise field teams.</div>
   </div>
 
   <div class="hero-product">
-    <div class="ada-greet" aria-hidden="true">
-      <div class="ada-bubble"><b>Hi, I'm Ada.</b> I verify every submission as it arrives from the field. Want me to show you around?</div>
-      <div class="ada-avatar">A<img src="/ada-avatar.jpg" alt="Ada" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%"></div>
+    <div class="ada-greet" id="adaHost">
+      <div class="ada-bubble"><span id="adaText"><b>Hi, I'm Ada.</b> I verify every submission as it arrives from the field.</span></div>
+      <div class="ada-avatar" id="adaAvatar">A<img src="/ada-avatar.jpg" alt="Ada" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%"></div>
     </div>
-    <div class="hero-window">
+    <div class="hero-window" id="heroWindow" style="will-change:transform">
       <div class="win-bar"><i></i><i></i><i></i><span class="url">fieldscore — live verification</span></div>
       <div class="win-body">
         <div>
           <div class="kpi-row">
-            <div class="kpi"><div class="k-label">Submissions Today</div><div class="k-value" data-count="1284" style="color:var(--ink)">0</div><div class="k-trend" style="color:var(--green)">↑ 12% vs yesterday</div></div>
-            <div class="kpi"><div class="k-label">Trust Score</div><div class="k-value" data-count="87" style="color:var(--green)">0</div><div class="k-trend" style="color:var(--green)">↑ 3pts this week</div></div>
-            <div class="kpi"><div class="k-label">Fraud Caught</div><div class="k-value" data-count="41" style="color:var(--red)">0</div><div class="k-trend" style="color:var(--ink-4)">before delivery</div></div>
+            <div class="kpi asm" style="animation-delay:.15s"><div class="k-label">Submissions Today</div><div class="k-value" data-count="1284" style="color:var(--ink)">0</div><div class="k-trend" style="color:var(--green)">↑ 12% vs yesterday</div></div>
+            <div class="kpi asm" style="animation-delay:.3s"><div class="k-label">Trust Score</div><div class="k-value" data-count="87" style="color:var(--green)">0</div><div class="k-trend" style="color:var(--green)">↑ 3pts this week</div></div>
+            <div class="kpi asm" style="animation-delay:.45s"><div class="k-label">Fraud Caught</div><div class="k-value" data-count="41" style="color:var(--red)">0</div><div class="k-trend" style="color:var(--ink-4)">before delivery</div></div>
           </div>
-          <div class="feed">
+          <div class="feed asm" style="animation-delay:.6s">
             <div class="feed-head"><b>Verification Feed</b><span class="feed-live">Live</span></div>
             <div class="feed-rows" id="feed"></div>
           </div>
         </div>
-        <div class="ring-panel">
+        <div class="ring-panel asm" style="animation-delay:.75s">
           <div class="ring-wrap">
             <svg width="150" height="150" viewBox="0 0 150 150">
               <circle class="ring-track" cx="75" cy="75" r="66"/>
@@ -641,11 +660,13 @@ button{font-family:var(--font)}
   <div class="container">
     <div class="footer-grid">
       <div class="f-brand">
-        <a class="logo" href="#top">
-          <span class="logo-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          <span>Field<b>Score</b></span>
+        <a class="logo" href="#top" aria-label="FieldScore home">
+          <span class="fs-word">
+            <span class="f1">FIELD</span><span class="f2">SC</span><svg class="fs-globe" viewBox="0 0 24 24" fill="none" stroke="#2463EB" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><ellipse cx="12" cy="12" rx="4.2" ry="9.5"/><path d="M2.5 12h19M4 7h16M4 17h16"/></svg><span class="f2">RE</span>
+          </span>
+          <span class="fs-tag">VERIFY. ANALYZE. <b>DECIDE.</b></span>
         </a>
-        <p>The intelligence layer for modern research quality. Built by Intelligency AI, Lagos, Nigeria.</p>
+        <p>Global research. Trusted data. Smarter decisions. Built by Intelligency AI, Lagos, Nigeria.</p>
       </div>
       <div>
         <h5>Platform</h5>
@@ -772,6 +793,119 @@ button{font-family:var(--font)}
       feed.insertBefore(el, feed.firstChild);
       while(feed.children.length > 6) feed.removeChild(feed.lastChild);
     }, 3200);
+  }
+
+  /* ============================================================
+     CINEMATIC LAYER — data globe, parallax, Ada host
+     ============================================================ */
+
+  // — Living globe: points on a sphere, slow rotation, verification pulses
+  var cv = document.getElementById('globe');
+  if (cv && cv.getContext) {
+    var gctx = cv.getContext('2d');
+    var DPR = Math.min(window.devicePixelRatio || 1, 2);
+    function sizeGlobe(){ cv.width = cv.offsetWidth * DPR; cv.height = cv.offsetHeight * DPR; }
+    sizeGlobe();
+    window.addEventListener('resize', sizeGlobe);
+
+    var N = 620, pts = [];
+    for (var gi = 0; gi < N; gi++) {
+      var th = Math.acos(1 - 2 * (gi + .5) / N);
+      var ph = Math.PI * (1 + Math.sqrt(5)) * gi;
+      pts.push([Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)]);
+    }
+    var rot = 0.6, pulses = [], heroVisible = true;
+    new IntersectionObserver(function(en){ heroVisible = en[0].isIntersecting; }).observe(cv);
+
+    function drawGlobe(){
+      var w = cv.width, h = cv.height;
+      var R = Math.min(w, h) * 0.44, cx = w / 2, cy = h * 0.52;
+      gctx.clearRect(0, 0, w, h);
+      var cosr = Math.cos(rot), sinr = Math.sin(rot);
+
+      if (!reduced && Math.random() < 0.03 && pulses.length < 6)
+        pulses.push({ i: Math.floor(Math.random() * N), r: 0, ok: Math.random() > .18 });
+
+      for (var i = 0; i < N; i++) {
+        var x = pts[i][0] * cosr + pts[i][2] * sinr;
+        var z = -pts[i][0] * sinr + pts[i][2] * cosr;
+        var sx = cx + x * R, sy = cy + pts[i][1] * R * 0.98;
+        var depth = (z + 1) / 2;
+        gctx.beginPath();
+        gctx.arc(sx, sy, (0.7 + depth * 1.5) * DPR, 0, 6.2832);
+        gctx.fillStyle = 'rgba(91,141,239,' + (0.05 + depth * 0.5).toFixed(3) + ')';
+        gctx.fill();
+      }
+      for (var j = pulses.length - 1; j >= 0; j--) {
+        var P = pulses[j]; P.r += 1.1 * DPR;
+        var px = pts[P.i][0] * cosr + pts[P.i][2] * sinr;
+        var pz = -pts[P.i][0] * sinr + pts[P.i][2] * cosr;
+        if (pz > 0) {
+          var psx = cx + px * R, psy = cy + pts[P.i][1] * R * 0.98;
+          var al = Math.max(0, 1 - P.r / (42 * DPR));
+          gctx.beginPath();
+          gctx.arc(psx, psy, P.r, 0, 6.2832);
+          gctx.strokeStyle = (P.ok ? 'rgba(74,222,128,' : 'rgba(251,191,36,') + (al * 0.75).toFixed(3) + ')';
+          gctx.lineWidth = 1.3 * DPR;
+          gctx.stroke();
+        }
+        if (P.r > 42 * DPR) pulses.splice(j, 1);
+      }
+      if (!reduced) { rot += 0.0014; requestAnimationFrame(function(){ if (heroVisible && !document.hidden) drawGlobe(); else setTimeout(drawGlobe, 400); }); }
+    }
+    drawGlobe();
+  }
+
+  // — Camera parallax: hero window tilts subtly toward the cursor; Ada drifts
+  var heroEl = document.querySelector('.hero');
+  var winEl = document.getElementById('heroWindow');
+  var hostEl = document.getElementById('adaHost');
+  var avatarEl = document.getElementById('adaAvatar');
+  if (!reduced && heroEl && window.matchMedia('(pointer:fine)').matches) {
+    heroEl.addEventListener('mousemove', function(e){
+      var r = heroEl.getBoundingClientRect();
+      var dx = (e.clientX - r.left - r.width / 2) / r.width;
+      var dy = (e.clientY - r.top - r.height / 2) / r.height;
+      if (winEl) winEl.style.transform = 'perspective(1400px) rotateY(' + (dx * 2.2).toFixed(2) + 'deg) rotateX(' + (-dy * 1.4).toFixed(2) + 'deg)';
+      if (hostEl) hostEl.style.translate = (dx * 12).toFixed(1) + 'px ' + (dy * 7).toFixed(1) + 'px';
+      // Ada gently turns toward the visitor's cursor
+      if (avatarEl) avatarEl.style.rotate = (dx * 6).toFixed(1) + 'deg';
+    });
+    heroEl.addEventListener('mouseleave', function(){
+      if (winEl) winEl.style.transform = '';
+      if (hostEl) hostEl.style.translate = '';
+      if (avatarEl) avatarEl.style.rotate = '';
+    });
+  }
+
+  // — Meet Ada: passive mode becomes interactive mode
+  var meetBtn = document.getElementById('meetAda');
+  var adaText = document.getElementById('adaText');
+  var ADA_LINE = "Welcome to FieldScore. Rather than telling you what we do — let me show you.";
+  var met = false;
+  if (meetBtn && adaText) {
+    meetBtn.addEventListener('click', function(){
+      if (met) { winEl.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' }); return; }
+      met = true;
+      hostEl.classList.add('active');
+      hostEl.style.animation = 'none'; hostEl.style.opacity = '1'; hostEl.style.transform = 'none';
+      function reveal(){
+        winEl.classList.add('spotlight');
+        winEl.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+      }
+      if (reduced) { adaText.textContent = ADA_LINE; reveal(); return; }
+      adaText.innerHTML = '<span class="caret"></span>';
+      var ti = 0;
+      (function type(){
+        if (ti < ADA_LINE.length) {
+          adaText.innerHTML = ADA_LINE.slice(0, ++ti) + '<span class="caret"></span>';
+          setTimeout(type, 24 + Math.random() * 26);
+        } else {
+          adaText.textContent = ADA_LINE;
+          setTimeout(reveal, 500);
+        }
+      })();
+    });
   }
 })();
 </script>
