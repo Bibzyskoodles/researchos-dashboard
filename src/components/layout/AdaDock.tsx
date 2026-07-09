@@ -12,6 +12,8 @@ const BLUE = "#2463EB";
 const GREEN = "#059669";
 
 const OAI_KEY = process.env.REACT_APP_OPENAI_KEY || "";
+const XI_KEY = process.env.REACT_APP_ELEVENLABS_KEY || "";
+const XI_VOICE_ID = process.env.REACT_APP_ELEVENLABS_VOICE_ID || "jBpfuIE2acCO8z3wKNLl"; // Nigerian English female
 
 function stripMarkdown(text: string): string {
   return text
@@ -22,7 +24,7 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-// Neural TTS: OpenAI tts-1-hd (nova voice) → Web Speech fallback
+// TTS chain: ElevenLabs (Nigerian voice) → OpenAI → Web Speech
 async function speak(
   text: string,
   voiceOn: boolean,
@@ -30,41 +32,60 @@ async function speak(
   onEnd?: () => void
 ): Promise<void> {
   if (!voiceOn) { onEnd?.(); return; }
-  const clean = stripMarkdown(text)
-    .replace(/\bAda\b/g, 'Ay-dah');
+  const clean = stripMarkdown(text);
   if (!clean) { onEnd?.(); return; }
 
-  // --- OpenAI TTS (natural neural voice) ---
+  const stopPrev = () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } };
+
+  const playBlob = (blob: Blob): Promise<boolean> =>
+    new Promise(resolve => {
+      try {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; onEnd?.(); resolve(true); };
+        audio.onerror = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve(false); };
+        audio.play().catch(() => resolve(false));
+      } catch { resolve(false); }
+    });
+
+  // 1. ElevenLabs — Nigerian English voice
+  if (XI_KEY) {
+    try {
+      stopPrev();
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${XI_VOICE_ID}`, {
+        method: "POST",
+        headers: { "xi-api-key": XI_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: clean,
+          model_id: "eleven_turbo_v2_5",
+          voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.3, use_speaker_boost: true },
+        }),
+      });
+      if (res.ok && await playBlob(await res.blob())) return;
+    } catch { /* fall through */ }
+  }
+
+  // 2. OpenAI TTS fallback
   if (OAI_KEY) {
     try {
-      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      stopPrev();
       const res = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
         headers: { Authorization: `Bearer ${OAI_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "tts-1-hd", input: clean, voice: "shimmer", speed: 1.0 }),
       });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; onEnd?.(); };
-        audio.onerror = () => { URL.revokeObjectURL(url); audioRef.current = null; onEnd?.(); };
-        await audio.play();
-        return;
-      }
-    } catch { /* fall through to Web Speech */ }
+      if (res.ok && await playBlob(await res.blob())) return;
+    } catch { /* fall through */ }
   }
 
-  // --- Web Speech fallback ---
+  // 3. Web Speech fallback
   const synth = window.speechSynthesis;
   if (!synth) { onEnd?.(); return; }
   synth.cancel();
-
   const doSpeak = () => {
     const utt = new SpeechSynthesisUtterance(clean);
-    utt.rate = 1.0;
-    utt.pitch = 1.0;
+    utt.rate = 1.0; utt.pitch = 1.0;
     const voices = synth.getVoices();
     const preferred =
       voices.find(v => /google.*female|google.*uk.*female/i.test(v.name)) ||
@@ -76,7 +97,6 @@ async function speak(
     utt.onerror = () => onEnd?.();
     synth.speak(utt);
   };
-
   if (synth.getVoices().length === 0) {
     synth.onvoiceschanged = () => { synth.onvoiceschanged = null; doSpeak(); };
   } else {
