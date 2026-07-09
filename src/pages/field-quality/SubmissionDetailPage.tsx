@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
@@ -7,9 +7,13 @@ import { dashboardApi } from "../../services/api";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { ScoreRing } from "../../components/ui/ScoreRing";
 import { EngineBar } from "../../components/ui/EngineBar";
-import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield } from "lucide-react";
+import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield, Cpu, Sparkles } from "lucide-react";
 
-const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED",CYAN="#06B6D4";
+const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED",CYAN="#06B6D4",ROSE="#E11D48";
+
+type AiScanStatus = "idle"|"loading"|"done"|"error";
+interface AiResult { score: number; finding: string; status: "PASS"|"FLAG"|"FAIL" }
+interface AiScan { status: AiScanStatus; image?: AiResult; audio?: AiResult; text?: AiResult }
 
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
 const vclr=(v:string)=>v==="PASS"?GREEN:v==="FLAG"?AMBER:RED;
@@ -48,6 +52,7 @@ export default function SubmissionDetailPage(){
   const [lightbox,setLightbox]=useState(false);
   const [toast,setToast]=useState("");
   const [showRaw,setShowRaw]=useState(false);
+  const [aiScan,setAiScan]=useState<AiScan>({status:"idle"});
 
   useEffect(()=>{
     if(!id)return;
@@ -77,6 +82,102 @@ export default function SubmissionDetailPage(){
       setActing("");
     }
   };
+
+  const analyzeTranscriptForAi = useCallback((transcript: string): AiResult => {
+    const text = transcript.trim();
+    if (!text || text.length < 40) return { score: 50, finding: "Transcript too short to assess for AI generation.", status: "PASS" };
+    const sentences = text.split(/[.!?]+/).map(s=>s.trim()).filter(s=>s.length>0);
+    let riskScore = 0;
+    // No filler words (um, uh, err, hmm, like, you know)
+    const fillerPattern = /\b(um|uh|err|hmm|like|you know|actually|basically|right)\b/i;
+    if (!fillerPattern.test(text)) riskScore += 25;
+    // Sentences suspiciously uniform in length
+    if (sentences.length >= 3) {
+      const lens = sentences.map(s=>s.split(/\s+/).length);
+      const avg = lens.reduce((a,b)=>a+b,0)/lens.length;
+      const variance = lens.reduce((a,b)=>a+Math.pow(b-avg,2),0)/lens.length;
+      if (variance < 6) riskScore += 20;
+    }
+    // No contractions (very formal/TTS pattern)
+    const contractionPattern = /\b(i'm|i've|i'll|i'd|don't|doesn't|didn't|can't|won't|it's|that's|they're|we're|you're|isn't|wasn't|weren't)\b/i;
+    if (!contractionPattern.test(text) && text.length > 100) riskScore += 15;
+    // Perfect punctuation (no run-ons, no trailing thoughts)
+    const runOnCount = (text.match(/,\s+and\s+/gi)||[]).length + (text.match(/,\s+but\s+/gi)||[]).length;
+    if (runOnCount === 0 && sentences.length > 4) riskScore += 10;
+    // No repetitions or self-corrections
+    const selfCorrect = /\b(i mean|sorry|actually i|wait|no wait|i meant)\b/i;
+    if (!selfCorrect.test(text)) riskScore += 10;
+    const status: "PASS"|"FLAG"|"FAIL" = riskScore >= 50 ? "FAIL" : riskScore >= 30 ? "FLAG" : "PASS";
+    const finding = riskScore >= 50
+      ? `Transcript shows multiple TTS indicators (score ${riskScore}/80): no filler words, uniform sentence structure, no self-corrections. Likely AI-generated or scripted.`
+      : riskScore >= 30
+      ? `Some TTS patterns detected (score ${riskScore}/80): unusually clean speech. May warrant review.`
+      : `Transcript reads like natural human speech. No significant AI/TTS patterns detected.`;
+    return { score: Math.max(0, 100 - Math.round(riskScore * 1.25)), finding, status };
+  }, []);
+
+  const runAiScan = useCallback(async () => {
+    if (!sub) return;
+    setAiScan({ status: "loading" });
+    const results: Partial<Pick<AiScan,"image"|"audio"|"text">> = {};
+
+    // --- IMAGE: OpenAI Vision ---
+    const openaiKey = process.env.REACT_APP_OPENAI_KEY;
+    if (sub.image_url && openaiKey) {
+      try {
+        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type":"application/json", "Authorization":`Bearer ${openaiKey}` },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            max_tokens: 200,
+            messages: [{
+              role: "user",
+              content: [
+                { type: "text", text: "Analyse this image submitted as field research evidence. Is it AI-generated, a stock photo, or a real photo taken in the field? Respond with JSON only: {\"ai_probability\": 0-100, \"verdict\": \"genuine\"|\"suspicious\"|\"ai_generated\", \"finding\": \"one sentence\"}. ai_probability 0=definitely real fieldwork photo, 100=definitely AI-generated or stock." },
+                { type: "image_url", image_url: { url: sub.image_url, detail: "low" } }
+              ]
+            }]
+          })
+        });
+        const data = await resp.json();
+        const raw = data.choices?.[0]?.message?.content || "{}";
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+        const prob = typeof parsed.ai_probability === "number" ? parsed.ai_probability : 50;
+        const authenticity = 100 - prob;
+        results.image = {
+          score: authenticity,
+          finding: parsed.finding || (prob >= 60 ? "Image appears to be AI-generated or stock photography." : "Image appears to be a genuine field photograph."),
+          status: authenticity >= 70 ? "PASS" : authenticity >= 45 ? "FLAG" : "FAIL",
+        };
+      } catch {
+        results.image = { score: 0, finding: "AI image scan could not complete.", status: "FLAG" };
+      }
+    } else if (sub.image_url && !openaiKey) {
+      results.image = { score: 50, finding: "OpenAI key not configured — image AI scan unavailable.", status: "FLAG" };
+    }
+
+    // --- AUDIO: use existing is_genuine_interview + transcript analysis ---
+    const checks = sub.checks || {};
+    if (checks.audio?.is_genuine_interview !== undefined) {
+      const genuine = checks.audio.is_genuine_interview;
+      results.audio = {
+        score: genuine ? 85 : 20,
+        finding: genuine ? "Audio passed genuine interview verification." : "Audio flagged as not a genuine interview — may be scripted or AI-generated speech.",
+        status: genuine ? "PASS" : "FAIL",
+      };
+    } else if (checks.audio?.transcript) {
+      results.audio = analyzeTranscriptForAi(checks.audio.transcript);
+    }
+
+    // --- TEXT: transcript analysis (separate from audio engine) ---
+    if (checks.audio?.transcript && !results.audio) {
+      results.text = analyzeTranscriptForAi(checks.audio.transcript);
+    }
+
+    setAiScan({ status: "done", ...results });
+  }, [sub, analyzeTranscriptForAi]);
 
   const adaBriefing=(s:any)=>{
     if(!s)return"";
@@ -332,6 +433,68 @@ export default function SubmissionDetailPage(){
             <EngineBar label="Image Quality" score={checks.image?.score||0} status={checks.image?.status} finding={checks.image?.finding} weight={22} color={PURPLE} icon={<Camera size={13} color={PURPLE}/>}/>
             <EngineBar label="Audio Quality" score={checks.audio?.score||0} status={checks.audio?.status} finding={checks.audio?.finding} weight={15} color={GREEN} icon={<Mic size={13} color={GREEN}/>}/>
             <EngineBar label="Duplicate Detection" score={checks.duplicate?.score||0} status={checks.duplicate?.status} finding={checks.duplicate?.finding} weight={10} color={CYAN} icon={<Shield size={13} color={CYAN}/>}/>
+          </div>
+
+          {/* AI Authenticity */}
+          <div style={{background:"white",borderRadius:16,padding:20,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7}}>AI Authenticity</div>
+              <div style={{marginLeft:"auto"}}>
+                {aiScan.status==="idle"&&(
+                  <button onClick={runAiScan}
+                    style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,background:ROSE,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,color:"white",fontFamily:"Inter,sans-serif"}}>
+                    <Sparkles size={12}/> Run AI Scan
+                  </button>
+                )}
+                {aiScan.status==="loading"&&(
+                  <span style={{fontSize:11,color:ROSE,fontWeight:600}}>Scanning…</span>
+                )}
+                {aiScan.status==="done"&&(
+                  <button onClick={runAiScan}
+                    style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:7,background:"#F8FAFF",border:"1px solid #E8EDF5",cursor:"pointer",fontSize:11,color:"#6B7280",fontFamily:"Inter,sans-serif"}}>
+                    <Cpu size={11}/> Re-scan
+                  </button>
+                )}
+                {aiScan.status==="error"&&(
+                  <button onClick={runAiScan}
+                    style={{padding:"4px 10px",borderRadius:7,background:RED+"15",border:`1px solid ${RED}33`,cursor:"pointer",fontSize:11,color:RED,fontFamily:"Inter,sans-serif"}}>
+                    Retry
+                  </button>
+                )}
+              </div>
+            </div>
+            {aiScan.status==="idle"&&(
+              <div style={{fontSize:12,color:"#9CA3AF",textAlign:"center",padding:"16px 0",lineHeight:1.6}}>
+                Scan this submission's image, audio, and transcript for signs of AI generation or synthetic content.
+              </div>
+            )}
+            {aiScan.status==="loading"&&(
+              <div style={{display:"flex",flexDirection:"column",gap:8,padding:"8px 0"}}>
+                {[["Image","Calling OpenAI Vision…"],["Audio","Checking interview authenticity…"],["Transcript","Analysing speech patterns…"]].map(([lbl,msg])=>(
+                  <div key={lbl} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#F8FAFF",borderRadius:10,border:"1px solid #E8EDF5"}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:ROSE,animation:"pulse 1s infinite"}}/>
+                    <span style={{fontSize:12,color:"#374151",fontWeight:600}}>{lbl}</span>
+                    <span style={{fontSize:11,color:"#9CA3AF",marginLeft:"auto"}}>{msg}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {aiScan.status==="done"&&(
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                {aiScan.image&&(
+                  <EngineBar label="Image Authenticity" score={aiScan.image.score} status={aiScan.image.status} finding={aiScan.image.finding} weight={0} color={ROSE} icon={<Camera size={13} color={ROSE}/>}/>
+                )}
+                {aiScan.audio&&(
+                  <EngineBar label="Audio / Speech" score={aiScan.audio.score} status={aiScan.audio.status} finding={aiScan.audio.finding} weight={0} color={ROSE} icon={<Mic size={13} color={ROSE}/>}/>
+                )}
+                {aiScan.text&&(
+                  <EngineBar label="Transcript Patterns" score={aiScan.text.score} status={aiScan.text.status} finding={aiScan.text.finding} weight={0} color={ROSE} icon={<Cpu size={13} color={ROSE}/>}/>
+                )}
+                {!aiScan.image&&!aiScan.audio&&!aiScan.text&&(
+                  <div style={{fontSize:12,color:"#9CA3AF",textAlign:"center",padding:"12px 0"}}>No media available to scan.</div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Flags */}
