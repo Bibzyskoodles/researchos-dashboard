@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, HelpCircle, Search } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { dashboardApi } from '../../services/api';
@@ -147,39 +148,37 @@ export default function Topbar() {
           {project}
           <span style={{ color: colors.textTertiary, fontSize: 11 }}>▾</span>
         </div>
-        {openProj && (
-          <div style={{ ...dropdownStyle, left: 0, minWidth: 200 }}>
-            {['All Projects', ...projects].map(p => (
-              <div
-                key={p}
-                onClick={() => {
-                  setProject(p);
-                  setOpenProj(false);
-                  nav('/submissions');
-                }}
-                style={{
-                  ...itemStyle,
-                  fontWeight: p === project ? 700 : 400,
-                  color: p === project ? colors.primary : colors.textSecondary,
-                  background: p === project ? colors.primaryLighter : 'transparent',
-                }}
-                onMouseEnter={(e) => {
-                  if (p !== project) {
-                    (e.currentTarget as HTMLDivElement).style.background = colors.surfaceHover;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (p !== project) {
-                    (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-                  }
-                }}
-              >
-                {p}
-              </div>
-            ))}
-            {projects.length === 0 && <div style={mutedStyle}>No projects yet</div>}
-          </div>
-        )}
+        <AnimatePresence>
+          {openProj && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.12 }}
+              style={{ ...dropdownStyle, left: 0, minWidth: 200 }}>
+              {['All Projects', ...projects].map(p => (
+                <motion.div
+                  key={p}
+                  whileHover={{ background: p === project ? colors.primaryLighter : colors.surfaceHover }}
+                  onClick={() => {
+                    setProject(p);
+                    setOpenProj(false);
+                    nav('/submissions');
+                  }}
+                  style={{
+                    ...itemStyle,
+                    fontWeight: p === project ? 700 : 400,
+                    color: p === project ? colors.primary : colors.textSecondary,
+                    background: p === project ? colors.primaryLighter : 'transparent',
+                  }}
+                >
+                  {p}
+                </motion.div>
+              ))}
+              {projects.length === 0 && <div style={mutedStyle}>No projects yet</div>}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Search */}
@@ -217,32 +216,37 @@ export default function Topbar() {
             }}
           />
         </div>
-        {openSearch && query.trim() && (
-          <div style={{ ...dropdownStyle, left: 0, right: 0, width: 'auto' }}>
-            {results.length
-              ? results.map(s => (
-                  <div
-                    key={s.submission_id}
-                    onClick={() => go(s.submission_id)}
-                    style={itemStyle}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLDivElement).style.background = colors.surfaceHover;
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, color: colors.textPrimary }}>
-                      {s.submission_id.slice(0, 20)}
-                    </span>
-                    <span style={{ color: colors.textTertiary }}>
-                      {' '}· {s.enumerator_id} · {s.verdict}
-                    </span>
-                  </div>
-                ))
-              : <div style={mutedStyle}>No matches</div>}
-          </div>
-        )}
+        <AnimatePresence>
+          {openSearch && query.trim() && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.12 }}
+              style={{ ...dropdownStyle, left: 0, right: 0, width: 'auto' }}>
+              {results.length
+                ? results.map((s, idx) => (
+                    <motion.div
+                      key={s.submission_id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.02 }}
+                      whileHover={{ background: colors.surfaceHover }}
+                      onClick={() => go(s.submission_id)}
+                      style={itemStyle}
+                    >
+                      <span style={{ fontWeight: 600, color: colors.textPrimary }}>
+                        {s.submission_id.slice(0, 20)}
+                      </span>
+                      <span style={{ color: colors.textTertiary }}>
+                        {' '}· {s.enumerator_id} · {s.verdict}
+                      </span>
+                    </motion.div>
+                  ))
+                : <div style={mutedStyle}>No matches</div>}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Right */}
@@ -283,49 +287,54 @@ export default function Topbar() {
               </span>
             )}
           </button>
-          {openBell && (
-            <div style={{ ...dropdownStyle, right: 0, width: 320 }}>
-              <div style={{
-                padding: `${spacing.md}px ${spacing.lg}px`,
-                fontSize: 11,
-                fontWeight: 700,
-                color: colors.textQuaternary,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-                borderBottom: `1px solid ${colors.border}`,
-              }}>
-                Alerts
-              </div>
-              {alerts.length
-                ? alerts.map(s => (
-                    <div
-                      key={s.submission_id}
-                      onClick={() => {
-                        setOpenBell(false);
-                        nav(`/submissions/${s.submission_id}`);
-                      }}
-                      style={itemStyle}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.background = colors.surfaceHover;
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-                      }}
-                    >
-                      <span style={{
-                        fontWeight: 700,
-                        color: s.verdict === 'REJECT' ? colors.error : colors.warning,
-                      }}>
-                        {s.verdict}
-                      </span>
-                      <span style={{ color: colors.textTertiary }}>
-                        {' '}· {s.enumerator_id} · {s.overall_score}/100
-                      </span>
-                    </div>
-                  ))
-                : <div style={mutedStyle}>No alerts — all clear</div>}
-            </div>
-          )}
+          <AnimatePresence>
+            {openBell && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.12 }}
+                style={{ ...dropdownStyle, right: 0, width: 320 }}>
+                <div style={{
+                  padding: `${spacing.md}px ${spacing.lg}px`,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: colors.textQuaternary,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  borderBottom: `1px solid ${colors.border}`,
+                }}>
+                  Alerts
+                </div>
+                {alerts.length
+                  ? alerts.map((s, idx) => (
+                      <motion.div
+                        key={s.submission_id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.02 }}
+                        whileHover={{ background: colors.surfaceHover }}
+                        onClick={() => {
+                          setOpenBell(false);
+                          nav(`/submissions/${s.submission_id}`);
+                        }}
+                        style={itemStyle}
+                      >
+                        <span style={{
+                          fontWeight: 700,
+                          color: s.verdict === 'REJECT' ? colors.error : colors.warning,
+                        }}>
+                          {s.verdict}
+                        </span>
+                        <span style={{ color: colors.textTertiary }}>
+                          {' '}· {s.enumerator_id} · {s.overall_score}/100
+                        </span>
+                      </motion.div>
+                    ))
+                  : <div style={mutedStyle}>No alerts — all clear</div>}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         <button
           style={iconBtnStyle}
