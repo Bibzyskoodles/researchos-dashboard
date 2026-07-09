@@ -175,7 +175,7 @@ button{font-family:var(--font)}
 @keyframes adaIn{to{opacity:1;transform:none}}
 .ada-bubble{background:#fff;border:1px solid var(--border);border-radius:14px 14px 4px 14px;box-shadow:var(--shadow-lg);padding:12px 16px;font-size:12.5px;color:var(--ink-2);max-width:250px;line-height:1.5}
 .ada-bubble b{color:var(--blue)}
-.ada-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;box-shadow:0 4px 14px rgba(36,99,235,.4);border:2.5px solid #fff;flex-shrink:0}
+.ada-avatar{position:relative;overflow:hidden;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;box-shadow:0 4px 14px rgba(36,99,235,.4);border:2.5px solid #fff;flex-shrink:0}
 @media(max-width:760px){.ada-greet{display:none}}
 
 /* trust bar */
@@ -344,8 +344,7 @@ button{font-family:var(--font)}
     </div>
     <div class="nav-cta">
       <a class="login" href="https://researchos-dashboard.vercel.app/login">Log in</a>
-      <!-- CALENDLY: replace href with your Calendly link -->
-      <a class="btn btn-primary" href="#book-demo">Book Demo</a>
+      <a class="btn btn-primary" href="https://calendly.com/intelligency/strategy" target="_blank" rel="noopener">Book Demo</a>
     </div>
     <button class="nav-burger" id="burger" aria-label="Menu"><span></span><span></span><span></span></button>
   </div>
@@ -368,7 +367,7 @@ button{font-family:var(--font)}
   <div class="hero-product">
     <div class="ada-greet" aria-hidden="true">
       <div class="ada-bubble"><b>Hi, I'm Ada.</b> I verify every submission as it arrives from the field. Want me to show you around?</div>
-      <div class="ada-avatar">A</div>
+      <div class="ada-avatar">A<img src="/ada-avatar.jpg" alt="Ada" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%"></div>
     </div>
     <div class="hero-window">
       <div class="win-bar"><i></i><i></i><i></i><span class="url">fieldscore — live verification</span></div>
@@ -410,10 +409,10 @@ button{font-family:var(--font)}
 <!-- ================= TRUST BAR ================= -->
 <div class="trustbar">
   <div class="container">
-    <p>Built for the organizations the world trusts with its data</p>
+    <p>Works with the tools your field teams already use</p>
     <div class="trust-logos">
-      <!-- SOCIAL PROOF: replace with real client logos as they come in -->
-      <span>Your logo here</span><span>Research agency</span><span>NGO partner</span><span>Government body</span><span>Global consultancy</span>
+      <!-- SOCIAL PROOF: swap these for client logos as they come in -->
+      <span>KoboToolbox</span><span>ODK</span><span>SurveyCTO</span><span>Excel / CSV</span><span>REST API</span>
     </div>
   </div>
 </div>
@@ -597,7 +596,7 @@ button{font-family:var(--font)}
       </div>
     </div>
     <div class="ada-advisor reveal">
-      <div class="ada-avatar">A</div>
+      <div class="ada-avatar">A<img src="/ada-avatar.jpg" alt="Ada" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%"></div>
       <p><b>Not sure which plan fits?</b> Tell Ada about your organization — how many projects you run, how many interviews per wave, and your research methods — and she'll recommend the right plan inside the platform.</p>
       <a class="btn btn-primary" href="https://researchos-dashboard.vercel.app" target="_blank" rel="noopener" style="padding:11px 22px;font-size:14px">Ask Ada</a>
     </div>
@@ -630,10 +629,8 @@ button{font-family:var(--font)}
       <h2>See your fieldwork the way<br/>FieldScore sees it.</h2>
       <p>A 30-minute demo with your own use case. By the end, you'll know exactly which interviews you would have caught.</p>
       <div class="hero-ctas">
-        <!-- CALENDLY: replace href with your Calendly booking link -->
-        <a class="btn btn-light" href="https://calendly.com/REPLACE-WITH-YOUR-LINK" target="_blank" rel="noopener">Book Your Demo</a>
-        <!-- EMAIL: replace with your sales/contact email -->
-        <a class="btn btn-ghost" style="color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.3)" href="mailto:hello@intelligencyai.com.ng">hello@intelligencyai.com.ng</a>
+        <a class="btn btn-light" href="https://calendly.com/intelligency/strategy" target="_blank" rel="noopener">Book Your Demo</a>
+        <a class="btn btn-ghost" style="color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.3)" href="mailto:bibilade.oyeleke@intelligencyai.com.ng">bibilade.oyeleke@intelligencyai.com.ng</a>
       </div>
     </div>
   </div>
