@@ -118,10 +118,12 @@ function buildProfiles(submissions: Submission[]): EnumeratorProfile[] {
       flagRate >= 0.3 ? 'high' :
       flagRate >= 0.15 ? 'medium' : 'low';
 
+    const activeProjects = new Set(subs.map(s => (s as any).project_id).filter(Boolean)).size || 1;
+
     const base: Omit<EnumeratorProfile, 'badges'> = {
       id, totalSubmissions: total, passCount: pass, flagCount: flag, rejectCount: reject,
       passRate, flagRate, avgScore, trend, trendDelta, lifetimeScore,
-      activeProjects: 1, privacyTier: 1,
+      activeProjects, privacyTier: 1,
       scoreHistory, riskLevel,
     };
     return { ...base, badges: assignBadges(base) };

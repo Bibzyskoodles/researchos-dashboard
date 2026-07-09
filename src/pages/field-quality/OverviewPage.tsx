@@ -300,7 +300,10 @@ export default function OverviewPage() {
           <div style={{ background: "white", borderRadius: 16, overflow: "hidden", border: "1px solid #E8EDF5", boxShadow: "0 2px 12px rgba(10,15,28,.06)" }}>
             <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between" }}>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>{cap(vocab.enumerators)}</div>
-              <span onClick={() => nav("/enumerators")} style={{ fontSize: 11, fontWeight: 600, color: BLUE, cursor: "pointer" }}>View all →</span>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <span onClick={() => nav("/scorecard")} style={{ fontSize: 11, fontWeight: 600, color: PURPLE, cursor: "pointer" }}>Scorecard →</span>
+                <span onClick={() => nav("/enumerators")} style={{ fontSize: 11, fontWeight: 600, color: BLUE, cursor: "pointer" }}>All →</span>
+              </div>
             </div>
             {data.enumerators.slice(0, 4).map((e, i) => {
               const cols = [BLUE, PURPLE, GREEN, AMBER];

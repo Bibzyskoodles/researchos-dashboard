@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Enumerator } from "../../types";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Award } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { usePlatform } from "../../platform/PlatformProvider";
+import { useNavigate } from "react-router-dom";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const COLORS=[BLUE,PURPLE,GREEN,AMBER,RED];
@@ -16,6 +17,7 @@ export default function EnumeratorsPage(){
   const [_loading,setLoading]=useState(true);
   const [selected,setSelected]=useState<Enumerator|null>(null);
   const { t }=usePlatform();
+  const nav = useNavigate();
   const termPlural=t("enumerators","enumerators");            // industry term (lowercase)
   const Term=termPlural.replace(/\b\w/g,c=>c.toUpperCase());  // title-cased for headings
   useAdaGreeting({ page: "enumerators" });
@@ -36,9 +38,15 @@ export default function EnumeratorsPage(){
 
   return(
     <div data-ada-target="enumerators-list" style={{display:"flex",flexDirection:"column",gap:20}}>
-      <div>
-        <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>{Term}</h1>
-        <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>{enums.length} active · Lagos Retail Audit</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>{Term}</h1>
+          <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>{enums.length} active this project</p>
+        </div>
+        <button onClick={() => nav('/scorecard')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #FDE68A', borderRadius: 8, background: '#FFFBEB', fontSize: 12.5, fontWeight: 600, color: '#D97706', cursor: 'pointer' }}>
+          <Award size={13} /> View Scorecard
+        </button>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
