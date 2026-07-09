@@ -49,7 +49,7 @@ export default function PublicPreview() {
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
   const [questionStartTime, setQuestionStartTime] = useState<Record<string, number>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
   // Device info for analytics
@@ -98,7 +98,7 @@ export default function PublicPreview() {
         }));
       }
     }
-  }, [stage, currentSectionIdx, preview]);
+  }, [stage, currentSectionIdx, preview, questionStartTime]);
 
   const totalQuestions = preview?.sections.reduce((sum, s) => sum + s.questions.length, 0) || 0;
   const answeredCount = Object.keys(responses).length;
@@ -273,7 +273,7 @@ export default function PublicPreview() {
   // Render questions
   if (stage === "questions" && preview) {
     const currentSection = preview.sections[currentSectionIdx];
-    const sectionProgress = ((currentSectionIdx + 1) / preview.sections.length) * 100;
+    void ((currentSectionIdx + 1) / preview.sections.length * 100); // sectionProgress unused
 
     return (
       <motion.div
