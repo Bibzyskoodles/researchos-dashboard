@@ -24,7 +24,7 @@ export default function AppShell() {
     }}>
       <Sidebar />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <Topbar onRefresh={handleRefresh} />
+        <Topbar />
         <AnimatePresence mode="wait">
           <motion.main
             key={location.pathname}

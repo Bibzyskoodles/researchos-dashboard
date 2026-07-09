@@ -23,24 +23,34 @@ export default function Sidebar() {
     }}>
       {/* Logo */}
       <div style={{
-        padding: `${spacing.sm}px ${spacing.lg}px`,
+        padding: `${spacing.lg}px ${spacing.lg}px`,
         borderBottom: `1px solid ${colors.border}`,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: spacing.xs,
+        gap: spacing.md,
       }}>
         <img
           src="/researchos-logo.png"
           alt="ResearchOS"
           style={{
             width: '100%',
-            maxWidth: 108,
+            maxWidth: 140,
             height: 'auto',
             objectFit: 'contain',
             display: 'block',
           }}
         />
+        <div style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: colors.textTertiary,
+          textAlign: 'center',
+          lineHeight: 1.4,
+          letterSpacing: 0.3,
+        }}>
+          AI-Powered<br />Data Quality
+        </div>
       </div>
 
       {/* Nav */}
