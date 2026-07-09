@@ -6,9 +6,9 @@ import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
-import { MapPin, Clock } from "lucide-react";
+import { MapPin, Clock, X } from "lucide-react";
 
-const GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", BLUE = "#2463EB";
+const GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626";
 const clr = (s: number) => s >= 70 ? GREEN : s >= 45 ? AMBER : RED;
 const vbg = (v: string) => v === "PASS" ? "#ECFDF5" : v === "FLAG" ? "#FFFBEB" : "#FEF2F2";
 
@@ -34,44 +34,39 @@ export default function MapPage() {
     dashboardApi.getSubmissions({ limit: 100 }).then(r => setSubs(r.data.submissions || []));
   }, []);
 
-  const filtered = subs.filter(s => filter === "ALL" || s.verdict === filter);
-  const withGps = filtered.filter(s =>
+  const allWithGps = subs.filter(s =>
     s.gps?.lat && s.gps?.lon &&
     Math.abs(Number(s.gps.lat)) > 0.001 && Math.abs(Number(s.gps.lon)) > 0.001
   );
-  const points: [number, number][] = withGps.map(s => [Number(s.gps.lat), Number(s.gps.lon)]);
 
-  const statCards = [
-    { label: "Mapped",       value: withGps.length,                                                           color: "rgba(255,255,255,.92)" },
-    { label: "High Quality", value: withGps.filter(s => s.overall_score >= 70).length,                        color: GREEN },
-    { label: "Needs Review", value: withGps.filter(s => s.overall_score >= 45 && s.overall_score < 70).length, color: AMBER },
-    { label: "Flagged",      value: withGps.filter(s => s.verdict === "FLAG").length,                          color: RED },
-  ];
+  const filtered = allWithGps.filter(s => filter === "ALL" || s.verdict === filter);
+  const points: [number, number][] = filtered.map(s => [Number(s.gps.lat), Number(s.gps.lon)]);
+
+  const passCount   = allWithGps.filter(s => s.verdict === "PASS").length;
+  const flagCount   = allWithGps.filter(s => s.verdict === "FLAG").length;
+  const rejectCount = allWithGps.filter(s => s.verdict === "REJECT").length;
+
+  // Only show stat chips that have data
+  const statChips = [
+    { key: "ALL",    label: "All",    value: allWithGps.length,    color: "rgba(255,255,255,.92)" },
+    passCount   > 0 && { key: "PASS",   label: "Pass",   value: passCount,            color: GREEN },
+    flagCount   > 0 && { key: "FLAG",   label: "Flagged", value: flagCount,           color: AMBER },
+    rejectCount > 0 && { key: "REJECT", label: "Reject", value: rejectCount,          color: RED },
+  ].filter(Boolean) as { key: string; label: string; value: number; color: string }[];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "calc(100vh - 108px)" }}>
 
-      {/* Header row */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+      {/* Compact header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#080D1A", letterSpacing: -.6, margin: 0 }}>Coverage Map</h1>
-          <p style={{ fontSize: 12.5, color: "#9CA3AF", marginTop: 4 }}>{withGps.length} submissions mapped</p>
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {["ALL", "PASS", "FLAG", "REJECT"].map(v => (
-            <button key={v} onClick={() => setFilter(v)} style={{
-              padding: "6px 14px", borderRadius: 7, border: "1px solid", fontSize: 11.5,
-              fontWeight: 600, cursor: "pointer", transition: "all .15s",
-              borderColor: filter === v ? BLUE : "#E2E8F0",
-              background:  filter === v ? BLUE  : "white",
-              color:       filter === v ? "white" : "#6B7280",
-            }}>{v}</button>
-          ))}
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#080D1A", letterSpacing: -.5, margin: 0 }}>Coverage Map</h1>
+          <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2, margin: 0 }}>{allWithGps.length} submissions mapped</p>
         </div>
       </div>
 
-      {/* Map container */}
-      <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", border: "1px solid #1C2340", boxShadow: "0 8px 40px rgba(8,13,26,.3)", height: 520 }}>
+      {/* Map — fills remaining height */}
+      <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", border: "1px solid #1C2340", boxShadow: "0 8px 40px rgba(8,13,26,.3)", flex: 1, minHeight: 0 }}>
 
         <MapContainer
           center={[9, 8]} zoom={6}
@@ -84,8 +79,7 @@ export default function MapPage() {
           />
           <FitBounds points={points} />
 
-          {/* Soft glow halos under flagged markers */}
-          {withGps.filter(s => s.verdict === "FLAG").map(sub => (
+          {filtered.filter(s => s.verdict === "FLAG").map(sub => (
             <CircleMarker
               key={`halo-${sub.submission_id}`}
               center={[Number(sub.gps.lat), Number(sub.gps.lon)]}
@@ -94,8 +88,7 @@ export default function MapPage() {
             />
           ))}
 
-          {/* Main dot markers */}
-          {withGps.map(sub => {
+          {filtered.map(sub => {
             const color = clr(sub.overall_score);
             const isFlag = sub.verdict === "FLAG";
             return (
@@ -103,12 +96,7 @@ export default function MapPage() {
                 key={sub.submission_id}
                 center={[Number(sub.gps.lat), Number(sub.gps.lon)]}
                 radius={isFlag ? 9 : 6}
-                pathOptions={{
-                  color: "rgba(255,255,255,.55)",
-                  weight: 1.5,
-                  fillColor: color,
-                  fillOpacity: 0.95,
-                }}
+                pathOptions={{ color: "rgba(255,255,255,.55)", weight: 1.5, fillColor: color, fillOpacity: 0.95 }}
                 eventHandlers={{ click: () => setSelected(selected?.submission_id === sub.submission_id ? null : sub) }}
               >
                 <Popup>
@@ -129,23 +117,40 @@ export default function MapPage() {
           })}
         </MapContainer>
 
-        {/* Floating stats strip — bottom centre */}
+        {/* Filter stat chips — top centre */}
         <div style={{
-          position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
+          position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)",
           zIndex: 1000, display: "flex", gap: 0,
           background: "rgba(8,13,26,.82)", backdropFilter: "blur(14px)",
           borderRadius: 12, border: "1px solid rgba(255,255,255,.07)",
           boxShadow: "0 4px 28px rgba(0,0,0,.5)", overflow: "hidden",
         }}>
-          {statCards.map((s, i) => (
-            <div key={s.label} style={{
-              padding: "12px 22px", textAlign: "center",
-              borderRight: i < statCards.length - 1 ? "1px solid rgba(255,255,255,.05)" : "none",
-            }}>
-              <div style={{ fontSize: 22, fontWeight: 900, color: s.color, letterSpacing: -1, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,.28)", textTransform: "uppercase", letterSpacing: .8, marginTop: 4 }}>{s.label}</div>
-            </div>
-          ))}
+          {statChips.map((chip, i) => {
+            const active = filter === chip.key;
+            return (
+              <button
+                key={chip.key}
+                onClick={() => setFilter(chip.key)}
+                style={{
+                  padding: "10px 22px", textAlign: "center", cursor: "pointer", border: "none",
+                  borderRight: i < statChips.length - 1 ? "1px solid rgba(255,255,255,.05)" : "none",
+                  background: active ? "rgba(255,255,255,.1)" : "transparent",
+                  transition: "background .15s",
+                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.05)"; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+              >
+                <div style={{ fontSize: 22, fontWeight: 900, color: chip.color, letterSpacing: -1, lineHeight: 1 }}>{chip.value}</div>
+                <div style={{
+                  fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: .8, marginTop: 4,
+                  color: active ? "rgba(255,255,255,.7)" : "rgba(255,255,255,.28)",
+                }}>{chip.label}</div>
+                {active && (
+                  <div style={{ width: 20, height: 2, background: chip.color, borderRadius: 1, margin: "4px auto 0" }} />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Legend — top right */}
@@ -167,27 +172,34 @@ export default function MapPage() {
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Selected submission detail */}
-      {selected && (
-        <div style={{ background: "white", borderRadius: 14, border: "1px solid #E8EDF5", padding: "18px 22px", display: "flex", gap: 20, alignItems: "center", boxShadow: "0 2px 12px rgba(10,15,28,.07)" }}>
-          <div style={{ width: 48, height: 48, borderRadius: "50%", background: clr(selected.overall_score) + "18", display: "grid", placeItems: "center", border: `2px solid ${clr(selected.overall_score)}44`, flexShrink: 0 }}>
-            <span style={{ fontSize: 15, fontWeight: 900, color: clr(selected.overall_score), fontFamily: "monospace" }}>{selected.overall_score}</span>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A", marginBottom: 2 }}>{selected.enumerator_id}</div>
-            <div style={{ display: "flex", gap: 12, fontSize: 11.5, color: "#6B7280" }}>
-              {selected.gps?.address && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={11} />{selected.gps.address.split(",").slice(0, 2).join(",")}</span>}
-              {selected.duration_mins && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Clock size={11} />{Math.round(Number(selected.duration_mins))}m</span>}
+        {/* Selected submission — floating overlay at bottom */}
+        {selected && (
+          <div style={{
+            position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
+            zIndex: 1000, width: "min(520px, calc(100% - 32px))",
+            background: "rgba(8,13,26,.9)", backdropFilter: "blur(16px)",
+            borderRadius: 14, border: "1px solid rgba(255,255,255,.1)",
+            padding: "14px 18px", boxShadow: "0 8px 32px rgba(0,0,0,.6)",
+            display: "flex", gap: 16, alignItems: "center",
+          }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: clr(selected.overall_score) + "22", display: "grid", placeItems: "center", border: `2px solid ${clr(selected.overall_score)}55`, flexShrink: 0 }}>
+              <span style={{ fontSize: 14, fontWeight: 900, color: clr(selected.overall_score), fontFamily: "monospace" }}>{selected.overall_score}</span>
             </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,.9)", marginBottom: 3 }}>{selected.enumerator_id}</div>
+              <div style={{ display: "flex", gap: 12, fontSize: 11, color: "rgba(255,255,255,.4)" }}>
+                {selected.gps?.address && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={10} />{selected.gps.address.split(",").slice(0, 2).join(",")}</span>}
+                {selected.duration_mins && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Clock size={10} />{Math.round(Number(selected.duration_mins))}m</span>}
+              </div>
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 5, background: vbg(selected.verdict), color: clr(selected.overall_score) }}>{selected.verdict}</span>
+            <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,.35)", padding: 2, lineHeight: 0, flexShrink: 0 }}>
+              <X size={14} />
+            </button>
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 10px", borderRadius: 6, background: vbg(selected.verdict), color: clr(selected.overall_score) }}>{selected.verdict}</span>
-            <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", padding: 4, lineHeight: 0 }}>✕</button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
