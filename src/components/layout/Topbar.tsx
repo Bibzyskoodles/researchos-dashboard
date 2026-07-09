@@ -66,13 +66,13 @@ export default function Topbar({ onRefresh }: TopbarProps) {
     display: 'flex',
     alignItems: 'center',
     gap: spacing.md,
-    background: colors.primaryLighter,
-    border: `1px solid ${colors.primary}`,
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
     borderRadius: radius.full,
     padding: `${spacing.sm}px ${spacing.md}px`,
     fontSize: 14,
     fontWeight: 600,
-    color: colors.primary,
+    color: colors.textSecondary,
     cursor: 'pointer',
     transition: transitions.normal,
   };
@@ -142,10 +142,12 @@ export default function Topbar({ onRefresh }: TopbarProps) {
           }}
           style={pillStyle}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLDivElement).style.boxShadow = shadows.sm;
+            (e.currentTarget as HTMLDivElement).style.borderColor = colors.primary;
+            (e.currentTarget as HTMLDivElement).style.color = colors.primary;
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+            (e.currentTarget as HTMLDivElement).style.borderColor = colors.border;
+            (e.currentTarget as HTMLDivElement).style.color = colors.textSecondary;
           }}
         >
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: colors.success }} />
@@ -191,12 +193,15 @@ export default function Topbar({ onRefresh }: TopbarProps) {
           display: 'flex',
           alignItems: 'center',
           gap: spacing.md,
-          background: colors.primaryLighter,
-          border: `1px solid ${colors.primary}`,
+          background: colors.surface,
+          border: `1px solid ${colors.border}`,
           borderRadius: radius.md,
           padding: `${spacing.md}px ${spacing.md}px`,
           transition: transitions.normal,
-        }}>
+        }}
+          onFocusCapture={e => { (e.currentTarget as HTMLDivElement).style.borderColor = colors.primary; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 3px ${colors.primaryLighter}`; }}
+          onBlurCapture={e => { (e.currentTarget as HTMLDivElement).style.borderColor = colors.border; (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; }}
+        >
           <Search size={16} color={colors.textTertiary} />
           <input
             value={query}

@@ -86,13 +86,13 @@ export const typography = {
 export const colors = {
   // Brand colors - User palette
   white: "#FFFFFF",
-  deepBlue: "#003DA5",      // Primary deep blue
+  deepBlue: "#2463EB",      // Primary blue
   lightBlue: "#5B8DEF",     // Secondary light blue
 
   // Semantic blues (derived from brand)
-  primary: "#003DA5",        // Deep blue for actions
+  primary: "#2463EB",        // Blue for actions
   primaryLight: "#5B8DEF",   // Light blue for accents
-  primaryLighter: "#E6F0FF", // Very light blue for backgrounds
+  primaryLighter: "#EFF4FF", // Very light blue for backgrounds
 
   // Neutral palette (grays)
   neutral50: "#F9FAFB",
