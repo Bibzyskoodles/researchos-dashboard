@@ -18,6 +18,7 @@ import SettingsPage from './pages/settings/SettingsPage';
 import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 import PricingPage from './pages/PricingPage';
 import QuestionnairePage from './pages/questionnaire/QuestionnairePage';
+import PublicPreview from './pages/questionnaire/PublicPreview';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -39,6 +40,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/preview/:token" element={<PublicPreview />} />
       <Route path="/" element={
         <ProtectedRoute>
           <AppShell />
