@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
 import DOMPurify from "dompurify";
 import { useAda } from "../../ada/AdaContext";
 import { insightScoreApi } from "../../services/api";
@@ -26,8 +25,7 @@ function AdaBriefing({ message, action, actionLabel }: {
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 12.5, color: "#1E40AF", lineHeight: 1.6 }}>
-          {/* ✅ SECURITY: Use ReactMarkdown instead of dangerouslySetInnerHTML for safe HTML rendering */}
-          <ReactMarkdown>{DOMPurify.sanitize(message)}</ReactMarkdown>
+          <span style={{whiteSpace:"pre-wrap"}}>{DOMPurify.sanitize(message)}</span>
         </div>
         {action && actionLabel && (
           <button onClick={action} style={{ marginTop: 10, padding: "7px 16px", borderRadius: 8, background: BLUE, border: "none", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>

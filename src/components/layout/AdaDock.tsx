@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
 import DOMPurify from "dompurify";
 import { useAda, parseAdaCommand, AdaCommand } from "../../ada/AdaContext";
 import { adaApi } from "../../services/api";
@@ -235,8 +234,7 @@ export default function AdaDock() {
                   <div
                     style={{ background: msg.role === "user" ? "#2463EB" : "#F8FAFF", border: msg.role === "user" ? "none" : "1px solid #E2E8F0", borderRadius: msg.role === "user" ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "10px 12px", fontSize: 12.5, color: msg.role === "user" ? "white" : "#374151", lineHeight: 1.6, maxWidth: 260 }}
                   >
-                    {/* ✅ SECURITY: Use ReactMarkdown instead of dangerouslySetInnerHTML for safe HTML rendering */}
-                    <ReactMarkdown>{DOMPurify.sanitize(msg.content)}</ReactMarkdown>
+                    <span style={{whiteSpace:"pre-wrap"}}>{DOMPurify.sanitize(msg.content)}</span>
                   </div>
                 </div>
               ))}
