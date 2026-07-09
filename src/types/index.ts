@@ -151,3 +151,74 @@ export interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
 }
+
+// Analytics Types
+export type DataSource = 'fieldscore_direct' | 'kobotools';
+export type DeviceType = 'mobile' | 'web' | 'tablet' | 'unknown';
+
+export interface SourceMetrics {
+  source: string;
+  total_responses: number;
+  completed_responses: number;
+  incomplete_responses: number;
+  completion_rate: number;
+  device_distribution: Record<string, number>;
+  avg_completion_time_seconds: number;
+  median_completion_time_seconds: number;
+  response_rate_per_day: Array<{ date: string; count: number }>;
+  last_response_time: string | null;
+  first_response_time: string | null;
+}
+
+export interface QuestionMetrics {
+  question_id: string;
+  question_text: string;
+  source: string | null;
+  response_count: number;
+  skip_count: number;
+  skip_rate: number;
+  answer_distribution: Record<string, number>;
+  most_common_answer: string | null;
+  avg_rating: number | null;
+  device_breakdown: Record<string, number>;
+}
+
+export interface DropOffAnalysis {
+  question_position: number;
+  question_id: string;
+  question_text: string;
+  responses_at_question: number;
+  responses_at_next_question: number;
+  drop_off_count: number;
+  drop_off_rate: number;
+  source_breakdown: Record<string, { responses_at_question: number; responses_at_next: number; drop_off: number }>;
+}
+
+export interface SourceDistribution {
+  total_responses: number;
+  source_counts: Record<string, number>;
+  source_percentages: Record<string, number>;
+}
+
+export interface AnalyticsReport {
+  questionnaire_id: string;
+  generated_at: string;
+  total_responses: number;
+  source_distribution: SourceDistribution;
+  source_metrics: Record<string, SourceMetrics>;
+  question_metrics: QuestionMetrics[];
+  per_source_question_metrics: Record<string, QuestionMetrics[]>;
+  drop_off_analysis: DropOffAnalysis[];
+  completion_rate_by_source: Record<string, number>;
+  avg_time_by_source: Record<string, number>;
+  device_recommendations: Record<string, string>;
+}
+
+export interface Questionnaire {
+  id: string;
+  title: string;
+  description?: string;
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
+}

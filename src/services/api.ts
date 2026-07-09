@@ -73,6 +73,25 @@ export const adaApi = {
   getMemory: () => api.get('/ada/memory'),
 };
 
+export const analyticsApi = {
+  getQuestionnaireAnalytics: (questionnaireId: string, groupBy?: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics`, {
+      params: { group_by: groupBy },
+    }),
+  getAnalyticsSummary: (questionnaireId: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics/summary`),
+  getSourceMetrics: (questionnaireId: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics/sources`),
+  getDropOffAnalysis: (questionnaireId: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics/drop-off`),
+  getQuestionAnalytics: (questionnaireId: string, source?: string) =>
+    api.get(`/questionnaires/${questionnaireId}/analytics/questions`, {
+      params: { source },
+    }),
+  getAnalyticsHealth: () =>
+    api.get('/analytics/health'),
+};
+
 // ✅ SECURITY: Use environment variable for InsightScore URL
 const INSIGHT_API_URL = process.env.REACT_APP_INSIGHTSCORE_API_URL || '/insightscore';
 
