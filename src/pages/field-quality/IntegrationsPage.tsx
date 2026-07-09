@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, DragEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap } from "lucide-react";
+import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, AlertCircle } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { dashboardApi } from "../../services/api";
@@ -221,6 +221,262 @@ function PlatformCard({ platform, webhookUrl, onSetupOpen, isExpanded, onCopyUrl
   );
 }
 
+// ─── CSV parser ────────────────────────────────────────────────────────────
+function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+  if (lines.length < 2) return { headers: [], rows: [] };
+  const splitLine = (line: string) => {
+    const cells: string[] = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cells.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    cells.push(cur.trim());
+    return cells;
+  };
+  const headers = splitLine(lines[0]);
+  const rows = lines.slice(1).map(l => {
+    const vals = splitLine(l);
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+    return obj;
+  });
+  return { headers, rows };
+}
+
+const FIELD_MAP: { key: string; label: string; hints: string[] }[] = [
+  { key: 'enumerator_id', label: 'Enumerator ID', hints: ['enumerator', 'interviewer', 'agent', 'collector', 'field_agent'] },
+  { key: 'respondent_id', label: 'Respondent ID', hints: ['respondent', 'household', 'hh_id', 'case_id', 'subject'] },
+  { key: 'gps_lat',       label: 'GPS Latitude',  hints: ['lat', 'latitude', 'gps_lat', '_gps_latitude'] },
+  { key: 'gps_lon',       label: 'GPS Longitude', hints: ['lon', 'lng', 'longitude', 'gps_lon', '_gps_longitude'] },
+  { key: 'submitted_at',  label: 'Submission Date', hints: ['date', 'submitted', 'start', 'end', 'timestamp', 'submission_time'] },
+  { key: 'overall_score', label: 'Trust Score (0-100)', hints: ['score', 'trust', 'quality', 'overall_score'] },
+  { key: 'verdict',       label: 'Verdict (PASS/FLAG/REJECT)', hints: ['verdict', 'status', 'result', 'outcome'] },
+  { key: 'duration',      label: 'Duration (minutes)', hints: ['duration', 'interview_duration', 'minutes', 'elapsed'] },
+  { key: 'location',      label: 'Location / Address', hints: ['location', 'address', 'lga', 'state', 'region', 'area'] },
+];
+
+function autoMap(headers: string[]): Record<string, string> {
+  const mapping: Record<string, string> = {};
+  FIELD_MAP.forEach(f => {
+    const match = headers.find(h =>
+      f.hints.some(hint => h.toLowerCase().replace(/[\s-]/g, '_').includes(hint))
+    );
+    if (match) mapping[f.key] = match;
+  });
+  return mapping;
+}
+
+function CsvUploadCard() {
+  const [stage, setStage] = useState<'idle' | 'mapping' | 'uploading' | 'done' | 'error'>('idle');
+  const [dragging, setDragging] = useState(false);
+  const [fileName, setFileName] = useState('');
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [rows, setRows] = useState<Record<string, string>[]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [result, setResult] = useState('');
+  const [error, setError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadFile = (file: File) => {
+    if (!file.name.match(/\.(csv|tsv|txt)$/i)) {
+      setError('Please upload a CSV file. For Excel, use File → Save As → CSV first.');
+      return;
+    }
+    setFileName(file.name);
+    setError('');
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target?.result as string;
+      const { headers: h, rows: r } = parseCsv(text);
+      if (!h.length) { setError('Could not parse the file — is it a valid CSV?'); return; }
+      setHeaders(h);
+      setRows(r);
+      setMapping(autoMap(h));
+      setStage('mapping');
+    };
+    reader.readAsText(file);
+  };
+
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  };
+
+  const onUpload = async () => {
+    setStage('uploading');
+    setError('');
+    const submissions = rows.map(row => {
+      const s: Record<string, any> = {};
+      FIELD_MAP.forEach(f => {
+        if (mapping[f.key] && row[mapping[f.key]] !== undefined) {
+          if (f.key === 'gps_lat' || f.key === 'gps_lon') {
+            if (!s.gps) s.gps = {};
+            if (f.key === 'gps_lat') s.gps.lat = parseFloat(row[mapping[f.key]]) || null;
+            if (f.key === 'gps_lon') s.gps.lon = parseFloat(row[mapping[f.key]]) || null;
+          } else if (f.key === 'overall_score') {
+            s.overall_score = parseFloat(row[mapping[f.key]]) || null;
+          } else {
+            s[f.key] = row[mapping[f.key]];
+          }
+        }
+      });
+      return s;
+    });
+    try {
+      const res = await dashboardApi.uploadSubmissions(submissions);
+      setResult(`✓ ${res.data?.imported ?? submissions.length} submissions imported and queued for scoring.`);
+      setStage('done');
+    } catch (e: any) {
+      const msg = e?.response?.data?.error || e?.message || 'Upload failed';
+      setError(msg);
+      setStage('error');
+    }
+  };
+
+  const reset = () => {
+    setStage('idle'); setFileName(''); setHeaders([]); setRows([]);
+    setMapping({}); setResult(''); setError('');
+  };
+
+  return (
+    <div style={{ ...CARD, padding: '20px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Upload size={15} color={BLUE} />
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#080D1A' }}>Upload from Spreadsheet</div>
+        </div>
+        {stage !== 'idle' && (
+          <button onClick={reset} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 4 }}>
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 16 }}>
+        No KoboToolbox connection? Upload a CSV export from any tool — ODK, SurveyCTO, Excel, Google Sheets. Columns are mapped automatically.
+      </div>
+
+      {stage === 'idle' && (
+        <>
+          <div
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            onClick={() => fileRef.current?.click()}
+            style={{
+              border: `2px dashed ${dragging ? BLUE : '#CBD5E1'}`,
+              borderRadius: 12, padding: '32px 20px', textAlign: 'center',
+              cursor: 'pointer', transition: 'all .2s',
+              background: dragging ? '#EFF6FF' : '#F8FAFF',
+            }}
+          >
+            <FileText size={28} color={dragging ? BLUE : '#CBD5E1'} style={{ marginBottom: 10 }} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>
+              Drop your CSV here, or click to browse
+            </div>
+            <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>
+              CSV, TSV · For Excel: File → Save As → CSV first
+            </div>
+          </div>
+          <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" style={{ display: 'none' }}
+            onChange={e => { if (e.target.files?.[0]) loadFile(e.target.files[0]); }} />
+          {error && (
+            <div style={{ marginTop: 10, display: 'flex', gap: 6, alignItems: 'flex-start', color: '#DC2626', fontSize: 12, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px' }}>
+              <AlertCircle size={13} style={{ flexShrink: 0, marginTop: 1 }} />{error}
+            </div>
+          )}
+        </>
+      )}
+
+      {stage === 'mapping' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, padding: '8px 12px', background: '#EFF6FF', borderRadius: 8, border: '1px solid #BFDBFE' }}>
+            <FileText size={13} color={BLUE} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: BLUE }}>{fileName}</span>
+            <span style={{ fontSize: 12, color: '#6B7280', marginLeft: 4 }}>· {rows.length} rows · {headers.length} columns detected</span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 10 }}>
+            Map your columns — auto-detected where possible
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+            {FIELD_MAP.map(f => (
+              <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>{f.label}</label>
+                <select
+                  value={mapping[f.key] || ''}
+                  onChange={e => setMapping(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #E2E8F0', fontSize: 12, color: '#374151', background: 'white', fontFamily: 'Inter, sans-serif', outline: 'none' }}
+                >
+                  <option value="">— skip —</option>
+                  {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+          {/* Preview */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 8 }}>Preview (first 3 rows)</div>
+          <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #E8EDF5', marginBottom: 16 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+              <thead>
+                <tr style={{ background: '#F8FAFF' }}>
+                  {headers.slice(0, 6).map(h => (
+                    <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, color: '#6B7280', borderBottom: '1px solid #E8EDF5', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.slice(0, 3).map((row, i) => (
+                  <tr key={i} style={{ borderBottom: i < 2 ? '1px solid #F1F5F9' : 'none' }}>
+                    {headers.slice(0, 6).map(h => (
+                      <td key={h} style={{ padding: '7px 10px', color: '#374151', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row[h]}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={reset} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#6B7280', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+            <button onClick={onUpload} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: BLUE, color: 'white', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+              Upload {rows.length} submissions →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {stage === 'uploading' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 0' }}>
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            style={{ width: 18, height: 18, border: `2px solid #E2E8F0`, borderTopColor: BLUE, borderRadius: '50%' }} />
+          <span style={{ fontSize: 13, color: '#6B7280' }}>Uploading {rows.length} submissions...</span>
+        </div>
+      )}
+
+      {stage === 'done' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '12px 14px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, fontSize: 13, color: GREEN, fontWeight: 500 }}>
+            <Check size={15} style={{ flexShrink: 0, marginTop: 1 }} />{result}
+          </div>
+          <button onClick={reset} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif', width: 'fit-content' }}>Upload another file</button>
+        </div>
+      )}
+
+      {stage === 'error' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '12px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, fontSize: 13, color: '#DC2626' }}>
+            <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />{error}
+          </div>
+          <button onClick={() => setStage('mapping')} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif', width: 'fit-content' }}>Try again</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function IntegrationsPage() {
   const orgId = getOrgId();
   const webhookUrl = orgId
@@ -354,6 +610,8 @@ export default function IntegrationsPage() {
           </div>
         )}
       </div>
+
+      <CsvUploadCard />
 
       <div>
         <div style={{ fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:0.7,marginBottom:14 }}>Platforms</div>

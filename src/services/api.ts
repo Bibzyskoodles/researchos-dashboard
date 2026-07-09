@@ -48,6 +48,8 @@ export const dashboardApi = {
   koboPing: () => api.get('/kobo/ping'),
   koboImport: (asset_uid: string, limit = 30) =>
     api.post('/kobo/import', { asset_uid, limit }),
+  uploadSubmissions: (submissions: object[]) =>
+    api.post('/api/submissions/upload', { submissions }),
 };
 
 export const questionnaireApi = {
