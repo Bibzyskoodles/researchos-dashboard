@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useAda, parseAdaCommand, AdaCommand } from "../../ada/AdaContext";
 import { useSettings, AdaChangeableSettings } from "../../store/SettingsContext";
+import { guardInput, validateCommand } from "../../ada/adaSafeguards";
 import { useGuidedExperience } from "../../ada/GuidedExperienceContext";
 import { adaApi, dashboardApi } from "../../services/api";
 import { X, Send, Mic, BarChart2, Map, FileText, Users, Zap, MessageSquare, Volume2, VolumeX } from "lucide-react";
@@ -381,6 +382,22 @@ export default function AdaDock() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const sendMsg = useCallback(async (msg: string, isHandsFree?: boolean) => {
     if (!msg || sending) return;
+
+    // ── Input guard ─────────────────────────────────────────────────────────
+    const guard = guardInput(msg);
+    if (!guard.safe) {
+      setInput("");
+      addMessage({ id: Date.now().toString(), role: "user", content: msg, timestamp: new Date().toISOString() });
+      addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: guard.reply, timestamp: new Date().toISOString() });
+      setState("speaking");
+      await speak(guard.reply, voiceOn, audioRef, () => {
+        setState("idle");
+        if (isHandsFree || handsFree) { interimRef.current = ""; startRecognition(true); }
+      });
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     setInput("");
     setSending(true);
     setState("thinking");
@@ -395,7 +412,9 @@ export default function AdaDock() {
         history: store.messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
       });
       const reply: string = res.data?.reply || res.data?.message || "I'm having trouble connecting right now. Try again in a moment.";
-      const aiCmd: AdaCommand | null = res.data?.command || null;
+      // Only execute commands that pass schema validation — reject spoofed/unexpected payloads
+      const rawCmd = res.data?.command || null;
+      const aiCmd: AdaCommand | null = rawCmd && validateCommand(rawCmd) ? rawCmd : null;
       addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: reply, timestamp: new Date().toISOString() });
       setState("speaking");
       if (aiCmd && !localCmd) applyCommand(aiCmd);
