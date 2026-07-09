@@ -27,7 +27,7 @@ export const TOURS: GuidedTour[] = [
     demoIntro: {
       id: 'demo-exec-intro',
       route: '/overview',
-      speech: "Good afternoon, everyone. I'm Ada — FieldScore's AI Research Partner. For those of you joining us today, thank you for your time. I've already reviewed the platform's active projects and current data before this session. What you're about to see is not a recorded walkthrough. I'm going to navigate the real application live, explain what each capability does, and answer your questions as we go. Please feel free to interrupt me at any point — I genuinely welcome it. Let's begin.",
+      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — ResearchOS's AI Research Partner. I know your time is valuable, so I'm going to keep this sharp. What you're about to see is not a slide deck and not a recording — I'm going to navigate the real platform live, with real data, and show you exactly how we solve the problems that field research teams in Sub-Saharan Africa deal with every single day. Interrupt me whenever you like. Let's begin.",
       waitForUser: true,
     },
 
@@ -43,7 +43,7 @@ export const TOURS: GuidedTour[] = [
         route: '/overview',
         target: 'overview-stats',
         targetLabel: 'Live Dashboard',
-        speech: "So this right here — this is your research heartbeat. Four numbers that tell you everything at a glance: how many submissions have come in, what your pass rate looks like, your average Trust Score, and how many enumerators are active in the field right now. Everything updates in real time. If something goes sideways on the ground, you'll see it here first.",
+        speech: "This is your research command centre. Pass rate, Trust Score, active enumerators, submission volume — live, right now. For a Country Manager like Tayo, this means you're never waiting for an end-of-week report to find out there's a problem on the ground. You see it the moment it happens. And for Alexan managing operations across multiple countries, you get the same clarity regardless of which market you're looking at.",
         waitForUser: true,
       },
       {
@@ -73,7 +73,7 @@ export const TOURS: GuidedTour[] = [
       {
         id: 'exec-complete',
         route: '/overview',
-        speech: "And that's it — the whole platform in five minutes! You've seen verification, intelligence, and reporting, all connected and all real-time. Honestly, we've just scratched the surface. When you're ready to go deeper, I'd love to walk you through the complete experience — it covers every single capability in detail. Or if you have questions right now, just ask me. I'm always here.",
+        speech: "That's the core of it — verification, intelligence, and reporting, all connected. Tayo, Alexan — what I'd love to do next is run a real project with your data, so you can see exactly how this performs against the kinds of fieldwork your teams are running in Nigeria and across the region. That's when it stops being a demo and starts being a conversation about your actual challenges. What questions do you have right now?",
         waitForUser: true,
       },
     ],
@@ -88,7 +88,7 @@ export const TOURS: GuidedTour[] = [
     demoIntro: {
       id: 'demo-full-intro',
       route: '/overview',
-      speech: "Good afternoon. I'm Ada — the intelligence layer powering FieldScore. Over the next fifteen minutes or so, I'm going to walk you through every capability this platform has to offer. This is a live demonstration, not a recording. Every page you see me navigate, every data point I reference — it's all real. If you'd like to explore something in more depth at any point, please ask. I'm here to demonstrate and to answer. Let's begin with the overview.",
+      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — ResearchOS's AI Research Partner. Over the next fifteen minutes I'm going to walk you through the full platform — live, not recorded. I've been briefed on the kinds of challenges Ipsos faces running field research across Sub-Saharan Africa, so I'll frame each capability in terms of what it actually solves for your teams. Please stop me at any point. Let's start with the dashboard.",
       waitForUser: true,
     },
 
@@ -128,7 +128,7 @@ export const TOURS: GuidedTour[] = [
         route: '/enumerators',
         target: 'enumerators-list',
         targetLabel: 'Enumerator Performance',
-        speech: "This view is one of the most powerful for field managers. You can see exactly how each enumerator is performing — how many interviews they've collected, their average Trust Score, and whether their quality is trending up or down over time. If someone is consistently scoring low, I'll show you precisely which checks they're failing. That's real, actionable feedback you can use in training.",
+        speech: "This is the view I'd show any Regional Ops Director first. Every enumerator, ranked by performance. You can see who's consistently delivering quality, who's trending down, and exactly which checks they're failing — is it GPS drift, short interview durations, audio problems? When you're managing enumerator teams across Nigeria and beyond, this is the difference between reactive fire-fighting and proactive quality management. You can catch a bad actor before they contaminate an entire wave.",
         waitForUser: true,
       },
       {
@@ -136,7 +136,7 @@ export const TOURS: GuidedTour[] = [
         route: '/map',
         target: 'coverage-map',
         targetLabel: 'Coverage Map',
-        speech: "The coverage map is brilliant for spotting problems before they become expensive. GPS coordinates for every submission are plotted here, so if someone claims to be interviewing in one location but their phone says otherwise, it shows up immediately. You can also check whether your sample is geographically balanced — whether you're getting coverage across all the areas your study actually requires.",
+        speech: "GPS fabrication is one of the most persistent problems in African field research — an enumerator sitting at home, claiming to be in Kano or Ibadan. This map makes that impossible to hide. Every submission is plotted by its actual GPS coordinates. Cluster of dots all in the same spot? Red flag. Missing coverage in a target zone? Visible immediately. This is the kind of oversight that used to require a supervisor physically in the field.",
         waitForUser: true,
       },
       {
