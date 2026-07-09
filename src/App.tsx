@@ -12,6 +12,7 @@ import SubmissionsPage from './pages/field-quality/SubmissionsPage';
 import EnumeratorsPage from './pages/field-quality/EnumeratorsPage';
 import MapPage from './pages/field-quality/MapPage';
 import DataCleaningPage from './pages/field-quality/DataCleaningPage';
+import ScorecardPage from './pages/field-quality/ScorecardPage';
 import InsightsPage from './pages/insights/InsightsPage';
 import InsightProjectPage from './pages/insights/InsightProjectPage';
 import OutcomeIntelligencePage from './pages/insights/OutcomeIntelligencePage';
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="enumerators" element={<EnumeratorsPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="clean" element={<DataCleaningPage />} />
+        <Route path="scorecard" element={<ScorecardPage />} />
         <Route path="insights" element={<InsightsPage />} />
         <Route path="insights/:id" element={<InsightProjectPage />} />
         <Route path="outcome" element={<OutcomeIntelligencePage />} />
