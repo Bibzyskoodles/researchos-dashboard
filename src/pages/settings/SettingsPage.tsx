@@ -8,6 +8,7 @@ import {
   Download, ExternalLink, X,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
+import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useIndustry } from "../../store/IndustryContext";
 import { useAuth } from "../../store/AuthContext";
 import { useSettings } from "../../store/SettingsContext";
@@ -1184,6 +1185,7 @@ const SECTION_META: Record<string,{title:string;description:string}> = {
 };
 
 export default function SettingsPage() {
+  useAdaGreeting({ page: "settings" });
   const [active, setActive] = useState("organization");
   const [adaDismissed, setAdaDismissed] = useState(false);
   const { setOpen } = useAda();

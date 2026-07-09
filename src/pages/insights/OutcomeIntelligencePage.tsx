@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { dashboardApi, adaApi } from '../../services/api';
+import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 import { Submission } from '../../types';
 import {
   Target, Sparkles, ChevronDown, ChevronRight, AlertCircle,
@@ -191,6 +192,7 @@ Be specific and rigorous. Base scores on actual numbers from the dataset. If the
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function OutcomeIntelligencePage() {
+  useAdaGreeting({ page: "outcome" });
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);

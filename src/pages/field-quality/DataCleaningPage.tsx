@@ -9,6 +9,7 @@ import {
   Type, Check, Plus, X,
 } from 'lucide-react';
 import { usePlatform } from '../../platform/PlatformProvider';
+import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 
 const BLUE = '#2463EB', GREEN = '#059669', AMBER = '#D97706', RED = '#DC2626', PURPLE = '#7C3AED';
 
@@ -385,6 +386,7 @@ function StatChip({ label, before, after, unit = '', invert = false }: {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function DataCleaningPage() {
   const { t } = usePlatform();
+  useAdaGreeting({ page: "data-cleaning" });
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);

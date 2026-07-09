@@ -8,6 +8,7 @@ import {
   Eye, EyeOff, BarChart2, Minus,
 } from 'lucide-react';
 import { usePlatform } from '../../platform/PlatformProvider';
+import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 
 const BLUE = '#2463EB', GREEN = '#059669', AMBER = '#D97706', RED = '#DC2626', PURPLE = '#7C3AED';
 
@@ -331,6 +332,7 @@ function EnumRow({ p, rank, onTierChange, expanded, onToggle }: {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ScorecardPage() {
   const { t } = usePlatform();
+  useAdaGreeting({ page: "scorecard" });
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

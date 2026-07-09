@@ -5,6 +5,7 @@ import { IndustryProvider } from './store/IndustryContext';
 import { SettingsProvider } from './store/SettingsContext';
 import { PlatformProvider } from './platform/PlatformProvider';
 import { AdaProvider } from './ada/AdaContext';
+import { GuidedExperienceProvider } from './ada/GuidedExperienceContext';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import OverviewPage from './pages/field-quality/OverviewPage';
@@ -55,7 +56,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="/overview" replace />} />
         <Route path="overview" element={<OverviewPage />} />
         <Route path="submissions" element={<SubmissionsPage />} />
-          <Route path="submissions/:id" element={<SubmissionDetailPage />} />
+        <Route path="submissions/:id" element={<SubmissionDetailPage />} />
         <Route path="enumerators" element={<EnumeratorsPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="clean" element={<DataCleaningPage />} />
@@ -81,7 +82,9 @@ export default function App() {
           <SettingsProvider>
             <PlatformProvider>
               <AdaProvider>
-                <AppRoutes />
+                <GuidedExperienceProvider>
+                  <AppRoutes />
+                </GuidedExperienceProvider>
               </AdaProvider>
             </PlatformProvider>
           </SettingsProvider>

@@ -111,6 +111,22 @@ function stopSpeech(audioRef: React.MutableRefObject<HTMLAudioElement | null>) {
   window.speechSynthesis?.cancel();
 }
 
+// Maps URL path segments to a canonical page key
+const PATH_TO_PAGE: Record<string, string> = {
+  'overview':      'overview',
+  'submissions':   'submissions',
+  'enumerators':   'enumerators',
+  'map':           'map',
+  'scorecard':     'scorecard',
+  'clean':         'data-cleaning',
+  'integrations':  'integrations',
+  'insights':      'insights',
+  'outcome':       'outcome',
+  'reports':       'reports',
+  'questionnaire': 'questionnaire',
+  'settings':      'settings',
+};
+
 // Page-aware suggested prompts
 const PAGE_PROMPTS: Record<string, { icon: React.ElementType; text: string }[]> = {
   overview: [
@@ -133,15 +149,45 @@ const PAGE_PROMPTS: Record<string, { icon: React.ElementType; text: string }[]> 
     { icon: Zap,       text: "Where are the lowest scoring areas?" },
     { icon: BarChart2, text: "Is my coverage balanced across locations?" },
   ],
+  scorecard: [
+    { icon: BarChart2, text: "Which enumerators are at risk of failing?" },
+    { icon: Zap,       text: "What's dragging scores down the most?" },
+    { icon: Users,     text: "Who improved the most this week?" },
+  ],
+  'data-cleaning': [
+    { icon: Zap,       text: "What should I remove first?" },
+    { icon: BarChart2, text: "How will cleaning affect my sample size?" },
+    { icon: FileText,  text: "Help me write the cleaning methodology" },
+  ],
+  integrations: [
+    { icon: Zap,       text: "Is my KoBoToolbox sync working?" },
+    { icon: BarChart2, text: "How many submissions have come through?" },
+    { icon: FileText,  text: "Walk me through connecting a new platform" },
+  ],
   insights: [
     { icon: MessageSquare, text: "What are the big themes in my data?" },
     { icon: BarChart2,     text: "Which questions didn't land well?" },
     { icon: Zap,           text: "What's signal fidelity telling us?" },
   ],
+  outcome: [
+    { icon: BarChart2,     text: "What outcomes are emerging?" },
+    { icon: Zap,           text: "Which indicators are most reliable?" },
+    { icon: MessageSquare, text: "Summarise the outcome intelligence for me" },
+  ],
   reports: [
     { icon: FileText,  text: "Generate an executive summary for me" },
     { icon: BarChart2, text: "What should I lead with for the client?" },
     { icon: Zap,       text: "Any red flags before I send this?" },
+  ],
+  questionnaire: [
+    { icon: FileText,  text: "Review my questionnaire for quality issues" },
+    { icon: Zap,       text: "Which questions might confuse respondents?" },
+    { icon: BarChart2, text: "Is the flow logical from start to finish?" },
+  ],
+  settings: [
+    { icon: Zap,       text: "What settings should I change for better results?" },
+    { icon: Users,     text: "How do I rename enumerators to surveyors?" },
+    { icon: FileText,  text: "What does each Ada personality mode do?" },
   ],
 };
 
@@ -274,7 +320,9 @@ export default function AdaDock() {
   useEffect(() => {
     if (location.pathname === prevPathRef.current) return;
     prevPathRef.current = location.pathname;
-    navigatePage(location.pathname.replace("/", "") || "overview");
+    const segs = location.pathname.split("/").filter(Boolean);
+    const pg = segs.reverse().find(s => PATH_TO_PAGE[s]);
+    navigatePage(pg ? PATH_TO_PAGE[pg] : "overview");
     // Close chat and stop speech when navigating
     setOpen(false);
     stopSpeech(audioRef);
@@ -309,8 +357,12 @@ export default function AdaDock() {
   }, [dispatchCommand, navigatePage, navigate, changeSetting]);
 
   const currentPage = useMemo(() => {
-    const p = location.pathname.replace("/", "").split("/")[0];
-    return p || "overview";
+    // Check all path segments against known page keys (handles /field-quality/map etc.)
+    const segments = location.pathname.split("/").filter(Boolean);
+    for (const seg of segments.reverse()) {
+      if (PATH_TO_PAGE[seg]) return PATH_TO_PAGE[seg];
+    }
+    return "overview";
   }, [location.pathname]);
 
   const prompts = PAGE_PROMPTS[currentPage] || PAGE_PROMPTS.overview;

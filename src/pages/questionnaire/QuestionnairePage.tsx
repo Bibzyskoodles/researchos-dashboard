@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../services/api';
+import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 import ConsultationPhase from './ConsultationPhase';
 import WorkspacePhase from './WorkspacePhase';
 import { ConsultationState, GeneratedQuestionnaire, QuestionnaireState } from './types';
@@ -97,6 +98,7 @@ const initialState: QuestionnaireState = {
 };
 
 export default function QuestionnairePage() {
+  useAdaGreeting({ page: "questionnaire" });
   const [state, setState] = useState<QuestionnaireState>(initialState);
 
   useEffect(() => {

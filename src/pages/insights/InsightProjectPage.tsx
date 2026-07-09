@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useAda } from "../../ada/AdaContext";
+import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { insightScoreApi } from "../../services/api";
 import { InsightProject, InsightReport, InsightSubmission } from "../../types";
 import { ChevronLeft, Download, AlertCircle } from "lucide-react";
@@ -326,6 +327,7 @@ const TABS: { key: Tab; label: string; badge?: string }[] = [
 ];
 
 export default function InsightProjectPage() {
+  useAdaGreeting({ page: "insights" });
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();

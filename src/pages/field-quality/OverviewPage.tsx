@@ -6,7 +6,7 @@ import { dashboardApi } from "../../services/api";
 import { DashboardData } from "../../types";
 import { useAuth } from "../../store/AuthContext";
 import { useAda } from "../../ada/AdaContext";
-import { useAdaAttention } from "../../hooks/useAdaAttention";
+import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useIndustry } from "../../store/IndustryContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
@@ -103,7 +103,7 @@ export default function OverviewPage() {
   const { vocab } = useIndustry();
   const nav = useNavigate();
   const isMobile = useIsMobile();
-  useAdaAttention({ x: 0.72, y: 0.22 }, { delay: 2500, returnAfterMs: 5000 });
+  useAdaGreeting({ page: "overview" });
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   const firstName = user?.name?.split(" ")[0] || "there";
