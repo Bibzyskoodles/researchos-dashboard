@@ -128,6 +128,20 @@ function Badge({ label, color = GREEN, bg }: BadgeProps) {
   return <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 5, background: bg || `${color}18`, color }}>{label}</span>;
 }
 
+function SaveRow({ label }: { label: string }) {
+  const [saved, setSaved] = useState(false);
+  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2200); };
+  return (
+    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+      <button onClick={save} style={BTN_PRIMARY}>
+        {saved
+          ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span>
+          : label}
+      </button>
+    </div>
+  );
+}
+
 interface SectionDividerProps { label: string }
 function SectionDivider({ label }: SectionDividerProps) {
   return (
@@ -523,7 +537,7 @@ function AdaSection() {
           <div><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>AI Model</div><div style={{ fontSize: 11.5, color: "#9CA3AF" }}>Powers Ada's intelligence and analysis</div></div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Badge label={model} color={PURPLE} /><Badge label="Enterprise" color={AMBER} /></div>
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Ada Settings</button></div>
+        <SaveRow label="Save Ada Settings" />
       </SettingsCard>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Memory & Context">
@@ -576,7 +590,7 @@ function ResearchSection() {
             <SettingsField label="Questionnaire Generation Model"><select style={{ ...INPUT }}><option>Ada Standard</option><option>Ada Pro (Enterprise)</option></select></SettingsField>
           </div>
         </SettingsGroup>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Research Defaults</button></div>
+        <SaveRow label="Save Research Defaults" />
       </SettingsCard>
     </div>
   );
@@ -709,7 +723,7 @@ function SecuritySection() {
             {s.active ? <Badge label="Current" color={GREEN} /> : <button style={{ ...BTN_GHOST, fontSize: 11, padding: "4px 10px", color: RED, borderColor: "#FEE2E2" }}>Revoke</button>}
           </div>
         ))}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Security Settings</button></div>
+        <SaveRow label="Save Security Settings" />
       </SettingsCard>
     </div>
   );
@@ -789,7 +803,7 @@ function NotificationsSection() {
           ))}
         </tbody>
       </table>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Notifications</button></div>
+      <SaveRow label="Save Notifications" />
     </SettingsCard>
   );
 }
