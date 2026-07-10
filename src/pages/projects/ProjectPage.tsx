@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { projectsApi } from '../../services/api';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Project, ProjectLifecycle } from '../../context/ProjectContext';
 import { getIndustry, getStudyType } from '../../context/ResearchContext';
 
@@ -89,12 +90,77 @@ function ActionBtn({ label, onClick, primary }: { label: string; onClick?: () =>
   );
 }
 
+function DeleteProjectModal({ projectName, onCancel, onConfirm, deleting }: {
+  projectName: string; onCancel: () => void; onConfirm: () => void; deleting: boolean;
+}) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(8,13,26,.55)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+    }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        transition={{ duration: 0.15 }}
+        style={{
+          background: 'white', borderRadius: 16, border: '1px solid #E8EDF5',
+          boxShadow: '0 8px 40px rgba(10,15,28,.18)', padding: '32px 28px',
+          width: 420, maxWidth: 'calc(100vw - 32px)', fontFamily: 'Inter, sans-serif',
+        }}
+      >
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#080D1A', marginBottom: 12 }}>
+          Delete this project?
+        </div>
+        <p style={{ fontSize: 13.5, color: '#374151', lineHeight: 1.65, margin: '0 0 8px' }}>
+          This will permanently delete <strong>"{projectName}"</strong> and all its submissions, verification data, and analysis.
+        </p>
+        <p style={{ fontSize: 13, color: '#9CA3AF', margin: '0 0 28px' }}>This cannot be undone.</p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button
+            onClick={onCancel}
+            disabled={deleting}
+            style={{
+              padding: '9px 18px', borderRadius: 8, border: '1px solid #E2E8F0',
+              background: 'white', color: '#374151', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+            }}
+          >Cancel</button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            style={{
+              padding: '9px 18px', borderRadius: 8, border: 'none',
+              background: RED, color: 'white', fontSize: 13, fontWeight: 600,
+              cursor: deleting ? 'not-allowed' : 'pointer', fontFamily: 'Inter, sans-serif',
+              opacity: deleting ? 0.7 : 1,
+            }}
+          >{deleting ? 'Deleting…' : 'Delete project'}</button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [lifecycle, setLifecycle] = useState<ProjectLifecycle | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!projectId) return;
+    setDeleting(true);
+    try {
+      await projectsApi.delete(projectId);
+      navigate('/projects');
+    } catch {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (!projectId) return;
@@ -133,6 +199,16 @@ export default function ProjectPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
+      <AnimatePresence>
+        {showDeleteModal && (
+          <DeleteProjectModal
+            projectName={project.name}
+            onCancel={() => setShowDeleteModal(false)}
+            onConfirm={handleDelete}
+            deleting={deleting}
+          />
+        )}
+      </AnimatePresence>
       {/* Header */}
       <div style={{
         background: 'linear-gradient(135deg, #080D1A 0%, #0F1729 100%)',
@@ -172,7 +248,17 @@ export default function ProjectPage() {
               )}
             </div>
           </div>
-          <ActionBtn label="Edit" />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <ActionBtn label="Edit" />
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              style={{
+                background: 'none', border: '1px solid rgba(220,38,38,.5)',
+                color: RED, borderRadius: 7, padding: '7px 14px',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              }}
+            >Delete</button>
+          </div>
         </div>
       </div>
 

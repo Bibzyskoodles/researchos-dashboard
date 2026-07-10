@@ -73,8 +73,13 @@ export const projectsApi = {
   create: (data: object) => api.post('/api/projects', data),
   get: (id: string) => api.get(`/api/projects/${id}`),
   update: (id: string, data: object) => api.patch(`/api/projects/${id}`, data),
+  delete: (id: string) => api.delete(`/api/projects/${id}`),
   lifecycle: (id: string) => api.get(`/api/projects/${id}/lifecycle`),
   framework: (id: string, data: object) => api.post(`/api/projects/${id}/framework`, data),
+};
+
+export const orgAdminApi = {
+  resetData: () => api.post('/api/admin/reset-data'),
 };
 
 export const adaApi = {

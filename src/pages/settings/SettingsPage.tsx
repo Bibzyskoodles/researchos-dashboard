@@ -5,12 +5,14 @@ import {
   FlaskConical, Database, Lock, Bell, CreditCard, Code2,
   ClipboardList, ChevronRight, Check, AlertTriangle, RefreshCw,
   Upload, Plus, Trash2, Eye, EyeOff, Copy, Zap, Globe,
-  Download, ExternalLink, X,
+  Download, ExternalLink, X, ShieldAlert,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { useAda } from "../../ada/AdaContext";
+import { orgAdminApi } from "../../services/api";
+import { useNavigate as useNav } from "react-router-dom";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -152,6 +154,7 @@ const SECTIONS = [
   { id: "billing",       icon: CreditCard,   label: "Billing",             group: "SYSTEM" },
   { id: "api",           icon: Code2,        label: "API & Webhooks",      group: "SYSTEM" },
   { id: "audit",         icon: ClipboardList,label: "Audit Log",           group: "SYSTEM" },
+  { id: "danger",        icon: ShieldAlert,  label: "Danger Zone",         group: "SYSTEM" },
 ];
 
 function OrgSection() {
@@ -1108,11 +1111,125 @@ function AuditSection() {
   );
 }
 
+function DangerSection() {
+  const navigate = useNav();
+  const [showModal, setShowModal] = useState(false);
+  const [resetText, setResetText] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const handleReset = async () => {
+    if (resetText !== "RESET") return;
+    setResetting(true);
+    try {
+      await orgAdminApi.resetData();
+      setShowModal(false);
+      showToast("All data cleared");
+      setTimeout(() => navigate("/projects"), 1800);
+    } catch {
+      showToast("Reset failed. Please try again.");
+      setResetting(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{ position: "fixed", top: 20, right: 24, zIndex: 9999, background: "#111827", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,.25)" }}
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reset all data modal */}
+      <AnimatePresence>
+        {showModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(8,13,26,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+              style={{ background: "white", borderRadius: 16, border: "1px solid #E8EDF5", boxShadow: "0 8px 40px rgba(10,15,28,.18)", padding: "32px 28px", width: 440, maxWidth: "calc(100vw - 32px)", fontFamily: "Inter,sans-serif" }}
+            >
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#080D1A", marginBottom: 14 }}>Reset all data?</div>
+              <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.65, marginBottom: 16 }}>
+                This will permanently delete:
+                <ul style={{ margin: "8px 0 0 0", paddingLeft: 20 }}>
+                  <li>All projects</li>
+                  <li>All submissions</li>
+                  <li>All enumerators</li>
+                  <li>All analysis and reports</li>
+                </ul>
+              </div>
+              <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>
+                Your account and organisation login will remain intact. You will need to set up projects again from scratch.
+              </p>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  Type <strong>RESET</strong> to confirm:
+                </label>
+                <input
+                  value={resetText}
+                  onChange={e => setResetText(e.target.value)}
+                  placeholder="RESET"
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${resetText === "RESET" ? RED : "#E2E8F0"}`, fontSize: 13, color: "#111827", fontFamily: "Inter,sans-serif", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button
+                  onClick={() => { setShowModal(false); setResetText(""); }}
+                  disabled={resetting}
+                  style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" }}
+                >Cancel</button>
+                <button
+                  onClick={handleReset}
+                  disabled={resetText !== "RESET" || resetting}
+                  style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: resetText === "RESET" && !resetting ? RED : "#FCA5A5", color: "white", fontSize: 13, fontWeight: 600, cursor: resetText === "RESET" && !resetting ? "pointer" : "not-allowed", fontFamily: "Inter,sans-serif" }}
+                >{resetting ? "Resetting…" : "Reset everything"}</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <SettingsCard style={{ padding: 24, border: "1px solid #FEE2E2" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <ShieldAlert size={16} color={RED} />
+          <div style={{ fontSize: 15, fontWeight: 800, color: RED }}>Danger Zone</div>
+        </div>
+        <div style={{ height: 1, background: "#FEE2E2", margin: "12px 0 16px" }} />
+
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, padding: "16px", background: "#FFF5F5", borderRadius: 10, border: "1px solid #FEE2E2" }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Reset all data</div>
+            <div style={{ fontSize: 12.5, color: "#6B7280", lineHeight: 1.6 }}>
+              Remove all projects, submissions, and field data from your organisation.<br />
+              Your account and login remain intact.
+            </div>
+          </div>
+          <button
+            onClick={() => setShowModal(true)}
+            style={{ flexShrink: 0, padding: "9px 16px", borderRadius: 8, border: `1px solid ${RED}`, background: "white", color: RED, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif", whiteSpace: "nowrap" }}
+          >Reset all data →</button>
+        </div>
+      </SettingsCard>
+    </div>
+  );
+}
+
 const SECTION_COMPONENTS: Record<string, React.FC> = {
   organization:OrgSection,workspace:WorkspaceSection,users:UsersSection,roles:RolesSection,
   branding:BrandingSection,integrations:IntegrationsSection,ada:AdaSection,research:ResearchSection,
   storage:StorageSection,security:SecuritySection,notifications:NotificationsSection,
-  billing:BillingSection,api:ApiSection,audit:AuditSection,
+  billing:BillingSection,api:ApiSection,audit:AuditSection,danger:DangerSection,
 };
 
 const SECTION_META: Record<string,{title:string;description:string}> = {
@@ -1130,6 +1247,7 @@ const SECTION_META: Record<string,{title:string;description:string}> = {
   billing:{title:"Billing",description:"Plan, usage, and invoice management"},
   api:{title:"API & Webhooks",description:"Programmatic access and real-time event integrations"},
   audit:{title:"Audit Log",description:"Full history of user and system activity in your organisation"},
+  danger:{title:"Danger Zone",description:"Irreversible actions that affect all your organisation's data"},
 };
 
 export default function SettingsPage() {
