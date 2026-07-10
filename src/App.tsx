@@ -35,10 +35,18 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Legacy redirect for submission IDs
 function LegacySubmissionRedirect() {
   useParams<{ id: string }>();
   return <Navigate to="/projects" replace />;
+}
+
+// Wrap AppShell in a single ProjectProvider so Sidebar always has project context
+function AppShellWithProject() {
+  return (
+    <ProjectProvider>
+      <AppShell />
+    </ProjectProvider>
+  );
 }
 
 function AppRoutes() {
@@ -50,7 +58,7 @@ function AppRoutes() {
       <Route path="/" element={
         <ProtectedRoute>
           <ResearchProvider>
-            <AppShell />
+            <AppShellWithProject />
           </ResearchProvider>
         </ProtectedRoute>
       }>
@@ -61,52 +69,16 @@ function AppRoutes() {
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/new" element={<CreateProjectPage />} />
 
-        {/* Project detail + stages — wrapped with ProjectProvider */}
-        <Route path="projects/:projectId" element={
-          <ProjectProvider>
-            <ProjectPage />
-          </ProjectProvider>
-        } />
-        <Route path="projects/:projectId/design" element={
-          <ProjectProvider>
-            <DesignStagePage />
-          </ProjectProvider>
-        } />
-        <Route path="projects/:projectId/collect" element={
-          <ProjectProvider>
-            <CollectStagePage />
-          </ProjectProvider>
-        } />
-        <Route path="projects/:projectId/verify" element={
-          <ProjectProvider>
-            <VerifyStagePage />
-          </ProjectProvider>
-        } />
-        <Route path="projects/:projectId/verify/:submissionId" element={
-          <ProjectProvider>
-            <SubmissionsPage />
-          </ProjectProvider>
-        } />
-        <Route path="projects/:projectId/verify/enumerators" element={
-          <ProjectProvider>
-            <EnumeratorsPage />
-          </ProjectProvider>
-        } />
-        <Route path="projects/:projectId/verify/map" element={
-          <ProjectProvider>
-            <MapPage />
-          </ProjectProvider>
-        } />
-        <Route path="projects/:projectId/analyse" element={
-          <ProjectProvider>
-            <AnalyseStagePage />
-          </ProjectProvider>
-        } />
-        <Route path="projects/:projectId/report" element={
-          <ProjectProvider>
-            <ReportStagePage />
-          </ProjectProvider>
-        } />
+        {/* Project detail + stages */}
+        <Route path="projects/:projectId" element={<ProjectPage />} />
+        <Route path="projects/:projectId/design" element={<DesignStagePage />} />
+        <Route path="projects/:projectId/collect" element={<CollectStagePage />} />
+        <Route path="projects/:projectId/verify" element={<VerifyStagePage />} />
+        <Route path="projects/:projectId/verify/:submissionId" element={<SubmissionsPage />} />
+        <Route path="projects/:projectId/verify/enumerators" element={<EnumeratorsPage />} />
+        <Route path="projects/:projectId/verify/map" element={<MapPage />} />
+        <Route path="projects/:projectId/analyse" element={<AnalyseStagePage />} />
+        <Route path="projects/:projectId/report" element={<ReportStagePage />} />
 
         {/* Settings */}
         <Route path="settings" element={<SettingsPage />} />
