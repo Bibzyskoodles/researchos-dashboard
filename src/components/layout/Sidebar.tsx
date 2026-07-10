@@ -116,6 +116,8 @@ export default function Sidebar() {
 
             {/* Framework + project settings */}
             <button
+              onClick={() => navigate(`/projects/${projectId}`)}
+              title="View project overview and research framework"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -124,7 +126,7 @@ export default function Sidebar() {
               }}
             >
               Framework
-              <span style={{ fontSize: 14 }}>+</span>
+              <span style={{ fontSize: 14 }}>↗</span>
             </button>
             <button
               onClick={() => navigate('/settings')}

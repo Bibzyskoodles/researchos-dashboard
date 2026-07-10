@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Download, Sparkles, Clock, CheckCircle, ChevronDown } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi } from "../../services/api";
+import { insightScoreApi, projectsApi } from "../../services/api";
 import { usePlatform } from "../../platform/PlatformProvider";
 
 const BLUE = "#2463EB", GREEN = "#059669", PURPLE = "#7C3AED";
@@ -30,13 +30,23 @@ export default function ReportsPage() {
   useAdaGreeting({ page: "reports" });
 
   useEffect(() => {
-    insightScoreApi.getProjects()
-      .then(r => {
+    const loadProjects = async () => {
+      try {
+        const r = await insightScoreApi.getProjects();
         const list: Project[] = r.data?.projects || r.data || [];
+        if (list.length > 0) { setProjects(list); setSelectedProject(list[0]); return; }
+      } catch { /* fall through */ }
+      // InsightScore empty — load from main project API
+      try {
+        const r = await projectsApi.list();
+        const list: Project[] = (r.data?.projects || r.data || []).map((p: { id: string; name: string; submission_count?: number }) => ({
+          id: p.id, name: p.name, status: "pending", submission_count: p.submission_count ?? 0,
+        }));
         setProjects(list);
         if (list.length > 0) setSelectedProject(list[0]);
-      })
-      .catch(() => {});
+      } catch { /* give up */ }
+    };
+    loadProjects();
   }, []);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 4000); };

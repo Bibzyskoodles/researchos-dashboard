@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi, adaApi } from "../../services/api";
+import { insightScoreApi, adaApi, projectsApi } from "../../services/api";
 import { InsightProject } from "../../types";
 import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download, Sparkles, Target } from "lucide-react";
 import OutcomeIntelligencePage from "./OutcomeIntelligencePage";
@@ -274,34 +274,108 @@ export default function InsightsPage() {
   useAdaGreeting({ page: "insights" });
 
   useEffect(() => {
+    // Try InsightScore API first; fall back to main project API so projects
+    // always show even before analysis has been run on them.
     insightScoreApi.getProjects()
-      .then(r => setProjects(r.data || []))
-      .catch(() => setProjects([]))
+      .then(r => {
+        const list: InsightProject[] = r.data || [];
+        if (list.length > 0) { setProjects(list); setLoading(false); return; }
+        // InsightScore has nothing yet — pull from main project store
+        return projectsApi.list().then(pr => {
+          const main = (pr.data?.projects || pr.data || []).map((p: { id: string; name: string; submission_count?: number; created_at?: string }) => ({
+            id: p.id,
+            name: p.name,
+            submission_count: p.submission_count ?? 0,
+            status: "pending" as const,
+            last_activity: p.created_at || new Date().toISOString(),
+            created_at: p.created_at || new Date().toISOString(),
+          }));
+          setProjects(main);
+        });
+      })
+      .catch(() => {
+        // Last resort: still try main projects
+        projectsApi.list()
+          .then(pr => {
+            const main = (pr.data?.projects || pr.data || []).map((p: { id: string; name: string; submission_count?: number; created_at?: string }) => ({
+              id: p.id,
+              name: p.name,
+              submission_count: p.submission_count ?? 0,
+              status: "pending" as const,
+              last_activity: p.created_at || new Date().toISOString(),
+              created_at: p.created_at || new Date().toISOString(),
+            }));
+            setProjects(main);
+          })
+          .catch(() => setProjects([]));
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const FALLBACK_PROJECT = "658464e5-09dc-4b99-a664-05690de9921a";
   const firstProjectId = projects[0]?.id ?? FALLBACK_PROJECT;
 
-  const BLUE_L = "#2463EB";
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* Tab bar */}
-      <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 4, alignSelf: "flex-start" }}>
+      {/* Prominent mode switcher */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {([
-          { id: "analysis" as InsightsTab, label: "AI Analysis", icon: Sparkles },
-          { id: "outcome" as InsightsTab, label: "Outcome Intelligence", icon: Target },
+          {
+            id: "analysis" as InsightsTab,
+            icon: Sparkles,
+            label: "AI Analysis",
+            desc: "Run Question Intelligence, Signal Fidelity, Demographic breakdowns, and Evidence Engine on your verified interviews.",
+            color: BLUE,
+            badge: "InsightScore",
+          },
+          {
+            id: "outcome" as InsightsTab,
+            icon: Target,
+            label: "Outcome Intelligence",
+            desc: "Track KPIs, outcome indicators, and research targets across your project portfolio.",
+            color: PURPLE,
+            badge: "New",
+          },
         ]).map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: "Inter,sans-serif", fontSize: 12.5, fontWeight: active ? 700 : 500,
-                background: active ? "white" : "transparent", color: active ? BLUE_L : "#6B7280",
-                boxShadow: active ? "0 1px 4px rgba(10,15,28,.08)" : "none", transition: "all .15s" }}>
-              <Icon size={13} />{tab.label}
-            </button>
+            <motion.button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "flex-start",
+                gap: 10, padding: "18px 20px", borderRadius: 14, border: "none",
+                cursor: "pointer", fontFamily: "Inter,sans-serif", textAlign: "left",
+                background: active ? tab.color : "white",
+                boxShadow: active
+                  ? `0 6px 24px ${tab.color}30`
+                  : "0 2px 12px rgba(10,15,28,.06)",
+                outline: active ? "none" : `1px solid #E8EDF5`,
+                transition: "all .18s",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: active ? "rgba(255,255,255,.2)" : `${tab.color}14`,
+                  display: "grid", placeItems: "center", flexShrink: 0,
+                }}>
+                  <Icon size={18} color={active ? "white" : tab.color} />
+                </div>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6,
+                  background: active ? "rgba(255,255,255,.2)" : `${tab.color}14`,
+                  color: active ? "white" : tab.color, letterSpacing: 0.5,
+                }}>{tab.badge}</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: active ? "white" : "#080D1A", marginBottom: 4, letterSpacing: -0.3 }}>{tab.label}</div>
+                <div style={{ fontSize: 12, color: active ? "rgba(255,255,255,.75)" : "#6B7280", lineHeight: 1.55 }}>{tab.desc}</div>
+              </div>
+            </motion.button>
           );
         })}
       </div>
