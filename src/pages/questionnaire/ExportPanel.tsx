@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Download, Save, X } from 'lucide-react';
+import { Download, Save, X, Upload, CheckCircle, ExternalLink } from 'lucide-react';
 import api from '../../services/api';
+import { publishToKoboToolbox } from '../../services/kobo/koboToolboxApi';
 import { GeneratedQuestionnaire } from './types';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 
 const BLUE = '#2463EB';
 const GREEN = '#059669';
+const KOBO_GREEN = '#059669';
 
 const EXPORT_OPTIONS = [
   {
@@ -56,10 +58,37 @@ const EXPORT_OPTIONS = [
   },
 ];
 
+// Convert GeneratedQuestionnaire to the flat Questionnaire shape koboToolboxApi expects
+function toKoboQuestionnaire(q: GeneratedQuestionnaire) {
+  const questions = q.sections.flatMap(sec =>
+    sec.questions.map(question => ({
+      id: question.id,
+      type: question.type,
+      label: question.text,
+      required: question.required ?? true,
+      options: (question.options || []).map((o: string) => ({ value: o, label: o })),
+      condition: question.skip_logic,
+    }))
+  );
+  return {
+    id: q.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
+    name: q.title,
+    version: new Date().getTime().toString(),
+    questions,
+  };
+}
+
 export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
   const [exporting, setExporting] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [koboState, setKoboState] = useState<
+    'idle' | 'prompt' | 'publishing' | 'done' | 'error'
+  >('idle');
+  const [koboToken, setKoboToken] = useState(
+    () => localStorage.getItem('koboToken') || ''
+  );
+  const [koboResult, setKoboResult] = useState<{ shareLink?: string; assetUid?: string } | null>(null);
 
   const exportQuestionnaire = async (format: string) => {
     setExporting(format);
@@ -107,6 +136,40 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
       setTimeout(() => setSaved(false), 2000);
     } catch {
       setError('Failed to save questionnaire.');
+    }
+  };
+
+  const handleKoboDeploy = async () => {
+    const token = koboToken.trim();
+    if (!token) {
+      setKoboState('prompt');
+      return;
+    }
+    await deployToKobo(token);
+  };
+
+  const deployToKobo = async (token: string) => {
+    setKoboState('publishing');
+    setError(null);
+    try {
+      localStorage.setItem('koboToken', token);
+      const koboQ = toKoboQuestionnaire(questionnaire);
+      const result = await publishToKoboToolbox(token, koboQ, {
+        projectName: questionnaire.title,
+        description: questionnaire.methodology_notes || '',
+        isPublic: false,
+      });
+
+      if (result.success) {
+        setKoboResult({ shareLink: result.shareLink, assetUid: result.assetUid });
+        setKoboState('done');
+      } else {
+        throw new Error(result.error || 'Publish failed');
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      setError(`KoboToolbox deploy failed: ${msg}`);
+      setKoboState('error');
     }
   };
 
@@ -162,7 +225,123 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
           </div>
         )}
 
-        {/* Export options */}
+        {/* Deploy to KoboToolbox */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
+            Deploy live
+          </div>
+
+          {koboState === 'done' && koboResult ? (
+            <div style={{
+              padding: '14px 16px', borderRadius: 12, background: '#ECFDF5',
+              border: '1px solid #6EE7B7', display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <CheckCircle size={20} color={GREEN} style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#065F46' }}>Published to KoboToolbox</div>
+                <div style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>
+                  Form is live and ready to collect responses
+                </div>
+              </div>
+              {koboResult.shareLink && (
+                <a
+                  href={koboResult.shareLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '6px 12px', borderRadius: 8, background: GREEN, color: 'white',
+                    textDecoration: 'none', fontSize: 12, fontWeight: 700,
+                  }}
+                >
+                  Open <ExternalLink size={12} />
+                </a>
+              )}
+            </div>
+          ) : koboState === 'prompt' ? (
+            <div style={{ padding: '14px 16px', borderRadius: 12, border: '1px solid #DBEAFE', background: '#F0F4FF' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1E40AF', marginBottom: 10 }}>
+                Enter your KoboToolbox API token
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="password"
+                  value={koboToken}
+                  onChange={e => setKoboToken(e.target.value)}
+                  placeholder="Token from KoboToolbox account settings"
+                  style={{
+                    flex: 1, padding: '8px 12px', borderRadius: 8,
+                    border: '1px solid #BFDBFE', fontSize: 13, outline: 'none', color: '#111827',
+                    fontFamily: 'Inter, sans-serif',
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter' && koboToken.trim()) deployToKobo(koboToken.trim()); }}
+                />
+                <button
+                  onClick={() => deployToKobo(koboToken.trim())}
+                  disabled={!koboToken.trim()}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: 'none',
+                    background: koboToken.trim() ? BLUE : '#DBEAFE',
+                    color: 'white', cursor: koboToken.trim() ? 'pointer' : 'not-allowed',
+                    fontSize: 13, fontWeight: 700, fontFamily: 'Inter, sans-serif',
+                  }}
+                >
+                  Deploy
+                </button>
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, color: '#6B7280' }}>
+                Find your token at kf.kobotoolbox.org → Account Settings → API token. Token is saved locally.
+              </div>
+            </div>
+          ) : (
+            <motion.button
+              onClick={handleKoboDeploy}
+              disabled={koboState === 'publishing'}
+              whileHover={{ scale: koboState === 'publishing' ? 1 : 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '14px 16px', borderRadius: 12, width: '100%',
+                border: `2px solid ${KOBO_GREEN}`, background: 'white',
+                cursor: koboState === 'publishing' ? 'wait' : 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ fontSize: 24 }}>🌐</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                  {koboState === 'publishing' ? 'Publishing to KoboToolbox…' : 'Deploy to KoboToolbox'}
+                </div>
+                <div style={{ fontSize: 12, color: '#6B7280' }}>
+                  {koboState === 'publishing'
+                    ? 'Creating form and deploying…'
+                    : 'Create a live form directly in your KoboToolbox account'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, color: KOBO_GREEN,
+                  background: `${KOBO_GREEN}15`, padding: '2px 8px', borderRadius: 20,
+                }}>
+                  LIVE
+                </span>
+                {koboState === 'publishing' ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    style={{ width: 16, height: 16, border: '2px solid #E5E7EB', borderTopColor: KOBO_GREEN, borderRadius: '50%' }}
+                  />
+                ) : (
+                  <Upload size={16} color={KOBO_GREEN} />
+                )}
+              </div>
+            </motion.button>
+          )}
+        </div>
+
+        {/* Download options */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
+          Download
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
           {EXPORT_OPTIONS.map(opt => (
             <motion.button
