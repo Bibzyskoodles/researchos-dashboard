@@ -15,7 +15,10 @@ export default function Sidebar() {
   const { projectId } = useParams<{ projectId?: string }>();
   const { activeProject, lifecycle } = useProject();
 
-  const isProjectMode = !!projectId && location.pathname.startsWith('/projects/') && projectId !== 'new';
+  const isProjectMode = !!projectId && projectId !== 'new' && (
+    location.pathname === `/projects/${projectId}` ||
+    location.pathname.startsWith(`/projects/${projectId}/`)
+  );
 
   const stageOrder = ['design', 'collect', 'verify', 'analyse', 'report'];
   const getStageIcon = (stage: string): string => {
