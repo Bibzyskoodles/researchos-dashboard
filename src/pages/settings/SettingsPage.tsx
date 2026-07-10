@@ -5,7 +5,7 @@ import {
   FlaskConical, Database, Lock, Bell, CreditCard, Code2,
   ClipboardList, ChevronRight, Check, AlertTriangle, RefreshCw,
   Upload, Plus, Trash2, Eye, EyeOff, Copy, Zap, Globe,
-  Download, ExternalLink, X, ShieldAlert,
+  Download, ExternalLink, X, ShieldAlert, Cpu,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -148,6 +148,7 @@ const SECTIONS = [
   { id: "integrations",  icon: Puzzle,       label: "Integrations",        group: "CUSTOMISE" },
   { id: "ada",           icon: Brain,        label: "AI & Ada",            group: "CUSTOMISE" },
   { id: "research",      icon: FlaskConical, label: "Research Defaults",   group: "RESEARCH" },
+  { id: "engine",        icon: Cpu,          label: "Engine Config",        group: "RESEARCH" },
   { id: "storage",       icon: Database,     label: "Data & Storage",      group: "RESEARCH" },
   { id: "security",      icon: Lock,         label: "Security",            group: "SYSTEM" },
   { id: "notifications", icon: Bell,         label: "Notifications",       group: "SYSTEM" },
@@ -1238,9 +1239,214 @@ function DangerSection() {
   );
 }
 
+// ─── Engine Config ────────────────────────────────────────────────────────────
+const ENGINE_LABELS: Record<string, { label: string; icon: string; desc: string }> = {
+  gps:       { label: "GPS Location",    icon: "📍", desc: "Checks if the interview location matches the assigned site" },
+  duration:  { label: "Duration",        icon: "⏱",  desc: "Flags interviews that are too short or suspiciously long" },
+  image:     { label: "Image Quality",   icon: "🖼",  desc: "Verifies photos are real, unedited, and from the field" },
+  audio:     { label: "Audio Quality",   icon: "🎙",  desc: "Checks for background noise, muted responses, and authenticity" },
+  duplicate: { label: "Duplicate Check", icon: "🔁",  desc: "Detects copy-paste or suspiciously similar submissions" },
+  text_ai:   { label: "AI Detection",    icon: "🤖",  desc: "Identifies AI-written or auto-generated text responses" },
+};
+const ENGINE_ORDER = ["gps","duration","image","audio","duplicate","text_ai"];
+
+type WeightMap = { gps:number; duration:number; image:number; audio:number; duplicate:number; text_ai:number; };
+type GatingMap = { gps_reject_skips: string[]; duration_reject_skips: string[]; duplicate_reject_skips: string[]; };
+type EnabledMap = { gps:boolean; duration:boolean; image:boolean; audio:boolean; duplicate:boolean; text_ai:boolean; };
+
+const DEFAULT_WEIGHTS: WeightMap = { gps:0.25, duration:0.22, image:0.20, audio:0.13, duplicate:0.10, text_ai:0.10 };
+const DEFAULT_GATING: GatingMap = {
+  gps_reject_skips: ["image","audio"],
+  duration_reject_skips: [],
+  duplicate_reject_skips: ["audio","text_ai"],
+};
+const DEFAULT_ENABLED: EnabledMap = { gps:true, duration:true, image:true, audio:true, duplicate:true, text_ai:true };
+
+function GatingToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button onClick={() => onChange(!checked)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 7, border: `1px solid ${checked ? "#BFDBFE" : "#E2E8F0"}`, background: checked ? "#EFF6FF" : "#F8FAFF", cursor: "pointer", fontSize: 12, fontWeight: 600, color: checked ? BLUE : "#6B7280", fontFamily: "Inter,sans-serif", transition: "all .15s" }}>
+      {checked ? <Check size={11} color={BLUE} /> : <X size={11} color="#CBD5E1" />}
+      {label}
+    </button>
+  );
+}
+
+function EngineSection() {
+  const { addMessage, setState } = useAda();
+  const [weights, setWeights] = useState<WeightMap>({ ...DEFAULT_WEIGHTS });
+  const [gating, setGating] = useState<GatingMap>({ ...DEFAULT_GATING, gps_reject_skips: [...DEFAULT_GATING.gps_reject_skips], duration_reject_skips: [...DEFAULT_GATING.duration_reject_skips], duplicate_reject_skips: [...DEFAULT_GATING.duplicate_reject_skips] });
+  const [enabled, setEnabled] = useState<EnabledMap>({ ...DEFAULT_ENABLED });
+  const [aiHighPenalty, setAiHighPenalty] = useState(55);
+  const [aiMediumPenalty, setAiMediumPenalty] = useState(20);
+  const [aiMediumFlag, setAiMediumFlag] = useState(true);
+  const [saved, setSaved] = useState(false);
+
+  const totalW = ENGINE_ORDER.reduce((s, k) => s + (enabled[k as keyof EnabledMap] ? weights[k as keyof WeightMap] : 0), 0);
+
+  const toggleGate = (gate: keyof GatingMap, engine: string) => {
+    setGating(prev => {
+      const arr = prev[gate];
+      return { ...prev, [gate]: arr.includes(engine) ? arr.filter(e => e !== engine) : [...arr, engine] };
+    });
+  };
+
+  const save = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+    setState("thinking");
+    setTimeout(() => {
+      setState("speaking");
+      const active = ENGINE_ORDER.filter(k => enabled[k as keyof EnabledMap]);
+      addMessage({ id: Date.now().toString(), role: "assistant", content: `Engine config saved. You have ${active.length} active engines with GPS carrying the most weight (${Math.round((weights.gps / totalW) * 100)}% after normalisation). Gating is set up so a GPS reject skips ${gating.gps_reject_skips.length > 0 ? gating.gps_reject_skips.join(" and ") : "nothing"} — that saves processing time and avoids penalising real submissions twice. AI detection is set to HIGH = ${aiHighPenalty} point penalty, MEDIUM = ${aiMediumPenalty} points${aiMediumFlag ? " + flag for review" : ", no flag"}. These settings apply to all new submissions scored from now.`, timestamp: new Date().toISOString(), page: "settings-engine" });
+      setTimeout(() => setState("idle"), 5000);
+    }, 700);
+  };
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setState("thinking");
+      setTimeout(() => {
+        setState("speaking");
+        addMessage({ id: Date.now().toString(), role: "assistant", content: "This is the Engine Config — the brain behind every FieldScore verdict. You can adjust how much each check contributes to the final score, skip expensive checks when a submission is already clearly fraudulent (engine gating), and calibrate how hard AI-generated text is penalised. The defaults are well-tuned for most fieldwork, but every project is different. Ask me if you're unsure what to change.", timestamp: new Date().toISOString(), page: "settings-engine" });
+        setTimeout(() => setState("idle"), 6000);
+      }, 600);
+    }, 800);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* Score Weights */}
+      <SettingsCard style={{ padding: 24 }}>
+        <SettingsHeader title="" description="" />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7 }}>Score Weights</div>
+          <div style={{ flex: 1, height: 1, background: "#F1F5F9" }} />
+          <div style={{ fontSize: 11, color: totalW > 0 && Math.abs(totalW - 1) < 0.001 ? GREEN : AMBER, fontWeight: 700 }}>
+            {Math.round(totalW * 100)}% assigned
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
+          Each active engine contributes to the final FieldScore out of 100. Weights are normalised automatically, so the relative balance is what matters — not the exact total. GPS and Duration carry the most weight by default because they are the hardest to fake.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {ENGINE_ORDER.map(key => {
+            const k = key as keyof WeightMap;
+            const meta = ENGINE_LABELS[key];
+            const w = weights[k];
+            const pct = totalW > 0 ? Math.round((w / totalW) * 100) : 0;
+            const isEnabled = enabled[k as keyof EnabledMap];
+            return (
+              <div key={key} style={{ padding: "14px 16px", borderRadius: 10, border: `1px solid ${isEnabled ? "#EEF2F8" : "#F1F5F9"}`, background: isEnabled ? "#F8FAFF" : "#FAFAFA", opacity: isEnabled ? 1 : 0.55 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: isEnabled ? 10 : 0 }}>
+                  <span style={{ fontSize: 18 }}>{meta.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{meta.label}</div>
+                    <div style={{ fontSize: 11, color: "#9CA3AF" }}>{meta.desc}</div>
+                  </div>
+                  {isEnabled && <div style={{ fontSize: 13, fontWeight: 700, color: BLUE, minWidth: 36, textAlign: "right" }}>{pct}%</div>}
+                  <button
+                    onClick={() => setEnabled(prev => ({ ...prev, [k]: !prev[k as keyof EnabledMap] }))}
+                    style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${isEnabled ? "#BFDBFE" : "#E2E8F0"}`, background: isEnabled ? "#EFF6FF" : "white", color: isEnabled ? BLUE : "#9CA3AF", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" }}
+                  >
+                    {isEnabled ? "On" : "Off"}
+                  </button>
+                </div>
+                {isEnabled && (
+                  <input
+                    type="range" min={1} max={50} value={Math.round(w * 100)}
+                    onChange={e => setWeights(prev => ({ ...prev, [k]: Number(e.target.value) / 100 }))}
+                    style={{ width: "100%", accentColor: BLUE }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </SettingsCard>
+
+      {/* Engine Gating */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>Engine Gating</div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
+          When an upstream check already determines a submission is fraudulent, there's no point running the remaining expensive checks. Gating skips those engines, saves cost, and avoids double-penalising a submission for the same root problem. The skipped engines are marked GATED and excluded from scoring.
+        </div>
+        {([
+          { gate: "gps_reject_skips" as keyof GatingMap, label: "📍 GPS REJECT → skip these engines", hint: "If GPS is rejected (clearly wrong location), skip image and audio checks — the submission is already disqualified.", skip: ["image","audio","duration","text_ai"] },
+          { gate: "duration_reject_skips" as keyof GatingMap, label: "⏱ Duration REJECT → skip these engines", hint: "If the interview was impossibly fast or suspiciously long, skip image and audio analysis.", skip: ["image","audio"] },
+          { gate: "duplicate_reject_skips" as keyof GatingMap, label: "🔁 Duplicate REJECT → skip these engines", hint: "If a submission is a near-exact duplicate, skip audio and AI text analysis — it's already failed.", skip: ["audio","text_ai"] },
+        ] as const).map(({ gate, label, hint, skip }) => (
+          <div key={gate} style={{ marginBottom: 16, padding: "14px 16px", borderRadius: 10, border: "1px solid #EEF2F8", background: "#F8FAFF" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 11.5, color: "#9CA3AF", marginBottom: 12, lineHeight: 1.5 }}>{hint}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {skip.map(eng => (
+                <GatingToggle
+                  key={eng}
+                  label={`${ENGINE_LABELS[eng]?.icon} ${ENGINE_LABELS[eng]?.label}`}
+                  checked={gating[gate].includes(eng)}
+                  onChange={() => toggleGate(gate, eng)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </SettingsCard>
+
+      {/* AI Detection Calibration */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>🤖 AI Detection Penalties</div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18, padding: "10px 14px", background: "#FFF7ED", borderRadius: 8, border: "1px solid #FED7AA", lineHeight: 1.6 }}>
+          Ada's AI detection engine returns a confidence level — HIGH, MEDIUM, or LOW — for each AI-generated response. HIGH confidence means multiple strong signals (OpenAI metadata, C2PA content credentials, GPT-4o visual analysis). MEDIUM means some signals but not conclusive. LOW is treated as authentic to avoid punishing legitimate submissions.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid #FEE2E2", background: "#FFF5F5" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>HIGH confidence penalty</div>
+                <div style={{ fontSize: 11.5, color: "#9CA3AF" }}>Clear AI signals — multiple independent detectors agree. Submission is very likely AI-generated.</div>
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: RED, minWidth: 52, textAlign: "right" }}>-{aiHighPenalty}pts</div>
+            </div>
+            <input type="range" min={20} max={70} value={aiHighPenalty} onChange={e => setAiHighPenalty(Number(e.target.value))} style={{ width: "100%", accentColor: RED }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "#9CA3AF", marginTop: 4 }}><span>Light (-20)</span><span>Severe (-70)</span></div>
+          </div>
+          <div style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid #FEF3C7", background: "#FFFBEB" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>MEDIUM confidence penalty</div>
+                <div style={{ fontSize: 11.5, color: "#9CA3AF" }}>Some AI signals detected — warrants human review but not an automatic reject.</div>
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: AMBER, minWidth: 52, textAlign: "right" }}>-{aiMediumPenalty}pts</div>
+            </div>
+            <input type="range" min={0} max={40} value={aiMediumPenalty} onChange={e => setAiMediumPenalty(Number(e.target.value))} style={{ width: "100%", accentColor: AMBER }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "#9CA3AF", marginTop: 4 }}><span>None (0)</span><span>Significant (-40)</span></div>
+            <div style={{ marginTop: 12 }}>
+              <Toggle value={aiMediumFlag} onChange={setAiMediumFlag} label="Flag MEDIUM detections for supervisor review" description="Sends the submission to the Verify queue for human inspection — without penalising the score further" />
+            </div>
+          </div>
+          <div style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid #DCFCE7", background: "#F0FDF4" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 2 }}>LOW confidence — no action</div>
+            <div style={{ fontSize: 11.5, color: "#9CA3AF" }}>A few weak signals detected but nothing conclusive. Treated as authentic to avoid penalising real submissions. No score deduction, no flag.</div>
+          </div>
+        </div>
+      </SettingsCard>
+
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button onClick={save} style={BTN_PRIMARY}>
+          {saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Engine Config"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const SECTION_COMPONENTS: Record<string, React.FC> = {
   organization:OrgSection,workspace:WorkspaceSection,users:UsersSection,roles:RolesSection,
   branding:BrandingSection,integrations:IntegrationsSection,ada:AdaSection,research:ResearchSection,
+  engine:EngineSection,
   storage:StorageSection,security:SecuritySection,notifications:NotificationsSection,
   billing:BillingSection,api:ApiSection,audit:AuditSection,danger:DangerSection,
 };
@@ -1254,6 +1460,7 @@ const SECTION_META: Record<string,{title:string;description:string}> = {
   integrations:{title:"Integrations",description:"Connect ResearchOS to your data collection and productivity tools"},
   ada:{title:"AI & Ada",description:"Configure Ada's behaviour, personality, and AI model settings"},
   research:{title:"Research Defaults",description:"Default thresholds and parameters for FieldScore and InsightScore"},
+  engine:{title:"Engine Configuration",description:"Score weights, engine gating rules, and AI detection penalties for FieldScore"},
   storage:{title:"Data & Storage",description:"Storage usage, breakdown, and retention policy"},
   security:{title:"Security",description:"Authentication, sessions, and access controls"},
   notifications:{title:"Notifications",description:"Configure when and how your team is notified"},
