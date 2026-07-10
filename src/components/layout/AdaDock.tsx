@@ -90,7 +90,13 @@ export default function AdaDock() {
     setState("thinking");
     addMessage({ id: Date.now().toString(), role: "user", content: msg, timestamp: new Date().toISOString() });
     try {
-      const res = await adaApi.chat(msg, store.currentPage, {});
+      // Pull project lifecycle + framework context from sessionStorage if available
+      const lifecycleRaw = sessionStorage.getItem('ros_active_lifecycle');
+      const frameworkRaw = sessionStorage.getItem('ros_active_framework');
+      const adaContext: Record<string, unknown> = {};
+      if (lifecycleRaw) { try { adaContext.lifecycle = JSON.parse(lifecycleRaw); } catch {} }
+      if (frameworkRaw) { try { const fw = JSON.parse(frameworkRaw); adaContext.framework_indicators = fw.indicators; adaContext.framework_filename = fw.filename; } catch {} }
+      const res = await adaApi.chat(msg, store.currentPage, adaContext);
       const reply: string = res.data.reply;
       addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: reply, timestamp: new Date().toISOString() });
       setState("speaking");

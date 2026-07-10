@@ -112,6 +112,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await api.get(`/api/projects/${id}/lifecycle`);
       setLifecycle(res.data);
+      // Store in sessionStorage so AdaDock can include it in every chat message
+      try { sessionStorage.setItem('ros_active_lifecycle', JSON.stringify(res.data)); } catch {}
     } catch {
       // ignore
     } finally {
