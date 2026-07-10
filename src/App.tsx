@@ -1,18 +1,24 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './store/AuthContext';
 import { AdaProvider } from './ada/AdaContext';
+import { ResearchProvider } from './context/ResearchContext';
+import { ProjectProvider } from './context/ProjectContext';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
-import OverviewPage from './pages/field-quality/OverviewPage';
+import RegisterPage from './pages/auth/RegisterPage';
+import ProjectsPage from './pages/projects/ProjectsPage';
+import CreateProjectPage from './pages/projects/CreateProjectPage';
+import ProjectPage from './pages/projects/ProjectPage';
+import DesignStagePage from './pages/stages/DesignStagePage';
+import CollectStagePage from './pages/stages/CollectStagePage';
+import VerifyStagePage from './pages/stages/VerifyStagePage';
+import AnalyseStagePage from './pages/stages/AnalyseStagePage';
+import ReportStagePage from './pages/stages/ReportStagePage';
 import SubmissionsPage from './pages/field-quality/SubmissionsPage';
 import EnumeratorsPage from './pages/field-quality/EnumeratorsPage';
 import MapPage from './pages/field-quality/MapPage';
-import InsightsPage from './pages/insights/InsightsPage';
-import InsightProjectPage from './pages/insights/InsightProjectPage';
-import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
-import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -20,7 +26,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       height: '100vh', background: '#F0F4FF', fontFamily: 'Inter, sans-serif',
-      color: '#6B7280', fontSize: 14
+      color: '#6B7280', fontSize: 14,
     }}>
       Loading ResearchOS...
     </div>
@@ -29,27 +35,96 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Legacy redirect for submission IDs
+function LegacySubmissionRedirect() {
+  useParams<{ id: string }>();
+  return <Navigate to="/projects" replace />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+
       <Route path="/" element={
         <ProtectedRoute>
-          <AppShell />
+          <ResearchProvider>
+            <AppShell />
+          </ResearchProvider>
         </ProtectedRoute>
       }>
-        <Route index element={<Navigate to="/overview" replace />} />
-        <Route path="overview" element={<OverviewPage />} />
-        <Route path="submissions" element={<SubmissionsPage />} />
-        <Route path="enumerators" element={<EnumeratorsPage />} />
-        <Route path="map" element={<MapPage />} />
-        <Route path="insights" element={<InsightsPage />} />
-        <Route path="insights/:id" element={<InsightProjectPage />} />
-        <Route path="reports" element={<ReportsPage />} />
+        {/* Root redirect */}
+        <Route index element={<Navigate to="/projects" replace />} />
+
+        {/* Projects hub */}
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="projects/new" element={<CreateProjectPage />} />
+
+        {/* Project detail + stages — wrapped with ProjectProvider */}
+        <Route path="projects/:projectId" element={
+          <ProjectProvider>
+            <ProjectPage />
+          </ProjectProvider>
+        } />
+        <Route path="projects/:projectId/design" element={
+          <ProjectProvider>
+            <DesignStagePage />
+          </ProjectProvider>
+        } />
+        <Route path="projects/:projectId/collect" element={
+          <ProjectProvider>
+            <CollectStagePage />
+          </ProjectProvider>
+        } />
+        <Route path="projects/:projectId/verify" element={
+          <ProjectProvider>
+            <VerifyStagePage />
+          </ProjectProvider>
+        } />
+        <Route path="projects/:projectId/verify/:submissionId" element={
+          <ProjectProvider>
+            <SubmissionsPage />
+          </ProjectProvider>
+        } />
+        <Route path="projects/:projectId/verify/enumerators" element={
+          <ProjectProvider>
+            <EnumeratorsPage />
+          </ProjectProvider>
+        } />
+        <Route path="projects/:projectId/verify/map" element={
+          <ProjectProvider>
+            <MapPage />
+          </ProjectProvider>
+        } />
+        <Route path="projects/:projectId/analyse" element={
+          <ProjectProvider>
+            <AnalyseStagePage />
+          </ProjectProvider>
+        } />
+        <Route path="projects/:projectId/report" element={
+          <ProjectProvider>
+            <ReportStagePage />
+          </ProjectProvider>
+        } />
+
+        {/* Settings */}
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="integrations" element={<IntegrationsPage />} />
+
+        {/* Legacy redirects */}
+        <Route path="overview" element={<Navigate to="/projects" replace />} />
+        <Route path="submissions" element={<Navigate to="/projects" replace />} />
+        <Route path="submissions/:id" element={<LegacySubmissionRedirect />} />
+        <Route path="insights" element={<Navigate to="/projects" replace />} />
+        <Route path="insights/:id" element={<Navigate to="/projects" replace />} />
+        <Route path="reports" element={<Navigate to="/projects" replace />} />
+        <Route path="questionnaire" element={<Navigate to="/projects" replace />} />
+        <Route path="enumerators" element={<Navigate to="/projects" replace />} />
+        <Route path="map" element={<Navigate to="/projects" replace />} />
+        <Route path="integrations" element={<Navigate to="/projects" replace />} />
       </Route>
-      <Route path="*" element={<Navigate to="/overview" replace />} />
+
+      <Route path="*" element={<Navigate to="/projects" replace />} />
     </Routes>
   );
 }

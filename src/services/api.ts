@@ -43,6 +43,15 @@ export const dashboardApi = {
   getStats: () => api.get('/api/stats'),
 };
 
+export const projectsApi = {
+  list: () => api.get('/api/projects'),
+  create: (data: object) => api.post('/api/projects', data),
+  get: (id: string) => api.get(`/api/projects/${id}`),
+  update: (id: string, data: object) => api.patch(`/api/projects/${id}`, data),
+  lifecycle: (id: string) => api.get(`/api/projects/${id}/lifecycle`),
+  framework: (id: string, data: object) => api.post(`/api/projects/${id}/framework`, data),
+};
+
 export const adaApi = {
   chat: (message: string, page: string, context: object) =>
     api.post('/ada/chat', { message, page, ...context }),

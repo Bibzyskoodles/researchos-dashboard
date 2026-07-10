@@ -143,6 +143,8 @@ export interface Organisation {
   name: string;
   plan: 'trial' | 'starter' | 'professional' | 'enterprise';
   status: 'active' | 'trial' | 'expired' | 'cancelled';
+  industry_id?: string;
+  default_study_type_id?: string;
 }
 
 export interface AuthState {
