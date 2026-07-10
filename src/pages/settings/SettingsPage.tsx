@@ -1157,20 +1157,29 @@ function DangerSection() {
           <div style={{ position: "fixed", inset: 0, background: "rgba(8,13,26,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
-              style={{ background: "white", borderRadius: 16, border: "1px solid #E8EDF5", boxShadow: "0 8px 40px rgba(10,15,28,.18)", padding: "32px 28px", width: 440, maxWidth: "calc(100vw - 32px)", fontFamily: "Inter,sans-serif" }}
+              style={{ background: "white", borderRadius: 16, border: `2px solid ${RED}`, boxShadow: "0 8px 40px rgba(220,38,38,.2)", width: 440, maxWidth: "calc(100vw - 32px)", fontFamily: "Inter,sans-serif", overflow: "hidden" }}
             >
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#080D1A", marginBottom: 14 }}>Reset all data?</div>
+              {/* Red modal header */}
+              <div style={{ background: RED, padding: "20px 28px", display: "flex", alignItems: "center", gap: 12 }}>
+                <ShieldAlert size={22} color="white" />
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: "white" }}>Reset all data?</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,.75)", marginTop: 2 }}>This cannot be undone</div>
+                </div>
+              </div>
+              <div style={{ padding: "24px 28px 0" }}>
               <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.65, marginBottom: 16 }}>
                 This will permanently delete:
-                <ul style={{ margin: "8px 0 0 0", paddingLeft: 20 }}>
-                  <li>All projects</li>
-                  <li>All submissions</li>
-                  <li>All enumerators</li>
-                  <li>All analysis and reports</li>
+                <ul style={{ margin: "10px 0 0 0", paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <li style={{ color: RED, fontWeight: 600 }}>All projects</li>
+                  <li style={{ color: RED, fontWeight: 600 }}>All submissions</li>
+                  <li style={{ color: RED, fontWeight: 600 }}>All enumerators</li>
+                  <li style={{ color: RED, fontWeight: 600 }}>All analysis and reports</li>
                 </ul>
               </div>
-              <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>
-                Your account and organisation login will remain intact. You will need to set up projects again from scratch.
+              <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20, padding: "12px 14px", background: "#F9FAFB", borderRadius: 8, border: "1px solid #E5E7EB" }}>
+                ✓ Your account and organisation login will remain intact.<br />
+                You will need to set up projects again from scratch.
               </p>
               <div style={{ marginBottom: 20 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
@@ -1183,42 +1192,46 @@ function DangerSection() {
                   style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${resetText === "RESET" ? RED : "#E2E8F0"}`, fontSize: 13, color: "#111827", fontFamily: "Inter,sans-serif", outline: "none", boxSizing: "border-box" }}
                 />
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingBottom: 24 }}>
                 <button
                   onClick={() => { setShowModal(false); setResetText(""); }}
                   disabled={resetting}
-                  style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" }}
+                  style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" }}
                 >Cancel</button>
                 <button
                   onClick={handleReset}
                   disabled={resetText !== "RESET" || resetting}
-                  style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: resetText === "RESET" && !resetting ? RED : "#FCA5A5", color: "white", fontSize: 13, fontWeight: 600, cursor: resetText === "RESET" && !resetting ? "pointer" : "not-allowed", fontFamily: "Inter,sans-serif" }}
-                >{resetting ? "Resetting…" : "Reset everything"}</button>
+                  style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: resetText === "RESET" && !resetting ? RED : "#FCA5A5", color: "white", fontSize: 13, fontWeight: 700, cursor: resetText !== "RESET" || resetting ? "not-allowed" : "pointer", fontFamily: "Inter,sans-serif", boxShadow: resetText === "RESET" ? "0 2px 8px rgba(220,38,38,.4)" : "none", transition: "all .15s" }}
+                >{resetting ? "Resetting…" : "⚠ Reset everything"}</button>
+              </div>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      <SettingsCard style={{ padding: 24, border: "1px solid #FEE2E2" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <ShieldAlert size={16} color={RED} />
-          <div style={{ fontSize: 15, fontWeight: 800, color: RED }}>Danger Zone</div>
+      <SettingsCard style={{ padding: 0, border: `2px solid ${RED}`, overflow: "hidden" }}>
+        {/* Red header banner */}
+        <div style={{ background: RED, padding: "14px 20px", display: "flex", alignItems: "center", gap: 10 }}>
+          <ShieldAlert size={18} color="white" />
+          <div style={{ fontSize: 14, fontWeight: 800, color: "white", letterSpacing: ".3px" }}>Danger Zone</div>
+          <div style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,.7)", letterSpacing: ".5px", textTransform: "uppercase" }}>Irreversible actions</div>
         </div>
-        <div style={{ height: 1, background: "#FEE2E2", margin: "12px 0 16px" }} />
 
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, padding: "16px", background: "#FFF5F5", borderRadius: 10, border: "1px solid #FEE2E2" }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Reset all data</div>
-            <div style={{ fontSize: 12.5, color: "#6B7280", lineHeight: 1.6 }}>
-              Remove all projects, submissions, and field data from your organisation.<br />
-              Your account and login remain intact.
+        <div style={{ padding: "20px 20px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, padding: "16px 18px", background: "#FFF5F5", borderRadius: 10, border: "1px solid #FECACA" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Reset all data</div>
+              <div style={{ fontSize: 12.5, color: "#6B7280", lineHeight: 1.6 }}>
+                Permanently deletes all projects, submissions, enumerators, and analysis.<br />
+                Your account and login remain intact.
+              </div>
             </div>
+            <button
+              onClick={() => setShowModal(true)}
+              style={{ flexShrink: 0, padding: "9px 16px", borderRadius: 8, border: "none", background: RED, color: "white", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "Inter,sans-serif", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(220,38,38,.35)" }}
+            >⚠ Reset all data</button>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            style={{ flexShrink: 0, padding: "9px 16px", borderRadius: 8, border: `1px solid ${RED}`, background: "white", color: RED, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif", whiteSpace: "nowrap" }}
-          >Reset all data →</button>
         </div>
       </SettingsCard>
     </div>
