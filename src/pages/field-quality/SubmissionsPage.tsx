@@ -2,11 +2,10 @@ import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
-import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle, CheckSquare, Square, CheckCircle2, XCircle, Flag } from "lucide-react";
+import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
 import { useLocation } from "react-router-dom";
-import { usePlatform } from "../../platform/PlatformProvider";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -70,10 +69,7 @@ export default function SubmissionsPage(){
   const [selected,setSelected]=useState<Submission|null>(null);
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
-  const [checkedIds,setCheckedIds]=useState<Set<string>>(new Set());
-  const [bulkActing,setBulkActing]=useState("");
   const location = useLocation();
-  const { t } = usePlatform();
   useAdaGreeting({ page: "submissions" });
   const { addMessage, setState } = useAdaContext();
 
@@ -120,27 +116,6 @@ export default function SubmissionsPage(){
     return true;
   });
 
-  const allChecked = filtered.length > 0 && filtered.every(s => checkedIds.has(s.submission_id));
-  const someChecked = filtered.some(s => checkedIds.has(s.submission_id));
-  const checkedCount = filtered.filter(s => checkedIds.has(s.submission_id)).length;
-
-  const toggleCheck = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCheckedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  };
-  const toggleAll = () => {
-    if(allChecked) setCheckedIds(prev => { const n = new Set(prev); filtered.forEach(s => n.delete(s.submission_id)); return n; });
-    else setCheckedIds(prev => { const n = new Set(prev); filtered.forEach(s => n.add(s.submission_id)); return n; });
-  };
-  const bulkAction = async (action: "approve"|"reject"|"flag") => {
-    const ids = filtered.filter(s => checkedIds.has(s.submission_id)).map(s => s.submission_id);
-    setBulkActing(action);
-    await Promise.allSettled(ids.map(id => dashboardApi.actionSubmission(id, action)));
-    setBulkActing("");
-    setCheckedIds(new Set());
-    load(true);
-  };
-
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
@@ -155,13 +130,7 @@ export default function SubmissionsPage(){
             style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:refreshing?"not-allowed":"pointer",opacity:refreshing?.6:1}}>
             <RefreshCw size={13} style={{animation:refreshing?"spin 1s linear infinite":"none"}}/>{refreshing?"Refreshing…":"Refresh"}
           </button>
-          <button onClick={()=>{
-            const headers=["submission_id","enumerator_id","verdict","overall_score","duration_mins","scored_at"];
-            const rows=filtered.map(s=>[s.submission_id,s.enumerator_id,s.verdict,s.overall_score,s.duration_mins??'',s.scored_at??''].join(","));
-            const csv=[headers.join(","),...rows].join("\n");
-            const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-            const a=document.createElement("a");a.href=url;a.download="submissions.csv";a.click();URL.revokeObjectURL(url);
-          }} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:"pointer"}}>
+          <button style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:"pointer"}}>
             <Download size={13}/> Export CSV
           </button>
         </div>
@@ -187,7 +156,7 @@ export default function SubmissionsPage(){
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <div style={{display:"flex",alignItems:"center",gap:8,background:"white",border:"1px solid #E2E8F0",borderRadius:8,padding:"7px 12px",flex:1,maxWidth:300}}>
           <Search size={13} color="#9CA3AF"/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search by ID or ${t("enumerator","enumerator")}…`}
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by ID or enumerator…"
             maxLength={100}
             style={{border:"none",background:"transparent",fontSize:12.5,fontFamily:"Inter,sans-serif",outline:"none",flex:1}}/>
           {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#9CA3AF",padding:0}}><X size={12}/></button>}
@@ -205,41 +174,8 @@ export default function SubmissionsPage(){
         </div>
       </div>
 
-      <AnimatePresence>
-        {checkedCount > 0 && (
-          <motion.div initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}}
-            style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:"#EFF4FF",borderRadius:10,border:"1px solid #BFDBFE"}}>
-            <span style={{fontSize:12.5,fontWeight:700,color:BLUE,flex:1}}>{checkedCount} submission{checkedCount>1?"s":""} selected</span>
-            <button onClick={()=>bulkAction("approve")} disabled={!!bulkActing}
-              style={{display:"flex",alignItems:"center",gap:5,padding:"6px 13px",borderRadius:7,border:"none",background:GREEN,color:"white",fontSize:12,fontWeight:600,cursor:"pointer",opacity:bulkActing?"approve"?1:.5:1}}>
-              <CheckCircle2 size={12}/>{bulkActing==="approve"?"Approving…":"Approve"}
-            </button>
-            <button onClick={()=>bulkAction("flag")} disabled={!!bulkActing}
-              style={{display:"flex",alignItems:"center",gap:5,padding:"6px 13px",borderRadius:7,border:"none",background:AMBER,color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-              <Flag size={12}/>{bulkActing==="flag"?"Flagging…":"Flag"}
-            </button>
-            <button onClick={()=>bulkAction("reject")} disabled={!!bulkActing}
-              style={{display:"flex",alignItems:"center",gap:5,padding:"6px 13px",borderRadius:7,border:"none",background:RED,color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-              <XCircle size={12}/>{bulkActing==="reject"?"Rejecting…":"Reject"}
-            </button>
-            <button onClick={()=>setCheckedIds(new Set())}
-              style={{background:"none",border:"none",cursor:"pointer",color:"#9CA3AF",padding:"4px 6px",fontSize:12,fontWeight:500}}>
-              Cancel
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <div style={{display:"grid",gridTemplateColumns:selected?"1fr 400px":"1fr",gap:16,alignItems:"start"}}>
-        <div data-ada-target="submissions-table" style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
-          {!loading && filtered.length > 0 && (
-            <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 20px",borderBottom:"1px solid #F1F5F9",background:"#FAFBFF"}}>
-              <div onClick={toggleAll} style={{cursor:"pointer",color:allChecked?BLUE:someChecked?"#94A3B8":"#CBD5E1",flexShrink:0,display:"grid",placeItems:"center"}}>
-                {allChecked ? <CheckSquare size={16} color={BLUE}/> : someChecked ? <CheckSquare size={16} color="#94A3B8"/> : <Square size={16}/>}
-              </div>
-              <span style={{fontSize:11,fontWeight:600,color:"#9CA3AF"}}>{allChecked?"Deselect all":`Select all ${filtered.length}`}</span>
-            </div>
-          )}
+        <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
           {loading?(
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading submissions…</div>
           ):filtered.length===0?(
@@ -247,17 +183,13 @@ export default function SubmissionsPage(){
           ):filtered.map((sub,i)=>{
             const imgScore = sub.checks?.image?.score ?? 0;
             const audScore = sub.checks?.audio?.score ?? 0;
-            const isChecked = checkedIds.has(sub.submission_id);
             return(
             <motion.div key={sub.submission_id} onClick={()=>setSelected(selected?.submission_id===sub.submission_id?null:sub)}
-              whileHover={{background:isChecked?"#EFF4FF":"#FAFBFF"}}
+              whileHover={{background:"#FAFBFF"}}
               data-ada-target={sub.verdict==="FLAG"&&!filtered.slice(0,i).some(s=>s.verdict==="FLAG")?"flagged-row":undefined}
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",borderBottom:i<filtered.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
-                background:isChecked?"#F0F7FF":selected?.submission_id===sub.submission_id?"#F0F7FF":"white",
-                borderLeft:isChecked?`3px solid ${BLUE}`:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
-              <div onClick={e=>toggleCheck(sub.submission_id,e)} style={{flexShrink:0,display:"grid",placeItems:"center",color:isChecked?BLUE:"#CBD5E1",cursor:"pointer"}}>
-                {isChecked ? <CheckSquare size={16} color={BLUE}/> : <Square size={16}/>}
-              </div>
+                background:selected?.submission_id===sub.submission_id?"#F0F7FF":"white",
+                borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
               <ScoreRing score={sub.overall_score}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
@@ -273,7 +205,7 @@ export default function SubmissionsPage(){
                 </div>
                 {sub.flags&&(
                   <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
-                    {(Array.isArray(sub.flags)?sub.flags:sub.flags.split(",")).filter(Boolean).map(f=>(
+                    {(Array.isArray(sub.flags) ? sub.flags : String(sub.flags).split(",")).filter(Boolean).map(f=>(
                       <span key={f} style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:4,background:"#F1F5F9",color:"#6B7280"}}>{f.trim().replace(/_/g," ")}</span>
                     ))}
                   </div>
@@ -379,7 +311,7 @@ export default function SubmissionsPage(){
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Flags</div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {(Array.isArray(selected.flags)?selected.flags:selected.flags.split(",")).filter(Boolean).map(f=>(
+                      {(Array.isArray(selected.flags) ? selected.flags : String(selected.flags).split(",")).filter(Boolean).map(f=>(
                         <span key={f} style={{fontSize:11,fontWeight:600,padding:"4px 10px",borderRadius:6,background:"#FEF2F2",color:RED,border:"1px solid #FECACA"}}>{f.trim().replace(/_/g," ")}</span>
                       ))}
                     </div>

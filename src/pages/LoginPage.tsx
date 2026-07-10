@@ -23,7 +23,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate("/overview");
+      navigate("/projects");
     } catch (err: any) {
       setError(err.response?.data?.error || "Login failed");
     } finally {

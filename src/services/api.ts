@@ -18,6 +18,7 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
+      // Clear all auth state — never leave a partial session
       localStorage.removeItem('fs_token');
       localStorage.removeItem('fs_user');
       document.cookie = 'fs_token=;path=/;max-age=0';
@@ -65,6 +66,15 @@ export const questionnaireApi = {
     api.post('/questionnaire/export/xlsform', { questionnaire, platform }, { responseType: 'blob' }),
   exportDocx: (questionnaire: object) =>
     api.post('/questionnaire/export/docx', { questionnaire }, { responseType: 'blob' }),
+};
+
+export const projectsApi = {
+  list: () => api.get('/api/projects'),
+  create: (data: object) => api.post('/api/projects', data),
+  get: (id: string) => api.get(`/api/projects/${id}`),
+  update: (id: string, data: object) => api.patch(`/api/projects/${id}`, data),
+  lifecycle: (id: string) => api.get(`/api/projects/${id}/lifecycle`),
+  framework: (id: string, data: object) => api.post(`/api/projects/${id}/framework`, data),
 };
 
 export const adaApi = {

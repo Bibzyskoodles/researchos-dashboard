@@ -7,13 +7,10 @@ import {
   Upload, Plus, Trash2, Eye, EyeOff, Copy, Zap, Globe,
   Download, ExternalLink, X,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from "recharts";
 import { useAda } from "../../ada/AdaContext";
-import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { useIndustry } from "../../store/IndustryContext";
-import { useAuth } from "../../store/AuthContext";
-import { useSettings } from "../../store/SettingsContext";
-import { authApi } from "../../services/api";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -129,20 +126,6 @@ function Badge({ label, color = GREEN, bg }: BadgeProps) {
   return <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 5, background: bg || `${color}18`, color }}>{label}</span>;
 }
 
-function SaveRow({ label }: { label: string }) {
-  const [saved, setSaved] = useState(false);
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2200); };
-  return (
-    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-      <button onClick={save} style={BTN_PRIMARY}>
-        {saved
-          ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span>
-          : label}
-      </button>
-    </div>
-  );
-}
-
 interface SectionDividerProps { label: string }
 function SectionDivider({ label }: SectionDividerProps) {
   return (
@@ -166,38 +149,28 @@ const SECTIONS = [
   { id: "storage",       icon: Database,     label: "Data & Storage",      group: "RESEARCH" },
   { id: "security",      icon: Lock,         label: "Security",            group: "SYSTEM" },
   { id: "notifications", icon: Bell,         label: "Notifications",       group: "SYSTEM" },
-  { id: "billing",       icon: CreditCard,   label: "Billing & Capacity",  group: "SYSTEM" },
+  { id: "billing",       icon: CreditCard,   label: "Billing",             group: "SYSTEM" },
   { id: "api",           icon: Code2,        label: "API & Webhooks",      group: "SYSTEM" },
   { id: "audit",         icon: ClipboardList,label: "Audit Log",           group: "SYSTEM" },
 ];
 
 function OrgSection() {
-  const { org } = useAuth();
-  const [name, setName] = useState(org?.name || "");
-  const { industry, setIndustry, INDUSTRIES } = useIndustry();
+  const [name, setName] = useState("ResearchOS Demo Org");
+  const [industry, setIndustry] = useState("Research & Consulting");
   const [country, setCountry] = useState("Nigeria");
   const [timezone, setTimezone] = useState("Africa/Lagos");
   const [website, setWebsite] = useState("https://researchos.io");
   const [saved, setSaved] = useState(false);
   const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
-  // Seed the editable name from the real organisation once auth resolves.
-  useEffect(() => { if (org?.name) setName(org.name); }, [org?.name]);
-  const planLabel = org?.plan ? org.plan.charAt(0).toUpperCase() + org.plan.slice(1) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Organisation Details">
-          {org && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, fontSize: 12, color: "#6B7280" }}>
-              {planLabel && <Badge label={`${planLabel} plan`} color={BLUE} />}
-              {org.status && <Badge label={org.status} color={org.status === "active" ? GREEN : AMBER} />}
-            </div>
-          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <SettingsField label="Organisation Name"><input style={INPUT} value={name} onChange={e => setName(e.target.value)} /></SettingsField>
-            <SettingsField label="Industry" hint="Adapts Ada's language and dashboard labels to your sector">
-              <select style={{ ...INPUT }} value={industry} onChange={e => setIndustry(e.target.value as any)}>
-                {INDUSTRIES.map(i => <option key={i.key} value={i.key}>{i.label}</option>)}
+            <SettingsField label="Industry">
+              <select style={{ ...INPUT }} value={industry} onChange={e => setIndustry(e.target.value)}>
+                {["Research & Consulting","Healthcare","Finance","Government","NGO / Non-profit","Education","Technology"].map(i => <option key={i}>{i}</option>)}
               </select>
             </SettingsField>
             <SettingsField label="Country"><input style={INPUT} value={country} onChange={e => setCountry(e.target.value)} /></SettingsField>
@@ -218,7 +191,7 @@ function OrgSection() {
           <div style={{ padding: 16, borderRadius: 10, border: "1px solid #FEE2E2", background: "#FFF5F5" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: RED, marginBottom: 4 }}>Delete Organisation</div>
             <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>This will permanently delete your organisation and all data. This action cannot be undone.</div>
-            <button onClick={() => { if (window.confirm("Are you sure? This permanently deletes your organisation and cannot be undone.")) alert("Deletion requested — please contact support to complete this action."); }} style={{ ...BTN_GHOST, color: RED, borderColor: "#FEE2E2", fontSize: 12 }}>Delete Organisation</button>
+            <button style={{ ...BTN_GHOST, color: RED, borderColor: "#FEE2E2", fontSize: 12 }}>Delete Organisation</button>
           </div>
         </SettingsGroup>
       </SettingsCard>
@@ -227,14 +200,9 @@ function OrgSection() {
 }
 
 function WorkspaceSection() {
-  const { org } = useAuth();
-  const { settings, changeSetting } = useSettings();
-  const [wsName, setWsName] = useState(org?.name || "My Workspace");
+  const [wsName, setWsName] = useState("Lagos Retail Audit");
   const [desc, setDesc] = useState("Primary workspace for Q3 2025 fieldwork");
-  const lang = settings.language;
-  const setLang = (v: string) => changeSetting('language', v);
-  const [saved, setSaved] = useState(false);
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const [lang, setLang] = useState("English");
   return (
     <SettingsCard style={{ padding: 24 }}>
       <SettingsGroup label="Workspace Configuration">
@@ -247,14 +215,14 @@ function WorkspaceSection() {
         </SettingsField>
       </SettingsGroup>
       <SectionDivider label="Active Projects" />
-      {[{ name: org?.name ? `${org.name} — Active Study` : "Active Study", subs: 18, status: "active" },{ name: "Draft Study", subs: 0, status: "draft" }].map(p => (
+      {[{ name: "Lagos Retail Audit", subs: 18, status: "active" },{ name: "Abuja Healthcare Survey", subs: 0, status: "draft" }].map(p => (
         <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "#F8FAFF", border: "1px solid #EEF2F8", marginBottom: 8 }}>
           <div style={{ fontSize: 18 }}>📂</div>
           <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{p.name}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{p.subs} submissions</div></div>
           <Badge label={p.status} color={p.status === "active" ? GREEN : AMBER} />
         </div>
       ))}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button onClick={save} style={BTN_PRIMARY}>{saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Workspace"}</button></div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Workspace</button></div>
     </SettingsCard>
   );
 }
@@ -356,14 +324,6 @@ function RolesSection() {
 }
 
 function BrandingSection() {
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [brandSaved, setBrandSaved] = useState(false);
-  const saveBrand = () => { setBrandSaved(true); setTimeout(() => setBrandSaved(false), 2000); };
-  const logoInputRef = React.useRef<HTMLInputElement>(null);
-  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) setLogoUrl(URL.createObjectURL(file));
-  };
   const templates = [
     { icon: "📊", label: "PowerPoint Template", hint: ".pptx — Used for presentation outputs", accepted: ".pptx" },
     { icon: "📝", label: "Word Template", hint: ".docx — Used for written report exports", accepted: ".docx" },
@@ -377,9 +337,8 @@ function BrandingSection() {
           <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
             <div>
               <div style={{ ...LABEL }}>Organisation Logo</div>
-              <input ref={logoInputRef} type="file" accept=".png,.svg,.jpg,.jpeg" style={{ display: "none" }} onChange={handleLogoFile} />
-              <div onClick={() => logoInputRef.current?.click()} style={{ width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", display: "grid", placeItems: "center", background: "#F8FAFF", cursor: "pointer", overflow: "hidden" }}>
-                {logoUrl ? <img src={logoUrl} alt="logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <div style={{ textAlign: "center" }}><Upload size={20} color="#CBD5E1" /><div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div></div>}
+              <div style={{ width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", display: "grid", placeItems: "center", background: "#F8FAFF", cursor: "pointer" }}>
+                <div style={{ textAlign: "center" }}><Upload size={20} color="#CBD5E1" /><div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div></div>
               </div>
               <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 6 }}>PNG, SVG · Max 2MB</div>
             </div>
@@ -405,9 +364,6 @@ function BrandingSection() {
             </div>
           </div>
         </SettingsGroup>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-          <button onClick={saveBrand} style={BTN_PRIMARY}>{brandSaved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Branding"}</button>
-        </div>
       </SettingsCard>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Report Templates">
@@ -499,17 +455,11 @@ function IntegrationsSection() {
 }
 
 function AdaSection() {
-  const { settings, changeSetting } = useSettings();
-  const personality = settings.adaPersonality;
-  const setPersonality = (v: string) => changeSetting('adaPersonality', v as any);
-  const proactive = settings.adaProactive;
-  const setProactive = (v: boolean) => changeSetting('adaProactive', v);
-  const brief = settings.adaBrief;
-  const setBrief = (v: boolean) => changeSetting('adaBrief', v);
-  const guidance = settings.adaGuidance;
-  const setGuidance = (v: boolean) => changeSetting('adaGuidance', v);
-  const celebrations = settings.adaCelebrations;
-  const setCelebrations = (v: boolean) => changeSetting('adaCelebrations', v);
+  const [personality, setPersonality] = useState("professional");
+  const [proactive, setProactive] = useState(true);
+  const [brief, setBrief] = useState(true);
+  const [guidance, setGuidance] = useState(true);
+  const [celebrations, setCelebrations] = useState(true);
   const model = "claude-sonnet-5";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -538,7 +488,7 @@ function AdaSection() {
           <div><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>AI Model</div><div style={{ fontSize: 11.5, color: "#9CA3AF" }}>Powers Ada's intelligence and analysis</div></div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Badge label={model} color={PURPLE} /><Badge label="Enterprise" color={AMBER} /></div>
         </div>
-        <SaveRow label="Save Ada Settings" />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Ada Settings</button></div>
       </SettingsCard>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Memory & Context">
@@ -557,19 +507,12 @@ function AdaSection() {
 }
 
 function ResearchSection() {
-  const { settings, changeSetting } = useSettings();
-  const gps = settings.gpsAccuracy;
-  const setGps = (v: number) => changeSetting('gpsAccuracy', v);
-  const dupThreshold = settings.dupThreshold;
-  const setDupThreshold = (v: number) => changeSetting('dupThreshold', v);
-  const minDuration = settings.minDuration;
-  const setMinDuration = (v: number) => changeSetting('minDuration', v);
-  const maxDuration = settings.maxDuration;
-  const setMaxDuration = (v: number) => changeSetting('maxDuration', v);
-  const mediaRetention = settings.mediaRetention;
-  const setMediaRetention = (v: string) => changeSetting('mediaRetention', v);
-  const passThreshold = settings.passThreshold;
-  const setPassThreshold = (v: number) => changeSetting('passThreshold', v);
+  const [gps, setGps] = useState(50);
+  const [dupThreshold, setDupThreshold] = useState(85);
+  const [minDuration, setMinDuration] = useState(8);
+  const [maxDuration, setMaxDuration] = useState(120);
+  const [mediaRetention, setMediaRetention] = useState("90");
+  const [passThreshold, setPassThreshold] = useState(70);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
@@ -591,7 +534,7 @@ function ResearchSection() {
             <SettingsField label="Questionnaire Generation Model"><select style={{ ...INPUT }}><option>Ada Standard</option><option>Ada Pro (Enterprise)</option></select></SettingsField>
           </div>
         </SettingsGroup>
-        <SaveRow label="Save Research Defaults" />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Research Defaults</button></div>
       </SettingsCard>
     </div>
   );
@@ -640,68 +583,13 @@ function StorageSection() {
   );
 }
 
-function ChangePasswordCard() {
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const { setState: setAdaState } = useAda();
-
-  const submit = async () => {
-    setMsg(null);
-    if (next.length < 8) { setMsg({ ok: false, text: "New password must be at least 8 characters." }); return; }
-    if (next !== confirm) { setMsg({ ok: false, text: "New passwords do not match." }); return; }
-    setBusy(true);
-    try {
-      await authApi.changePassword(current, next);
-      setMsg({ ok: true, text: "Password updated successfully. Ada: your password has been updated — keep it safe." });
-      setCurrent(""); setNext(""); setConfirm("");
-      setAdaState("celebrating");
-      setTimeout(() => setAdaState("idle"), 3000);
-    } catch (e: any) {
-      setMsg({ ok: false, text: e?.response?.data?.error || "Could not update password. Check your current password and try again." });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <SettingsCard style={{ padding: 24 }}>
-      <SettingsGroup label="Change Password">
-        <SettingsField label="Current Password">
-          <input type="password" value={current} onChange={e => setCurrent(e.target.value)} style={INPUT} autoComplete="current-password" />
-        </SettingsField>
-        <SettingsField label="New Password" hint="At least 8 characters">
-          <input type="password" value={next} onChange={e => setNext(e.target.value)} style={INPUT} autoComplete="new-password" />
-        </SettingsField>
-        <SettingsField label="Confirm New Password">
-          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} style={INPUT} autoComplete="new-password" />
-        </SettingsField>
-        {msg && (
-          <div style={{ fontSize: 12.5, fontWeight: 600, padding: "9px 12px", borderRadius: 8, background: msg.ok ? "#ECFDF5" : "#FEF2F2", color: msg.ok ? GREEN : RED, border: `1px solid ${msg.ok ? "#A7F3D0" : "#FECACA"}` }}>{msg.text}</div>
-        )}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button onClick={submit} disabled={busy || !current || !next || !confirm} style={{ ...BTN_PRIMARY, opacity: busy || !current || !next || !confirm ? 0.6 : 1, cursor: busy ? "wait" : "pointer" }}>
-            {busy ? "Updating…" : "Update Password"}
-          </button>
-        </div>
-      </SettingsGroup>
-    </SettingsCard>
-  );
-}
-
 function SecuritySection() {
-  const { settings, changeSetting } = useSettings();
-  const twoFa = settings.twoFa;
-  const setTwoFa = (v: boolean) => changeSetting('twoFa', v);
-  const sessionTimeout = settings.sessionTimeout;
-  const setSessionTimeout = (v: string) => changeSetting('sessionTimeout', v);
+  const [twoFa, setTwoFa] = useState(false);
   const [sso, setSso] = useState(false);
+  const [sessionTimeout, setSessionTimeout] = useState("8h");
   const [ipRestrict, setIpRestrict] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <ChangePasswordCard />
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Authentication">
           <Toggle value={twoFa} onChange={setTwoFa} label="Two-Factor Authentication" description="Require 2FA for all users in this organisation" />
@@ -724,14 +612,13 @@ function SecuritySection() {
             {s.active ? <Badge label="Current" color={GREEN} /> : <button style={{ ...BTN_GHOST, fontSize: 11, padding: "4px 10px", color: RED, borderColor: "#FEE2E2" }}>Revoke</button>}
           </div>
         ))}
-        <SaveRow label="Save Security Settings" />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Security Settings</button></div>
       </SettingsCard>
     </div>
   );
 }
 
 function NotificationsSection() {
-  const { settings, changeSetting } = useSettings();
   const channels = [{id:"email",label:"Email"},{id:"slack",label:"Slack"},{id:"inapp",label:"In-App"}];
   const events = [
     {label:"New Submission Scored",desc:"When FieldScore processes a new submission"},
@@ -742,48 +629,13 @@ function NotificationsSection() {
     {label:"Storage Warning",desc:"When storage exceeds 80%"},
     {label:"Integration Error",desc:"When a connected integration fails"},
   ];
-  // Per-event prefs seeded from global channel toggles from Ada-controllable settings
   const [prefs, setPrefs] = useState<Record<string,Record<string,boolean>>>(() => {
     const init: Record<string,Record<string,boolean>> = {};
-    events.forEach(e => { init[e.label] = {email:settings.notifyEmail,slack:settings.notifySlack,inapp:settings.notifyInApp}; });
+    events.forEach(e => { init[e.label] = {email:true,slack:false,inapp:true}; });
     return init;
   });
-  // When global channel settings change (e.g. Ada turned off Slack), sync all rows
-  const prevEmail = useRef(settings.notifyEmail);
-  const prevSlack = useRef(settings.notifySlack);
-  const prevInApp = useRef(settings.notifyInApp);
-  useEffect(() => {
-    const emailChanged = prevEmail.current !== settings.notifyEmail;
-    const slackChanged = prevSlack.current !== settings.notifySlack;
-    const inAppChanged = prevInApp.current !== settings.notifyInApp;
-    if (emailChanged || slackChanged || inAppChanged) {
-      setPrefs(p => {
-        const next = { ...p };
-        for (const key of Object.keys(next)) {
-          next[key] = { ...next[key] };
-          if (emailChanged) next[key].email = settings.notifyEmail;
-          if (slackChanged) next[key].slack = settings.notifySlack;
-          if (inAppChanged) next[key].inapp = settings.notifyInApp;
-        }
-        return next;
-      });
-      prevEmail.current = settings.notifyEmail;
-      prevSlack.current = settings.notifySlack;
-      prevInApp.current = settings.notifyInApp;
-    }
-  }, [settings.notifyEmail, settings.notifySlack, settings.notifyInApp]);
-
   const toggle = (event: string, channel: string) => {
-    setPrefs(p => {
-      const next = {...p,[event]:{...p[event],[channel]:!p[event][channel]}};
-      // Keep global setting in sync if user manually toggles a channel column uniformly
-      const allOff = Object.values(next).every(r => !r[channel]);
-      const allOn = Object.values(next).every(r => r[channel]);
-      if (channel === 'email' && (allOff || allOn)) changeSetting('notifyEmail', allOn);
-      if (channel === 'slack' && (allOff || allOn)) changeSetting('notifySlack', allOn);
-      if (channel === 'inapp' && (allOff || allOn)) changeSetting('notifyInApp', allOn);
-      return next;
-    });
+    setPrefs(p => ({...p,[event]:{...p[event],[channel]:!p[event][channel]}}));
   };
   return (
     <SettingsCard style={{ padding: 24, overflowX: "auto" }}>
@@ -804,267 +656,368 @@ function NotificationsSection() {
           ))}
         </tbody>
       </table>
-      <SaveRow label="Save Notifications" />
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Notifications</button></div>
     </SettingsCard>
   );
 }
 
+// ─── Billing mock data ────────────────────────────────────────────────────────
 const MOCK_BILLING = {
-  plan: "Professional" as string,
-  status: "active" as string, // active | trial | expired
-  days_used: 7, days_total: 31, days_remaining: 24,
-  monthly_price_ngn: 350000, monthly_price_usd: 219,
-  next_billing: "1 August 2026",
+  plan: "Professional",
+  status: "active" as "active" | "trial" | "expired",
+  cycle_start: "2026-07-01",
+  cycle_end: "2026-07-31",
+  days_remaining: 24,
+  days_total: 31,
+  currency: "NGN" as "NGN" | "USD",
+  monthly_price: 350000,
+  next_billing: "2026-08-01",
   capacity: [
-    { key: "fieldscore", label: "FieldScore Verifications", description: "Surveys & interviews verified for quality", icon: "🔍", used: 347, total: 2000, color: "#2463EB" },
-    { key: "insightscore", label: "Qualitative Interviews Analysed", description: "FGDs, IDIs, open-ended responses", icon: "💬", used: 12, total: 200, color: "#7C3AED" },
-    { key: "reports", label: "Executive Reports Generated", description: "Word, PowerPoint & Excel reports", icon: "📄", used: 3, total: 20, color: "#059669" },
-    { key: "presentations", label: "PowerPoint Presentations", description: "Board-ready presentations", icon: "📊", used: 1, total: 10, color: "#D97706" },
-    { key: "questionnaires", label: "Questionnaires Generated", description: "AI-generated or AI-reviewed", icon: "📋", used: 0, total: 5, color: "#06B6D4" },
+    { key: "fieldscore",     label: "FieldScore Verifications",      icon: "🔍", used: 347, total: 2000, color: "#2463EB" },
+    { key: "insightscore",   label: "Qualitative Interviews Analysed",icon: "💬", used: 12,  total: 200,  color: "#7C3AED" },
+    { key: "reports",        label: "Executive Reports Generated",    icon: "📄", used: 3,   total: 20,   color: "#059669" },
+    { key: "presentations",  label: "PowerPoint Presentations",       icon: "📊", used: 1,   total: 10,   color: "#D97706" },
+    { key: "questionnaires", label: "Questionnaires Generated",       icon: "📋", used: 0,   total: 5,    color: "#06B6D4" },
   ],
-  intelligence_credits: {
-    used: 1240, total: 5000, breakdown: [
-      { label: "FieldScore AI scoring", value: 890, color: "#2463EB" },
-      { label: "InsightScore analysis", value: 280, color: "#7C3AED" },
-      { label: "Report generation", value: 70, color: "#059669" },
-    ],
-  },
+  intelligence_credits: { used: 1240, total: 5000, label: "Research Intelligence Credits" },
+  credits_breakdown: [
+    { label: "FieldScore AI scoring",    value: 890,  color: "#2463EB" },
+    { label: "InsightScore analysis",    value: 280,  color: "#7C3AED" },
+    { label: "Report generation",        value: 70,   color: "#059669" },
+  ],
   usage_history: [
-    { month: "May", fieldscore: 180, insightscore: 5, reports: 1 },
-    { month: "Jun", fieldscore: 290, insightscore: 8, reports: 2 },
-    { month: "Jul", fieldscore: 347, insightscore: 12, reports: 3 },
+    { month: "May",  fieldscore: 210, insightscore: 8,  reports: 2 },
+    { month: "Jun",  fieldscore: 290, insightscore: 10, reports: 3 },
+    { month: "Jul",  fieldscore: 347, insightscore: 12, reports: 3 },
   ],
-  invoices: [
-    { date: "2026-07-01", ref: "INV-2026-007", amount_ngn: 350000, amount_usd: 219, status: "paid" },
-    { date: "2026-06-01", ref: "INV-2026-006", amount_ngn: 350000, amount_usd: 219, status: "paid" },
-    { date: "2026-05-01", ref: "INV-2026-005", amount_ngn: 350000, amount_usd: 219, status: "paid" },
+  invoice_history: [
+    { date: "2026-07-01", amount: 350000, status: "paid", ref: "INV-2026-007" },
+    { date: "2026-06-01", amount: 350000, status: "paid", ref: "INV-2026-006" },
+    { date: "2026-05-01", amount: 350000, status: "paid", ref: "INV-2026-005" },
   ],
 };
 
-const NGN_PER_USD = 1600;
-function money(ngn: number, currency: "NGN" | "USD") {
-  return currency === "NGN" ? `₦${ngn.toLocaleString()}` : `$${Math.round(ngn / NGN_PER_USD).toLocaleString()}`;
+// ─── Animated counter ─────────────────────────────────────────────────────────
+function AnimatedNumber({ target }: { target: number }) {
+  const [display, setDisplay] = useState(0);
+  const raf = useRef<number>(0);
+  useEffect(() => {
+    const start = performance.now();
+    const duration = 900;
+    function tick(now: number) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(ease * target));
+      if (t < 1) raf.current = requestAnimationFrame(tick);
+    }
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [target]);
+  return <>{display.toLocaleString()}</>;
 }
 
-function DaysRing({ remaining, total }: { remaining: number; total: number }) {
-  const size = 120, stroke = 8, r = size / 2 - stroke;
-  const c = 2 * Math.PI * r;
-  const frac = Math.max(0, Math.min(1, remaining / total));
+// ─── Animated capacity bar ────────────────────────────────────────────────────
+function CapacityBar({ pct, color, animate: shouldAnimate }: { pct: number; color: string; animate: boolean }) {
   return (
-    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth={stroke} />
-      <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#60A5FA" strokeWidth={stroke}
-        strokeLinecap="round" strokeDasharray={c}
-        initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: c - frac * c }}
-        transition={{ duration: 1, ease: "easeOut" }} />
+    <div style={{ height: 6, background: "#F1F5F9", borderRadius: 3, overflow: "hidden" }}>
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: shouldAnimate ? `${pct}%` : 0 }}
+        transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}
+        style={{ height: "100%", background: color, borderRadius: 3 }}
+      />
+    </div>
+  );
+}
+
+// ─── Cycle ring ───────────────────────────────────────────────────────────────
+function CycleRing({ used, total }: { used: number; total: number }) {
+  const r = 42;
+  const circ = 2 * Math.PI * r;
+  const pct = used / total;
+  return (
+    <svg width={108} height={108} viewBox="0 0 108 108">
+      <circle cx={54} cy={54} r={r} fill="none" stroke="rgba(255,255,255,.1)" strokeWidth={8} />
+      <motion.circle
+        cx={54} cy={54} r={r} fill="none"
+        stroke="#2463EB" strokeWidth={8}
+        strokeLinecap="round"
+        strokeDasharray={circ}
+        initial={{ strokeDashoffset: circ }}
+        animate={{ strokeDashoffset: circ * (1 - pct) }}
+        transition={{ duration: 1.1, ease: "easeOut" }}
+        transform="rotate(-90 54 54)"
+      />
+      <text x={54} y={50} textAnchor="middle" fill="white" fontSize={20} fontWeight={800} fontFamily="Inter,sans-serif">{total - used}</text>
+      <text x={54} y={66} textAnchor="middle" fill="rgba(255,255,255,.5)" fontSize={9} fontFamily="Inter,sans-serif">DAYS LEFT</text>
     </svg>
   );
 }
 
-function CreditGauge({ used, total }: { used: number; total: number }) {
-  const w = 220, h = 118, r = 92, cx = w / 2, cy = h - 8, stroke = 14;
-  const len = Math.PI * r;
-  const frac = Math.max(0, Math.min(1, used / total));
-  const path = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
-  return (
-    <svg width={w} height={h}>
-      <path d={path} fill="none" stroke="#EEF2F8" strokeWidth={stroke} strokeLinecap="round" />
-      <motion.path d={path} fill="none" stroke={BLUE} strokeWidth={stroke} strokeLinecap="round"
-        strokeDasharray={len} initial={{ strokeDashoffset: len }} animate={{ strokeDashoffset: len - frac * len }}
-        transition={{ duration: 1.1, ease: "easeOut" }} />
-      <text x={cx} y={cy - 28} textAnchor="middle" style={{ fontSize: 26, fontWeight: 800, fill: "#080D1A", letterSpacing: -1 }}>{used.toLocaleString()}</text>
-      <text x={cx} y={cy - 10} textAnchor="middle" style={{ fontSize: 11, fill: "#9CA3AF" }}>of {total.toLocaleString()} used</text>
-    </svg>
-  );
+// ─── Toast helper ─────────────────────────────────────────────────────────────
+function useToast() {
+  const [msg, setMsg] = useState<string | null>(null);
+  const show = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 2200); };
+  return { msg, show };
 }
 
+// ─── BillingSection ───────────────────────────────────────────────────────────
 function BillingSection() {
-  const [currency, setCurrency] = useState<"NGN" | "USD">("NGN");
-  const [toast, setToast] = useState("");
-  const b = MOCK_BILLING;
-  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2500); };
+  const { addMessage, setState } = useAda();
+  const [currency, setCurrency] = useState<"NGN" | "USD">(MOCK_BILLING.currency);
+  const [barsReady, setBarsReady] = useState(false);
+  const toast = useToast();
 
-  const overallPct = Math.round((b.capacity.reduce((s, c) => s + c.used / c.total, 0) / b.capacity.length) * 100);
-  const adaMsg = b.status === "trial"
-    ? `You have ${b.days_remaining} days left on your trial. Your usage suggests the Professional plan would be a good fit.`
-    : overallPct > 70
-      ? "You're approaching your monthly limit on some metrics. Consider upgrading before your cycle resets."
-      : overallPct >= 30
-        ? "You've used about a third of your monthly capacity. You're on track for the month."
-        : "You're in great shape. At your current rate you'll have plenty of capacity when this cycle resets.";
-  const statusColor = b.status === "active" ? GREEN : b.status === "trial" ? AMBER : RED;
-  const statusLabel = b.status === "active" ? "Active" : b.status === "trial" ? "Trial" : "Expired";
+  const B = MOCK_BILLING;
+  const rate = 1600;
+  const fmt = (n: number) => currency === "NGN"
+    ? `₦${n.toLocaleString()}`
+    : `$${(n / rate).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  const statusColor = B.status === "active" ? GREEN : B.status === "trial" ? AMBER : RED;
+  const statusLabel = B.status === "active" ? "Active" : B.status === "trial" ? "Trial" : "Expired";
+
+  const primaryUsagePct = Math.round((B.capacity[0].used / B.capacity[0].total) * 100);
+  const adaMsg =
+    primaryUsagePct < 50
+      ? `You're in great shape this month. ${B.capacity[0].used.toLocaleString()} of your ${B.capacity[0].total.toLocaleString()} verifications used. Plenty of capacity for your current projects.`
+      : primaryUsagePct < 80
+      ? `You've used about half your monthly capacity. If you have more fieldwork planned this month, you may want to keep an eye on your FieldScore verifications.`
+      : `You're approaching your monthly limit on FieldScore verifications. I'd recommend reviewing your remaining projects or considering an upgrade before your cycle resets.`;
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setState("thinking");
+      setTimeout(() => {
+        setState("speaking");
+        addMessage({ id: Date.now().toString(), role: "assistant", content: adaMsg, timestamp: new Date().toISOString(), page: "settings-billing" });
+        setTimeout(() => setState("idle"), 4000);
+      }, 600);
+    }, 1200);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { const t = setTimeout(() => setBarsReady(true), 200); return () => clearTimeout(t); }, []);
+
+  const handleDownload = () => toast.show("Invoice download coming soon.");
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {toast && <div style={{ position: "fixed", top: 20, right: 20, background: "#1A1F3E", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 500, zIndex: 9999, boxShadow: "0 4px 20px rgba(0,0,0,.2)" }}>{toast}</div>}
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* Toast */}
+      <AnimatePresence>
+        {toast.msg && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{ position: "fixed", top: 20, right: 24, zIndex: 9999, background: "#111827", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,.25)" }}>
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Currency toggle */}
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <div style={{ display: "inline-flex", background: "#F1F5F9", borderRadius: 20, padding: 3 }}>
-          {(["NGN", "USD"] as const).map(cur => (
-            <button key={cur} onClick={() => setCurrency(cur)} style={{ padding: "5px 14px", borderRadius: 18, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "Inter,sans-serif", background: currency === cur ? "white" : "transparent", color: currency === cur ? "#080D1A" : "#9CA3AF", boxShadow: currency === cur ? "0 1px 4px rgba(0,0,0,.08)" : "none" }}>
-              {cur === "NGN" ? "₦ NGN" : "$ USD"}
-            </button>
-          ))}
-        </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 11.5, color: "#9CA3AF" }}>Currency:</span>
+        {(["NGN", "USD"] as const).map(c => (
+          <button key={c} onClick={() => setCurrency(c)} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #E2E8F0", background: currency === c ? BLUE : "white", color: currency === c ? "white" : "#6B7280", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif", transition: "all .15s" }}>
+            {c === "NGN" ? "₦ NGN" : "$ USD"}
+          </button>
+        ))}
+        {currency === "USD" && <span style={{ fontSize: 10.5, color: "#9CA3AF" }}>≈ ₦1,600/$1</span>}
       </div>
 
-      {/* SECTION 1 — Plan overview */}
-      <div style={{ background: "linear-gradient(135deg,#1A1F3E 0%,#0F172A 40%,#1E1B4B 100%)", borderRadius: 16, padding: "24px 28px", color: "white" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
-          <div style={{ minWidth: 240 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Current plan</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -1 }}>{b.plan}</div>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: `${statusColor}22`, color: statusColor }}>{statusLabel}</span>
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 800, marginTop: 10, letterSpacing: -0.5 }}>{money(b.monthly_price_ngn, currency)}<span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,255,255,.5)" }}>/month</span></div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 4 }}>Billed monthly · Cancel anytime</div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 2 }}>Next billing: {b.next_billing}</div>
-            {currency === "USD" && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.35)", marginTop: 6 }}>Converted at approx. ₦{NGN_PER_USD.toLocaleString()}/$1 · Rate may vary</div>}
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ position: "relative", width: 120, height: 120, margin: "0 auto" }}>
-              <DaysRing remaining={b.days_remaining} total={b.days_total} />
-              <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
-                <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1 }}>{b.days_remaining}</div>
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)", marginTop: 6 }}>days remaining in cycle</div>
-            <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.35)" }}>Resets {b.next_billing}</div>
-            <button onClick={() => showToast("Plan upgrade flow coming soon")} style={{ marginTop: 10, padding: "8px 16px", borderRadius: 8, background: BLUE, border: "none", color: "white", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" }}>Upgrade Plan →</button>
-          </div>
-        </div>
-        <div style={{ marginTop: 20, display: "flex", gap: 12, alignItems: "flex-start", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 12, padding: "12px 14px" }}>
-          <img src="/ada-avatar.jpg" alt="Ada" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", objectPosition: "50% 15%", flexShrink: 0 }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
-          <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.8)", lineHeight: 1.6 }}>{adaMsg}</div>
-        </div>
-      </div>
-
-      {/* SECTION 2 — Capacity summary bar */}
-      <div style={{ background: "#0F172A", borderRadius: 16, padding: "18px 20px", display: "grid", gridTemplateColumns: `repeat(${b.capacity.length},1fr)`, gap: 16 }}>
-        {b.capacity.map(c => {
-          const pct = Math.round((c.used / c.total) * 100);
-          return (
-            <div key={c.key} style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 16 }}>{c.icon}</div>
-              <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.55)", margin: "4px 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "white" }}>{c.used.toLocaleString()}<span style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,.4)" }}> / {c.total.toLocaleString()}</span></div>
-              <div style={{ height: 4, background: "rgba(255,255,255,.1)", borderRadius: 2, margin: "6px 0 4px", overflow: "hidden" }}>
-                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: "easeOut" }} style={{ height: "100%", background: c.color, borderRadius: 2 }} />
-              </div>
-              <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.5)", fontWeight: 600 }}>{pct}%</div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Detailed capacity cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
-        {b.capacity.map((c, i) => {
-          const pct = Math.round((c.used / c.total) * 100);
-          const remaining = c.total - c.used;
-          const critical = pct > 95, warning = pct > 80 && !critical, unused = c.used === 0;
-          const borderColor = critical ? RED : warning ? AMBER : "#E8EDF5";
-          return (
-            <div key={c.key} style={{ ...CARD, padding: "18px 20px", borderLeft: `3px solid ${borderColor}` }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                <div style={{ fontSize: 28 }}>{c.icon}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>{c.label}</div>
-                  <div style={{ fontSize: 11.5, color: "#9CA3AF", lineHeight: 1.5 }}>{c.description}</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
-                <span style={{ fontSize: 26, fontWeight: 800, color: c.color, letterSpacing: -1 }}>{c.used.toLocaleString()}</span>
-                <span style={{ fontSize: 12, color: "#9CA3AF" }}>of {c.total.toLocaleString()} total</span>
-              </div>
-              <div style={{ height: 6, background: "#EEF2F8", borderRadius: 3, margin: "10px 0 6px", overflow: "hidden" }}>
-                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: "easeOut", delay: i * 0.1 }} style={{ height: "100%", background: c.color, borderRadius: 3 }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
-                <span style={{ color: critical ? RED : warning ? AMBER : "#9CA3AF", fontWeight: 600 }}>
-                  {unused ? "Not used yet this cycle" : critical ? "Contact us to upgrade" : warning ? "Approaching limit" : `${remaining.toLocaleString()} remaining`}
-                </span>
-                <span style={{ color: "#9CA3AF", fontWeight: 700 }}>{pct}%</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* SECTION 3 — Research Intelligence Credits */}
-      <SettingsCard style={{ padding: 24 }}>
-        <div style={{ ...LABEL, marginBottom: 2 }}>Research Intelligence Credits</div>
-        <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 16 }}>Consumed across all AI-powered features — verification, analysis, report generation</div>
-        <div style={{ display: "flex", gap: 28, alignItems: "center", flexWrap: "wrap" }}>
-          <CreditGauge used={b.intelligence_credits.used} total={b.intelligence_credits.total} />
+      {/* Plan hero */}
+      <div style={{ background: "linear-gradient(135deg,#1A1F3E 0%,#0F172A 40%,#1E1B4B 100%)", borderRadius: 18, padding: 28, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200, background: "radial-gradient(circle,rgba(36,99,235,.25) 0%,transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 20 }}>
           <div style={{ flex: 1, minWidth: 220 }}>
-            {b.intelligence_credits.breakdown.map(row => {
-              const pct = Math.round((row.value / b.intelligence_credits.used) * 100);
-              return (
-                <div key={row.label} style={{ marginBottom: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#374151", marginBottom: 4 }}>
-                    <span>{row.label}</span><span style={{ fontWeight: 700 }}>{row.value} credits</span>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.35)", textTransform: "uppercase" as const, letterSpacing: 1, marginBottom: 8 }}>Current Plan</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <span style={{ fontSize: 28, fontWeight: 900, color: "white", letterSpacing: -1 }}>{B.plan}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: `${statusColor}28`, color: statusColor, border: `1px solid ${statusColor}40` }}>{statusLabel}</span>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "white", letterSpacing: -0.5, marginBottom: 4 }}>{fmt(B.monthly_price)}<span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,255,255,.4)" }}>/month</span></div>
+            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.35)", marginBottom: 18 }}>Billed monthly · Cancel anytime</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,.45)", marginBottom: 18 }}>Next billing: <span style={{ color: "rgba(255,255,255,.7)", fontWeight: 600 }}>{B.next_billing}</span></div>
+            <button style={{ ...BTN_PRIMARY, fontSize: 12.5, padding: "10px 20px", background: BLUE, boxShadow: "0 4px 14px rgba(36,99,235,.45)" }}>Upgrade Plan →</button>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 20, padding: "12px 14px", background: "rgba(255,255,255,.06)", borderRadius: 10, border: "1px solid rgba(255,255,255,.1)" }}>
+              <img src="/ada-avatar.jpg" alt="Ada" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,.65)", lineHeight: 1.55 }}>
+                "You're on track this month. At your current usage rate you'll have plenty of capacity remaining when this cycle resets."
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <CycleRing used={B.days_total - B.days_remaining} total={B.days_total} />
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", textAlign: "center" }}>Resets {B.next_billing}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Capacity summary */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 4 }}>Research Capacity This Month</div>
+          <div style={{ fontSize: 12.5, color: "#6B7280" }}>All limits reset on {B.next_billing}</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${B.capacity.length},1fr)`, gap: 12, marginBottom: 20, overflowX: "auto" as const }}>
+          {B.capacity.map(cap => {
+            const pct = Math.round((cap.used / cap.total) * 100);
+            return (
+              <div key={cap.key} style={{ minWidth: 110, padding: "12px 14px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8" }}>
+                <div style={{ fontSize: 16, marginBottom: 4 }}>{cap.icon}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.6, marginBottom: 6, lineHeight: 1.3 }}>{cap.label}</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", letterSpacing: -0.5, marginBottom: 2 }}>
+                  <AnimatedNumber target={cap.used} /><span style={{ fontSize: 11, fontWeight: 400, color: "#9CA3AF" }}>/{cap.total.toLocaleString()}</span>
+                </div>
+                <CapacityBar pct={pct} color={cap.color} animate={barsReady} />
+                <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 4 }}>{pct}% used</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {B.capacity.map(cap => {
+            const pct = Math.round((cap.used / cap.total) * 100);
+            const remaining = cap.total - cap.used;
+            const isWarn = pct >= 80 && pct < 95;
+            const isCrit = pct >= 95;
+            const borderColor = isCrit ? RED : isWarn ? AMBER : "#EEF2F8";
+            const bgColor = isCrit ? "#FEF2F2" : isWarn ? "#FFFBEB" : "#F8FAFF";
+            return (
+              <motion.div key={cap.key}
+                animate={isWarn ? { boxShadow: ["0 0 0 0 rgba(217,119,6,.15)", "0 0 0 4px rgba(217,119,6,.05)", "0 0 0 0 rgba(217,119,6,.15)"] } : {}}
+                transition={{ repeat: Infinity, duration: 2.5 }}
+                style={{ padding: "14px 16px", background: bgColor, borderRadius: 10, border: `1px solid ${borderColor}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 18 }}>{cap.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{cap.label}</div>
+                    <div style={{ fontSize: 11, color: "#9CA3AF" }}>{remaining.toLocaleString()} remaining</div>
                   </div>
-                  <div style={{ height: 6, background: "#EEF2F8", borderRadius: 3, overflow: "hidden" }}>
-                    <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: "easeOut" }} style={{ height: "100%", background: row.color, borderRadius: 3 }} />
+                  <div style={{ textAlign: "right" as const }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", letterSpacing: -0.5 }}><AnimatedNumber target={cap.used} /><span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>/{cap.total.toLocaleString()}</span></div>
+                    <div style={{ fontSize: 10.5, color: pct >= 80 ? (isCrit ? RED : AMBER) : "#9CA3AF", fontWeight: pct >= 80 ? 700 : 400 }}>{pct}%</div>
                   </div>
                 </div>
-              );
-            })}
-            <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 8 }}>Credits replenish at the start of each Research Cycle</div>
-          </div>
+                <CapacityBar pct={pct} color={cap.color} animate={barsReady} />
+                {isWarn && <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11.5, color: AMBER, fontWeight: 600 }}><AlertTriangle size={12} /> Approaching limit — monitor usage</div>}
+                {isCrit && <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11.5, color: RED, fontWeight: 600 }}><AlertTriangle size={12} /> Limit critical — contact us to upgrade</div>}
+              </motion.div>
+            );
+          })}
         </div>
       </SettingsCard>
 
-      {/* SECTION 4 — Usage history */}
+      {/* Intelligence Credits */}
       <SettingsCard style={{ padding: 24 }}>
-        <div style={{ ...LABEL, marginBottom: 16 }}>Usage Over Time</div>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={b.usage_history} barGap={4} barCategoryGap="24%">
-            <CartesianGrid vertical={false} stroke="#F1F5F9" />
-            <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 12, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-            <Tooltip cursor={{ fill: "#F8FAFF" }} contentStyle={{ borderRadius: 10, border: "1px solid #E8EDF5", fontSize: 12 }} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="fieldscore" name="FieldScore" fill={BLUE} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="insightscore" name="InsightScore" fill={PURPLE} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="reports" name="Reports" fill={GREEN} radius={[4, 4, 0, 0]} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 4 }}>Research Intelligence Credits</div>
+            <div style={{ fontSize: 12.5, color: "#6B7280" }}>Used across all AI-powered features — verifications, analysis, reports</div>
+          </div>
+          <div style={{ textAlign: "right" as const }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#111827", letterSpacing: -0.5 }}>
+              <AnimatedNumber target={B.intelligence_credits.used} />
+              <span style={{ fontSize: 13, fontWeight: 400, color: "#9CA3AF" }}>/{B.intelligence_credits.total.toLocaleString()}</span>
+            </div>
+            <div style={{ fontSize: 11.5, color: "#9CA3AF" }}>{Math.round((B.intelligence_credits.used / B.intelligence_credits.total) * 100)}% used</div>
+          </div>
+        </div>
+        <div style={{ height: 12, background: "#F1F5F9", borderRadius: 6, overflow: "hidden", marginBottom: 16 }}>
+          <motion.div
+            initial={{ width: 0 }} animate={{ width: barsReady ? `${Math.round((B.intelligence_credits.used / B.intelligence_credits.total) * 100)}%` : 0 }}
+            transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+            style={{ height: "100%", background: "linear-gradient(90deg,#2463EB,#7C3AED)", borderRadius: 6 }}
+          />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {B.credits_breakdown.map(row => {
+            const pct = Math.round((row.value / B.intelligence_credits.total) * 100);
+            return (
+              <div key={row.label}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>{row.label}</div>
+                  <div style={{ fontSize: 12, color: "#6B7280" }}>{row.value.toLocaleString()} credits</div>
+                </div>
+                <div style={{ height: 4, background: "#F1F5F9", borderRadius: 2, overflow: "hidden" }}>
+                  <motion.div initial={{ width: 0 }} animate={{ width: barsReady ? `${pct}%` : 0 }} transition={{ duration: 0.8, ease: "easeOut", delay: 0.3 }}
+                    style={{ height: "100%", background: row.color, borderRadius: 2 }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 14, fontSize: 11.5, color: "#9CA3AF", display: "flex", alignItems: "center", gap: 5 }}>
+          <RefreshCw size={11} /> Credits replenish each Research Cycle
+        </div>
+      </SettingsCard>
+
+      {/* Usage Trend */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 4 }}>Monthly Usage History</div>
+        <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 20 }}>Last 3 research cycles</div>
+        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+          {[{ label: "FieldScore", color: "#2463EB" }, { label: "InsightScore", color: "#7C3AED" }, { label: "Reports", color: "#059669" }].map(l => (
+            <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#6B7280" }}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, background: l.color }} />{l.label}
+            </div>
+          ))}
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={B.usage_history} barCategoryGap="30%" barGap={3}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} width={36} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E8EDF5", fontSize: 12, fontFamily: "Inter,sans-serif" }} />
+            <Bar dataKey="fieldscore"   name="FieldScore"   fill="#2463EB" radius={[4,4,0,0]} />
+            <Bar dataKey="insightscore" name="InsightScore" fill="#7C3AED" radius={[4,4,0,0]} />
+            <Bar dataKey="reports"      name="Reports"      fill="#059669" radius={[4,4,0,0]} />
           </BarChart>
         </ResponsiveContainer>
       </SettingsCard>
 
-      {/* SECTION 5 — Invoice history */}
-      <SettingsCard style={{ padding: 24, overflowX: "auto" }}>
-        <div style={{ ...LABEL, marginBottom: 16 }}>Invoice History</div>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
-          <thead><tr>{["Date", "Invoice", "Amount", "Status", "Action"].map(h => <th key={h} style={{ ...LABEL, textAlign: "left", padding: "0 0 12px" }}>{h}</th>)}</tr></thead>
-          <tbody>
-            {b.invoices.map(inv => (
-              <tr key={inv.ref} style={{ borderBottom: "1px solid #F8FAFF" }}>
-                <td style={{ padding: "12px 0", fontSize: 12.5, color: "#374151" }}>{new Date(inv.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</td>
-                <td style={{ padding: "12px 0", fontSize: 12.5, color: "#374151", fontFamily: "monospace" }}>{inv.ref}</td>
-                <td style={{ padding: "12px 0", fontSize: 12.5, fontWeight: 700, color: "#080D1A" }}>{money(inv.amount_ngn, currency)}</td>
-                <td style={{ padding: "12px 0" }}><Badge label="✓ Paid" color={GREEN} /></td>
-                <td style={{ padding: "12px 0" }}><button onClick={() => showToast("Invoice download coming soon")} style={{ ...BTN_GHOST, fontSize: 11, padding: "5px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Download size={11} /> Download</button></td>
+      {/* Invoice History */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 16 }}>Invoice History</div>
+        <div style={{ overflowX: "auto" as const }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #F1F5F9" }}>
+                {["Date", "Reference", "Amount", "Status", ""].map(h => (
+                  <th key={h} style={{ ...LABEL, padding: "0 12px 10px", textAlign: "left" as const, whiteSpace: "nowrap" as const }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {B.invoice_history.map(inv => (
+                <tr key={inv.ref} style={{ borderBottom: "1px solid #F8FAFF" }}>
+                  <td style={{ padding: "12px", color: "#374151" }}>{inv.date}</td>
+                  <td style={{ padding: "12px", color: "#374151", fontFamily: "monospace", fontSize: 11.5 }}>{inv.ref}</td>
+                  <td style={{ padding: "12px", color: "#111827", fontWeight: 700 }}>{fmt(inv.amount)}</td>
+                  <td style={{ padding: "12px" }}><Badge label="✅ Paid" color={GREEN} /></td>
+                  <td style={{ padding: "12px" }}>
+                    <button onClick={handleDownload} style={{ ...BTN_GHOST, fontSize: 11, padding: "5px 10px", display: "flex", alignItems: "center", gap: 4 }}>
+                      <Download size={11} /> Download
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </SettingsCard>
 
-      {/* Upgrade card — only for Trial/Starter */}
-      {(b.status === "trial" || b.plan === "Starter") && (
-        <div style={{ ...CARD, padding: 24, borderLeft: `3px solid ${BLUE}` }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#080D1A", marginBottom: 4 }}>Ready for more research capacity?</div>
-          <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 16 }}>Upgrade to Professional for higher limits across every capability.</div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <a href="mailto:bibilade@intelligencyai.com.ng" style={{ ...BTN_GHOST, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Talk to Sales</a>
-            <button onClick={() => showToast("Upgrade flow coming soon")} style={BTN_PRIMARY}>Start Upgrade</button>
+      {/* Upgrade path */}
+      {(B.status === "trial" || B.plan === "Starter") && (
+        <SettingsCard style={{ padding: 24, border: `1px solid ${BLUE}30`, background: "#F8FBFF" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", letterSpacing: -0.4, marginBottom: 6 }}>Ready to grow? 🚀</div>
+          <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 18 }}>Upgrade to Professional for more capacity and priority support.</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <a href="mailto:bibilade@intelligencyai.com.ng" style={{ ...BTN_GHOST, fontSize: 12.5, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>Talk to Sales</a>
+            <button style={{ ...BTN_PRIMARY, fontSize: 12.5 }}>Start Upgrade</button>
           </div>
-        </div>
+        </SettingsCard>
       )}
     </div>
   );
@@ -1072,12 +1025,7 @@ function BillingSection() {
 
 function ApiSection() {
   const [showKey, setShowKey] = useState(false);
-  const [keyCopied, setKeyCopied] = useState(false);
   const mockKey = "rsos_live_a8f3k2x9p1mq7w4n6j0d5e";
-  const copyKey = () => {
-    navigator.clipboard.writeText(mockKey).catch(() => {});
-    setKeyCopied(true); setTimeout(() => setKeyCopied(false), 2000);
-  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
@@ -1087,7 +1035,7 @@ function ApiSection() {
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input readOnly value={showKey ? mockKey : "rsos_live_••••••••••••••••••"} style={{ ...INPUT, fontFamily: "monospace", fontSize: 12, color: "#374151", flex: 1 }} />
               <button onClick={() => setShowKey(!showKey)} style={{ ...BTN_GHOST, padding: "9px 12px" }}>{showKey ? <EyeOff size={14} /> : <Eye size={14} />}</button>
-              <button onClick={copyKey} style={{ ...BTN_GHOST, padding: "9px 12px", color: keyCopied ? GREEN : undefined }}>{keyCopied ? <Check size={14} /> : <Copy size={14} />}</button>
+              <button style={{ ...BTN_GHOST, padding: "9px 12px" }}><Copy size={14} /></button>
             </div>
             <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6 }}>Created 1 Jun 2025 · Last used 2h ago</div>
           </div>
@@ -1185,7 +1133,6 @@ const SECTION_META: Record<string,{title:string;description:string}> = {
 };
 
 export default function SettingsPage() {
-  useAdaGreeting({ page: "settings" });
   const [active, setActive] = useState("organization");
   const [adaDismissed, setAdaDismissed] = useState(false);
   const { setOpen } = useAda();
