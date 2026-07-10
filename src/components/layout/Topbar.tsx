@@ -189,7 +189,6 @@ export default function Topbar({ onRefresh, onMenuClick }: TopbarProps) {
                   onClick={() => {
                     setProject(p);
                     setOpenProj(false);
-                    nav('/submissions');
                   }}
                   style={{
                     ...itemStyle,
