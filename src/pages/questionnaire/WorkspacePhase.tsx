@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Download, RotateCcw } from 'lucide-react';
+import { Plus, Download, RotateCcw, Save, Check, ArrowRight } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import api from '../../services/api';
 import SectionNav from './SectionNav';
 import QuestionCard from './QuestionCard';
 import AdaMethodologyPanel from './AdaMethodologyPanel';
@@ -68,6 +70,10 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
   );
   const [showExport, setShowExport] = useState(false);
   const [adaFocusQuestion, setAdaFocusQuestion] = useState<Question | null>(null);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [showNextStep, setShowNextStep] = useState(false);
+  const { projectId } = useParams<{ projectId?: string }>();
+  const navigate = useNavigate();
 
   const qualityIssues: QualityIssue[] = useMemo(() => {
     const fromGeneration = questionnaire.quality_checks || [];
@@ -149,8 +155,18 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
   }, [questionnaire, selectedQuestionId]);
 
   const handleSave = async () => {
-    // Save to backend
-    await new Promise(res => setTimeout(res, 500));
+    setSaveState('saving');
+    try {
+      if (projectId) {
+        await api.post(`/projects/${projectId}/questionnaire`, { questionnaire });
+      }
+      setSaveState('saved');
+      setShowNextStep(true);
+      setTimeout(() => setSaveState('idle'), 3000);
+    } catch {
+      setSaveState('error');
+      setTimeout(() => setSaveState('idle'), 3000);
+    }
   };
 
   return (
@@ -196,8 +212,25 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
                 fontFamily: 'Inter, sans-serif',
               }}
             >
-              <RotateCcw size={14} /> New questionnaire
+              <RotateCcw size={14} /> New
             </button>
+            <motion.button
+              onClick={handleSave}
+              disabled={saveState === 'saving'}
+              whileTap={{ scale: 0.97 }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '9px 16px', borderRadius: 10, border: 'none',
+                background: saveState === 'saved' ? '#059669' : saveState === 'error' ? '#DC2626' : '#374151',
+                color: 'white', cursor: 'pointer',
+                fontSize: 13, fontWeight: 600, fontFamily: 'Inter, sans-serif',
+              }}
+            >
+              {saveState === 'saved' ? <><Check size={14} /> Saved</> :
+               saveState === 'saving' ? 'Saving...' :
+               saveState === 'error' ? 'Save failed' :
+               <><Save size={14} /> Save</>}
+            </motion.button>
             <motion.button
               onClick={() => setShowExport(true)}
               whileTap={{ scale: 0.97 }}
@@ -212,6 +245,46 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
             </motion.button>
           </div>
         </div>
+
+        {/* Post-save next step banner */}
+        {showNextStep && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              marginBottom: 20, padding: '14px 18px', borderRadius: 12,
+              background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)',
+              border: '1px solid #6EE7B7', display: 'flex', alignItems: 'center', gap: 14,
+            }}
+          >
+            <Check size={18} color="#059669" style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#065F46' }}>Questionnaire saved to project</div>
+              <div style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>
+                Ready to deploy to your data collection platform?
+              </div>
+            </div>
+            {projectId && (
+              <button
+                onClick={() => navigate(`/projects/${projectId}/collect`)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 14px', borderRadius: 8, border: 'none',
+                  background: '#059669', color: 'white', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
+                }}
+              >
+                Go to Collect <ArrowRight size={12} />
+              </button>
+            )}
+            <button
+              onClick={() => setShowNextStep(false)}
+              style={{ border: 'none', background: 'transparent', color: '#6B7280', cursor: 'pointer', padding: 4 }}
+            >
+              ✕
+            </button>
+          </motion.div>
+        )}
 
         {/* Sections and questions */}
         {questionnaire.sections.map(section => (

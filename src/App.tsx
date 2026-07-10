@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './store/AuthContext';
 import { AdaProvider } from './ada/AdaContext';
 import { ResearchProvider } from './context/ResearchContext';
 import { ProjectProvider } from './context/ProjectContext';
+import { IndustryProvider } from './store/IndustryContext';
+import { PlatformProvider } from './platform/PlatformProvider';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
@@ -105,9 +107,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AdaProvider>
-          <AppRoutes />
-        </AdaProvider>
+        <IndustryProvider>
+          <PlatformProvider>
+            <AdaProvider>
+              <AppRoutes />
+            </AdaProvider>
+          </PlatformProvider>
+        </IndustryProvider>
       </AuthProvider>
     </BrowserRouter>
   );

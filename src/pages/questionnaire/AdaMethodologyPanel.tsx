@@ -52,14 +52,43 @@ export default function AdaMethodologyPanel({
     prevQuestionRef.current = focusedQuestion.id;
 
     const issues = qualityIssues.filter(i => i.question_id === focusedQuestion.id);
-    if (issues.length === 0) return;
 
-    const issue = issues[0];
-    setMessages(prev => [...prev, {
-      role: 'ada',
-      text: `⚠ **${issue.type.replace(/_/g, ' ')}**: ${issue.issue}\n\n${issue.suggestion}`,
-    }]);
-  }, [focusedQuestion, qualityIssues]);
+    if (issues.length > 0) {
+      // Surface quality issue immediately
+      const issue = issues[0];
+      setMessages(prev => [...prev, {
+        role: 'ada',
+        text: `⚠ **${issue.type.replace(/_/g, ' ')}**: ${issue.issue}\n\n${issue.suggestion}`,
+      }]);
+    } else if (focusedQuestion.text && focusedQuestion.text.trim().length > 10) {
+      // Auto-review this question even with no flagged issues
+      setSending(true);
+      const context = {
+        system_override: REVIEW_SYSTEM,
+        focused_question: { text: focusedQuestion.text, type: focusedQuestion.type, id: focusedQuestion.id },
+        questionnaire_title: questionnaire.title,
+        total_questions: questionnaire.sections.reduce((s: number, sec: { questions: unknown[] }) => s + sec.questions.length, 0),
+        quality_issues: [],
+      };
+      adaApi.chat(
+        `Please review this question: "${focusedQuestion.text}" (type: ${focusedQuestion.type})`,
+        'questionnaire_workspace',
+        context,
+      ).then(res => {
+        const text = res.data?.reply || res.data?.message || res.data?.response || '';
+        if (text) setMessages(prev => [...prev, { role: 'ada', text }]);
+      }).catch(() => {
+        setMessages(prev => [...prev, { role: 'ada', text: `I'm looking at Q: "${focusedQuestion.text.slice(0, 80)}${focusedQuestion.text.length > 80 ? '...' : ''}". What would you like to know about it?` }]);
+      }).finally(() => setSending(false));
+    } else if (!focusedQuestion.text || !focusedQuestion.text.trim()) {
+      // New empty question
+      setMessages(prev => [...prev, {
+        role: 'ada',
+        text: "I'm ready to help with this question. What topic should it cover? I can suggest the best question type and phrasing.",
+      }]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedQuestion?.id]);
 
   const send = useCallback(async () => {
     const text = input.trim();

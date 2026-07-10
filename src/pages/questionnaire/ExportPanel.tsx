@@ -156,6 +156,12 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
           )}
         </div>
 
+        {error && (
+          <div style={{ padding: '12px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, fontSize: 13, color: '#DC2626', marginBottom: 16, lineHeight: 1.5 }}>
+            ⚠ {error}
+          </div>
+        )}
+
         {/* Export options */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
           {EXPORT_OPTIONS.map(opt => (
@@ -198,12 +204,6 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
             </motion.button>
           ))}
         </div>
-
-        {error && (
-          <div style={{ padding: '10px 14px', background: '#FEF2F2', borderRadius: 8, fontSize: 13, color: '#DC2626', marginBottom: 16 }}>
-            {error}
-          </div>
-        )}
 
         {/* Save to project */}
         <motion.button
