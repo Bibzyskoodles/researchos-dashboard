@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { projectsApi } from '../../services/api';
 import { Project } from '../../context/ProjectContext';
 import { getIndustry, getStudyType } from '../../context/ResearchContext';
+import { verifyKoboToken } from '../../services/kobo/koboToolboxApi';
 
 const BLUE = '#2463EB';
 const GREEN = '#059669';
@@ -116,18 +117,194 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
   );
 }
 
+const KOBO_BASE = 'https://kf.kobotoolbox.org/api/v2';
+
+interface KoboAssetItem { uid: string; name: string; deployment_count: number; summary: { row_count: number }; date_modified: string; }
+
+type ImportPlatform = 'kobo' | 'odk' | 'surveycto' | 'csv' | null;
+type ImportStep = 'platform' | 'auth' | 'pick' | 'importing' | 'done';
+
+function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [platform, setPlatform] = useState<ImportPlatform>(null);
+  const [step, setStep] = useState<ImportStep>('platform');
+  const [token, setToken] = useState(localStorage.getItem('koboToken') || '');
+  const [authError, setAuthError] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [forms, setForms] = useState<KoboAssetItem[]>([]);
+  const [loadingForms, setLoadingForms] = useState(false);
+  const [selected, setSelected] = useState<KoboAssetItem | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  const PLATFORMS = [
+    { id: 'kobo', label: 'KoboToolbox', icon: '🗂', desc: 'Import a form and its submissions', live: true },
+    { id: 'odk', label: 'ODK Central', icon: '📱', desc: 'Coming soon', live: false },
+    { id: 'surveycto', label: 'SurveyCTO', icon: '📋', desc: 'Coming soon', live: false },
+    { id: 'csv', label: 'CSV / Excel', icon: '📊', desc: 'Upload a submission export', live: false },
+  ] as const;
+
+  const connectKobo = async () => {
+    if (!token.trim()) return;
+    setVerifying(true); setAuthError('');
+    try {
+      await verifyKoboToken(token.trim());
+      localStorage.setItem('koboToken', token.trim());
+      setLoadingForms(true); setStep('pick');
+      const res = await fetch(`${KOBO_BASE}/assets/?asset_type=survey&limit=100`, {
+        headers: { Authorization: `Token ${token.trim()}` },
+      });
+      const data = await res.json();
+      setForms(data.results || []);
+    } catch {
+      setAuthError('Invalid token — check it in KoboToolbox → Account Settings → API Token');
+    } finally {
+      setVerifying(false); setLoadingForms(false);
+    }
+  };
+
+  const importProject = async () => {
+    if (!selected) return;
+    setImporting(true); setImportError('');
+    try {
+      await projectsApi.create({
+        name: selected.name,
+        platform: 'kobo',
+        kobo_asset_uid: selected.uid,
+        target_submissions: selected.deployment_count || undefined,
+      });
+      setStep('done');
+      setTimeout(() => { onImported(); onClose(); }, 1800);
+    } catch {
+      setImportError('Import failed — the project was created but submissions could not be synced. You can sync manually from the Collect stage.');
+      setStep('done');
+      setTimeout(() => { onImported(); onClose(); }, 2500);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div ref={overlayRef} onClick={e => { if (e.target === overlayRef.current) onClose(); }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(8,13,26,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}>
+      <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,.25)', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
+
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#080D1A' }}>Import a project</div>
+            <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Bring in an existing project from your data collection platform</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 4 }}>✕</button>
+        </div>
+
+        <div style={{ padding: 24 }}>
+
+          {/* Step: pick platform */}
+          {step === 'platform' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>Select platform</div>
+              {PLATFORMS.map(p => (
+                <button key={p.id} onClick={() => { if (!p.live) return; setPlatform(p.id); setStep('auth'); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: `1px solid ${p.live ? '#E8EDF5' : '#F1F5F9'}`, background: p.live ? 'white' : '#FAFAFA', cursor: p.live ? 'pointer' : 'default', textAlign: 'left', transition: 'border .15s', opacity: p.live ? 1 : 0.55 }}
+                  onMouseEnter={e => { if (p.live) (e.currentTarget as HTMLButtonElement).style.borderColor = BLUE; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = p.live ? '#E8EDF5' : '#F1F5F9'; }}
+                >
+                  <span style={{ fontSize: 26 }}>{p.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: p.live ? '#080D1A' : '#9CA3AF' }}>{p.label}</div>
+                    <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{p.desc}</div>
+                  </div>
+                  {p.live
+                    ? <span style={{ fontSize: 12, color: BLUE, fontWeight: 600 }}>→</span>
+                    : <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#F1F5F9', color: '#9CA3AF' }}>SOON</span>}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Step: auth (KoboToolbox token) */}
+          {step === 'auth' && platform === 'kobo' && (
+            <div>
+              <button onClick={() => setStep('platform')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 12, padding: '0 0 16px', display: 'flex', alignItems: 'center', gap: 4 }}>← Back</button>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#080D1A', marginBottom: 4 }}>Connect KoboToolbox</div>
+              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 18, lineHeight: 1.6 }}>
+                Paste your API token from KoboToolbox. Find it at: <strong>Account Settings → API Token</strong> on kf.kobotoolbox.org
+              </div>
+              <input
+                autoFocus value={token} onChange={e => setToken(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && connectKobo()}
+                placeholder="KoboToolbox API token"
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 8, border: `1px solid ${authError ? '#FCA5A5' : '#E2E8F0'}`, fontSize: 13, fontFamily: 'monospace', color: '#111827', outline: 'none', marginBottom: 8 }}
+              />
+              {authError && <div style={{ fontSize: 12, color: '#DC2626', marginBottom: 12 }}>{authError}</div>}
+              <button onClick={connectKobo} disabled={!token.trim() || verifying}
+                style={{ width: '100%', padding: '11px', borderRadius: 8, background: token.trim() ? BLUE : '#E2E8F0', border: 'none', color: 'white', fontSize: 13, fontWeight: 600, cursor: token.trim() ? 'pointer' : 'default', fontFamily: 'Inter, sans-serif' }}>
+                {verifying ? 'Connecting…' : 'Connect →'}
+              </button>
+            </div>
+          )}
+
+          {/* Step: pick form */}
+          {step === 'pick' && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#080D1A', marginBottom: 4 }}>Select a project to import</div>
+              <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 16 }}>{forms.length} forms found in your KoboToolbox account</div>
+              {loadingForms ? (
+                <div style={{ textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 13 }}>Loading your forms…</div>
+              ) : (
+                <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                  {forms.length === 0 && <div style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No deployed forms found in this account.</div>}
+                  {forms.map(f => (
+                    <button key={f.uid} onClick={() => setSelected(f)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10, border: `1px solid ${selected?.uid === f.uid ? BLUE : '#E8EDF5'}`, background: selected?.uid === f.uid ? '#EFF6FF' : 'white', cursor: 'pointer', textAlign: 'left' }}>
+                      <span style={{ fontSize: 20 }}>🗂</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#080D1A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</div>
+                        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{f.deployment_count} submissions · {f.summary?.row_count || 0} questions</div>
+                      </div>
+                      {selected?.uid === f.uid && <span style={{ color: BLUE, fontSize: 16 }}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {importError && <div style={{ fontSize: 12, color: '#D97706', marginBottom: 10, padding: '8px 12px', background: '#FFFBEB', borderRadius: 8 }}>{importError}</div>}
+              <button onClick={importProject} disabled={!selected || importing}
+                style={{ width: '100%', padding: '11px', borderRadius: 8, background: selected ? BLUE : '#E2E8F0', border: 'none', color: 'white', fontSize: 13, fontWeight: 600, cursor: selected ? 'pointer' : 'default', fontFamily: 'Inter, sans-serif' }}>
+                {importing ? 'Importing…' : selected ? `Import "${selected.name}"` : 'Select a project above'}
+              </button>
+            </div>
+          )}
+
+          {/* Step: done */}
+          {step === 'done' && (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#080D1A', marginBottom: 6 }}>Project imported</div>
+              <div style={{ fontSize: 12, color: '#9CA3AF' }}>Opening your project…</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showImport, setShowImport] = useState(false);
 
-  useEffect(() => {
+  const loadProjects = () => {
     projectsApi.list()
       .then(r => setProjects(r.data.projects || []))
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadProjects(); }, []);
 
   const projectCount = projects.length;
   const collectingCount = projects.filter(p => p.status === 'collect').length;
@@ -146,6 +323,7 @@ export default function ProjectsPage() {
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
+      {showImport && <ImportModal onClose={() => setShowImport(false)} onImported={() => { setLoading(true); loadProjects(); }} />}
       {/* Ada hero card */}
       <div style={{
         background: 'linear-gradient(135deg, #080D1A 0%, #0F1729 100%)',
@@ -183,17 +361,30 @@ export default function ProjectsPage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#080D1A', margin: 0 }}>My Projects</h1>
-        <button
-          onClick={() => navigate('/projects/new')}
-          style={{
-            background: BLUE, color: 'white', border: 'none',
-            borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}
-        >
-          + New Project
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setShowImport(true)}
+            style={{
+              background: 'white', color: '#374151', border: '1px solid #E2E8F0',
+              borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            ↓ Import
+          </button>
+          <button
+            onClick={() => navigate('/projects/new')}
+            style={{
+              background: BLUE, color: 'white', border: 'none',
+              borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            + New Project
+          </button>
+        </div>
       </div>
 
       {loading ? (
