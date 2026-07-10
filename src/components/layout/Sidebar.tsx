@@ -125,7 +125,7 @@ export default function Sidebar() {
                 padding: '6px 10px', borderRadius: 6,
               }}
             >
-              Framework
+              Project Overview
               <span style={{ fontSize: 14 }}>↗</span>
             </button>
             <button
