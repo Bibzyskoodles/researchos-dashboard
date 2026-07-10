@@ -162,7 +162,7 @@ export default function AdaDock() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            style={{ position: "fixed", bottom: 110, right: 24, zIndex: 999, width: 360, height: 480, background: "white", borderRadius: 16, boxShadow: "0 8px 40px rgba(8,13,26,.18)", border: "1px solid #E2E8F0", display: "flex", flexDirection: "column", overflow: "hidden" }}
+            style={{ position: "fixed", bottom: 110, right: 24, zIndex: 999, width: 360, height: "min(480px, calc(100vh - 130px))", maxHeight: "calc(100vh - 130px)", background: "white", borderRadius: 16, boxShadow: "0 8px 40px rgba(8,13,26,.18)", border: "1px solid #E2E8F0", display: "flex", flexDirection: "column", overflow: "hidden" }}
           >
             <div style={{ padding: "14px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", gap: 10, background: "linear-gradient(135deg,#EFF6FF,#F8FAFF)" }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", border: "2px solid #2463EB", flexShrink: 0 }}>
