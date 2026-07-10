@@ -3,9 +3,26 @@ import { NavLink, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { useProject } from '../../context/ProjectContext';
-import { Settings, LogOut, ChevronLeft } from 'lucide-react';
+import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle } from 'lucide-react';
 
 const BLUE = '#2463EB';
+
+const BROWSE_NAV = [
+  { label: 'WORKSPACE', items: [
+    { to: '/projects',    icon: LayoutDashboard, label: 'All Projects' },
+    { to: '/submissions', icon: FileText,         label: 'Submissions' },
+    { to: '/enumerators', icon: Users,            label: 'Enumerators' },
+    { to: '/map',         icon: Map,              label: 'Coverage Map' },
+  ]},
+  { label: 'INTELLIGENCE', items: [
+    { to: '/insights',    icon: Sparkles,         label: 'AI Analysis' },
+    { to: '/reports',     icon: BookOpen,         label: 'Reports' },
+  ]},
+  { label: 'ACCOUNT', items: [
+    { to: '/integrations', icon: Puzzle,          label: 'Integrations' },
+    { to: '/settings',     icon: Settings,        label: 'Settings' },
+  ]},
+];
 
 export default function Sidebar() {
   const { user, org, logout } = useAuth();
@@ -146,36 +163,33 @@ export default function Sidebar() {
         ) : (
           /* ── BROWSING MODE ── */
           <>
-            <NavLink
-              to="/projects"
-              onClick={() => navigatePage('projects')}
-              style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '7px 10px', borderRadius: 7, marginBottom: 1,
-                color: isActive ? 'white' : 'rgba(255,255,255,.42)',
-                background: isActive ? 'rgba(37,99,235,.22)' : 'transparent',
-                textDecoration: 'none', fontSize: 12.5, fontWeight: 500,
-                borderLeft: isActive ? `2px solid ${BLUE}` : '2px solid transparent',
-              })}
-            >
-              All Projects
-            </NavLink>
-
-            <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '8px 8px' }} />
-
-            <NavLink
-              to="/settings"
-              style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '7px 10px', borderRadius: 7, marginBottom: 1,
-                color: isActive ? 'white' : 'rgba(255,255,255,.42)',
-                background: isActive ? 'rgba(37,99,235,.22)' : 'transparent',
-                textDecoration: 'none', fontSize: 12.5, fontWeight: 500,
-                borderLeft: isActive ? `2px solid ${BLUE}` : '2px solid transparent',
-              })}
-            >
-              <Settings size={14} /> Settings
-            </NavLink>
+            {BROWSE_NAV.map(section => (
+              <div key={section.label} style={{ marginBottom: 8 }}>
+                <div style={{
+                  fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,.2)',
+                  letterSpacing: 1.1, textTransform: 'uppercase',
+                  padding: '0 8px', marginBottom: 4,
+                }}>{section.label}</div>
+                {section.items.map(item => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => navigatePage(item.to.replace('/', ''))}
+                    style={({ isActive }) => ({
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '7px 10px', borderRadius: 7, marginBottom: 1,
+                      color: isActive ? 'white' : 'rgba(255,255,255,.42)',
+                      background: isActive ? 'rgba(37,99,235,.22)' : 'transparent',
+                      textDecoration: 'none', fontSize: 12.5, fontWeight: 500,
+                      borderLeft: isActive ? `2px solid ${BLUE}` : '2px solid transparent',
+                    })}
+                  >
+                    <item.icon size={14} style={{ flexShrink: 0 }} />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            ))}
           </>
         )}
       </div>
