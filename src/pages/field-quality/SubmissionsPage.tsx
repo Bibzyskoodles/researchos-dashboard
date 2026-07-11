@@ -216,8 +216,10 @@ export default function SubmissionsPage(){
     if(isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
-    const params: { limit: number; project_id?: string } = { limit: 100 };
-    if (activeProject?.id) params.project_id = activeProject.id;
+    // Never mix projects: without an active project we show nothing rather
+    // than silently pooling every project's submissions into one list.
+    if (!activeProject?.id) { setSubs([]); setLoading(false); setRefreshing(false); return; }
+    const params: { limit: number; project_id?: string } = { limit: 100, project_id: activeProject.id };
     dashboardApi.getSubmissions(params)
       .then(r=>{
         const submissions = r.data.submissions || r.data || [];

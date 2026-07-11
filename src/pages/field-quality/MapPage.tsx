@@ -33,9 +33,9 @@ export default function MapPage() {
   useAdaAttention({ x: 0.5, y: 0.5 }, { delay: 2500, returnAfterMs: 6000 });
 
   useEffect(() => {
-    const params: { limit: number; project_id?: string } = { limit: 100 };
-    if (activeProject?.id) params.project_id = activeProject.id;
-    dashboardApi.getSubmissions(params).then(r => setSubs(r.data.submissions || []));
+    // Never mix projects: without an active project show nothing.
+    if (!activeProject?.id) { setSubs([]); return; }
+    dashboardApi.getSubmissions({ limit: 100, project_id: activeProject.id }).then(r => setSubs(r.data.submissions || []));
   }, [activeProject?.id]);
 
   const filtered = subs.filter(s => filter === "ALL" || s.verdict === filter);
