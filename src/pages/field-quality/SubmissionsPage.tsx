@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
 import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle, ExternalLink, Shield, Cpu, Zap, TrendingDown, ChevronDown, ChevronUp } from "lucide-react";
@@ -424,24 +426,82 @@ export default function SubmissionsPage(){
                   );
                 })()}
 
-                {/* Cross-submission fraud signals for this specific submission */}
-                {(selTravelFlags.length > 0 || selInBurst) && (
-                  <div style={{padding:"12px 14px",borderRadius:10,background:"#FFF7ED",border:"1px solid #FDE68A"}}>
-                    <div style={{fontSize:11,fontWeight:700,color:AMBER,textTransform:"uppercase",letterSpacing:.7,marginBottom:6,display:"flex",alignItems:"center",gap:5}}>
-                      <Zap size={11}/> Cross-Submission Signals
+                {/* Cross-submission travel map */}
+                {selTravelFlags.length > 0 && selTravelFlags.map((t, i) => {
+                  const fromSub = subs.find(s => s.submission_id === t.fromId);
+                  const toSub   = subs.find(s => s.submission_id === t.toId);
+                  const fromLat = fromSub?.gps?.lat != null ? Number(fromSub.gps.lat) : null;
+                  const fromLon = fromSub?.gps?.lon != null ? Number(fromSub.gps.lon) : null;
+                  const toLat   = toSub?.gps?.lat   != null ? Number(toSub.gps.lat)   : null;
+                  const toLon   = toSub?.gps?.lon   != null ? Number(toSub.gps.lon)   : null;
+                  const hasCoords = fromLat != null && fromLon != null && toLat != null && toLon != null;
+                  const midLat = hasCoords ? (fromLat! + toLat!) / 2 : null;
+                  const midLon = hasCoords ? (fromLon! + toLon!) / 2 : null;
+                  const riskColor = t.risk === "IMPOSSIBLE" ? RED : t.risk === "VERY_HIGH" ? "#EA580C" : AMBER;
+                  return (
+                    <div key={i} style={{borderRadius:12,overflow:"hidden",border:`1.5px solid ${riskColor}44`,marginBottom:10}}>
+                      {/* Header */}
+                      <div style={{padding:"10px 14px",background:`${riskColor}10`,display:"flex",alignItems:"center",gap:8}}>
+                        <Zap size={13} color={riskColor}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:12,fontWeight:800,color:riskColor}}>{t.risk.replace("_"," ")} TRAVEL</div>
+                          <div style={{fontSize:10.5,color:"#6B7280",marginTop:1}}>{t.riskLabel}</div>
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontSize:14,fontWeight:900,color:riskColor,fontVariantNumeric:"tabular-nums"}}>{t.impliedSpeedKph} km/h</div>
+                          <div style={{fontSize:10,color:"#9CA3AF"}}>{(t.distanceM/1000).toFixed(1)} km · {t.durationMinutes} min</div>
+                        </div>
+                      </div>
+                      {/* Mini map */}
+                      {hasCoords && (
+                        <div style={{height:180,position:"relative"}}>
+                          <MapContainer
+                            center={[midLat!, midLon!]}
+                            zoom={(() => { const d = t.distanceM; return d > 500000 ? 5 : d > 100000 ? 7 : d > 20000 ? 9 : 11; })()}
+                            style={{height:"100%",width:"100%"}}
+                            scrollWheelZoom={false}
+                            zoomControl={false}
+                            attributionControl={false}
+                          >
+                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
+                            {/* Dashed line between the two points */}
+                            <Polyline
+                              positions={[[fromLat!, fromLon!],[toLat!, toLon!]]}
+                              pathOptions={{color:riskColor,weight:2.5,dashArray:"6 5",opacity:0.9}}
+                            />
+                            {/* A — previous submission */}
+                            <CircleMarker center={[fromLat!, fromLon!]} radius={9}
+                              pathOptions={{color:"white",weight:2,fillColor:"#374151",fillOpacity:1}}>
+                              <Tooltip permanent direction="top" offset={[0,-10]}
+                                className=""
+                              >
+                                <span style={{fontSize:10,fontWeight:700}}>A · {new Date(t.fromDate).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
+                              </Tooltip>
+                            </CircleMarker>
+                            {/* B — this submission */}
+                            <CircleMarker center={[toLat!, toLon!]} radius={9}
+                              pathOptions={{color:"white",weight:2,fillColor:riskColor,fillOpacity:1}}>
+                              <Tooltip permanent direction="top" offset={[0,-10]}>
+                                <span style={{fontSize:10,fontWeight:700}}>B · {new Date(t.toDate).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
+                              </Tooltip>
+                            </CircleMarker>
+                          </MapContainer>
+                        </div>
+                      )}
+                      {/* Footer detail */}
+                      <div style={{padding:"8px 14px",background:"#FAFAFA",borderTop:"1px solid #F1F5F9",fontSize:11,color:"#6B7280",display:"flex",gap:16}}>
+                        <span><strong style={{color:"#374151"}}>A</strong> · {t.fromId.slice(0,10)}… at {new Date(t.fromDate).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
+                        <span><strong style={{color:riskColor}}>B</strong> · {t.toId.slice(0,10)}… at {new Date(t.toDate).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
+                      </div>
                     </div>
-                    {selTravelFlags.map((t,i) => (
-                      <div key={i} style={{fontSize:11.5,color:"#92400E",marginBottom:4}}>
-                        <strong style={{color:riskClr(t.risk)}}>{t.risk}:</strong>{" "}
-                        {(t.distanceM/1000).toFixed(1)} km in {t.durationMinutes} min ({t.impliedSpeedKph} km/h).
-                        {" "}<span style={{color:"#9CA3AF"}}>vs {t.fromId.slice(0,8)}…</span>
-                      </div>
-                    ))}
-                    {selInBurst && (
-                      <div style={{fontSize:11.5,color:"#6B21A8"}}>
-                        <strong>BURST:</strong> This submission is part of a rapid-fire cluster — multiple submissions within minutes.
-                      </div>
-                    )}
+                  );
+                })}
+                {selInBurst && (
+                  <div style={{padding:"12px 14px",borderRadius:10,background:"#F5F3FF",border:"1px solid #DDD6FE",marginBottom:10}}>
+                    <div style={{fontSize:11,fontWeight:700,color:PURPLE,textTransform:"uppercase",letterSpacing:.7,marginBottom:4,display:"flex",alignItems:"center",gap:5}}>
+                      <Zap size={11}/> Burst Cluster
+                    </div>
+                    <div style={{fontSize:11.5,color:"#6B21A8"}}>This submission is part of a rapid-fire cluster — multiple submissions within minutes of each other, suggesting batch fabrication.</div>
                   </div>
                 )}
 
