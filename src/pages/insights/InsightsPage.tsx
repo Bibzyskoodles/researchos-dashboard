@@ -425,7 +425,6 @@ export default function InsightsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<InsightsTab>("analysis");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const navigate = useNavigate();
   useAda();
   useAdaGreeting({ page: "insights" });
 
