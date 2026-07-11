@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAda } from "../../ada/AdaContext";
+import { useAda, parseAdaCommand } from "../../ada/AdaContext";
 import { adaApi } from "../../services/api";
 import { X, Send } from "lucide-react";
 
@@ -31,7 +31,7 @@ const ADA_DOCK_STYLE: React.CSSProperties = {
 };
 
 export default function AdaDock() {
-  const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage } = useAda();
+  const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage, dispatchCommand } = useAda();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -89,6 +89,11 @@ export default function AdaDock() {
     setSending(true);
     setState("thinking");
     addMessage({ id: Date.now().toString(), role: "user", content: msg, timestamp: new Date().toISOString() });
+
+    // Parse for direct commands immediately (before API round-trip)
+    const cmd = parseAdaCommand(msg);
+    if (cmd) dispatchCommand(cmd);
+
     try {
       // Pull project lifecycle + framework context from sessionStorage if available
       const lifecycleRaw = sessionStorage.getItem('ros_active_lifecycle');

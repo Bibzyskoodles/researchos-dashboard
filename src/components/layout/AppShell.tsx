@@ -1,5 +1,5 @@
-import React from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import React, { useEffect, useRef, useState } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
@@ -11,7 +11,62 @@ const REFRESHABLE = ["/submissions", "/overview", "/enumerators", "/map"];
 
 export default function AppShell() {
   const location = useLocation();
-  useAda();
+  const navigate = useNavigate();
+  const { store, setOpen } = useAda();
+  const lastCmdSeq = useRef<number | null>(null);
+  const [adaToast, setAdaToast] = useState<string | null>(null);
+
+  // Execute Ada commands
+  useEffect(() => {
+    const cmd = store.command;
+    if (!cmd) return;
+    if (lastCmdSeq.current === cmd.seq) return;
+    lastCmdSeq.current = cmd.seq;
+
+    switch (cmd.type) {
+      case 'NAVIGATE_TO':
+        navigate(cmd.path, cmd.state ? { state: cmd.state } : undefined);
+        setOpen(false);
+        break;
+
+      case 'OPEN_SETTINGS_SECTION':
+        navigate('/settings', { state: { section: cmd.section } });
+        setOpen(false);
+        showToast(`Opening ${cmd.label}`);
+        break;
+
+      case 'CREATE_PROJECT':
+        navigate('/projects/new');
+        setOpen(false);
+        showToast('Opening new project wizard');
+        break;
+
+      case 'FILTER_SUBMISSIONS':
+        window.dispatchEvent(new CustomEvent('ada:filter_submissions', { detail: { verdict: cmd.verdict } }));
+        showToast(cmd.verdict === 'ALL' ? 'Showing all submissions' : `Filtered to ${cmd.verdict.toLowerCase()} submissions`);
+        break;
+
+      case 'HIGHLIGHT_ENUMERATOR':
+        window.dispatchEvent(new CustomEvent('ada:highlight_enumerator', { detail: { id: cmd.id } }));
+        showToast(`Highlighting enumerator ${cmd.id}`);
+        break;
+
+      case 'CHANGE_SETTING':
+        window.dispatchEvent(new CustomEvent('ada:change_setting', { detail: { key: cmd.key, value: cmd.value } }));
+        showToast(cmd.label);
+        break;
+
+      case 'SHOW_TOAST':
+        showToast(cmd.message);
+        break;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.command]);
+
+  function showToast(msg: string) {
+    setAdaToast(msg);
+    setTimeout(() => setAdaToast(null), 3000);
+  }
 
   const handleRefresh = REFRESHABLE.includes(location.pathname)
     ? () => window.dispatchEvent(new Event("researchos:refresh"))
@@ -39,6 +94,32 @@ export default function AppShell() {
         </AnimatePresence>
       </div>
       <AdaDock />
+
+      {/* Ada command toast */}
+      <AnimatePresence>
+        {adaToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              position: "fixed", bottom: 110, left: "50%", transform: "translateX(-50%)",
+              zIndex: 1100, background: "#080D1A", color: "white",
+              padding: "10px 18px 10px 14px", borderRadius: 10,
+              fontSize: 13, fontWeight: 600, fontFamily: "Inter,sans-serif",
+              boxShadow: "0 4px 24px rgba(8,13,26,.32)",
+              display: "flex", alignItems: "center", gap: 10,
+              border: "1px solid rgba(255,255,255,.08)",
+            }}
+          >
+            <div style={{ width: 22, height: 22, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
+              <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+            </div>
+            {adaToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

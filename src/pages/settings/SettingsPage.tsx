@@ -1454,12 +1454,22 @@ export default function SettingsPage() {
   const location = useLocation();
   const [active, setActive] = useState(() => (location.state as any)?.section || "organization");
   const [adaDismissed, setAdaDismissed] = useState(false);
-  const { setOpen } = useAda();
+  const { setOpen, store: adaStore } = useAda();
+  const lastCmdSeq = useRef<number | null>(null);
 
   useEffect(() => {
     const s = (location.state as any)?.section;
     if (s) setActive(s);
   }, [location.state]);
+
+  // Respond to Ada OPEN_SETTINGS_SECTION commands
+  useEffect(() => {
+    const cmd = adaStore.command;
+    if (!cmd || cmd.type !== 'OPEN_SETTINGS_SECTION') return;
+    if (lastCmdSeq.current === (cmd as any).seq) return;
+    lastCmdSeq.current = (cmd as any).seq;
+    setActive(cmd.section);
+  }, [adaStore.command]);
 
   const seenGroups = new Set<string>();
   const sectionGroups: string[] = [];

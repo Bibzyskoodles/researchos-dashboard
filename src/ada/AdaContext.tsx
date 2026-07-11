@@ -13,8 +13,11 @@ interface GuideTarget {
 export type AdaCommand =
   | { type: 'FILTER_SUBMISSIONS'; verdict: 'PASS' | 'FLAG' | 'REJECT' | 'ALL' }
   | { type: 'HIGHLIGHT_ENUMERATOR'; id: string }
-  | { type: 'NAVIGATE_TO'; path: string }
+  | { type: 'NAVIGATE_TO'; path: string; state?: Record<string, unknown> }
+  | { type: 'OPEN_SETTINGS_SECTION'; section: string; label: string }
   | { type: 'SWITCH_PROJECT'; id: string }
+  | { type: 'CREATE_PROJECT' }
+  | { type: 'SHOW_TOAST'; message: string }
   | { type: 'CHANGE_SETTING'; key: string; value: any; label: string };
 
 // Map a natural-language message to a command intent, or null if none.
@@ -35,17 +38,47 @@ export function parseAdaCommand(text: string): AdaCommand | null {
   if (/(reject|rejected|failed)/.test(t)) return { type: 'FILTER_SUBMISSIONS', verdict: 'REJECT' };
   if (/(passed|passing|approved|clean)/.test(t)) return { type: 'FILTER_SUBMISSIONS', verdict: 'PASS' };
 
-  // Navigation intents (explicit + config)
+  // ── Create project ──────────────────────────────────────────────────────────
+  if (/(create|new|start|add|make)\s+(a\s+)?(new\s+)?project/.test(t)) {
+    return { type: 'CREATE_PROJECT' };
+  }
+
+  // ── Settings sections — specific sub-pages ───────────────────────────────
+  const settingsSectionMap: [RegExp, string, string][] = [
+    [/(billing|payment|plan|invoice|subscription|upgrade|paystack)/, 'billing', 'Billing'],
+    [/(team|member|people|collaborat|invite|staff)/, 'team', 'Team & Members'],
+    [/(notification|alert|email notif|slack notif)/, 'notifications', 'Notifications'],
+    [/(ada|ai setting|ai config|personality|briefing|proactive)/, 'ada', 'AI & Ada'],
+    [/(brand|logo|color|colour|theme|appearance|organisation|organization|org name)/, 'organization', 'Organization'],
+    [/(permission|role|access|admin|viewer|manager)/, 'permissions', 'Permissions'],
+    [/(security|password|2fa|two.factor|session|login)/, 'security', 'Security'],
+    [/(integration|kobo|webhook|api key|connect)/, 'integrations', 'Integrations'],
+    [/(research default|gps|accuracy|duration|threshold|data collection)/, 'research', 'Research Defaults'],
+    [/(audit|log|activity|history)/, 'audit', 'Audit Log'],
+    [/(danger|delete org|reset)/, 'danger', 'Danger Zone'],
+  ];
+
+  const settingsTrigger = /(setting|configure|manage|set up|change|update|open|show)\s/.test(t) || /(go to|take me to|open)\s+(the\s+)?/.test(t);
+  if (settingsTrigger || /setting/.test(t)) {
+    for (const [pattern, section, label] of settingsSectionMap) {
+      if (pattern.test(t)) {
+        return { type: 'OPEN_SETTINGS_SECTION', section, label };
+      }
+    }
+  }
+
+  // ── Navigation intents (explicit + config) ───────────────────────────────
   const navPatterns: [RegExp, string][] = [
-    [/(go to|open|take me to|show me the|navigate to|set up|configure|connect|manage)\s+(overview|dashboard)/, '/overview'],
-    [/(go to|open|take me to|show me the|navigate to)\s+submission/, '/submissions'],
-    [/(go to|open|take me to|show me the|navigate to)\s+enumerator/, '/enumerators'],
-    [/(go to|open|take me to|show me the|navigate to)\s+(map|coverage)/, '/map'],
-    [/(go to|open|take me to|show me the|navigate to)\s+(insight|analysis)/, '/insights'],
-    [/(go to|open|take me to|show me the|navigate to)\s+report/, '/reports'],
-    [/(go to|open|take me to|show me the|navigate to|build|create)\s+questionnaire/, '/questionnaire'],
-    [/(go to|open|take me to|show me|navigate to|set up|configure|manage|change)\s+(setting|branding|brand|logo|organization|org|permission|role|notification|user|team|member)/, '/settings'],
-    [/(go to|open|take me to|show me|navigate to|set up|configure|connect)\s+(integration|kobo|kobotoolbox|webhook)/, '/integrations'],
+    [/(go to|open|take me to|show me the?|navigate to|set up|configure|connect|manage)\s+(overview|dashboard|home)/, '/overview'],
+    [/(go to|open|take me to|show me the?|navigate to)\s+(all\s+)?submission/, '/submissions'],
+    [/(go to|open|take me to|show me the?|navigate to)\s+(field\s+)?(enumerator|interviewer|field agent|surveyor)/, '/enumerators'],
+    [/(go to|open|take me to|show me the?|navigate to)\s+(the\s+)?(map|coverage|location)/, '/map'],
+    [/(go to|open|take me to|show me the?|navigate to)\s+(insight|analysis|analyse|analyze)/, '/insights'],
+    [/(go to|open|take me to|show me the?|navigate to)\s+(report|executive report)/, '/reports'],
+    [/(go to|open|take me to|show me the?|navigate to|set up|configure|manage|change)\s+(setting|branding|brand|logo|organization|org|team)/, '/settings'],
+    [/(go to|open|take me to|show me the?|navigate to|set up|configure|connect)\s+(integration|kobo|kobotoolbox|webhook|connect)/, '/integrations'],
+    [/(go to|open|take me to|show me the?|navigate to)\s+(project list|all projects|my projects)/, '/projects'],
+    [/(go to|open|take me to|show me the?|navigate to)\s+(field quality|field.quality)/, '/overview'],
   ];
 
   for (const [pattern, path] of navPatterns) {
@@ -53,15 +86,22 @@ export function parseAdaCommand(text: string): AdaCommand | null {
   }
 
   // Catch-all navigation
-  if (/(go to|open|take me to|show me the|navigate to)/.test(t)) {
+  if (/(go to|open|take me to|show me the?|navigate to)/.test(t)) {
     const pages: Record<string, string> = {
-      overview: '/overview', dashboard: '/overview', submission: '/submissions',
-      enumerator: '/enumerators', map: '/map', coverage: '/map', insight: '/insights',
-      analysis: '/insights', report: '/reports', questionnaire: '/questionnaire',
-      setting: '/settings', integration: '/integrations',
+      overview: '/overview', dashboard: '/overview', home: '/overview',
+      submission: '/submissions', enumerator: '/enumerators', interviewer: '/enumerators',
+      map: '/map', coverage: '/map', insight: '/insights', analysis: '/insights',
+      report: '/reports', questionnaire: '/projects', setting: '/settings',
+      integration: '/integrations', project: '/projects', billing: '/settings',
+      team: '/settings',
     };
     for (const key of Object.keys(pages)) {
-      if (t.includes(key)) return { type: 'NAVIGATE_TO', path: pages[key] };
+      if (t.includes(key)) {
+        // Check if this is a settings sub-section
+        if (key === 'billing') return { type: 'OPEN_SETTINGS_SECTION', section: 'billing', label: 'Billing' };
+        if (key === 'team') return { type: 'OPEN_SETTINGS_SECTION', section: 'team', label: 'Team & Members' };
+        return { type: 'NAVIGATE_TO', path: pages[key] };
+      }
     }
   }
 
