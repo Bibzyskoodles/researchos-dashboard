@@ -8,8 +8,9 @@ import { useIsMobile } from "../../hooks/useIsMobile";
 import { ScoreRing } from "../../components/ui/ScoreRing";
 import { EngineBar } from "../../components/ui/EngineBar";
 import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield, Cpu, Sparkles } from "lucide-react";
-import { loadEngineConfig, computeAdjustedScore } from "../../services/engineConfig";
-import type { AdjustedScore } from "../../services/engineConfig";
+import { loadEngineConfig } from "../../services/engineConfig";
+import { computeTrustIndex } from "../../services/trustEngine";
+import type { TrustResult } from "../../services/trustEngine";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED",CYAN="#06B6D4",ROSE="#E11D48";
 
@@ -185,6 +186,7 @@ AI/TTS/SCRIPTED SIGNALS (raise the score):
 
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
 const vclr=(v:string)=>v==="PASS"?GREEN:v==="FLAG"?AMBER:RED;
+const riskClr=(r:string)=>r==="VERY_LOW"||r==="LOW"?GREEN:r==="MEDIUM"?AMBER:r==="HIGH"?"#EA580C":RED;
 
 const FLAG_LABELS:Record<string,{label:string,severity:"high"|"medium"|"low"}> = {
   DUPLICATE_SUBMISSION: {label:"Duplicate Submission — this submission appears to have been submitted before",severity:"high"},
@@ -530,15 +532,7 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
 
   // Memoized so detail score always matches list (same config snapshot, re-runs on config change)
   const engineCfg = useMemo(() => loadEngineConfig(), [engineCfgVersion]); // eslint-disable-line react-hooks/exhaustive-deps
-  const adj: AdjustedScore = useMemo(() => computeAdjustedScore(sub||{}, engineCfg), [sub, engineCfg]);
-
-  const computeGrade=(score:number)=>{
-    if(score>=90)return"A";
-    if(score>=80)return"B";
-    if(score>=70)return"C";
-    if(score>=50)return"D";
-    return"F";
-  };
+  const trust: TrustResult = useMemo(() => computeTrustIndex(sub||{}, engineCfg), [sub, engineCfg]);
 
   if(loading) return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:400,color:"#9CA3AF",fontSize:14}}>
@@ -563,9 +557,9 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
   const lon=gps.lon&&!isNaN(Number(gps.lon))?Number(gps.lon):null;
   const canShowMap=!hasGpsError&&lat!==null&&lon!==null;
 
-  const hasCustomConfig = engineCfg.savedAt !== null;
-  const displayScore = hasCustomConfig ? adj.overall : (sub.overall_score ?? adj.overall);
-  const displayVerdict: "PASS"|"FLAG"|"REJECT" = hasCustomConfig ? adj.verdict : ((sub.verdict as "PASS"|"FLAG"|"REJECT") ?? adj.verdict);
+  // The Trust Index is the one number, on every surface (Bible §0, principle 5).
+  const displayScore = trust.trustIndex;
+  const displayVerdict: "PASS"|"FLAG"|"REJECT" = trust.verdict;
 
   return(
     <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.2}}
@@ -827,38 +821,70 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
         {/* RIGHT */}
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
-          {/* Score card — single source of truth */}
-          <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
-            {/* Top: score + verdict */}
+          {/* Trust card — the one number, fully explainable (Bible §10) */}
+          <div style={{background:"white",borderRadius:16,overflow:"hidden",border:`1px solid ${trust.status==="INELIGIBLE"?"#FECACA":"#E8EDF5"}`,boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
+            {/* Top: trust index + verdict + risk */}
             <div style={{padding:"24px 20px 16px",textAlign:"center",borderBottom:"1px solid #F1F5F9"}}>
               <ScoreRing score={displayScore} size={100}/>
               <div style={{fontSize:44,fontWeight:800,color:clr(displayScore),letterSpacing:-3,marginTop:10,lineHeight:1}}>{displayScore}</div>
-              <div style={{fontSize:11,color:"#9CA3AF",marginBottom:12,letterSpacing:.3}}>QUALITY SCORE</div>
+              <div style={{fontSize:11,color:"#9CA3AF",marginBottom:12,letterSpacing:.3}}>TRUST INDEX</div>
               <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
                 <span style={{fontSize:13,fontWeight:700,padding:"5px 16px",borderRadius:20,background:vclr(displayVerdict)+"18",color:vclr(displayVerdict)}}>{displayVerdict}</span>
-                <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:"#F8FAFF",border:"1px solid #E8EDF5",color:"#374151"}}>Grade {computeGrade(displayScore)}</span>
+                <span style={{fontSize:12,fontWeight:700,padding:"5px 14px",borderRadius:20,background:riskClr(trust.risk)+"15",color:riskClr(trust.risk)}}>
+                  {trust.risk.replace("_"," ")} RISK · {trust.recommendation}
+                </span>
               </div>
               {sub.duration_mins&&<div style={{fontSize:11.5,color:"#9CA3AF",marginTop:10,display:"flex",alignItems:"center",gap:4,justifyContent:"center"}}><Clock size={12}/>{sub.duration_mins} min interview</div>}
             </div>
 
-            {/* Score breakdown — contribution per engine */}
+            {/* Ineligible banner */}
+            {trust.status==="INELIGIBLE"&&(
+              <div style={{margin:"14px 20px 0",padding:"12px 14px",background:"#FFF5F5",border:"1px solid #FECACA",borderRadius:10}}>
+                <div style={{fontSize:12,fontWeight:700,color:RED,display:"flex",alignItems:"center",gap:6,marginBottom:4}}><XCircle size={13}/>Not eligible for scoring</div>
+                {trust.ineligibleReasons.map((r,i)=>(<div key={i} style={{fontSize:11.5,color:"#991B1B",lineHeight:1.6}}>{r}</div>))}
+              </div>
+            )}
+            {trust.status==="UNVERIFIED"&&(
+              <div style={{margin:"14px 20px 0",padding:"10px 14px",background:"#FFFBEB",border:"1px solid #FEF3C7",borderRadius:10,fontSize:11.5,color:"#92400E",lineHeight:1.6}}>
+                Scored by an earlier pipeline — per-engine evidence detail is unavailable, so the backend score is shown unchanged at low confidence.
+              </div>
+            )}
+
+            {/* Evidence completeness + confidence */}
+            {trust.status!=="UNVERIFIED"&&(
+              <div style={{display:"flex",gap:10,padding:"14px 20px 0"}}>
+                {[{label:"Evidence completeness",val:trust.completeness},{label:"Measurement confidence",val:trust.confidence}].map(m=>(
+                  <div key={m.label} style={{flex:1,padding:"10px 12px",background:"#F8FAFF",borderRadius:10,border:"1px solid #EEF2F8"}}>
+                    <div style={{fontSize:9.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.5,marginBottom:5}}>{m.label}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{flex:1,height:5,background:"#EEF2F8",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{width:`${Math.round(m.val*100)}%`,height:"100%",background:m.val>=.9?GREEN:m.val>=.6?AMBER:RED,borderRadius:3}}/>
+                      </div>
+                      <span style={{fontSize:12,fontWeight:700,color:"#374151",fontVariantNumeric:"tabular-nums"}}>{Math.round(m.val*100)}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Evidence breakdown — every point traceable */}
             <div style={{padding:"14px 20px"}}>
-              <div style={{fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.8,marginBottom:10}}>How this score was calculated</div>
+              <div style={{fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.8,marginBottom:10}}>How this trust index was calculated</div>
               {(()=>{
                 const COLORS:Record<string,string>={gps:BLUE,duration:AMBER,image:PURPLE,audio:GREEN,duplicate:CYAN,text_ai:ROSE};
                 const ICONS:Record<string,React.ReactElement>={
                   gps:<MapPin size={11}/>,duration:<Clock size={11}/>,image:<Camera size={11}/>,
                   audio:<Mic size={11}/>,duplicate:<Shield size={11}/>,text_ai:<Cpu size={11}/>,
                 };
-                const measured=adj.breakdown.filter(b=>!b.gated&&b.weight>0);
-                const notMeasured=adj.breakdown.filter(b=>b.gated||(b.weight===0&&!b.flagOverride));
+                const included=trust.breakdown.filter(b=>b.included);
+                const excluded=trust.breakdown.filter(b=>!b.included&&b.requirement!=="DISABLED");
                 return(
                   <>
-                    {measured.map(b=>{
-                      const col=b.flagOverride?RED:COLORS[b.key]||BLUE;
-                      const pct=Math.round(b.weight*100);
-                      const maxPts=Math.round(pct); // weight% × 100 possible
-                      const earnedPts=Math.round(b.contribution); // actual contribution
+                    {included.map(b=>{
+                      const missing=b.presence==="ABSENT"&&b.effectiveScore===0&&!b.flagOverride;
+                      const col=b.flagOverride||missing?RED:COLORS[b.key]||BLUE;
+                      const maxPts=Math.round(b.weight*100);
+                      const earnedPts=Math.round(b.contribution);
                       return(
                         <div key={b.key} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                           <div style={{width:22,height:22,borderRadius:6,background:col+"15",display:"grid",placeItems:"center",color:col,flexShrink:0}}>
@@ -866,37 +892,83 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
                           </div>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                              <span style={{fontSize:12,fontWeight:600,color:"#374151"}}>{b.label}</span>
+                              <span style={{fontSize:12,fontWeight:600,color:"#374151"}}>
+                                {b.label}
+                                {(b.requirement==="REQUIRED"||b.requirement==="HARD_REQUIRED")&&(
+                                  <span style={{fontSize:8.5,fontWeight:700,color:"#9CA3AF",marginLeft:5,padding:"1px 5px",background:"#F1F5F9",borderRadius:4,verticalAlign:"middle"}}>
+                                    {b.requirement==="HARD_REQUIRED"?"HARD REQ":"REQUIRED"}
+                                  </span>
+                                )}
+                              </span>
                               <span style={{fontSize:11,fontWeight:700,color:col,fontVariantNumeric:"tabular-nums"}}>
                                 {earnedPts}<span style={{fontSize:9,color:"#9CA3AF",fontWeight:400}}> / {maxPts} pts</span>
                               </span>
                             </div>
                             <div style={{height:4,background:"#EEF2F8",borderRadius:2,overflow:"hidden"}}>
-                              <div style={{width:`${b.adjScore}%`,height:"100%",background:col,borderRadius:2}}/>
+                              <div style={{width:`${b.shrunkScore??0}%`,height:"100%",background:col,borderRadius:2}}/>
                             </div>
                             {b.flagOverride&&(
                               <div style={{fontSize:10.5,color:RED,marginTop:3,display:"flex",alignItems:"center",gap:4}}>
                                 <AlertTriangle size={9}/>{FLAG_LABELS[b.flagOverride]?.label||b.flagOverride}
                               </div>
                             )}
+                            {missing&&(
+                              <div style={{fontSize:10.5,color:RED,marginTop:3,display:"flex",alignItems:"center",gap:4}}>
+                                <XCircle size={9}/>Required evidence missing — scored 0, weight NOT redistributed
+                              </div>
+                            )}
+                            {b.confidence<1&&!b.flagOverride&&(
+                              <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>Derived measurement ({Math.round(b.confidence*100)}% confidence) — shrunk toward neutral</div>
+                            )}
                           </div>
                         </div>
                       );
                     })}
-                    {notMeasured.filter(b=>b.gated).length>0&&(
-                      <div style={{fontSize:10.5,color:"#9CA3AF",padding:"6px 8px",background:"#F8FAFF",borderRadius:7,marginTop:4}}>
-                        Not counted: {notMeasured.filter(b=>b.gated).map(b=>b.label).join(", ")} — excluded because an upstream check already failed.
+                    {excluded.length>0&&(
+                      <div style={{fontSize:10.5,color:"#9CA3AF",padding:"8px 10px",background:"#F8FAFF",borderRadius:7,marginTop:4,lineHeight:1.7}}>
+                        {excluded.map(b=>(<div key={b.key}><strong style={{color:"#6B7280"}}>{b.label}:</strong> {b.notes[0]||"Not counted."}</div>))}
                       </div>
                     )}
-                    {/* Formula footnote */}
+
+                    {/* Consistency findings */}
+                    {trust.consistency.length>0&&(
+                      <div style={{marginTop:10}}>
+                        <div style={{fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.8,marginBottom:6}}>Cross-evidence reasoning</div>
+                        {trust.consistency.map(c=>(
+                          <div key={c.rule} style={{display:"flex",gap:8,alignItems:"flex-start",padding:"8px 10px",background:c.delta>0?"#F0FDF4":"#FFF5F5",border:`1px solid ${c.delta>0?"#BBF7D0":"#FECACA"}`,borderRadius:8,marginBottom:6}}>
+                            <span style={{fontSize:11,fontWeight:800,color:c.delta>0?GREEN:RED,fontVariantNumeric:"tabular-nums",flexShrink:0}}>{c.delta>0?"+":""}{c.delta}</span>
+                            <span style={{fontSize:11,color:"#374151",lineHeight:1.5}}>{c.reading}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Formula footnote + backend reconciliation */}
                     <div style={{marginTop:10,padding:"8px 10px",background:"#F8FAFF",borderRadius:8,border:"1px solid #E8EDF5"}}>
                       <div style={{fontSize:10,color:"#9CA3AF",lineHeight:1.7}}>
-                        <strong style={{color:"#6B7280"}}>Score formula:</strong> {measured.map(b=>`${b.label} (${Math.round(b.weight*100)}%)`).join(" + ")} = <strong style={{color:clr(displayScore)}}>{displayScore}</strong>
+                        <strong style={{color:"#6B7280"}}>Trust Index:</strong> {included.map(b=>`${b.label} (${Math.round(b.weight*100)}%)`).join(" + ")}{trust.consistency.length>0?" + cross-evidence reasoning":""} = <strong style={{color:clr(displayScore)}}>{displayScore}</strong>
                       </div>
+                      {trust.backendScore!=null&&trust.delta!=null&&trust.delta!==0&&(
+                        <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>
+                          Backend raw score: <strong>{trust.backendScore}</strong> (Δ {trust.delta>0?"+":""}{trust.delta} — see reasoning above)
+                        </div>
+                      )}
                       <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>
-                        Pass threshold: <strong>{engineCfg.passScoreThreshold}</strong> · Weights set in <span style={{color:BLUE,cursor:"pointer",textDecoration:"underline"}} onClick={()=>navigate("/settings",{state:{section:"engine"}})}>Engine Settings</span>
+                        Pass threshold: <strong>{engineCfg.passScoreThreshold}</strong> · Policy set in <span style={{color:BLUE,cursor:"pointer",textDecoration:"underline"}} onClick={()=>navigate("/settings",{state:{section:"engine"}})}>Engine Settings</span> · Method: <span style={{color:BLUE}}>Trust Intelligence Bible</span>
                       </div>
                     </div>
+
+                    {/* Audit trail — full chain of reasoning */}
+                    {trust.audit.length>0&&(
+                      <details style={{marginTop:8}}>
+                        <summary style={{fontSize:10.5,fontWeight:700,color:"#6B7280",cursor:"pointer",padding:"4px 0"}}>Full audit trail ({trust.audit.length} steps)</summary>
+                        <div style={{marginTop:6,padding:"8px 10px",background:"#0F172A",borderRadius:8,maxHeight:200,overflowY:"auto"}}>
+                          {trust.audit.map((a,i)=>(
+                            <div key={i} style={{fontSize:10,fontFamily:"monospace",color:"rgba(255,255,255,.75)",lineHeight:1.8}}>{i+1}. {a}</div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </>
                 );
               })()}

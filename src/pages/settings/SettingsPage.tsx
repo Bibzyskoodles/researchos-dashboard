@@ -13,7 +13,7 @@ import CreditsPanel from "../../gamify/CreditsPanel";
 import { orgAdminApi } from "../../services/api";
 import { useNavigate as useNav, useLocation } from "react-router-dom";
 import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
-import type { EngineConfig } from "../../services/engineConfig";
+import type { EngineConfig, EngineRequirement, EngineRequirements } from "../../services/engineConfig";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -1647,7 +1647,6 @@ const ENGINE_ORDER = ["gps","duration","image","audio","duplicate","text_ai"];
 
 type WeightMap = { gps:number; duration:number; image:number; audio:number; duplicate:number; text_ai:number; };
 type GatingMap = { gps_reject_skips: string[]; duration_reject_skips: string[]; duplicate_reject_skips: string[]; };
-type EnabledMap = { gps:boolean; duration:boolean; image:boolean; audio:boolean; duplicate:boolean; text_ai:boolean; };
 
 
 function GatingToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -1668,13 +1667,13 @@ function EngineSection() {
     duration_reject_skips: [..._cfg.gating.duration_reject_skips],
     duplicate_reject_skips: [..._cfg.gating.duplicate_reject_skips],
   });
-  const [enabled, setEnabled] = useState<EnabledMap>({ ..._cfg.enabled } as EnabledMap);
+  const [requirements, setRequirements] = useState<EngineRequirements>({ ..._cfg.requirements });
   const [aiHighPenalty, setAiHighPenalty] = useState(_cfg.aiHighPenalty);
   const [aiMediumPenalty, setAiMediumPenalty] = useState(_cfg.aiMediumPenalty);
   const [aiMediumFlag, setAiMediumFlag] = useState(_cfg.aiMediumFlag);
   const [saved, setSaved] = useState(false);
 
-  const totalW = ENGINE_ORDER.reduce((s, k) => s + (enabled[k as keyof EnabledMap] ? weights[k as keyof WeightMap] : 0), 0);
+  const totalW = ENGINE_ORDER.reduce((s, k) => s + (requirements[k as keyof EngineRequirements] !== "DISABLED" ? weights[k as keyof WeightMap] : 0), 0);
 
   const toggleGate = (gate: keyof GatingMap, engine: string) => {
     setGating(prev => {
@@ -1689,7 +1688,7 @@ function EngineSection() {
     saveEngineConfig({
       ...current,
       weights: { ...weights } as EngineConfig["weights"],
-      enabled: { ...enabled } as EngineConfig["enabled"],
+      requirements: { ...requirements },
       gating: {
         gps_reject_skips: [...gating.gps_reject_skips],
         duration_reject_skips: [...gating.duration_reject_skips],
@@ -1704,7 +1703,7 @@ function EngineSection() {
     setState("thinking");
     setTimeout(() => {
       setState("speaking");
-      const active = ENGINE_ORDER.filter(k => enabled[k as keyof EnabledMap]);
+      const active = ENGINE_ORDER.filter(k => requirements[k as keyof EngineRequirements] !== "DISABLED");
       addMessage({ id: Date.now().toString(), role: "assistant", content: `Engine config saved. You have ${active.length} active engines with GPS carrying the most weight (${Math.round((weights.gps / totalW) * 100)}% after normalisation). Gating is set up so a GPS reject skips ${gating.gps_reject_skips.length > 0 ? gating.gps_reject_skips.join(" and ") : "nothing"} — that saves processing time and avoids penalising real submissions twice. AI detection is set to HIGH = ${aiHighPenalty} point penalty, MEDIUM = ${aiMediumPenalty} points${aiMediumFlag ? " + flag for review" : ", no flag"}. These settings apply immediately to the score display on all submission detail pages.`, timestamp: new Date().toISOString(), page: "settings-engine" });
       setTimeout(() => setState("idle"), 5000);
     }, 700);
@@ -1737,7 +1736,7 @@ function EngineSection() {
           </div>
         </div>
         <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
-          Each active engine contributes to the final FieldScore out of 100. Weights are normalised automatically, so the relative balance is what matters — not the exact total. GPS and Duration carry the most weight by default because they are the hardest to fake.
+          Each active engine contributes to the Trust Index out of 100. Weights are normalised automatically, so the relative balance is what matters — not the exact total. Each engine also has a <strong>requirement level</strong>: <strong>Optional</strong> evidence that's missing is simply excluded (no penalty); <strong>Required</strong> evidence that's missing scores 0 at full weight — the enumerator cannot make those points up elsewhere; <strong>Hard gate</strong> means a missing channel makes the whole submission ineligible. GPS, Duration and Image are Required by default because they're the channels an enumerator physically controls in the field. Full method: docs/15 Trust Intelligence Bible.
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {ENGINE_ORDER.map(key => {
@@ -1745,22 +1744,36 @@ function EngineSection() {
             const meta = ENGINE_LABELS[key];
             const w = weights[k];
             const pct = totalW > 0 ? Math.round((w / totalW) * 100) : 0;
-            const isEnabled = enabled[k as keyof EnabledMap];
+            const req = requirements[k as keyof EngineRequirements];
+            const isEnabled = req !== "DISABLED";
+            const isDerived = key === "duplicate" || key === "text_ai";
+            const REQ_OPTIONS: { value: EngineRequirement; label: string; hint: string; color: string }[] = [
+              { value: "DISABLED", label: "Off", hint: "Ignored entirely", color: "#9CA3AF" },
+              { value: "OPTIONAL", label: "Optional", hint: "Missing evidence is not penalised", color: BLUE },
+              { value: "REQUIRED", label: "Required", hint: "Missing evidence scores 0 at full weight", color: AMBER },
+              { value: "HARD_REQUIRED", label: "Hard gate", hint: "Missing evidence makes the submission ineligible", color: RED },
+            ];
             return (
               <div key={key} style={{ padding: "14px 16px", borderRadius: 10, border: `1px solid ${isEnabled ? "#EEF2F8" : "#F1F5F9"}`, background: isEnabled ? "#F8FAFF" : "#FAFAFA", opacity: isEnabled ? 1 : 0.55 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: isEnabled ? 10 : 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                   <span style={{ fontSize: 18 }}>{meta.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{meta.label}</div>
                     <div style={{ fontSize: 11, color: "#9CA3AF" }}>{meta.desc}</div>
                   </div>
                   {isEnabled && <div style={{ fontSize: 13, fontWeight: 700, color: BLUE, minWidth: 36, textAlign: "right" }}>{pct}%</div>}
-                  <button
-                    onClick={() => setEnabled(prev => ({ ...prev, [k]: !prev[k as keyof EnabledMap] }))}
-                    style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${isEnabled ? "#BFDBFE" : "#E2E8F0"}`, background: isEnabled ? "#EFF6FF" : "white", color: isEnabled ? BLUE : "#9CA3AF", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" }}
-                  >
-                    {isEnabled ? "On" : "Off"}
-                  </button>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: isEnabled ? 10 : 0 }}>
+                  {REQ_OPTIONS.filter(o => !(isDerived && o.value === "HARD_REQUIRED")).map(o => (
+                    <button
+                      key={o.value}
+                      title={o.hint}
+                      onClick={() => setRequirements(prev => ({ ...prev, [k]: o.value }))}
+                      style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${req === o.value ? o.color : "#E2E8F0"}`, background: req === o.value ? o.color + "15" : "white", color: req === o.value ? o.color : "#9CA3AF", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" }}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
                 </div>
                 {isEnabled && (
                   <input

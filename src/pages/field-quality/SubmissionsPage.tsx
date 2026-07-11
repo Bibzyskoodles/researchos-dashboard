@@ -6,7 +6,9 @@ import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshC
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
 import { useLocation, useNavigate } from "react-router-dom";
-import { loadEngineConfig, computeAdjustedScore } from "../../services/engineConfig";
+import { loadEngineConfig } from "../../services/engineConfig";
+import { computeTrustIndex } from "../../services/trustEngine";
+import type { TrustResult } from "../../services/trustEngine";
 import { useProject } from "../../context/ProjectContext";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
@@ -85,9 +87,11 @@ export default function SubmissionsPage(){
   }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const engineCfg = useMemo(() => loadEngineConfig(), [cfgVersion]);
-  const adjMap = useMemo(() => {
-    const m: Record<string, ReturnType<typeof computeAdjustedScore>> = {};
-    subs.forEach(s => { m[s.submission_id] = computeAdjustedScore(s as any, engineCfg); });
+  // One Trust Index per submission — identical to the detail page by construction
+  // (same pure function, same config snapshot). Bible §0 principle 5.
+  const trustMap = useMemo(() => {
+    const m: Record<string, TrustResult> = {};
+    subs.forEach(s => { m[s.submission_id] = computeTrustIndex(s as any, engineCfg); });
     return m;
   }, [subs, engineCfg]);
 
@@ -129,9 +133,8 @@ export default function SubmissionsPage(){
     return ()=>window.removeEventListener("researchos:refresh",handler);
   },[load,setState,addMessage]);
 
-  const hasCustomConfig = engineCfg.savedAt !== null;
   const effectiveVerdict = (s: typeof subs[0]) =>
-    (hasCustomConfig ? (adjMap[s.submission_id]?.verdict ?? s.verdict) : (s.verdict ?? adjMap[s.submission_id]?.verdict ?? "FLAG")) as "PASS"|"FLAG"|"REJECT";
+    (trustMap[s.submission_id]?.verdict ?? s.verdict ?? "FLAG") as "PASS"|"FLAG"|"REJECT";
 
   const filtered=subs.filter(s=>{
     const adjVerdict = effectiveVerdict(s);
@@ -206,8 +209,8 @@ export default function SubmissionsPage(){
           ):filtered.length===0?(
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>No submissions match your filter</div>
           ):filtered.map((sub,i)=>{
-            const adj = adjMap[sub.submission_id];
-            const displayScore = hasCustomConfig ? (adj?.overall ?? sub.overall_score) : (sub.overall_score ?? adj?.overall ?? 0);
+            const trust = trustMap[sub.submission_id];
+            const displayScore = trust?.trustIndex ?? sub.overall_score ?? 0;
             const displayVerdict = effectiveVerdict(sub);
             const imgScore = sub.checks?.image?.score ?? 0;
             const audScore = sub.checks?.audio?.score ?? 0;
@@ -259,7 +262,7 @@ export default function SubmissionsPage(){
                   <div style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>{(selected as any).enumerator_name || selected.enumerator_id}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <ScoreRing score={hasCustomConfig ? (adjMap[selected.submission_id]?.overall ?? selected.overall_score) : (selected.overall_score ?? adjMap[selected.submission_id]?.overall ?? 0)} size={52}/>
+                  <ScoreRing score={trustMap[selected.submission_id]?.trustIndex ?? selected.overall_score ?? 0} size={52}/>
                   <button onClick={()=>navigate(`/submissions/${selected.submission_id}`)}
                     title="View full details"
                     style={{display:"flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:7,background:BLUE,border:"none",cursor:"pointer",color:"white",fontSize:11,fontWeight:600,fontFamily:"Inter,sans-serif"}}>
@@ -325,7 +328,7 @@ export default function SubmissionsPage(){
                 )}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Quality Engines</div>
-                  {(adjMap[selected.submission_id]?.breakdown ?? []).map(b => {
+                  {(trustMap[selected.submission_id]?.breakdown ?? []).map(b => {
                     const engineColors: Record<string,string> = {gps:BLUE,duration:AMBER,image:PURPLE,audio:GREEN,duplicate:CYAN,text_ai:ROSE};
                     const engineIcons: Record<string,React.ReactNode> = {
                       gps:<MapPin size={12} color={engineColors.gps}/>,
@@ -335,19 +338,25 @@ export default function SubmissionsPage(){
                       duplicate:<Shield size={12} color={engineColors.duplicate}/>,
                       text_ai:<Cpu size={12} color={engineColors.text_ai}/>,
                     };
-                    const notMeasured = b.weight === 0 && !b.gated && !b.flagOverride;
-                    const col = b.flagOverride ? RED : (engineColors[b.key] || BLUE);
+                    if (b.requirement === "DISABLED") return null;
+                    const requiredMissing = b.included && b.presence === "ABSENT" && !b.flagOverride;
+                    const col = b.flagOverride || requiredMissing ? RED : (engineColors[b.key] || BLUE);
                     return (
                       <div key={b.key}>
                         <EngineBar
                           label={b.label}
-                          value={notMeasured ? -1 : b.adjScore}
+                          value={b.included ? Math.round(b.shrunkScore ?? 0) : -1}
                           color={col}
                           icon={engineIcons[b.key] || <Shield size={12}/>}
                         />
                         {b.flagOverride && (
                           <div style={{fontSize:10,color:RED,background:"#FEF2F2",borderRadius:5,padding:"3px 8px",marginTop:-6,marginBottom:6}}>
-                            ⚑ {b.flagOverride.replace(/_/g," ")} · score capped at {b.adjScore}
+                            ⚑ {b.flagOverride.replace(/_/g," ")} · score capped at {b.effectiveScore}
+                          </div>
+                        )}
+                        {requiredMissing && (
+                          <div style={{fontSize:10,color:RED,background:"#FEF2F2",borderRadius:5,padding:"3px 8px",marginTop:-6,marginBottom:6}}>
+                            ✕ Required evidence missing — scored 0
                           </div>
                         )}
                         {b.gated && (

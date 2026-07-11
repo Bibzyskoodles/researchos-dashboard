@@ -21,6 +21,29 @@ export interface EngineEnabled {
   text_ai: boolean;
 }
 
+// Trust Intelligence Bible §4 — per-engine requirement levels. Never a boolean.
+export type EngineRequirement = "DISABLED" | "OPTIONAL" | "REQUIRED" | "HARD_REQUIRED";
+
+export interface EngineRequirements {
+  gps: EngineRequirement;
+  duration: EngineRequirement;
+  image: EngineRequirement;
+  audio: EngineRequirement;
+  duplicate: EngineRequirement;
+  text_ai: EngineRequirement;
+}
+
+// Bible §3 default requirement per engine — GPS/Duration/Image are the channels an
+// enumerator physically controls at the point of interview.
+export const DEFAULT_REQUIREMENTS: EngineRequirements = {
+  gps: "REQUIRED",
+  duration: "REQUIRED",
+  image: "REQUIRED",
+  audio: "OPTIONAL",
+  duplicate: "OPTIONAL",
+  text_ai: "OPTIONAL",
+};
+
 export interface GatingConfig {
   gps_reject_skips: string[];
   duration_reject_skips: string[];
@@ -37,7 +60,8 @@ export interface EngineConfig {
 
   // Engine weights (raw values, will be normalised)
   weights: EngineWeights;
-  enabled: EngineEnabled;
+  enabled: EngineEnabled;          // legacy boolean map, kept in sync with requirements
+  requirements: EngineRequirements; // Bible §4 — the authoritative per-engine policy
   gating: GatingConfig;
 
   // AI detection penalties
@@ -58,6 +82,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
 
   weights: { gps: 0.25, duration: 0.22, image: 0.20, audio: 0.13, duplicate: 0.10, text_ai: 0.10 },
   enabled: { gps: true, duration: true, image: true, audio: true, duplicate: true, text_ai: true },
+  requirements: { ...DEFAULT_REQUIREMENTS },
   gating: {
     gps_reject_skips: [],
     duration_reject_skips: [],
@@ -78,11 +103,21 @@ export function loadEngineConfig(): EngineConfig {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_ENGINE_CONFIG };
     const parsed = JSON.parse(raw) as Partial<EngineConfig>;
+    const enabled = { ...DEFAULT_ENGINE_CONFIG.enabled, ...(parsed.enabled || {}) };
+    // Migrate configs saved before requirement levels existed (Bible §11):
+    // enabled:false → DISABLED, enabled:true → the default level for that engine.
+    const requirements = { ...DEFAULT_REQUIREMENTS } as EngineRequirements;
+    (Object.keys(requirements) as (keyof EngineRequirements)[]).forEach(k => {
+      const stored = parsed.requirements?.[k];
+      if (stored) requirements[k] = stored;
+      else if (enabled[k] === false) requirements[k] = "DISABLED";
+    });
     return {
       ...DEFAULT_ENGINE_CONFIG,
       ...parsed,
       weights: { ...DEFAULT_ENGINE_CONFIG.weights, ...(parsed.weights || {}) },
-      enabled: { ...DEFAULT_ENGINE_CONFIG.enabled, ...(parsed.enabled || {}) },
+      enabled,
+      requirements,
       gating: {
         gps_reject_skips: parsed.gating?.gps_reject_skips ?? [...DEFAULT_ENGINE_CONFIG.gating.gps_reject_skips],
         duration_reject_skips: parsed.gating?.duration_reject_skips ?? [...DEFAULT_ENGINE_CONFIG.gating.duration_reject_skips],
@@ -95,7 +130,12 @@ export function loadEngineConfig(): EngineConfig {
 }
 
 export function saveEngineConfig(config: EngineConfig): void {
-  const toSave: EngineConfig = { ...config, savedAt: new Date().toISOString() };
+  // Keep the legacy boolean map derived from requirements (Bible §11).
+  const enabled = { ...config.enabled };
+  (Object.keys(config.requirements) as (keyof EngineRequirements)[]).forEach(k => {
+    enabled[k] = config.requirements[k] !== "DISABLED";
+  });
+  const toSave: EngineConfig = { ...config, enabled, savedAt: new Date().toISOString() };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   // Notify other tabs / components listening for config changes
   window.dispatchEvent(new CustomEvent("fs-engine-config-changed", { detail: toSave }));
