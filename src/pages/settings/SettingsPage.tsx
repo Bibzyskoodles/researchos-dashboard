@@ -716,9 +716,12 @@ function useToast() {
 
 // ─── BillingSection ───────────────────────────────────────────────────────────
 function BillingSection() {
-  const { addMessage, setState } = useAda();
+  const { addMessage, setState, setOpen } = useAda();
   const [currency, setCurrency] = useState<"NGN" | "USD">(MOCK_BILLING.currency);
   const [barsReady, setBarsReady] = useState(false);
+  const [adaQuestion, setAdaQuestion] = useState("");
+  const [adaAnswer, setAdaAnswer] = useState<string | null>(null);
+  const [adaAsking, setAdaAsking] = useState(false);
   const toast = useToast();
 
   const B = MOCK_BILLING;
@@ -733,10 +736,33 @@ function BillingSection() {
   const primaryPct = Math.round((B.capacity[0].used / B.capacity[0].total) * 100);
   const adaMsg =
     primaryPct < 50
-      ? `You're well within this month's limits — ${B.capacity[0].used.toLocaleString()} of your ${B.capacity[0].total.toLocaleString()} FieldScore verifications used. You have plenty of room for more fieldwork.`
+      ? `You're well within this month's limits — ${B.capacity[0].used.toLocaleString()} of your ${B.capacity[0].total.toLocaleString()} FieldScore verifications used. Plenty of room for more fieldwork this cycle.`
       : primaryPct < 80
-      ? `You've used about half your FieldScore capacity this cycle. Worth keeping an eye on if you have more fieldwork planned before ${B.next_billing}.`
+      ? `You've used about half your FieldScore capacity this cycle. Worth keeping an eye on it if you have more fieldwork planned before ${B.next_billing}.`
       : `You're getting close to your monthly limit on FieldScore verifications. Consider upgrading before your cycle resets on ${B.next_billing}.`;
+
+  const adaSuggestions = [
+    "What's included in the Professional plan?",
+    "How does Paystack billing work?",
+    "Can I get a discount for annual billing?",
+    "What happens if I go over my limit?",
+  ];
+
+  const askAda = async (q: string) => {
+    if (!q.trim() || adaAsking) return;
+    setAdaAsking(true);
+    setAdaAnswer(null);
+    try {
+      const res = await (await import("../../services/api")).adaApi.chat(q, "billing", { mode: "billing_help" });
+      setAdaAnswer(res.data?.reply || res.data?.message || "I don't have a specific answer for that right now — email bibilade@intelligencyai.com.ng for billing support.");
+    } catch {
+      setAdaAnswer("I can't reach my knowledge base right now. For billing questions, email bibilade@intelligencyai.com.ng or use the chat button.");
+    } finally {
+      setAdaAsking(false);
+      setState("speaking");
+      setTimeout(() => setState("idle"), 3000);
+    }
+  };
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -746,17 +772,17 @@ function BillingSection() {
         addMessage({ id: Date.now().toString(), role: "assistant", content: adaMsg, timestamp: new Date().toISOString(), page: "settings-billing" });
         setTimeout(() => setState("idle"), 4000);
       }, 600);
-    }, 1200);
+    }, 800);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { const t = setTimeout(() => setBarsReady(true), 200); return () => clearTimeout(t); }, []);
+  useEffect(() => { const t = setTimeout(() => setBarsReady(true), 100); return () => clearTimeout(t); }, []);
 
   const handleDownload = () => toast.show("Invoice download coming soon.");
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
       {/* Toast */}
       <AnimatePresence>
@@ -768,74 +794,146 @@ function BillingSection() {
         )}
       </AnimatePresence>
 
-      {/* Currency toggle */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 11.5, color: "#9CA3AF" }}>Currency:</span>
-        {(["NGN", "USD"] as const).map(c => (
-          <button key={c} onClick={() => setCurrency(c)} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #E2E8F0", background: currency === c ? BLUE : "white", color: currency === c ? "white" : "#6B7280", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif", transition: "all .15s" }}>
-            {c === "NGN" ? "₦ NGN" : "$ USD"}
-          </button>
-        ))}
-        {currency === "USD" && <span style={{ fontSize: 10.5, color: "#9CA3AF" }}>≈ ₦1,600/$1</span>}
+      {/* ── Ada help panel — always first, prominent ── */}
+      <div style={{
+        background: "linear-gradient(135deg,#0C1128 0%,#0F172A 60%,#140E2B 100%)",
+        borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,.07)",
+        boxShadow: "0 8px 32px rgba(8,13,26,.22)",
+      }}>
+        <div style={{ display: "flex", gap: 0 }}>
+          {/* Ada avatar column */}
+          <div style={{ width: 88, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 0 0", justifyContent: "flex-end", alignSelf: "flex-end" }}>
+            <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }} style={{ position: "relative" }}>
+              <motion.div animate={{ scale: [1, 1.18, 1], opacity: [0.25, 0, 0.25] }} transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                style={{ position: "absolute", inset: -7, borderRadius: "50%", border: "2px solid #60A5FA", pointerEvents: "none" }} />
+              <div style={{ width: 52, height: 52, borderRadius: "50%", overflow: "hidden", border: "2px solid rgba(255,255,255,.2)", boxShadow: "0 0 24px rgba(37,99,235,.3)" }}>
+                <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+              </div>
+            </motion.div>
+            <div style={{ marginTop: 8, marginBottom: 18, textAlign: "center" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "white" }}>Ada</div>
+              <div style={{ fontSize: 8.5, color: "rgba(255,255,255,.3)", letterSpacing: 0.7, textTransform: "uppercase" }}>Billing Help</div>
+            </div>
+          </div>
+
+          <div style={{ width: 1, background: "rgba(255,255,255,.06)", alignSelf: "stretch", flexShrink: 0 }} />
+
+          {/* Ada content */}
+          <div style={{ flex: 1, padding: "18px 22px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#60A5FA" }} />
+              <span style={{ fontSize: 9, fontWeight: 700, color: "#93C5FD", letterSpacing: 1.1, textTransform: "uppercase" }}>Ada · Billing Assistant</span>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "white", lineHeight: 1.4, marginBottom: 6 }}>
+              {adaMsg}
+            </div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,.42)", marginBottom: 14 }}>
+              Ask me anything about your plan, payments, capacity, or upgrades.
+            </div>
+
+            {/* Quick question chips */}
+            <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6, marginBottom: 12 }}>
+              {adaSuggestions.map(q => (
+                <button key={q} onClick={() => { setAdaQuestion(q); askAda(q); }}
+                  style={{ padding: "5px 11px", borderRadius: 20, border: "1px solid rgba(255,255,255,.14)", background: "rgba(255,255,255,.06)", color: "rgba(255,255,255,.65)", fontSize: 11.5, fontWeight: 500, cursor: "pointer", fontFamily: "Inter,sans-serif", transition: "all .15s" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.12)"; (e.currentTarget as HTMLButtonElement).style.color = "white"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.06)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,.65)"; }}
+                >{q}</button>
+              ))}
+            </div>
+
+            {/* Ask input */}
+            <div style={{ display: "flex", gap: 8, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10, padding: "8px 12px" }}
+              onFocusCapture={e => (e.currentTarget.style.borderColor = "rgba(37,99,235,.5)")}
+              onBlurCapture={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,.1)")}>
+              <input value={adaQuestion} onChange={e => setAdaQuestion(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") askAda(adaQuestion); }}
+                placeholder="Ask about pricing, upgrades, invoices…"
+                style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 12.5, color: "white", fontFamily: "Inter,sans-serif", caretColor: "#60A5FA" }} />
+              <button onClick={() => askAda(adaQuestion)} disabled={!adaQuestion.trim() || adaAsking}
+                style={{ padding: "4px 12px", borderRadius: 7, background: adaQuestion.trim() && !adaAsking ? BLUE : "rgba(255,255,255,.08)", border: "none", color: adaQuestion.trim() && !adaAsking ? "white" : "rgba(255,255,255,.25)", fontSize: 12, fontWeight: 700, cursor: adaQuestion.trim() ? "pointer" : "default", fontFamily: "Inter,sans-serif", transition: "all .15s", whiteSpace: "nowrap" as const }}>
+                {adaAsking ? "…" : "Ask"}
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {adaAnswer && (
+                <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  style={{ marginTop: 10, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10, padding: "11px 14px", fontSize: 12.5, color: "rgba(255,255,255,.75)", lineHeight: 1.6 }}>
+                  {adaAnswer}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <button onClick={() => setOpen(true)}
+              style={{ marginTop: 12, fontSize: 11.5, color: "rgba(255,255,255,.3)", background: "none", border: "none", cursor: "pointer", fontFamily: "Inter,sans-serif", padding: 0, textDecoration: "underline", textDecorationStyle: "dotted" as const }}>
+              Open full Ada chat →
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* ── Plan + Payment ── */}
+      {/* ── Plan at a glance ── quick, no scrolling needed ── */}
       <SettingsCard style={{ padding: 0, overflow: "hidden" }}>
-        {/* Dark plan header */}
-        <div style={{ background: "linear-gradient(135deg,#1A1F3E 0%,#0F172A 55%,#1E1B4B 100%)", padding: "24px 28px", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, background: "radial-gradient(circle,rgba(36,99,235,.3) 0%,transparent 70%)", pointerEvents: "none" }} />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" as const, position: "relative" }}>
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.35)", textTransform: "uppercase" as const, letterSpacing: 1, marginBottom: 6 }}>Current Plan</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <span style={{ fontSize: 26, fontWeight: 900, color: "white", letterSpacing: -0.8 }}>{B.plan}</span>
-                <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: `${statusColor}28`, color: statusColor, border: `1px solid ${statusColor}40` }}>{statusLabel}</span>
-              </div>
-              <div style={{ fontSize: 21, fontWeight: 800, color: "white", letterSpacing: -0.5 }}>
-                {fmt(B.monthly_price)}<span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,255,255,.4)" }}> / month</span>
-              </div>
-              <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.35)", marginTop: 4 }}>
-                Billed monthly · Next charge <span style={{ color: "rgba(255,255,255,.6)", fontWeight: 600 }}>{B.next_billing}</span>
-              </div>
+        {/* Plan header row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: "1px solid #F1F5F9", flexWrap: "wrap" as const, gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 20, fontWeight: 900, color: "#080D1A", letterSpacing: -0.5 }}>{B.plan}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: `${statusColor}14`, color: statusColor, border: `1px solid ${statusColor}30` }}>{statusLabel}</span>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-              <button style={{ ...BTN_PRIMARY, fontSize: 12.5, padding: "10px 20px", background: BLUE, boxShadow: "0 4px 14px rgba(36,99,235,.45)", whiteSpace: "nowrap" as const }}>
-                Upgrade Plan →
-              </button>
-              <a href="mailto:bibilade@intelligencyai.com.ng" style={{ fontSize: 12, color: "rgba(255,255,255,.4)", textDecoration: "none" }}>
-                Talk to sales
-              </a>
+            <div style={{ width: 1, height: 24, background: "#E8EDF5" }} />
+            <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+              {/* Currency toggle inline */}
+              {(["NGN","USD"] as const).map(c => (
+                <button key={c} onClick={() => setCurrency(c)}
+                  style={{ padding: "3px 8px", borderRadius: 5, border: "none", background: currency === c ? "#EFF6FF" : "transparent", color: currency === c ? BLUE : "#9CA3AF", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "Inter,sans-serif" }}>
+                  {c}
+                </button>
+              ))}
             </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#080D1A", letterSpacing: -0.5 }}>
+              {fmt(B.monthly_price)}<span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>/mo</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 11.5, color: "#9CA3AF" }}>Next charge {B.next_billing}</span>
+            <button style={{ ...BTN_PRIMARY, fontSize: 12, padding: "8px 16px" }}>Upgrade →</button>
           </div>
         </div>
 
-        {/* Payment method */}
-        <div style={{ padding: "18px 28px", borderTop: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+        {/* Paystack + card row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", flexWrap: "wrap" as const, gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 28, borderRadius: 5, background: "#1A3A7A", display: "grid", placeItems: "center", fontSize: 10, fontWeight: 800, color: "white", letterSpacing: 0.5 }}>
-              VISA
+            {/* Paystack logo pill */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, border: "1px solid #E8EDF5", background: "#F8FAFF" }}>
+              <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+                <rect width="32" height="32" rx="6" fill="#011B33"/>
+                <rect x="6" y="10" width="20" height="4" rx="2" fill="#00C3F7"/>
+                <rect x="6" y="18" width="14" height="4" rx="2" fill="#00C3F7" opacity="0.5"/>
+              </svg>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#374151", letterSpacing: 0.3 }}>Paystack</span>
             </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
-                {B.payment_method.brand} ···· {B.payment_method.last4}
+            <div style={{ width: 1, height: 20, background: "#E8EDF5" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 34, height: 22, borderRadius: 4, background: "#1A3A7A", display: "grid", placeItems: "center", fontSize: 8.5, fontWeight: 800, color: "white", letterSpacing: 0.3 }}>VISA</div>
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: "#111827" }}>{B.payment_method.brand} ···· {B.payment_method.last4}</div>
+                <div style={{ fontSize: 10.5, color: "#9CA3AF" }}>Expires {B.payment_method.expiry}</div>
               </div>
-              <div style={{ fontSize: 11, color: "#9CA3AF" }}>Expires {B.payment_method.expiry}</div>
             </div>
           </div>
-          <button style={{ ...BTN_GHOST, fontSize: 12, padding: "7px 14px" }}>Update card</button>
+          <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 14px" }}>Update card</button>
         </div>
       </SettingsCard>
 
-      {/* ── Monthly usage ── */}
+      {/* ── Usage this cycle ── */}
       <SettingsCard style={{ padding: 24 }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>Usage This Cycle</div>
           <div style={{ fontSize: 11.5, color: "#9CA3AF" }}>Resets {B.next_billing}</div>
         </div>
-        <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 20 }}>
-          These are your monthly allocations included in the {B.plan} plan. They reset at the start of each billing cycle.
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {B.capacity.map((cap, idx) => {
             const pct = Math.round((cap.used / cap.total) * 100);
             const remaining = cap.total - cap.used;
@@ -846,31 +944,30 @@ function BillingSection() {
             const bg = isCrit ? "#FFF5F5" : isWarn ? "#FFFBEB" : "white";
             return (
               <motion.div key={cap.key}
-                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
-                style={{ padding: "14px 16px", borderRadius: 12, border: `1px solid ${borderColor}`, background: bg }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 9, background: `${cap.color}12`, display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>{cap.icon}</div>
+                initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
+                style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${borderColor}`, background: bg }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 15, flexShrink: 0 }}>{cap.icon}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{cap.label}</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: "#111827" }}>{cap.label}</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, color: "#111827", fontVariantNumeric: "tabular-nums" as const }}>
                         <AnimatedNumber target={cap.used} />
-                        <span style={{ fontSize: 11, fontWeight: 400, color: "#9CA3AF" }}> / {cap.total.toLocaleString()}</span>
+                        <span style={{ fontSize: 11, fontWeight: 400, color: "#9CA3AF" }}>/{cap.total.toLocaleString()}</span>
                       </div>
                     </div>
-                    <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 8 }}>{cap.hint}</div>
-                    <div style={{ height: 5, background: "#F1F5F9", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: 4, background: "#F1F5F9", borderRadius: 2, overflow: "hidden" }}>
                       <motion.div
                         initial={{ width: 0 }} animate={{ width: barsReady ? `${pct}%` : 0 }}
-                        transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 + idx * 0.05 }}
-                        style={{ height: "100%", background: trackColor, borderRadius: 3 }}
+                        transition={{ duration: 0.7, ease: "easeOut", delay: 0.05 + idx * 0.04 }}
+                        style={{ height: "100%", background: trackColor, borderRadius: 2 }}
                       />
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 5 }}>
-                      <div style={{ fontSize: 11, color: "#9CA3AF" }}>{remaining.toLocaleString()} remaining</div>
-                      {isWarn && <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: AMBER, fontWeight: 600 }}><AlertTriangle size={11} /> Nearing limit</div>}
-                      {isCrit && <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: RED, fontWeight: 600 }}><AlertTriangle size={11} /> Limit reached</div>}
-                      {!isWarn && !isCrit && <div style={{ fontSize: 11, color: "#CBD5E1" }}>{pct}%</div>}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                      <div style={{ fontSize: 10.5, color: "#9CA3AF" }}>{remaining.toLocaleString()} remaining</div>
+                      {isWarn && <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: AMBER, fontWeight: 700 }}><AlertTriangle size={10} /> Nearing limit</div>}
+                      {isCrit && <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: RED, fontWeight: 700 }}><AlertTriangle size={10} /> Limit reached</div>}
+                      {!isWarn && !isCrit && <div style={{ fontSize: 10.5, color: "#CBD5E1" }}>{pct}%</div>}
                     </div>
                   </div>
                 </div>
@@ -882,26 +979,27 @@ function BillingSection() {
 
       {/* ── Invoice history ── */}
       <SettingsCard style={{ padding: 24 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 18 }}>Invoice History</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 16 }}>Invoice History</div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
           {B.invoice_history.map((inv, i) => (
-            <div key={inv.ref} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: i < B.invoice_history.length - 1 ? "1px solid #F8FAFF" : "none" }}>
-              <div style={{ width: 36, height: 36, borderRadius: 9, background: "#F0FDF4", display: "grid", placeItems: "center", flexShrink: 0 }}>
-                <CreditCard size={15} color={GREEN} />
+            <div key={inv.ref} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderBottom: i < B.invoice_history.length - 1 ? "1px solid #F8FAFF" : "none" }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F0FDF4", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <CreditCard size={13} color={GREEN} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{fmt(inv.amount)}</div>
-                <div style={{ fontSize: 11.5, color: "#9CA3AF", fontFamily: "monospace" }}>{inv.ref} · {inv.date}</div>
+                <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: "monospace" }}>{inv.ref} · {inv.date}</div>
               </div>
               <Badge label="Paid" color={GREEN} />
-              <button onClick={handleDownload} style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px", display: "flex", alignItems: "center", gap: 5 }}>
-                <Download size={12} /> PDF
+              <button onClick={handleDownload} style={{ ...BTN_GHOST, fontSize: 11, padding: "5px 10px", display: "flex", alignItems: "center", gap: 4 }}>
+                <Download size={11} /> PDF
               </button>
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 14, fontSize: 12, color: "#9CA3AF" }}>
-          For older invoices or billing queries, email <a href="mailto:bibilade@intelligencyai.com.ng" style={{ color: BLUE, textDecoration: "none" }}>bibilade@intelligencyai.com.ng</a>
+        <div style={{ marginTop: 14, fontSize: 11.5, color: "#9CA3AF" }}>
+          For older invoices or billing queries, email{" "}
+          <a href="mailto:bibilade@intelligencyai.com.ng" style={{ color: BLUE, textDecoration: "none" }}>bibilade@intelligencyai.com.ng</a>
         </div>
       </SettingsCard>
 
