@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../store/AuthContext";
+import FieldScoreLogo from "../components/brand/FieldScoreLogo";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -35,11 +36,10 @@ export default function LoginPage() {
     <div style={{minHeight:"100vh",background:"#F0F4FF",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Inter,sans-serif"}}>
       <div style={{background:"white",borderRadius:16,padding:40,width:"100%",maxWidth:400,boxShadow:"0 4px 24px rgba(8,13,26,.10)"}}>
         <div style={{marginBottom:28,display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
-          <div style={{background:"linear-gradient(135deg,#1A1F3E 0%,#0F172A 100%)",borderRadius:12,padding:"16px 22px",width:"100%",display:"flex",justifyContent:"center"}}>
-            <img src="/researchos-logo.png" alt="ResearchOS" style={{width:210,maxWidth:"80%",height:"auto",objectFit:"contain"}} />
+          <div style={{background:"#0A1230",borderRadius:12,padding:"22px 22px 20px",width:"100%",display:"flex",justifyContent:"center"}}>
+            <FieldScoreLogo height={26} mode="dark" casing="#0A1230" tagline />
           </div>
-          <div style={{fontSize:15,fontWeight:600,color:"#2463EB",letterSpacing:0.3}}>Intelligence for Better Decisions</div>
-          <div style={{fontSize:11,color:"#9CA3AF",letterSpacing:0.5,textTransform:"uppercase",fontWeight:500}}>by Intelligency AI</div>
+          <div style={{fontSize:11,color:"#9CA3AF",letterSpacing:0.5,textTransform:"uppercase",fontWeight:500}}>Global Research · Trusted Data · Smarter Decisions</div>
         </div>
         <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",marginBottom:6}}>Welcome back</h1>
         <p style={{fontSize:13.5,color:"#6B7280",marginBottom:28}}>Sign in to your workspace</p>

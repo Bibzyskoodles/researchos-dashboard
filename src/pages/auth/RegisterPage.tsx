@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { INDUSTRY_PROFILES } from '../../context/ResearchContext';
+import FieldScoreLogo from '../../components/brand/FieldScoreLogo';
 import api from '../../services/api';
 
 const BLUE = '#2463EB';
@@ -67,12 +68,8 @@ export default function RegisterPage() {
     }}>
       <div style={{ width: '100%', maxWidth: step === 2 ? 680 : step === 3 ? 600 : 420 }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 32 }}>
-          <div style={{ width: 36, height: 36, background: BLUE, borderRadius: 9, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 800, color: 'white' }}>FS</div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#080D1A' }}>FieldScore</div>
-            <div style={{ fontSize: 10, color: '#9CA3AF', letterSpacing: 1, textTransform: 'uppercase' }}>ResearchOS</div>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
+          <FieldScoreLogo height={22} mode="light" casing="#F0F4FF" sub="ResearchOS" style={{ alignItems: 'center' }} />
         </div>
 
         {/* Step 1: Account details */}

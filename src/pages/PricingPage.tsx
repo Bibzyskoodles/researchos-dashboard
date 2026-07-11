@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { adaApi } from "../services/api";
+import FieldScoreLogo from "../components/brand/FieldScoreLogo";
 
 // ── Public marketing page — no auth, no dashboard shell ──────────────────────
 const BLUE = "#2463EB", GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", PURPLE = "#7C3AED", CYAN = "#06B6D4";
@@ -320,8 +321,8 @@ export default function PricingPage() {
       {/* NAVBAR */}
       <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", maxWidth: 1200, margin: "0 auto" }}>
         <Link to="/pricing" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
-          <div style={{ background: "linear-gradient(135deg,#1A1F3E,#0F172A)", borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center" }}>
-            <img src="/researchos-logo.png" alt="ResearchOS" style={{ height: 22, width: "auto", objectFit: "contain" }} />
+          <div style={{ background: "#0A1230", borderRadius: 8, padding: "8px 14px", display: "flex", alignItems: "center" }}>
+            <FieldScoreLogo height={16} mode="dark" casing="#0A1230" />
           </div>
         </Link>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>

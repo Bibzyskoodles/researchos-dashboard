@@ -4,6 +4,7 @@ import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { useProject } from '../../context/ProjectContext';
 import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard } from 'lucide-react';
+import FieldScoreLogo from '../brand/FieldScoreLogo';
 
 const BLUE = '#2463EB';
 
@@ -60,21 +61,8 @@ export default function Sidebar() {
       {/* Logo */}
       <div style={{
         padding: '18px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
-        display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <div style={{
-          width: 32, height: 32, background: BLUE, borderRadius: 8,
-          display: 'grid', placeItems: 'center', fontSize: 12,
-          fontWeight: 800, color: 'white', flexShrink: 0,
-        }}>FS</div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: -0.3 }}>
-            FieldScore
-          </div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,.28)', letterSpacing: 1, textTransform: 'uppercase' }}>
-            ResearchOS
-          </div>
-        </div>
+        <FieldScoreLogo height={17} mode="dark" casing="#080D1A" sub="ResearchOS" />
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
