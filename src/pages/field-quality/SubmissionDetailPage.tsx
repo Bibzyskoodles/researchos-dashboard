@@ -15,7 +15,64 @@ const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3A
 
 type AiScanStatus = "idle"|"loading"|"done"|"error";
 interface AiResult { score: number; finding: string; status: "PASS"|"FLAG"|"FAIL" }
-interface AiScan { status: AiScanStatus; image?: AiResult; audio?: AiResult; text?: AiResult }
+interface AiScan { status: AiScanStatus; image?: AiResult; metadata?: AiResult; audio?: AiResult; text?: AiResult }
+
+// Known AI tool signatures in EXIF/XMP/IPTC metadata
+const AI_TOOL_SIGNATURES = [
+  "DALL-E","dall-e","dall_e","openai",
+  "Stable Diffusion","stable-diffusion","stable_diffusion","StableDiffusion","SDXL",
+  "Midjourney","midjourney",
+  "Adobe Firefly","firefly","adobe firefly",
+  "NovelAI","novelai",
+  "DreamBooth","dreambooth",
+  "Imagen","imagen",
+  "Gemini","gemini",
+  "Flux","flux",
+  "ComfyUI","comfyui",
+  "Automatic1111","automatic1111",
+  "InvokeAI","invokeai",
+  "ControlNet","controlnet",
+  "AI generated","AI-generated","ai_generated",
+  "artificial intelligence",
+  "text-to-image","text_to_image",
+  "C2PA","c2pa","content credentials",
+];
+
+async function scanImageMetadata(imageUrl: string): Promise<AiResult> {
+  try {
+    const resp = await fetch(imageUrl, { mode: "cors" });
+    if (!resp.ok) {
+      return { score: 50, finding: "Image not accessible for metadata scan (may require authentication).", status: "FLAG" };
+    }
+    const buf = await resp.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    // Decode the first 64KB as Latin-1 to scan for text signatures in EXIF/XMP/IPTC
+    const decoder = new TextDecoder("latin1");
+    const textSample = decoder.decode(bytes.slice(0, Math.min(65536, bytes.length)));
+    const found: string[] = [];
+    for (const sig of AI_TOOL_SIGNATURES) {
+      if (textSample.includes(sig)) found.push(sig);
+    }
+    // Also check for C2PA box (JUMBF marker: bytes 0xFF 0xE2 with "JP" label or "c2pa" string)
+    const c2paMarker = textSample.includes("c2pa") || textSample.includes("C2PA") || textSample.includes("content/c2pa");
+    if (c2paMarker && !found.includes("C2PA")) found.push("C2PA content credentials");
+    if (found.length > 0) {
+      const toolNames = found.filter(f => !f.toLowerCase().startsWith("c2pa") && !f.toLowerCase().startsWith("content")).slice(0, 3);
+      const hasC2PA = found.some(f => f.toLowerCase().includes("c2pa") || f.toLowerCase().includes("content credential"));
+      if (hasC2PA && toolNames.length === 0) {
+        return { score: 10, finding: `C2PA Content Credentials detected — this image carries a cryptographic watermark from an AI tool. This is a strong indicator of AI generation.`, status: "FAIL" };
+      }
+      return {
+        score: 5,
+        finding: `AI tool signature found in image metadata: ${found.slice(0,3).join(", ")}. This image was almost certainly created or processed by an AI tool.`,
+        status: "FAIL",
+      };
+    }
+    return { score: 95, finding: "No AI tool signatures or content credentials found in image metadata.", status: "PASS" };
+  } catch {
+    return { score: 50, finding: "Metadata scan failed — image may be on a different origin (CORS).", status: "FLAG" };
+  }
+}
 
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
 const vclr=(v:string)=>v==="PASS"?GREEN:v==="FLAG"?AMBER:RED;
@@ -159,13 +216,42 @@ export default function SubmissionDetailPage(){
   const runAiScan = useCallback(async () => {
     if (!sub) return;
     setAiScan({ status: "loading" });
-    const results: Partial<Pick<AiScan,"image"|"audio"|"text">> = {};
+    const results: Partial<Pick<AiScan,"image"|"metadata"|"audio"|"text">> = {};
 
-    // --- IMAGE: OpenAI Vision (AI-generated + stock/internet download detection) ---
-    const openaiKey = process.env.REACT_APP_OPENAI_KEY;
-    if (sub.image_url && openaiKey) {
-      try {
-        const SYSTEM_PROMPT = `You are an expert forensic image analyst for a field research quality control platform. Your job is to detect fraudulent images submitted as supposed field evidence.
+    if (sub.image_url) {
+      const openaiKey = process.env.REACT_APP_OPENAI_KEY;
+
+      // Run metadata scan and OpenAI vision scan in parallel
+      const [metaResult, visionResult] = await Promise.all([
+        // --- METADATA: scan raw bytes for AI tool signatures & C2PA watermarks ---
+        scanImageMetadata(sub.image_url),
+
+        // --- VISION: OpenAI GPT-4o fraud detection ---
+        (async (): Promise<AiResult | null> => {
+          if (!openaiKey) return { score: 50, finding: "OpenAI key not configured (REACT_APP_OPENAI_KEY) — visual AI scan unavailable.", status: "FLAG" };
+          try {
+            // Fetch the image ourselves so it works even with auth-gated KoboToolbox URLs
+            let imagePayload: { type: "image_url"; image_url: { url: string; detail: "high" } }
+                            | { type: "image_url"; image_url: { url: string; detail: "high" } };
+            try {
+              const imgResp = await fetch(sub.image_url, { mode: "cors" });
+              if (imgResp.ok) {
+                const blob = await imgResp.blob();
+                const base64 = await new Promise<string>((res, rej) => {
+                  const reader = new FileReader();
+                  reader.onload = () => res((reader.result as string));
+                  reader.onerror = rej;
+                  reader.readAsDataURL(blob);
+                });
+                imagePayload = { type: "image_url", image_url: { url: base64, detail: "high" } };
+              } else {
+                imagePayload = { type: "image_url", image_url: { url: sub.image_url, detail: "high" } };
+              }
+            } catch {
+              imagePayload = { type: "image_url", image_url: { url: sub.image_url, detail: "high" } };
+            }
+
+            const SYSTEM_PROMPT = `You are an expert forensic image analyst for a field research quality control platform. Your job is to detect fraudulent images submitted as supposed field evidence.
 
 Respond ONLY with JSON, no other text: {"fraud_probability": 0-100, "fraud_type": "genuine"|"ai_generated"|"stock_photo"|"internet_download"|"screenshot"|"staged_or_suspicious", "signals": ["signal1", "signal2"], "finding": "one clear sentence for a non-technical auditor"}
 
@@ -180,6 +266,7 @@ AI-GENERATED IMAGE SIGNALS:
 - Lighting that is perfectly diffused from no real source
 - Objects with impossible geometry or merged elements
 - Text in the image that is garbled, misspelled, or blurred in a non-human way
+- Overly smooth gradient backgrounds without real environmental detail
 
 STOCK PHOTO / PROFESSIONAL PHOTOGRAPHY SIGNALS:
 - Perfect professional composition (rule of thirds, leading lines, no camera shake)
@@ -207,49 +294,49 @@ GENUINE FIELDWORK SIGNALS (lower the score):
 - Visible field equipment (clipboards, tablets, forms, branded research materials)
 - Background details that are specific and verifiable (signage, vehicles, buildings with local character)`;
 
-        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type":"application/json", "Authorization":`Bearer ${openaiKey}` },
-          body: JSON.stringify({
-            model: "gpt-4o",
-            max_tokens: 400,
-            messages: [
-              { role: "system", content: SYSTEM_PROMPT },
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: "Analyse this image submitted as field research evidence from Nigeria. Apply all fraud detection checks." },
-                  { type: "image_url", image_url: { url: sub.image_url, detail: "high" } }
+            const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              headers: { "Content-Type":"application/json", "Authorization":`Bearer ${openaiKey}` },
+              body: JSON.stringify({
+                model: "gpt-4o",
+                max_tokens: 400,
+                messages: [
+                  { role: "system", content: SYSTEM_PROMPT },
+                  { role: "user", content: [
+                    { type: "text", text: "Analyse this image submitted as field research evidence from Nigeria. Apply all fraud detection checks." },
+                    imagePayload,
+                  ]},
                 ]
-              }
-            ]
-          })
-        });
-        const data = await resp.json();
-        const raw = data.choices?.[0]?.message?.content || "{}";
-        const jsonMatch = raw.match(/\{[\s\S]*?\}/);
-        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-        const prob = typeof parsed.fraud_probability === "number" ? parsed.fraud_probability : 50;
-        const authenticity = 100 - prob;
-        const fraudType: string = parsed.fraud_type || "genuine";
-        const signals: string[] = Array.isArray(parsed.signals) ? parsed.signals : [];
-        const fraudLabel = fraudType === "ai_generated" ? "AI-generated image"
-          : fraudType === "stock_photo" ? "Stock photo"
-          : fraudType === "internet_download" ? "Downloaded from internet"
-          : fraudType === "screenshot" ? "Screenshot of another image"
-          : fraudType === "staged_or_suspicious" ? "Staged or suspicious"
-          : "";
-        const finding = parsed.finding || (prob >= 60 ? `Fraud detected (${fraudLabel || "suspicious"}): ${signals.slice(0,2).join("; ") || "multiple signals present"}.` : "Image appears to be a genuine field photograph.");
-        results.image = {
-          score: authenticity,
-          finding: signals.length > 0 ? `${finding} Signals: ${signals.join("; ")}` : finding,
-          status: authenticity >= 70 ? "PASS" : authenticity >= 45 ? "FLAG" : "FAIL",
-        };
-      } catch {
-        results.image = { score: 0, finding: "AI image scan could not complete — check OpenAI key configuration.", status: "FLAG" };
-      }
-    } else if (sub.image_url && !openaiKey) {
-      results.image = { score: 50, finding: "OpenAI key not configured (REACT_APP_OPENAI_KEY) — image AI scan unavailable.", status: "FLAG" };
+              })
+            });
+            const data = await resp.json();
+            const raw = data.choices?.[0]?.message?.content || "{}";
+            const jsonMatch = raw.match(/\{[\s\S]*?\}/);
+            const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+            const prob = typeof parsed.fraud_probability === "number" ? parsed.fraud_probability : 50;
+            const authenticity = 100 - prob;
+            const fraudType: string = parsed.fraud_type || "genuine";
+            const signals: string[] = Array.isArray(parsed.signals) ? parsed.signals : [];
+            const fraudLabel = fraudType === "ai_generated" ? "AI-generated image"
+              : fraudType === "stock_photo" ? "Stock photo"
+              : fraudType === "internet_download" ? "Downloaded from internet"
+              : fraudType === "screenshot" ? "Screenshot"
+              : fraudType === "staged_or_suspicious" ? "Staged or suspicious"
+              : "";
+            const finding = parsed.finding || (prob >= 60 ? `Fraud detected (${fraudLabel || "suspicious"}): ${signals.slice(0,2).join("; ") || "multiple signals present"}.` : "Image appears to be a genuine field photograph.");
+            return {
+              score: authenticity,
+              finding: signals.length > 0 ? `${finding} Signals: ${signals.join("; ")}` : finding,
+              status: authenticity >= 70 ? "PASS" : authenticity >= 45 ? "FLAG" : "FAIL",
+            };
+          } catch {
+            return { score: 0, finding: "Visual AI scan could not complete — check OpenAI key and network access.", status: "FLAG" };
+          }
+        })(),
+      ]);
+
+      results.metadata = metaResult;
+      if (visionResult) results.image = visionResult;
     }
 
     // --- AUDIO: use existing is_genuine_interview + transcript analysis ---
@@ -657,54 +744,43 @@ GENUINE FIELDWORK SIGNALS (lower the score):
             })}
           </div>
 
-          {/* AI Authenticity */}
-          <div style={{background:"white",borderRadius:16,padding:20,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
+          {/* AI Authenticity — always auto-runs on load */}
+          <div style={{background:"white",borderRadius:16,padding:20,border:`1px solid ${aiScan.status==="done"&&(aiScan.image?.status==="FAIL"||aiScan.metadata?.status==="FAIL")?"#FECACA":"#E8EDF5"}`,boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7}}>AI Authenticity</div>
+              <Sparkles size={14} color={ROSE}/>
+              <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7}}>AI Fraud Detection</div>
               <div style={{marginLeft:"auto"}}>
-                {aiScan.status==="idle"&&(
-                  <button onClick={runAiScan}
-                    style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,background:ROSE,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,color:"white",fontFamily:"Inter,sans-serif"}}>
-                    <Sparkles size={12}/> Run AI Scan
-                  </button>
-                )}
                 {aiScan.status==="loading"&&(
-                  <span style={{fontSize:11,color:ROSE,fontWeight:600}}>Scanning…</span>
+                  <span style={{fontSize:11,color:ROSE,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+                    <div style={{width:7,height:7,borderRadius:"50%",background:ROSE}}/>Scanning…
+                  </span>
                 )}
-                {aiScan.status==="done"&&(
+                {(aiScan.status==="done"||aiScan.status==="error")&&(
                   <button onClick={runAiScan}
                     style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:7,background:"#F8FAFF",border:"1px solid #E8EDF5",cursor:"pointer",fontSize:11,color:"#6B7280",fontFamily:"Inter,sans-serif"}}>
                     <Cpu size={11}/> Re-scan
                   </button>
                 )}
-                {aiScan.status==="error"&&(
-                  <button onClick={runAiScan}
-                    style={{padding:"4px 10px",borderRadius:7,background:RED+"15",border:`1px solid ${RED}33`,cursor:"pointer",fontSize:11,color:RED,fontFamily:"Inter,sans-serif"}}>
-                    Retry
-                  </button>
-                )}
               </div>
             </div>
-            {aiScan.status==="idle"&&(
-              <div style={{fontSize:12,color:"#9CA3AF",textAlign:"center",padding:"16px 0",lineHeight:1.6}}>
-                Scan this submission's image, audio, and transcript for signs of AI generation or synthetic content.
-              </div>
-            )}
             {aiScan.status==="loading"&&(
-              <div style={{display:"flex",flexDirection:"column",gap:8,padding:"8px 0"}}>
-                {[["Image","Calling OpenAI Vision…"],["Audio","Checking interview authenticity…"],["Transcript","Analysing speech patterns…"]].map(([lbl,msg])=>(
-                  <div key={lbl} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#F8FAFF",borderRadius:10,border:"1px solid #E8EDF5"}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:ROSE,animation:"pulse 1s infinite"}}/>
-                    <span style={{fontSize:12,color:"#374151",fontWeight:600}}>{lbl}</span>
-                    <span style={{fontSize:11,color:"#9CA3AF",marginLeft:"auto"}}>{msg}</span>
+              <div style={{display:"flex",flexDirection:"column",gap:6,padding:"4px 0"}}>
+                {[["Metadata","Scanning EXIF / C2PA watermarks…"],["Visual","GPT-4o forensic image analysis…"],["Audio","Checking interview authenticity…"]].map(([lbl,msg])=>(
+                  <div key={lbl} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"#F8FAFF",borderRadius:9,border:"1px solid #E8EDF5"}}>
+                    <div style={{width:7,height:7,borderRadius:"50%",background:ROSE,flexShrink:0}}/>
+                    <span style={{fontSize:12,color:"#374151",fontWeight:600,width:60}}>{lbl}</span>
+                    <span style={{fontSize:11,color:"#9CA3AF"}}>{msg}</span>
                   </div>
                 ))}
               </div>
             )}
             {aiScan.status==="done"&&(
               <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                {aiScan.metadata&&(
+                  <EngineBar label="Metadata / Watermark" score={aiScan.metadata.score} status={aiScan.metadata.status} finding={aiScan.metadata.finding} weight={0} color={ROSE} icon={<Shield size={13} color={ROSE}/>}/>
+                )}
                 {aiScan.image&&(
-                  <EngineBar label="Image Authenticity" score={aiScan.image.score} status={aiScan.image.status} finding={aiScan.image.finding} weight={0} color={ROSE} icon={<Camera size={13} color={ROSE}/>}/>
+                  <EngineBar label="Visual Forensics (GPT-4o)" score={aiScan.image.score} status={aiScan.image.status} finding={aiScan.image.finding} weight={0} color={ROSE} icon={<Camera size={13} color={ROSE}/>}/>
                 )}
                 {aiScan.audio&&(
                   <EngineBar label="Audio / Speech" score={aiScan.audio.score} status={aiScan.audio.status} finding={aiScan.audio.finding} weight={0} color={ROSE} icon={<Mic size={13} color={ROSE}/>}/>
@@ -712,7 +788,7 @@ GENUINE FIELDWORK SIGNALS (lower the score):
                 {aiScan.text&&(
                   <EngineBar label="Transcript Patterns" score={aiScan.text.score} status={aiScan.text.status} finding={aiScan.text.finding} weight={0} color={ROSE} icon={<Cpu size={13} color={ROSE}/>}/>
                 )}
-                {!aiScan.image&&!aiScan.audio&&!aiScan.text&&(
+                {!aiScan.image&&!aiScan.metadata&&!aiScan.audio&&!aiScan.text&&(
                   <div style={{fontSize:12,color:"#9CA3AF",textAlign:"center",padding:"12px 0"}}>No media available to scan.</div>
                 )}
               </div>
