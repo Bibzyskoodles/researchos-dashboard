@@ -895,7 +895,6 @@ function ResearchSection() {
   const [minDuration, setMinDuration] = useState(cfg.minDurationMins);
   const [maxDuration, setMaxDuration] = useState(cfg.maxDurationMins);
   const [mediaRetention, setMediaRetention] = useState("90");
-  const [passThreshold, setPassThreshold] = useState(cfg.passScoreThreshold);
   const [saved, setSaved] = useState(false);
 
   const save = () => {
@@ -906,7 +905,6 @@ function ResearchSection() {
       duplicateThresholdPct: dupThreshold,
       minDurationMins: minDuration,
       maxDurationMins: maxDuration,
-      passScoreThreshold: passThreshold,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -924,7 +922,6 @@ function ResearchSection() {
             <SettingsField label={`Duplicate Detection Threshold: ${dupThreshold}%`} hint="Similarity score that triggers a duplicate flag"><input type="range" min={50} max={100} value={dupThreshold} onChange={e => setDupThreshold(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
             <SettingsField label={`Min Interview Duration: ${minDuration} mins`} hint="Submissions below this are flagged as too fast"><input type="range" min={1} max={60} value={minDuration} onChange={e => setMinDuration(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
             <SettingsField label={`Max Interview Duration: ${maxDuration} mins`} hint="Submissions above this are flagged as too slow"><input type="range" min={30} max={360} value={maxDuration} onChange={e => setMaxDuration(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
-            <SettingsField label={`Pass Score Threshold: ${passThreshold}/100`} hint="Minimum score for a PASS verdict. Submissions below this are shown as REJECT."><input type="range" min={0} max={100} value={passThreshold} onChange={e => setPassThreshold(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
           </div>
         </SettingsGroup>
         <SectionDivider label="InsightScore Defaults" />
