@@ -36,8 +36,8 @@ export interface EngineRequirements {
 // Bible §3 default requirement per engine — GPS/Duration/Image are the channels an
 // enumerator physically controls at the point of interview.
 export const DEFAULT_REQUIREMENTS: EngineRequirements = {
-  gps: "REQUIRED",
-  duration: "REQUIRED",
+  gps: "OPTIONAL",
+  duration: "OPTIONAL",
   image: "REQUIRED",
   audio: "OPTIONAL",
   duplicate: "OPTIONAL",
@@ -81,6 +81,10 @@ export interface EngineConfig {
   zoneList: ZoneList;               // Bible §16 — many named field sites; overrides assignedZone when non-empty
   gating: GatingConfig;
 
+  // Content requirements — client-defined hints for reviewers and the AI
+  imageContentHint: string;   // e.g. "Must show respondent's face and household entry"
+  audioContentHint: string;   // e.g. "Must capture both interviewer and respondent voices"
+
   // AI detection penalties
   aiHighPenalty: number;
   aiMediumPenalty: number;
@@ -95,7 +99,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   duplicateThresholdPct: 85,
   minDurationMins: 8,
   maxDurationMins: 120,
-  passScoreThreshold: 70,
+  passScoreThreshold: 60,
 
   weights: { gps: 0.25, duration: 0.22, image: 0.20, audio: 0.13, duplicate: 0.10, text_ai: 0.10 },
   enabled: { gps: true, duration: true, image: true, audio: true, duplicate: true, text_ai: true },
@@ -107,6 +111,9 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
     duration_reject_skips: [],
     duplicate_reject_skips: [],
   },
+
+  imageContentHint: "",
+  audioContentHint: "",
 
   aiHighPenalty: 55,
   aiMediumPenalty: 20,

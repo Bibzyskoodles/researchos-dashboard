@@ -1678,6 +1678,9 @@ function EngineSection() {
   const [newZoneLon, setNewZoneLon] = useState("");
   const [newZoneRadius, setNewZoneRadius] = useState(250);
   const [newZoneLabel, setNewZoneLabel] = useState("");
+  const [passScoreThreshold, setPassScoreThreshold] = useState(_cfg.passScoreThreshold);
+  const [imageContentHint, setImageContentHint] = useState(_cfg.imageContentHint || "");
+  const [audioContentHint, setAudioContentHint] = useState(_cfg.audioContentHint || "");
   const [aiHighPenalty, setAiHighPenalty] = useState(_cfg.aiHighPenalty);
   const [aiMediumPenalty, setAiMediumPenalty] = useState(_cfg.aiMediumPenalty);
   const [aiMediumFlag, setAiMediumFlag] = useState(_cfg.aiMediumFlag);
@@ -1699,6 +1702,9 @@ function EngineSection() {
       ...current,
       weights: { ...weights } as EngineConfig["weights"],
       requirements: { ...requirements },
+      passScoreThreshold,
+      imageContentHint: imageContentHint.trim(),
+      audioContentHint: audioContentHint.trim(),
       assignedZone: {
         lat: zoneLat.trim() !== "" && !isNaN(Number(zoneLat)) ? Number(zoneLat) : null,
         lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
@@ -1741,6 +1747,39 @@ function EngineSection() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* Pass Verdict Threshold — what the client defines as a PASS */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.7 }}>What counts as a PASS?</div>
+          <div style={{ flex: 1, height: 1, background: "#F1F5F9" }} />
+        </div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18, padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0", lineHeight: 1.6 }}>
+          A submission with a Trust Index <strong>at or above this score</strong> is a <span style={{ color: GREEN, fontWeight: 700 }}>PASS</span>. Below it — or with a high-severity flag (fake GPS, duplicate, impossible speed) — is a <span style={{ color: RED, fontWeight: 700 }}>REJECT</span>. Minor flags with a passing score are <span style={{ color: AMBER, fontWeight: 700 }}>FLAG</span> (send to review).
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <div style={{ flex: 1 }}>
+            <input type="range" min={30} max={90} value={passScoreThreshold}
+              onChange={e => setPassScoreThreshold(Number(e.target.value))}
+              style={{ width: "100%", accentColor: GREEN }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "#9CA3AF", marginTop: 4 }}>
+              <span>Lenient (30)</span><span>Strict (90)</span>
+            </div>
+          </div>
+          <div style={{ width: 64, textAlign: "center" }}>
+            <div style={{ fontSize: 28, fontWeight: 900, color: GREEN, lineHeight: 1 }}>{passScoreThreshold}</div>
+            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600, marginTop: 2 }}>/ 100</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+          {[{ label: "Lenient (50)", v: 50 }, { label: "Balanced (60)", v: 60 }, { label: "Standard (70)", v: 70 }, { label: "Strict (80)", v: 80 }].map(p => (
+            <button key={p.v} onClick={() => setPassScoreThreshold(p.v)}
+              style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${passScoreThreshold === p.v ? GREEN : "#E2E8F0"}`, background: passScoreThreshold === p.v ? "#F0FDF4" : "white", color: passScoreThreshold === p.v ? GREEN : "#6B7280", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif" }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </SettingsCard>
 
       {/* Score Weights */}
       <SettingsCard style={{ padding: 24 }}>
@@ -1798,6 +1837,22 @@ function EngineSection() {
                     onChange={e => setWeights(prev => ({ ...prev, [k]: Number(e.target.value) / 100 }))}
                     style={{ width: "100%", accentColor: BLUE }}
                   />
+                )}
+                {isEnabled && key === "image" && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "#9CA3AF", marginBottom: 4 }}>What should the photo show? <span style={{ fontWeight: 400 }}>(guides reviewers)</span></div>
+                    <input value={imageContentHint} onChange={e => setImageContentHint(e.target.value)}
+                      placeholder="e.g. Respondent's face and household entry clearly visible"
+                      style={{ ...INPUT, fontSize: 12 }} />
+                  </div>
+                )}
+                {isEnabled && key === "audio" && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "#9CA3AF", marginBottom: 4 }}>What should the audio capture? <span style={{ fontWeight: 400 }}>(guides reviewers)</span></div>
+                    <input value={audioContentHint} onChange={e => setAudioContentHint(e.target.value)}
+                      placeholder="e.g. Both interviewer and respondent voices, full questionnaire duration"
+                      style={{ ...INPUT, fontSize: 12 }} />
+                  </div>
                 )}
               </div>
             );
