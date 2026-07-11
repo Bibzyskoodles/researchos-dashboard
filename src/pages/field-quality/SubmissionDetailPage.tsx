@@ -60,7 +60,26 @@ export default function SubmissionDetailPage(){
   useEffect(()=>{
     if(!id)return;
     dashboardApi.getSubmission(id)
-      .then(r=>setSub(r.data))
+      .then(r=>{
+        const data=r.data;
+        // KoboToolbox stores audio/image as _attachments array.
+        // Normalise them so the rest of the page can use audio_url / image_url.
+        if(!data.audio_url&&Array.isArray(data._attachments)){
+          const audioAtt=data._attachments.find((a:any)=>{
+            const name=String(a.filename||a.name||"").toLowerCase();
+            return name.endsWith(".mp3")||name.endsWith(".m4a")||name.endsWith(".ogg")||name.endsWith(".wav")||name.endsWith(".aac")||name.endsWith(".3gp")||name.endsWith(".amr");
+          });
+          if(audioAtt) data.audio_url=audioAtt.download_url||audioAtt.url||audioAtt.filename;
+        }
+        if(!data.image_url&&Array.isArray(data._attachments)){
+          const imgAtt=data._attachments.find((a:any)=>{
+            const name=String(a.filename||a.name||"").toLowerCase();
+            return name.endsWith(".jpg")||name.endsWith(".jpeg")||name.endsWith(".png")||name.endsWith(".webp")||name.endsWith(".gif");
+          });
+          if(imgAtt) data.image_url=imgAtt.download_url||imgAtt.url||imgAtt.filename;
+        }
+        setSub(data);
+      })
       .catch(()=>setError("Submission not found"))
       .finally(()=>setLoading(false));
   },[id]);
@@ -71,6 +90,16 @@ export default function SubmissionDetailPage(){
     window.addEventListener("fs-engine-config-changed",handler);
     return ()=>window.removeEventListener("fs-engine-config-changed",handler);
   },[]);
+
+  // Auto-run AI scan once when submission loads and has an image or audio
+  useEffect(()=>{
+    if(!sub)return;
+    if(sub.image_url||sub.audio_url||sub.checks?.audio?.transcript){
+      const t=setTimeout(()=>runAiScan(),1200);
+      return ()=>clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[sub?.submission_id]);
 
   const showToast=(msg:string)=>{
     setToast(msg);
@@ -387,8 +416,11 @@ export default function SubmissionDetailPage(){
                   </div>
                 </div>
               ):(
-                <div style={{height:60,display:"grid",placeItems:"center",background:"#F8FAFF",borderRadius:10,color:"#9CA3AF",fontSize:13}}>
-                  No audio submitted
+                <div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{fontSize:12.5,fontWeight:600,color:"#92400E",marginBottom:4}}>Audio not found in this submission</div>
+                  <div style={{fontSize:11.5,color:"#78350F",lineHeight:1.6}}>
+                    If you recorded audio using KoboToolbox's Record button, it is stored as an attachment. The scoring engine may not have received it. Check that your KoboToolbox form sends all attachments via the webhook (Settings → REST Services → check "Send all attachments").
+                  </div>
                 </div>
               )}
               {checks.audio?.transcript&&(

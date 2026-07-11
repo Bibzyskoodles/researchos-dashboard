@@ -2,10 +2,10 @@ import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
-import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle } from "lucide-react";
+import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle, ExternalLink } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -70,6 +70,7 @@ export default function SubmissionsPage(){
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
   const location = useLocation();
+  const navigate = useNavigate();
   useAdaGreeting({ page: "submissions" });
   const { addMessage, setState } = useAdaContext();
 
@@ -232,6 +233,11 @@ export default function SubmissionsPage(){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <ScoreRing score={selected.overall_score} size={52}/>
+                  <button onClick={()=>navigate(`/submissions/${selected.submission_id}`)}
+                    title="View full details"
+                    style={{display:"flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:7,background:BLUE,border:"none",cursor:"pointer",color:"white",fontSize:11,fontWeight:600,fontFamily:"Inter,sans-serif"}}>
+                    <ExternalLink size={12}/> Full
+                  </button>
                   <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#9CA3AF",padding:4}}><X size={16}/></button>
                 </div>
               </div>
@@ -287,7 +293,7 @@ export default function SubmissionsPage(){
                 )}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Quality Engines</div>
-                  <EngineBar label="GPS Accuracy"  value={selected.gps?.accuracy_m ? Math.max(0,100-selected.gps.accuracy_m) : 92} color={BLUE}   icon={<MapPin size={12} color={BLUE}/>}/>
+                  <EngineBar label="GPS Accuracy"  value={(selected as any).checks?.gps?.score ?? (selected.gps?.accuracy_m ? Math.max(0, Math.round(100 - Math.log10(Math.max(1, selected.gps.accuracy_m)) * 40)) : 0)} color={BLUE}   icon={<MapPin size={12} color={BLUE}/>}/>
                   <EngineBar label="Image Quality" value={selected.checks?.image?.score??0}  color={PURPLE} icon={<Camera size={12} color={PURPLE}/>}/>
                   <EngineBar label="Audio Quality" value={selected.checks?.audio?.score??0}  color={GREEN}  icon={<Mic size={12} color={GREEN}/>}/>
                   <EngineBar label="Duration"      value={selected.duration_mins ? Math.min(100, Math.round((Number(selected.duration_mins)/60)*100)) : 0} color={AMBER} icon={<Clock size={12} color={AMBER}/>}/>
@@ -332,6 +338,10 @@ export default function SubmissionsPage(){
                     </div>
                   ))}
                 </div>
+                <button onClick={()=>navigate(`/submissions/${selected.submission_id}`)}
+                  style={{width:"100%",padding:"11px",borderRadius:10,background:BLUE,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"white",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+                  <ExternalLink size={14}/> View Full Details — Map, Audio, AI Scan
+                </button>
               </div>
             </motion.div>
           )}
