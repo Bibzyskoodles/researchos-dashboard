@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './store/AuthContext';
 import { AdaProvider } from './ada/AdaContext';
 import { GamifyProvider } from './gamify/GamifyContext';
@@ -26,6 +26,7 @@ import InsightsPage from './pages/insights/InsightsPage';
 import ReportsPage from './pages/reports/ReportsPage';
 import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 import OverviewPage from './pages/field-quality/OverviewPage';
+import SubmissionDetailPage from './pages/field-quality/SubmissionDetailPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -40,11 +41,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   );
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
-}
-
-function LegacySubmissionRedirect() {
-  useParams<{ id: string }>();
-  return <Navigate to="/projects" replace />;
 }
 
 // Wrap AppShell in a single ProjectProvider so Sidebar always has project context
@@ -93,7 +89,7 @@ function AppRoutes() {
         {/* Cross-project standalone pages */}
         <Route path="overview" element={<OverviewPage />} />
         <Route path="submissions" element={<SubmissionsPage />} />
-        <Route path="submissions/:id" element={<LegacySubmissionRedirect />} />
+        <Route path="submissions/:id" element={<SubmissionDetailPage />} />
         <Route path="insights" element={<InsightsPage />} />
         <Route path="insights/:id" element={<Navigate to="/insights" replace />} />
         <Route path="reports" element={<ReportsPage />} />

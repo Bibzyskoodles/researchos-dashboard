@@ -333,7 +333,7 @@ export default function OverviewPage() {
             <div style={{ background: "white", borderRadius: 16, overflow: "hidden", border: "1px solid #FED7AA", boxShadow: "0 2px 12px rgba(217,119,6,.08)" }}>
               <div style={{ padding: "14px 20px 10px", borderBottom: "1px solid #FEF3C7", display: "flex", justifyContent: "space-between" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>⚠ Requires Attention</div>
-                <span onClick={() => nav("/submissions?q=FLAG")} style={{ fontSize: 11, fontWeight: 600, color: AMBER, cursor: "pointer" }}>View all</span>
+                <span onClick={() => nav("/submissions")} style={{ fontSize: 11, fontWeight: 600, color: AMBER, cursor: "pointer" }}>View all</span>
               </div>
               {data.alerts.slice(0, 2).map((a, i) => (
                 <motion.div key={a.submission_id} whileHover={{ background: "#FFFBEB" }} onClick={() => nav(`/submissions/${a.submission_id}`)}
