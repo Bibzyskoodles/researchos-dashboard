@@ -154,6 +154,7 @@ export interface ZoneCheck {
   radiusM: number;
   withinZone: boolean;
   label?: string;
+  matchedZoneIndex?: number; // index into zoneList when matching from a list
 }
 
 // ─── The engine ───────────────────────────────────────────────────────────────
@@ -167,22 +168,43 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   const lat = numOrNull(sub.gps?.lat), lon = numOrNull(sub.gps?.lon);
   const accuracy = numOrNull(sub.gps?.accuracy_m);
 
-  // ── Assigned-zone verification (Bible §6.7) ──
+  // ── Assigned-zone verification (Bible §6.7 / §16) ──
   // When the client tells us where the enumerator should be, we verify by
   // haversine distance. Outside the radius acts exactly like the backend's
   // OUTSIDE_ASSIGNED_ZONE flag (override + hard gate). When no zone is set,
   // the platform simply reports where enumeration happened.
+  //
+  // If zoneList is non-empty, we pick the CLOSEST zone and verify against it.
+  // This lets one config serve many field sites (e.g. 40 PHCs in a state).
   let zoneCheck: ZoneCheck | null = null;
-  const zone = config.assignedZone;
-  if (zone && zone.lat != null && zone.lon != null && lat != null && lon != null) {
-    const distanceM = Math.round(haversineMeters(lat, lon, zone.lat, zone.lon));
-    const withinZone = distanceM <= zone.radiusM;
-    zoneCheck = { distanceM, radiusM: zone.radiusM, withinZone, label: zone.label };
-    if (withinZone) {
-      audit.push(`Assigned zone: enumeration was ${distanceM} m from the assigned location${zone.label ? ` (${zone.label})` : ""} — within the ${zone.radiusM} m radius. Presence corroborated.`);
-    } else {
-      audit.push(`Assigned zone: enumeration was ${distanceM} m from the assigned location${zone.label ? ` (${zone.label})` : ""} — OUTSIDE the ${zone.radiusM} m radius.`);
-      if (!flags.includes("OUTSIDE_ASSIGNED_ZONE")) flags.push("OUTSIDE_ASSIGNED_ZONE");
+  const effectiveZones: (typeof config.assignedZone)[] =
+    (config.zoneList && config.zoneList.length > 0)
+      ? config.zoneList
+      : (config.assignedZone?.lat != null && config.assignedZone?.lon != null ? [config.assignedZone] : []);
+
+  if (effectiveZones.length > 0 && lat != null && lon != null) {
+    // Find the closest zone
+    let closestIdx = 0;
+    let closestDist = Infinity;
+    effectiveZones.forEach((z, i) => {
+      if (z.lat == null || z.lon == null) return;
+      const d = haversineMeters(lat, lon, z.lat, z.lon);
+      if (d < closestDist) { closestDist = d; closestIdx = i; }
+    });
+    const zone = effectiveZones[closestIdx];
+    if (zone && zone.lat != null && zone.lon != null) {
+      const distanceM = Math.round(haversineMeters(lat, lon, zone.lat, zone.lon));
+      const withinZone = distanceM <= zone.radiusM;
+      zoneCheck = {
+        distanceM, radiusM: zone.radiusM, withinZone, label: zone.label,
+        matchedZoneIndex: config.zoneList && config.zoneList.length > 0 ? closestIdx : undefined,
+      };
+      if (withinZone) {
+        audit.push(`Assigned zone: enumeration was ${distanceM} m from${zone.label ? ` "${zone.label}"` : " the assigned location"} — within the ${zone.radiusM} m radius. Presence corroborated.`);
+      } else {
+        audit.push(`Assigned zone: enumeration was ${distanceM} m from${zone.label ? ` "${zone.label}"` : " the assigned location"} — OUTSIDE the ${zone.radiusM} m radius.`);
+        if (!flags.includes("OUTSIDE_ASSIGNED_ZONE")) flags.push("OUTSIDE_ASSIGNED_ZONE");
+      }
     }
   }
 

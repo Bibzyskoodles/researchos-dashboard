@@ -2,19 +2,24 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
-import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle, ExternalLink, Shield, Cpu } from "lucide-react";
+import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle, ExternalLink, Shield, Cpu, Zap, TrendingDown, ChevronDown, ChevronUp } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import { loadEngineConfig } from "../../services/engineConfig";
 import { computeTrustIndex } from "../../services/trustEngine";
 import type { TrustResult } from "../../services/trustEngine";
+import { analyseEnumeratorSignals, getSubmissionTravelFlags, isInBurst } from "../../services/fraudSignals";
+import type { EnumeratorFraudSignals } from "../../services/fraudSignals";
 import { useProject } from "../../context/ProjectContext";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
 const vbg=(v:string)=>v==="PASS"?"#ECFDF5":v==="FLAG"?"#FFFBEB":"#FEF2F2";
 const vc=(v:string)=>v==="PASS"?GREEN:v==="FLAG"?AMBER:RED;
+
+const riskClr = (r:string) =>
+  r === "CRITICAL" ? RED : r === "HIGH" ? AMBER : r === "MEDIUM" ? PURPLE : GREEN;
 
 function ScoreRing({score,size=48}:{score:number;size?:number}){
   const r=size/2-4,c=2*Math.PI*r,color=clr(score);
@@ -66,6 +71,105 @@ function MediaBadge({type,status,score}:{type:"image"|"audio";status:string;scor
   );
 }
 
+// ── CSV export ─────────────────────────────────────────────────────────────────
+
+function exportCsv(subs: Submission[], trustMap: Record<string, TrustResult>) {
+  const header = [
+    "submission_id","enumerator_id","submission_date","duration_mins",
+    "backend_score","trust_index","verdict","risk","completeness","confidence",
+    "flags","gps_lat","gps_lon","gps_accuracy_m","gps_address",
+  ];
+  const rows = subs.map(s => {
+    const t = trustMap[s.submission_id];
+    const flags = Array.isArray(s.flags) ? s.flags.join("|") : String(s.flags || "");
+    return [
+      s.submission_id, s.enumerator_id,
+      s.scored_at || s.submission_date || "",
+      s.duration_mins ?? "",
+      s.overall_score ?? "",
+      t ? t.trustIndex : "",
+      t ? t.verdict : s.verdict ?? "",
+      t ? t.risk : "",
+      t ? t.completeness.toFixed(3) : "",
+      t ? t.confidence.toFixed(3) : "",
+      flags,
+      s.gps?.lat ?? "", s.gps?.lon ?? "", s.gps?.accuracy_m ?? "",
+      `"${(s.gps?.address || "").replace(/"/g,'""')}"`,
+    ].map(v => String(v ?? ""));
+  });
+  const csv = [header, ...rows].map(r => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `submissions_trust_index_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ── Fraud signal panel ─────────────────────────────────────────────────────────
+
+function FraudSignalsBanner({ signals }: { signals: EnumeratorFraudSignals[] }) {
+  const [open, setOpen] = useState(false);
+  const critical = signals.filter(s => s.riskLevel === "CRITICAL");
+  const high     = signals.filter(s => s.riskLevel === "HIGH");
+  if (critical.length === 0 && high.length === 0) return null;
+
+  const worst = critical.length > 0 ? "CRITICAL" : "HIGH";
+  const clrW = riskClr(worst);
+
+  return (
+    <div style={{borderRadius:12,border:`1px solid ${clrW}44`,background:`${clrW}0A`,overflow:"hidden"}}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+        <div style={{width:32,height:32,borderRadius:8,background:`${clrW}18`,display:"grid",placeItems:"center",flexShrink:0}}>
+          <TrendingDown size={16} color={clrW}/>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:700,color:clrW}}>
+            Cross-Submission Fraud Signals
+          </div>
+          <div style={{fontSize:11.5,color:"#6B7280",marginTop:1}}>
+            {critical.length > 0 && `${critical.length} enumerator${critical.length>1?"s":""} with IMPOSSIBLE travel · `}
+            {high.length > 0 && `${high.length} enumerator${high.length>1?"s":""} with HIGH-risk patterns`}
+          </div>
+        </div>
+        {open ? <ChevronUp size={16} color="#9CA3AF"/> : <ChevronDown size={16} color="#9CA3AF"/>}
+      </button>
+
+      {open && (
+        <div style={{padding:"0 16px 14px"}}>
+          {signals.filter(s => s.riskLevel !== "CLEAR").map(sig => (
+            <div key={sig.enumeratorId} style={{padding:"10px 12px",borderRadius:9,background:"white",border:`1px solid ${riskClr(sig.riskLevel)}22`,marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:5,background:`${riskClr(sig.riskLevel)}15`,color:riskClr(sig.riskLevel)}}>
+                  {sig.riskLevel}
+                </span>
+                <span style={{fontSize:12.5,fontWeight:700,color:"#374151",fontFamily:"monospace"}}>{sig.enumeratorId.slice(0,14)}…</span>
+              </div>
+              {sig.travelSegments.length > 0 && (
+                <div style={{fontSize:11.5,color:"#374151",marginBottom:4}}>
+                  <strong>Travel:</strong>{" "}
+                  {sig.travelSegments.map((t,i) => (
+                    <span key={i} style={{marginRight:12}}>
+                      {t.distanceM.toLocaleString()}m in {t.durationMinutes}min
+                      {" "}({t.impliedSpeedKph} km/h — <span style={{color:riskClr(t.risk)}}>{t.risk}</span>)
+                    </span>
+                  ))}
+                </div>
+              )}
+              {sig.timingAlerts.map((a,i) => (
+                <div key={i} style={{fontSize:11.5,color:"#374151",marginBottom:2}}>
+                  <strong>{a.type === "BURST" ? "Burst:" : "Off-hours:"}</strong> {a.reading}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SubmissionsPage(){
   const [subs,setSubs]=useState<Submission[]>([]);
   const [loading,setLoading]=useState(true);
@@ -87,13 +191,24 @@ export default function SubmissionsPage(){
   }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const engineCfg = useMemo(() => loadEngineConfig(), [cfgVersion]);
+
   // One Trust Index per submission — identical to the detail page by construction
-  // (same pure function, same config snapshot). Bible §0 principle 5.
   const trustMap = useMemo(() => {
     const m: Record<string, TrustResult> = {};
     subs.forEach(s => { m[s.submission_id] = computeTrustIndex(s as any, engineCfg); });
     return m;
   }, [subs, engineCfg]);
+
+  // Cross-submission fraud signals — impossible travel + burst detection
+  const fraudSignals = useMemo<EnumeratorFraudSignals[]>(() => {
+    if (subs.length < 2) return [];
+    return analyseEnumeratorSignals(subs.map(s => ({
+      submission_id: s.submission_id,
+      enumerator_id: s.enumerator_id,
+      submission_date: s.scored_at || s.submission_date || "",
+      gps: s.gps ? { lat: s.gps.lat, lon: s.gps.lon } : null,
+    })));
+  }, [subs]);
 
   const load = useCallback((isRefresh=false)=>{
     if(isRefresh) setRefreshing(true);
@@ -158,7 +273,10 @@ export default function SubmissionsPage(){
             style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:refreshing?"not-allowed":"pointer",opacity:refreshing?.6:1}}>
             <RefreshCw size={13} style={{animation:refreshing?"spin 1s linear infinite":"none"}}/>{refreshing?"Refreshing…":"Refresh"}
           </button>
-          <button style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:"pointer"}}>
+          <button
+            onClick={() => exportCsv(subs, trustMap)}
+            disabled={subs.length === 0}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:subs.length===0?"not-allowed":"pointer",opacity:subs.length===0?.5:1}}>
             <Download size={13}/> Export CSV
           </button>
         </div>
@@ -170,6 +288,11 @@ export default function SubmissionsPage(){
           <span>{error}</span>
           <button onClick={()=>load(true)} style={{marginLeft:"auto",fontSize:12,fontWeight:600,color:RED,background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Retry</button>
         </div>
+      )}
+
+      {/* Cross-submission fraud signals banner */}
+      {!loading && fraudSignals.length > 0 && (
+        <FraudSignalsBanner signals={fraudSignals}/>
       )}
 
       {!loading&&!error&&subs.length===0&&(
@@ -214,6 +337,9 @@ export default function SubmissionsPage(){
             const displayVerdict = effectiveVerdict(sub);
             const imgScore = sub.checks?.image?.score ?? 0;
             const audScore = sub.checks?.audio?.score ?? 0;
+            const travelFlags = getSubmissionTravelFlags(sub.submission_id, fraudSignals);
+            const inBurst = isInBurst(sub.submission_id, fraudSignals);
+            const hasTravelFlag = travelFlags.length > 0;
             return(
             <motion.div key={sub.submission_id} onClick={()=>setSelected(selected?.submission_id===sub.submission_id?null:sub)}
               whileHover={{background:"#FAFBFF"}}
@@ -228,6 +354,16 @@ export default function SubmissionsPage(){
                   <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:vbg(displayVerdict),color:vc(displayVerdict)}}>{displayVerdict}</span>
                   {imgScore>0&&<MediaBadge type="image" status={sub.checks?.image?.status||""} score={imgScore}/>}
                   {audScore>0&&<MediaBadge type="audio" status={sub.checks?.audio?.status||""} score={audScore}/>}
+                  {hasTravelFlag&&(
+                    <span style={{display:"flex",alignItems:"center",gap:3,fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:"#FFF7ED",color:AMBER,border:`1px solid ${AMBER}44`}}>
+                      <Zap size={9}/>{travelFlags[0].risk === "IMPOSSIBLE" ? "IMPOSSIBLE TRAVEL" : "FAST TRAVEL"}
+                    </span>
+                  )}
+                  {inBurst&&!hasTravelFlag&&(
+                    <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:"#F5F3FF",color:PURPLE,border:`1px solid ${PURPLE}44`}}>
+                      BURST
+                    </span>
+                  )}
                 </div>
                 <div style={{fontSize:12,color:"#374151",fontWeight:500,marginBottom:3}}>{(sub as any).enumerator_name || sub.enumerator_id}</div>
                 <div style={{display:"flex",alignItems:"center",gap:12,fontSize:11,color:"#9CA3AF"}}>
@@ -253,7 +389,10 @@ export default function SubmissionsPage(){
           );})}        </div>
 
         <AnimatePresence>
-          {selected&&(
+          {selected&&(()=>{
+            const selTravelFlags = getSubmissionTravelFlags(selected.submission_id, fraudSignals);
+            const selInBurst    = isInBurst(selected.submission_id, fraudSignals);
+            return (
             <motion.div initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:20}}
               style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 4px 24px rgba(10,15,28,.1)",position:"sticky",top:16}}>
               <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",justifyContent:"space-between",background:"linear-gradient(135deg,#F8FAFF,white)"}}>
@@ -284,6 +423,28 @@ export default function SubmissionsPage(){
                     </div>
                   );
                 })()}
+
+                {/* Cross-submission fraud signals for this specific submission */}
+                {(selTravelFlags.length > 0 || selInBurst) && (
+                  <div style={{padding:"12px 14px",borderRadius:10,background:"#FFF7ED",border:"1px solid #FDE68A"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:AMBER,textTransform:"uppercase",letterSpacing:.7,marginBottom:6,display:"flex",alignItems:"center",gap:5}}>
+                      <Zap size={11}/> Cross-Submission Signals
+                    </div>
+                    {selTravelFlags.map((t,i) => (
+                      <div key={i} style={{fontSize:11.5,color:"#92400E",marginBottom:4}}>
+                        <strong style={{color:riskClr(t.risk)}}>{t.risk}:</strong>{" "}
+                        {(t.distanceM/1000).toFixed(1)} km in {t.durationMinutes} min ({t.impliedSpeedKph} km/h).
+                        {" "}<span style={{color:"#9CA3AF"}}>vs {t.fromId.slice(0,8)}…</span>
+                      </div>
+                    ))}
+                    {selInBurst && (
+                      <div style={{fontSize:11.5,color:"#6B21A8"}}>
+                        <strong>BURST:</strong> This submission is part of a rapid-fire cluster — multiple submissions within minutes.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {selected.checks?.image&&(
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8,display:"flex",alignItems:"center",gap:5}}><Camera size={11}/>Image Quality</div>
@@ -297,7 +458,7 @@ export default function SubmissionsPage(){
                           <div style={{height:4,background:"#E8EDF5",borderRadius:2,overflow:"hidden",marginBottom:8}}>
                             <div style={{height:"100%",width:`${selected.checks.image.score}%`,background:clr(selected.checks.image.score),borderRadius:2}}/>
                           </div>
-                          {selected.checks.image.finding&&<div style={{fontSize:11.5,color:"#6B7280",fontStyle:"italic"}}>"{ selected.checks.image.finding}"</div>}
+                          {selected.checks.image.finding&&<div style={{fontSize:11.5,color:"#6B7280",fontStyle:"italic"}}>"{selected.checks.image.finding}"</div>}
                         </>
                       ) : (
                         <div style={{fontSize:12,color:"#9CA3AF"}}>No image submitted or engine did not score this submission.</div>
@@ -318,7 +479,7 @@ export default function SubmissionsPage(){
                           <div style={{height:4,background:"#E8EDF5",borderRadius:2,overflow:"hidden",marginBottom:8}}>
                             <div style={{height:"100%",width:`${selected.checks.audio.score}%`,background:clr(selected.checks.audio.score),borderRadius:2}}/>
                           </div>
-                          {selected.checks.audio.finding&&<div style={{fontSize:11.5,color:"#6B7280",fontStyle:"italic"}}>"{ selected.checks.audio.finding}"</div>}
+                          {selected.checks.audio.finding&&<div style={{fontSize:11.5,color:"#6B7280",fontStyle:"italic"}}>"{selected.checks.audio.finding}"</div>}
                         </>
                       ) : (
                         <div style={{fontSize:12,color:"#9CA3AF"}}>No audio submitted or engine did not score this submission.</div>
@@ -414,7 +575,8 @@ export default function SubmissionsPage(){
                 </button>
               </div>
             </motion.div>
-          )}
+            );
+          })()}
         </AnimatePresence>
       </div>
     </div>

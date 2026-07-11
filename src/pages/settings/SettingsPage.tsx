@@ -13,7 +13,7 @@ import CreditsPanel from "../../gamify/CreditsPanel";
 import { orgAdminApi } from "../../services/api";
 import { useNavigate as useNav, useLocation } from "react-router-dom";
 import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
-import type { EngineConfig, EngineRequirement, EngineRequirements } from "../../services/engineConfig";
+import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -1672,6 +1672,12 @@ function EngineSection() {
   const [zoneLon, setZoneLon] = useState<string>(_cfg.assignedZone.lon != null ? String(_cfg.assignedZone.lon) : "");
   const [zoneRadius, setZoneRadius] = useState<number>(_cfg.assignedZone.radiusM);
   const [zoneLabel, setZoneLabel] = useState<string>(_cfg.assignedZone.label || "");
+  // Multi-zone list — overrides the single zone when non-empty
+  const [zoneList, setZoneList] = useState<AssignedZone[]>([..._cfg.zoneList]);
+  const [newZoneLat, setNewZoneLat] = useState("");
+  const [newZoneLon, setNewZoneLon] = useState("");
+  const [newZoneRadius, setNewZoneRadius] = useState(250);
+  const [newZoneLabel, setNewZoneLabel] = useState("");
   const [aiHighPenalty, setAiHighPenalty] = useState(_cfg.aiHighPenalty);
   const [aiMediumPenalty, setAiMediumPenalty] = useState(_cfg.aiMediumPenalty);
   const [aiMediumFlag, setAiMediumFlag] = useState(_cfg.aiMediumFlag);
@@ -1699,6 +1705,7 @@ function EngineSection() {
         radiusM: zoneRadius,
         label: zoneLabel.trim(),
       },
+      zoneList: [...zoneList],
       gating: {
         gps_reject_skips: [...gating.gps_reject_skips],
         duration_reject_skips: [...gating.duration_reject_skips],
@@ -1829,6 +1836,74 @@ function EngineSection() {
         {zoneLat.trim() !== "" && zoneLon.trim() !== "" && (
           <div style={{ marginTop: 12, fontSize: 11.5, color: GREEN, fontWeight: 600 }}>
             ✓ Zone verification active — submissions more than {zoneRadius} m from {zoneLabel || `${zoneLat}, ${zoneLon}`} will be rejected for review.
+          </div>
+        )}
+      </SettingsCard>
+
+      {/* Multi-site zone list */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>🗺 Field Site Zone List</div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 14, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
+          Real projects often have <strong>many field sites</strong> (e.g. 40 health centres). Add each one here. When zones are listed, FieldScore picks the <strong>closest zone</strong> to each submission's GPS coordinates and verifies against it — so one config serves the whole project. When this list has entries, the single zone above is ignored.
+        </div>
+
+        {/* Existing zones */}
+        {zoneList.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+            {zoneList.map((z, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 9, background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#111827" }}>{z.label || `Zone ${i + 1}`}</div>
+                  <div style={{ fontSize: 11, color: "#6B7280", fontFamily: "monospace", marginTop: 2 }}>{z.lat}, {z.lon} · radius {z.radiusM}m</div>
+                </div>
+                <button onClick={() => setZoneList(prev => prev.filter((_, j) => j !== i))}
+                  style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, cursor: "pointer", padding: "4px 8px", color: RED, fontSize: 11, fontFamily: "Inter,sans-serif" }}>
+                  <Trash2 size={12}/>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add new zone */}
+        <div style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid #E2E8F0", background: "#FAFAFA" }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", marginBottom: 10 }}>Add a field site</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            {[
+              { label: "Latitude", value: newZoneLat, set: setNewZoneLat, ph: "e.g. 6.5158" },
+              { label: "Longitude", value: newZoneLon, set: setNewZoneLon, ph: "e.g. 3.3898" },
+            ].map(f => (
+              <div key={f.label}>
+                <div style={{ fontSize: 10.5, color: "#9CA3AF", fontWeight: 600, marginBottom: 4 }}>{f.label}</div>
+                <input value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #E2E8F0", fontSize: 12.5, fontFamily: "monospace", boxSizing: "border-box" as const }}/>
+              </div>
+            ))}
+            <div>
+              <div style={{ fontSize: 10.5, color: "#9CA3AF", fontWeight: 600, marginBottom: 4 }}>Radius (metres)</div>
+              <input type="number" min={10} value={newZoneRadius} onChange={e => setNewZoneRadius(Math.max(10, Number(e.target.value)||10))}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #E2E8F0", fontSize: 12.5, fontFamily: "monospace", boxSizing: "border-box" as const }}/>
+            </div>
+            <div>
+              <div style={{ fontSize: 10.5, color: "#9CA3AF", fontWeight: 600, marginBottom: 4 }}>Site name</div>
+              <input value={newZoneLabel} onChange={e => setNewZoneLabel(e.target.value)} placeholder="e.g. Akoka PHC"
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #E2E8F0", fontSize: 12.5, boxSizing: "border-box" as const }}/>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const lat = Number(newZoneLat.trim()), lon = Number(newZoneLon.trim());
+              if (isNaN(lat) || isNaN(lon) || !newZoneLat.trim() || !newZoneLon.trim()) return;
+              setZoneList(prev => [...prev, { lat, lon, radiusM: newZoneRadius, label: newZoneLabel.trim() }]);
+              setNewZoneLat(""); setNewZoneLon(""); setNewZoneRadius(250); setNewZoneLabel("");
+            }}
+            style={{ ...BTN_PRIMARY, display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            <Plus size={13}/> Add Site
+          </button>
+        </div>
+        {zoneList.length > 0 && (
+          <div style={{ marginTop: 12, fontSize: 11.5, color: GREEN, fontWeight: 600 }}>
+            ✓ {zoneList.length} field site{zoneList.length > 1 ? "s" : ""} configured — FieldScore will match each submission to the nearest site.
           </div>
         )}
       </SettingsCard>

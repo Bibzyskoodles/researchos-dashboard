@@ -54,6 +54,11 @@ export interface AssignedZone {
   label?: string;
 }
 
+// Bible §16 (new) — a project may have many named field sites.
+// The engine picks the closest zone from the list and verifies against it.
+// An empty list means no zone verification (same as lat/lon = null in the single zone).
+export type ZoneList = AssignedZone[];
+
 export interface GatingConfig {
   gps_reject_skips: string[];
   duration_reject_skips: string[];
@@ -72,7 +77,8 @@ export interface EngineConfig {
   weights: EngineWeights;
   enabled: EngineEnabled;          // legacy boolean map, kept in sync with requirements
   requirements: EngineRequirements; // Bible §4 — the authoritative per-engine policy
-  assignedZone: AssignedZone;       // Bible §6.7 — where the enumerator should be
+  assignedZone: AssignedZone;       // Bible §6.7 — single zone (legacy / simple projects)
+  zoneList: ZoneList;               // Bible §16 — many named field sites; overrides assignedZone when non-empty
   gating: GatingConfig;
 
   // AI detection penalties
@@ -95,6 +101,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   enabled: { gps: true, duration: true, image: true, audio: true, duplicate: true, text_ai: true },
   requirements: { ...DEFAULT_REQUIREMENTS },
   assignedZone: { lat: null, lon: null, radiusM: 250, label: "" },
+  zoneList: [],
   gating: {
     gps_reject_skips: [],
     duration_reject_skips: [],
@@ -131,6 +138,7 @@ export function loadEngineConfig(): EngineConfig {
       enabled,
       requirements,
       assignedZone: { ...DEFAULT_ENGINE_CONFIG.assignedZone, ...(parsed.assignedZone || {}) },
+      zoneList: Array.isArray(parsed.zoneList) ? parsed.zoneList : [],
       gating: {
         gps_reject_skips: parsed.gating?.gps_reject_skips ?? [...DEFAULT_ENGINE_CONFIG.gating.gps_reject_skips],
         duration_reject_skips: parsed.gating?.duration_reject_skips ?? [...DEFAULT_ENGINE_CONFIG.gating.duration_reject_skips],

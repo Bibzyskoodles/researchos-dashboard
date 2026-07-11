@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Enumerator } from "../../types";
-import { AlertTriangle, Users, Award } from "lucide-react";
+import { AlertTriangle, Users, Award, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { usePlatform } from "../../platform/PlatformProvider";
@@ -12,6 +12,49 @@ import { useProject } from "../../context/ProjectContext";
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const COLORS=[BLUE,PURPLE,GREEN,AMBER,RED];
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
+
+// ── Inline reputation estimate from enumerator aggregates ─────────────────────
+// Full Trust-Index-based Bayesian reputation requires per-submission data;
+// this quick estimate uses the aggregate fields already fetched.
+
+type RiskBand = "TRUSTED" | "WATCH" | "CONCERN" | "CRITICAL";
+
+interface QuickReputation {
+  score: number;      // 0–100 Bayesian estimate
+  riskBand: RiskBand;
+  riskColor: string;
+  riskLabel: string;
+}
+
+const PRIOR_MEAN = 70;
+const PRIOR_STRENGTH = 5;
+
+function quickReputation(e: Enumerator): QuickReputation {
+  const n     = e.total_submissions ?? e.total_subs ?? 1;
+  const avg   = e.avg_score ?? 50;
+  const score = Math.round((PRIOR_MEAN * PRIOR_STRENGTH + avg * n) / (PRIOR_STRENGTH + n));
+  const rejectRate = n > 0
+    ? 1 - ((e.pass_rate ?? 0) / 100) - ((e.flag_count ?? e.flags ?? 0) / n)
+    : 0;
+
+  const riskBand: RiskBand =
+    score >= 80 && rejectRate < 0.10 ? "TRUSTED"  :
+    score >= 65 && rejectRate < 0.30 ? "WATCH"    :
+    score >= 50                       ? "CONCERN"  : "CRITICAL";
+
+  const riskColor =
+    riskBand === "TRUSTED"  ? GREEN  :
+    riskBand === "WATCH"    ? BLUE   :
+    riskBand === "CONCERN"  ? AMBER  : RED;
+
+  const riskLabel =
+    riskBand === "TRUSTED"  ? "Trusted researcher"          :
+    riskBand === "WATCH"    ? "Acceptable — keep watching"  :
+    riskBand === "CONCERN"  ? "Patterns need review"        :
+                              "Consistent quality issues";
+
+  return { score, riskBand, riskColor, riskLabel };
+}
 
 type Tab = "team" | "scorecard";
 
@@ -82,6 +125,7 @@ export default function EnumeratorsPage(){
               const flagCount = e.flags ?? e.flag_count ?? 0;
               const passCount = e.pass_count ?? Math.round((e.pass_rate ?? 0) * totalSubs / 100);
               const initials = displayName.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase();
+              const rep = quickReputation(e);
               return(
                 <motion.div key={e.enumerator_id} whileHover={{y:-4, boxShadow: "0 8px 24px rgba(0,61,165,0.12)"}}
                   style={{background:"white",borderRadius:16,padding:"20px",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)",cursor:"pointer",position:"relative",overflow:"hidden"}}
@@ -89,11 +133,19 @@ export default function EnumeratorsPage(){
                   <div style={{position:"absolute",top:0,right:0,width:80,height:80,borderRadius:"0 0 0 80px",background:col+"12"}}/>
                   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12}}>
                     <div style={{width:40,height:40,borderRadius:"50%",background:col,display:"grid",placeItems:"center",fontSize:14,fontWeight:800,color:"white"}}>{initials}</div>
-                    <span style={{fontSize:22}}>{medals[i]}</span>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                      <span style={{fontSize:22}}>{medals[i]}</span>
+                      <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:`${rep.riskColor}18`,color:rep.riskColor}}>
+                        {rep.riskBand}
+                      </span>
+                    </div>
                   </div>
                   <div style={{fontSize:12,fontWeight:700,color:"#080D1A",marginBottom:2}}>{displayName}</div>
                   <div style={{fontSize:11,color:"#9CA3AF",marginBottom:12}}>{totalSubs} interviews</div>
-                  <div style={{fontSize:32,fontWeight:800,color:col,letterSpacing:-2,lineHeight:1,marginBottom:8}}>{e.avg_score}</div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}>
+                    <div style={{fontSize:32,fontWeight:800,color:col,letterSpacing:-2,lineHeight:1}}>{e.avg_score}</div>
+                    <div style={{fontSize:11,color:"#9CA3AF"}}>avg · rep <span style={{fontWeight:700,color:rep.riskColor}}>{rep.score}</span></div>
+                  </div>
                   <div style={{height:3,background:"#EEF2F8",borderRadius:2,overflow:"hidden",marginBottom:10}}>
                     <motion.div style={{height:"100%",background:col,borderRadius:2}}
                       initial={{width:0}} animate={{width:`${e.avg_score}%`}} transition={{duration:1,ease:"easeOut"}}/>
@@ -117,7 +169,7 @@ export default function EnumeratorsPage(){
             <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
               <div style={{padding:"16px 20px 12px",borderBottom:"1px solid #F1F5F9"}}>
                 <div style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>Performance Leaderboard</div>
-                <div style={{fontSize:11,color:"#9CA3AF",marginTop:2}}>Ranked by average trust score</div>
+                <div style={{fontSize:11,color:"#9CA3AF",marginTop:2}}>Ranked by average trust score · Reputation band from Bayesian model</div>
               </div>
               {enums.map((e,i)=>{
                 const col=COLORS[i%COLORS.length];
@@ -126,6 +178,7 @@ export default function EnumeratorsPage(){
                 const fCnt  = e.flags ?? e.flag_count ?? 0;
                 const pCnt  = e.pass_count ?? Math.round((e.pass_rate ?? 0) * tSubs / 100);
                 const ini   = dName.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase();
+                const rep   = quickReputation(e);
                 return(
                   <motion.div key={e.enumerator_id} whileHover={{background:"#F8FAFF"}}
                     onClick={()=>setSelected(selected?.enumerator_id===e.enumerator_id?null:e)}
@@ -135,12 +188,20 @@ export default function EnumeratorsPage(){
                     <div style={{fontSize:12,fontWeight:700,fontFamily:"monospace",color:i<3?AMBER:"#9CA3AF",width:20}}>{i+1}</div>
                     <div style={{width:36,height:36,borderRadius:"50%",background:col,display:"grid",placeItems:"center",fontSize:11,fontWeight:700,color:"white",flexShrink:0}}>{ini}</div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600,color:"#080D1A",marginBottom:2}}>{dName}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                        <span style={{fontSize:13,fontWeight:600,color:"#080D1A"}}>{dName}</span>
+                        <span style={{fontSize:9.5,fontWeight:700,padding:"1px 6px",borderRadius:4,background:`${rep.riskColor}15`,color:rep.riskColor}}>{rep.riskBand}</span>
+                      </div>
                       <div style={{fontSize:11,color:"#9CA3AF"}}>{tSubs} interviews · {pCnt} passed · {fCnt} flagged</div>
                     </div>
-                    <div style={{width:100}}>
+                    <div style={{width:110}}>
                       <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,fontSize:10,color:"#9CA3AF"}}>
-                        <span>Score</span><span style={{fontWeight:700,color:clr(e.avg_score)}}>{e.avg_score}</span>
+                        <span>Score</span>
+                        <span>
+                          <span style={{fontWeight:700,color:clr(e.avg_score)}}>{e.avg_score}</span>
+                          <span style={{color:"#CBD5E1"}}> · rep </span>
+                          <span style={{fontWeight:700,color:rep.riskColor}}>{rep.score}</span>
+                        </span>
                       </div>
                       <div style={{height:3,background:"#EEF2F8",borderRadius:2,overflow:"hidden"}}>
                         <div style={{width:`${e.avg_score}%`,height:"100%",background:col,borderRadius:2}}/>
@@ -155,20 +216,50 @@ export default function EnumeratorsPage(){
               })}
             </div>
 
-            {selected&&(
+            {selected&&(()=>{
+              const rep = quickReputation(selected);
+              const TrendIcon = rep.score >= 70 ? TrendingUp : rep.score >= 50 ? Minus : TrendingDown;
+              const trendColor = rep.score >= 70 ? GREEN : rep.score >= 50 ? AMBER : RED;
+              return (
               <motion.div initial={{opacity:0,x:20}} animate={{opacity:1,x:0}}
                 style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 4px 24px rgba(10,15,28,.1)",position:"sticky",top:16}}>
                 <div style={{padding:"20px",borderBottom:"1px solid #F1F5F9",background:"linear-gradient(135deg,#F8FAFF,white)"}}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
                     <div style={{width:48,height:48,borderRadius:"50%",background:BLUE,display:"grid",placeItems:"center",fontSize:14,fontWeight:800,color:"white"}}>{(selected.name||selected.enumerator_id).split(' ').map((w:string)=>w[0]).join('').slice(0,2).toUpperCase()}</div>
-                    <div>
+                    <div style={{flex:1}}>
                       <div style={{fontSize:15,fontWeight:700,color:"#080D1A"}}>{selected.name||selected.enumerator_id}</div>
                       <div style={{fontSize:11,color:"#9CA3AF"}}>{selected.total_submissions??selected.total_subs??0} interviews · Grade {selected.grade}</div>
                     </div>
-                    <div style={{marginLeft:"auto",fontSize:32,fontWeight:800,color:clr(selected.avg_score),letterSpacing:-2}}>{selected.avg_score}</div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:28,fontWeight:800,color:clr(selected.avg_score),letterSpacing:-1,lineHeight:1}}>{selected.avg_score}</div>
+                      <div style={{fontSize:10,color:"#9CA3AF",marginTop:2}}>avg score</div>
+                    </div>
                   </div>
                 </div>
                 <div style={{padding:20,display:"flex",flexDirection:"column",gap:16}}>
+
+                  {/* Reputation card */}
+                  <div style={{padding:"14px 16px",borderRadius:12,background:`${rep.riskColor}08`,border:`1px solid ${rep.riskColor}22`}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Enumerator Reputation</div>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{textAlign:"center"}}>
+                        <div style={{fontSize:36,fontWeight:800,color:rep.riskColor,letterSpacing:-2,lineHeight:1}}>{rep.score}</div>
+                        <div style={{fontSize:9,color:"#9CA3AF",marginTop:2,fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}>REP SCORE</div>
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                          <span style={{fontSize:12.5,fontWeight:700,padding:"3px 10px",borderRadius:6,background:`${rep.riskColor}15`,color:rep.riskColor}}>{rep.riskBand}</span>
+                          <TrendIcon size={14} color={trendColor}/>
+                        </div>
+                        <div style={{fontSize:11.5,color:"#6B7280",lineHeight:1.4}}>{rep.riskLabel}</div>
+                        <div style={{fontSize:10.5,color:"#9CA3AF",marginTop:4}}>Bayesian estimate · prior 70 @ 5 virtual subs</div>
+                      </div>
+                    </div>
+                    <div style={{height:4,background:"#EEF2F8",borderRadius:2,overflow:"hidden",marginTop:10}}>
+                      <div style={{width:`${rep.score}%`,height:"100%",background:rep.riskColor,borderRadius:2,transition:"width .6s ease"}}/>
+                    </div>
+                  </div>
+
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Engine Breakdown</div>
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -184,7 +275,12 @@ export default function EnumeratorsPage(){
                   </div>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                    {[["Submissions",selected.total_submissions??selected.total_subs??0],["Avg Score",selected.avg_score+"/100"],["Passed",selected.pass_count??Math.round((selected.pass_rate??0)*(selected.total_submissions??selected.total_subs??1)/100)],["Flagged",selected.flags??selected.flag_count??0]].map(([k,v])=>(
+                    {[
+                      ["Submissions", selected.total_submissions??selected.total_subs??0],
+                      ["Avg Score",   selected.avg_score+"/100"],
+                      ["Passed",      selected.pass_count??Math.round((selected.pass_rate??0)*(selected.total_submissions??selected.total_subs??1)/100)],
+                      ["Flagged",     selected.flags??selected.flag_count??0],
+                    ].map(([k,v])=>(
                       <div key={k} style={{padding:"12px",background:"#F8FAFF",borderRadius:10,textAlign:"center"}}>
                         <div style={{fontSize:18,fontWeight:800,color:"#080D1A",letterSpacing:-1}}>{v}</div>
                         <div style={{fontSize:10,color:"#9CA3AF",fontWeight:600,textTransform:"uppercase",letterSpacing:.4,marginTop:2}}>{k}</div>
@@ -197,13 +293,19 @@ export default function EnumeratorsPage(){
                       <div style={{fontSize:12,color:"#92400E"}}>{selected.flags??selected.flag_count??0} submission{((selected.flags??selected.flag_count??0)>1)?"s":""} flagged for review.</div>
                     </div>
                   )}
+                  <div style={{padding:"10px 12px",background:"#F0F9FF",borderRadius:10,border:"1px solid #BAE6FD"}}>
+                    <div style={{fontSize:11,color:"#0369A1",lineHeight:1.5}}>
+                      <strong>About reputation:</strong> The score starts at 70 (assumed average) and shifts toward actual performance as more submissions come in. A new researcher's score changes quickly; an established one's score requires consistent evidence to move.
+                    </div>
+                  </div>
                   <button onClick={()=>setActiveTab("scorecard")}
                     style={{padding:"9px",borderRadius:9,background:"#F8FAFF",border:"1px solid #E8EDF5",cursor:"pointer",fontSize:12.5,fontWeight:600,color:BLUE,fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
                     <Award size={13}/> View Full Scorecard Profile
                   </button>
                 </div>
               </motion.div>
-            )}
+              );
+            })()}
           </div>
         </>
       )}
