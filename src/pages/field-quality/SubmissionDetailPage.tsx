@@ -503,7 +503,7 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
     } else if (sub.audio_url && !checks.audio?.transcript) {
       results.audio = {
         score: 50,
-        finding: "Audio file present but no transcript available. To analyse speech for AI patterns, enable transcription in your KoboToolbox form's audio settings.",
+        finding: "Audio file present but our transcription engine hasn't produced a transcript for it yet — it may still be processing, or the recording may be empty or unreadable. Speech analysis will run automatically once the transcript is ready; try Refresh in a few minutes.",
         status: "FLAG",
       };
     }
