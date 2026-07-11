@@ -21,6 +21,10 @@ import SubmissionsPage from './pages/field-quality/SubmissionsPage';
 import EnumeratorsPage from './pages/field-quality/EnumeratorsPage';
 import MapPage from './pages/field-quality/MapPage';
 import SettingsPage from './pages/settings/SettingsPage';
+import InsightsPage from './pages/insights/InsightsPage';
+import ReportsPage from './pages/reports/ReportsPage';
+import IntegrationsPage from './pages/field-quality/IntegrationsPage';
+import OverviewPage from './pages/field-quality/OverviewPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -85,17 +89,17 @@ function AppRoutes() {
         {/* Settings */}
         <Route path="settings" element={<SettingsPage />} />
 
-        {/* Legacy redirects */}
-        <Route path="overview" element={<Navigate to="/projects" replace />} />
-        <Route path="submissions" element={<Navigate to="/projects" replace />} />
+        {/* Cross-project standalone pages */}
+        <Route path="overview" element={<OverviewPage />} />
+        <Route path="submissions" element={<SubmissionsPage />} />
         <Route path="submissions/:id" element={<LegacySubmissionRedirect />} />
-        <Route path="insights" element={<Navigate to="/projects" replace />} />
-        <Route path="insights/:id" element={<Navigate to="/projects" replace />} />
-        <Route path="reports" element={<Navigate to="/projects" replace />} />
+        <Route path="insights" element={<InsightsPage />} />
+        <Route path="insights/:id" element={<Navigate to="/insights" replace />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="enumerators" element={<EnumeratorsPage />} />
+        <Route path="map" element={<MapPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="questionnaire" element={<Navigate to="/projects" replace />} />
-        <Route path="enumerators" element={<Navigate to="/projects" replace />} />
-        <Route path="map" element={<Navigate to="/projects" replace />} />
-        <Route path="integrations" element={<Navigate to="/projects" replace />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/projects" replace />} />

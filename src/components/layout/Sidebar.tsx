@@ -3,13 +3,14 @@ import { NavLink, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { useProject } from '../../context/ProjectContext';
-import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle } from 'lucide-react';
+import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard } from 'lucide-react';
 
 const BLUE = '#2463EB';
 
 const BROWSE_NAV = [
   { label: 'WORKSPACE', items: [
-    { to: '/projects',    icon: LayoutDashboard, label: 'All Projects' },
+    { to: '/overview',    icon: LayoutDashboard, label: 'Overview' },
+    { to: '/projects',    icon: BookOpen,         label: 'Projects' },
     { to: '/submissions', icon: FileText,         label: 'Submissions' },
     { to: '/enumerators', icon: Users,            label: 'Enumerators' },
     { to: '/map',         icon: Map,              label: 'Coverage Map' },
@@ -172,7 +173,7 @@ export default function Sidebar() {
                 }}>{section.label}</div>
                 {section.items.map(item => (
                   <NavLink
-                    key={item.to}
+                    key={item.label}
                     to={item.to}
                     onClick={() => navigatePage(item.to.replace('/', ''))}
                     style={({ isActive }) => ({
@@ -188,6 +189,22 @@ export default function Sidebar() {
                     {item.label}
                   </NavLink>
                 ))}
+                {section.label === 'ACCOUNT' && (
+                  <button
+                    onClick={() => navigate('/settings', { state: { section: 'billing' } })}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      padding: '7px 10px', borderRadius: 7, marginBottom: 1,
+                      color: 'rgba(255,255,255,.42)', background: 'transparent',
+                      border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 500,
+                      fontFamily: 'Inter, sans-serif', textAlign: 'left',
+                      borderLeft: '2px solid transparent',
+                    }}
+                  >
+                    <CreditCard size={14} style={{ flexShrink: 0 }} />
+                    Billing
+                  </button>
+                )}
               </div>
             ))}
           </>

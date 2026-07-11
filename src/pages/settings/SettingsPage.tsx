@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { useAda } from "../../ada/AdaContext";
 import { orgAdminApi } from "../../services/api";
-import { useNavigate as useNav } from "react-router-dom";
+import { useNavigate as useNav, useLocation } from "react-router-dom";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -1471,7 +1471,8 @@ const SECTION_META: Record<string,{title:string;description:string}> = {
 };
 
 export default function SettingsPage() {
-  const [active, setActive] = useState("organization");
+  const location = useLocation();
+  const [active, setActive] = useState(() => (location.state as any)?.section || "organization");
   const [adaDismissed, setAdaDismissed] = useState(false);
   const { setOpen } = useAda();
 
