@@ -12,6 +12,8 @@ import { useGamify } from "../../gamify/GamifyContext";
 import CreditsPanel from "../../gamify/CreditsPanel";
 import { orgAdminApi } from "../../services/api";
 import { useNavigate as useNav, useLocation } from "react-router-dom";
+import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
+import type { EngineConfig } from "../../services/engineConfig";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -887,22 +889,42 @@ function AdaSection() {
 }
 
 function ResearchSection() {
-  const [gps, setGps] = useState(50);
-  const [dupThreshold, setDupThreshold] = useState(85);
-  const [minDuration, setMinDuration] = useState(8);
-  const [maxDuration, setMaxDuration] = useState(120);
+  const cfg = loadEngineConfig();
+  const [gps, setGps] = useState(cfg.gpsToleranceMeters);
+  const [dupThreshold, setDupThreshold] = useState(cfg.duplicateThresholdPct);
+  const [minDuration, setMinDuration] = useState(cfg.minDurationMins);
+  const [maxDuration, setMaxDuration] = useState(cfg.maxDurationMins);
   const [mediaRetention, setMediaRetention] = useState("90");
-  const [passThreshold, setPassThreshold] = useState(70);
+  const [passThreshold, setPassThreshold] = useState(cfg.passScoreThreshold);
+  const [saved, setSaved] = useState(false);
+
+  const save = () => {
+    const current = loadEngineConfig();
+    saveEngineConfig({
+      ...current,
+      gpsToleranceMeters: gps,
+      duplicateThresholdPct: dupThreshold,
+      minDurationMins: minDuration,
+      maxDurationMins: maxDuration,
+      passScoreThreshold: passThreshold,
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="FieldScore Defaults">
+          <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 14, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
+            These thresholds control how FieldScore flags and scores submissions. Changes apply immediately to the score display on all submission detail pages — they do not retrigger the backend engine.
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <SettingsField label={`GPS Accuracy Tolerance: ${gps}m`} hint="Submissions outside this radius are flagged"><input type="range" min={10} max={500} value={gps} onChange={e => setGps(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
             <SettingsField label={`Duplicate Detection Threshold: ${dupThreshold}%`} hint="Similarity score that triggers a duplicate flag"><input type="range" min={50} max={100} value={dupThreshold} onChange={e => setDupThreshold(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
             <SettingsField label={`Min Interview Duration: ${minDuration} mins`} hint="Submissions below this are flagged as too fast"><input type="range" min={1} max={60} value={minDuration} onChange={e => setMinDuration(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
             <SettingsField label={`Max Interview Duration: ${maxDuration} mins`} hint="Submissions above this are flagged as too slow"><input type="range" min={30} max={360} value={maxDuration} onChange={e => setMaxDuration(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
-            <SettingsField label={`Pass Score Threshold: ${passThreshold}/100`} hint="Minimum score for a PASS verdict"><input type="range" min={0} max={100} value={passThreshold} onChange={e => setPassThreshold(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
+            <SettingsField label={`Pass Score Threshold: ${passThreshold}/100`} hint="Minimum score for a PASS verdict. Submissions below this are shown as REJECT."><input type="range" min={0} max={100} value={passThreshold} onChange={e => setPassThreshold(Number(e.target.value))} style={{ width: "100%" }} /></SettingsField>
           </div>
         </SettingsGroup>
         <SectionDivider label="InsightScore Defaults" />
@@ -914,7 +936,11 @@ function ResearchSection() {
             <SettingsField label="Questionnaire Generation Model"><select style={{ ...INPUT }}><option>Ada Standard</option><option>Ada Pro (Enterprise)</option></select></SettingsField>
           </div>
         </SettingsGroup>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Research Defaults</button></div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+          <button onClick={save} style={BTN_PRIMARY}>
+            {saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Research Defaults"}
+          </button>
+        </div>
       </SettingsCard>
     </div>
   );
@@ -1623,13 +1649,6 @@ type WeightMap = { gps:number; duration:number; image:number; audio:number; dupl
 type GatingMap = { gps_reject_skips: string[]; duration_reject_skips: string[]; duplicate_reject_skips: string[]; };
 type EnabledMap = { gps:boolean; duration:boolean; image:boolean; audio:boolean; duplicate:boolean; text_ai:boolean; };
 
-const DEFAULT_WEIGHTS: WeightMap = { gps:0.25, duration:0.22, image:0.20, audio:0.13, duplicate:0.10, text_ai:0.10 };
-const DEFAULT_GATING: GatingMap = {
-  gps_reject_skips: ["image","audio"],
-  duration_reject_skips: [],
-  duplicate_reject_skips: ["audio","text_ai"],
-};
-const DEFAULT_ENABLED: EnabledMap = { gps:true, duration:true, image:true, audio:true, duplicate:true, text_ai:true };
 
 function GatingToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -1642,12 +1661,17 @@ function GatingToggle({ label, checked, onChange }: { label: string; checked: bo
 
 function EngineSection() {
   const { addMessage, setState } = useAda();
-  const [weights, setWeights] = useState<WeightMap>({ ...DEFAULT_WEIGHTS });
-  const [gating, setGating] = useState<GatingMap>({ ...DEFAULT_GATING, gps_reject_skips: [...DEFAULT_GATING.gps_reject_skips], duration_reject_skips: [...DEFAULT_GATING.duration_reject_skips], duplicate_reject_skips: [...DEFAULT_GATING.duplicate_reject_skips] });
-  const [enabled, setEnabled] = useState<EnabledMap>({ ...DEFAULT_ENABLED });
-  const [aiHighPenalty, setAiHighPenalty] = useState(55);
-  const [aiMediumPenalty, setAiMediumPenalty] = useState(20);
-  const [aiMediumFlag, setAiMediumFlag] = useState(true);
+  const _cfg = loadEngineConfig();
+  const [weights, setWeights] = useState<WeightMap>({ ..._cfg.weights } as WeightMap);
+  const [gating, setGating] = useState<GatingMap>({
+    gps_reject_skips: [..._cfg.gating.gps_reject_skips],
+    duration_reject_skips: [..._cfg.gating.duration_reject_skips],
+    duplicate_reject_skips: [..._cfg.gating.duplicate_reject_skips],
+  });
+  const [enabled, setEnabled] = useState<EnabledMap>({ ..._cfg.enabled } as EnabledMap);
+  const [aiHighPenalty, setAiHighPenalty] = useState(_cfg.aiHighPenalty);
+  const [aiMediumPenalty, setAiMediumPenalty] = useState(_cfg.aiMediumPenalty);
+  const [aiMediumFlag, setAiMediumFlag] = useState(_cfg.aiMediumFlag);
   const [saved, setSaved] = useState(false);
 
   const totalW = ENGINE_ORDER.reduce((s, k) => s + (enabled[k as keyof EnabledMap] ? weights[k as keyof WeightMap] : 0), 0);
@@ -1660,13 +1684,28 @@ function EngineSection() {
   };
 
   const save = () => {
+    // Persist to localStorage so SubmissionDetailPage can read it
+    const current = loadEngineConfig();
+    saveEngineConfig({
+      ...current,
+      weights: { ...weights } as EngineConfig["weights"],
+      enabled: { ...enabled } as EngineConfig["enabled"],
+      gating: {
+        gps_reject_skips: [...gating.gps_reject_skips],
+        duration_reject_skips: [...gating.duration_reject_skips],
+        duplicate_reject_skips: [...gating.duplicate_reject_skips],
+      },
+      aiHighPenalty,
+      aiMediumPenalty,
+      aiMediumFlag,
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     setState("thinking");
     setTimeout(() => {
       setState("speaking");
       const active = ENGINE_ORDER.filter(k => enabled[k as keyof EnabledMap]);
-      addMessage({ id: Date.now().toString(), role: "assistant", content: `Engine config saved. You have ${active.length} active engines with GPS carrying the most weight (${Math.round((weights.gps / totalW) * 100)}% after normalisation). Gating is set up so a GPS reject skips ${gating.gps_reject_skips.length > 0 ? gating.gps_reject_skips.join(" and ") : "nothing"} — that saves processing time and avoids penalising real submissions twice. AI detection is set to HIGH = ${aiHighPenalty} point penalty, MEDIUM = ${aiMediumPenalty} points${aiMediumFlag ? " + flag for review" : ", no flag"}. These settings apply to all new submissions scored from now.`, timestamp: new Date().toISOString(), page: "settings-engine" });
+      addMessage({ id: Date.now().toString(), role: "assistant", content: `Engine config saved. You have ${active.length} active engines with GPS carrying the most weight (${Math.round((weights.gps / totalW) * 100)}% after normalisation). Gating is set up so a GPS reject skips ${gating.gps_reject_skips.length > 0 ? gating.gps_reject_skips.join(" and ") : "nothing"} — that saves processing time and avoids penalising real submissions twice. AI detection is set to HIGH = ${aiHighPenalty} point penalty, MEDIUM = ${aiMediumPenalty} points${aiMediumFlag ? " + flag for review" : ", no flag"}. These settings apply immediately to the score display on all submission detail pages.`, timestamp: new Date().toISOString(), page: "settings-engine" });
       setTimeout(() => setState("idle"), 5000);
     }, 700);
   };

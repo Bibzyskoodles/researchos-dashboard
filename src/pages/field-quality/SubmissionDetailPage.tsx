@@ -7,7 +7,9 @@ import { dashboardApi } from "../../services/api";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { ScoreRing } from "../../components/ui/ScoreRing";
 import { EngineBar } from "../../components/ui/EngineBar";
-import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield, Cpu, Sparkles } from "lucide-react";
+import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield, Cpu, Sparkles, Settings } from "lucide-react";
+import { loadEngineConfig, computeAdjustedScore } from "../../services/engineConfig";
+import type { AdjustedScore } from "../../services/engineConfig";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED",CYAN="#06B6D4",ROSE="#E11D48";
 
@@ -53,6 +55,7 @@ export default function SubmissionDetailPage(){
   const [toast,setToast]=useState("");
   const [showRaw,setShowRaw]=useState(false);
   const [aiScan,setAiScan]=useState<AiScan>({status:"idle"});
+  const [,setEngineCfgVersion]=useState(0);
 
   useEffect(()=>{
     if(!id)return;
@@ -61,6 +64,13 @@ export default function SubmissionDetailPage(){
       .catch(()=>setError("Submission not found"))
       .finally(()=>setLoading(false));
   },[id]);
+
+  // Re-compute when engine config changes (e.g. user saves new weights in Settings)
+  useEffect(()=>{
+    const handler=()=>setEngineCfgVersion(v=>v+1);
+    window.addEventListener("fs-engine-config-changed",handler);
+    return ()=>window.removeEventListener("fs-engine-config-changed",handler);
+  },[]);
 
   const showToast=(msg:string)=>{
     setToast(msg);
@@ -208,6 +218,13 @@ export default function SubmissionDetailPage(){
   const lat=Number(gps.lat)||6.5244;
   const lon=Number(gps.lon)||3.3792;
 
+  // Compute adjusted score based on current engine config + flags
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const engineCfg = loadEngineConfig();
+  const adj: AdjustedScore = computeAdjustedScore(sub, engineCfg);
+  const displayScore = adj.overall;
+  const displayVerdict = adj.verdict;
+
   return(
     <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.2}}
       style={{display:"flex",flexDirection:"column",gap:20}}>
@@ -237,8 +254,8 @@ export default function SubmissionDetailPage(){
           <code style={{fontSize:12,color:"#9CA3AF",background:"#F8FAFF",padding:"4px 10px",borderRadius:6,border:"1px solid #E8EDF5"}}>
             {sub.submission_id?.slice(0,24)}...
           </code>
-          <span style={{fontSize:12,fontWeight:600,padding:"4px 12px",borderRadius:20,background:vclr(sub.verdict)+"15",color:vclr(sub.verdict)}}>
-            {sub.verdict}
+          <span style={{fontSize:12,fontWeight:600,padding:"4px 12px",borderRadius:20,background:vclr(displayVerdict)+"15",color:vclr(displayVerdict)}}>
+            {displayVerdict}
           </span>
           <span style={{fontSize:12,fontWeight:700,padding:"4px 10px",borderRadius:6,background:"#F8FAFF",border:"1px solid #E8EDF5",color:"#374151"}}>
             Grade {sub.grade}
@@ -246,7 +263,7 @@ export default function SubmissionDetailPage(){
           <span style={{fontSize:12,color:"#9CA3AF"}}>{sub.enumerator_id}</span>
           <span style={{fontSize:11,color:"#9CA3AF"}}>{sub.scored_at?new Date(sub.scored_at).toLocaleString():""}</span>
         </div>
-        <ScoreRing score={sub.overall_score||0} size={72}/>
+        <ScoreRing score={displayScore} size={72}/>
       </div>
 
       {/* Ada Briefing */}
@@ -278,11 +295,22 @@ export default function SubmissionDetailPage(){
           <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
             <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",gap:8}}>
               <MapPin size={15} color={BLUE}/><span style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>GPS Location</span>
-              <span style={{marginLeft:"auto",fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
-                background:checks.gps?.status==="PASS"?GREEN+"15":AMBER+"15",
-                color:checks.gps?.status==="PASS"?GREEN:AMBER}}>
-                {checks.gps?.status==="PASS"?"Verified":"Review"}
-              </span>
+              {(()=>{
+                const flags:string[]=Array.isArray(sub.flags)?sub.flags:String(sub.flags||"").split(",").map((f:string)=>f.trim()).filter(Boolean);
+                const gpsFlag=flags.find((f:string)=>["GPS_PARSE_ERROR","NO_GPS","GPS_OUTSIDE_NIGERIA","LOW_GPS_ACCURACY","GPS_POOR_ACCURACY","OUTSIDE_ASSIGNED_ZONE"].includes(f));
+                if(gpsFlag)return(
+                  <span style={{marginLeft:"auto",fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:RED+"15",color:RED,display:"flex",alignItems:"center",gap:4}}>
+                    <AlertTriangle size={10}/>{gpsFlag.replace(/_/g," ")}
+                  </span>
+                );
+                return(
+                  <span style={{marginLeft:"auto",fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,
+                    background:checks.gps?.status==="PASS"?GREEN+"15":AMBER+"15",
+                    color:checks.gps?.status==="PASS"?GREEN:AMBER}}>
+                    {checks.gps?.status==="PASS"?"Verified":"Review"}
+                  </span>
+                );
+              })()}
             </div>
             <div style={{height:200}}>
               <MapContainer center={[lat,lon]} zoom={14} style={{height:"100%",width:"100%"}} scrollWheelZoom={false}>
@@ -413,26 +441,67 @@ export default function SubmissionDetailPage(){
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
           {/* Score card */}
-          <div style={{background:"white",borderRadius:16,padding:20,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)",textAlign:"center"}}>
-            <ScoreRing score={sub.overall_score||0} size={120}/>
-            <div style={{fontSize:36,fontWeight:800,color:clr(sub.overall_score||0),letterSpacing:-2,marginTop:8,lineHeight:1}}>{sub.overall_score}</div>
+          <div style={{background:"white",borderRadius:16,padding:20,border:`1px solid ${adj.hasAdjustments?"#FCD34D":"#E8EDF5"}`,boxShadow:"0 2px 12px rgba(10,15,28,.06)",textAlign:"center"}}>
+            <ScoreRing score={displayScore} size={120}/>
+            <div style={{fontSize:36,fontWeight:800,color:clr(displayScore),letterSpacing:-2,marginTop:8,lineHeight:1}}>{displayScore}</div>
             <div style={{fontSize:12,color:"#9CA3AF",marginBottom:8}}>out of 100</div>
+            {adj.hasAdjustments&&(sub.overall_score!==displayScore)&&(
+              <div style={{fontSize:11,color:"#92400E",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,padding:"5px 10px",marginBottom:8}}>
+                Backend raw score: {sub.overall_score} · Adjusted by engine config
+              </div>
+            )}
             <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-              <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:vclr(sub.verdict)+"15",color:vclr(sub.verdict)}}>{sub.verdict}</span>
+              <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:vclr(displayVerdict)+"15",color:vclr(displayVerdict)}}>{displayVerdict}</span>
               <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:"#F8FAFF",border:"1px solid #E8EDF5",color:"#374151"}}>Grade {sub.grade}</span>
             </div>
             {sub.supervisor_action&&<div style={{fontSize:12,color:"#6B7280",marginTop:10,padding:"8px",background:"#F8FAFF",borderRadius:8}}>{sub.supervisor_action}</div>}
             {sub.duration_mins&&<div style={{fontSize:11.5,color:"#9CA3AF",marginTop:8,display:"flex",alignItems:"center",gap:4,justifyContent:"center"}}><Clock size={12}/>{sub.duration_mins} minutes</div>}
+            <div style={{fontSize:10.5,color:"#9CA3AF",marginTop:10,display:"flex",alignItems:"center",gap:4,justifyContent:"center"}}>
+              <Settings size={10}/> Pass threshold: {engineCfg.passScoreThreshold}/100
+            </div>
           </div>
 
           {/* Engine breakdown */}
           <div style={{background:"white",borderRadius:16,padding:20,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
             <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:12}}>Quality Engines</div>
-            <EngineBar label="GPS Accuracy" score={checks.gps?.score||0} status={checks.gps?.status} finding={checks.gps?.finding} weight={28} color={BLUE} icon={<MapPin size={13} color={BLUE}/>}/>
-            <EngineBar label="Interview Duration" score={checks.timing?.score||0} status={checks.timing?.status} finding={checks.timing?.finding} weight={25} color={AMBER} icon={<Clock size={13} color={AMBER}/>}/>
-            <EngineBar label="Image Quality" score={checks.image?.score||0} status={checks.image?.status} finding={checks.image?.finding} weight={22} color={PURPLE} icon={<Camera size={13} color={PURPLE}/>}/>
-            <EngineBar label="Audio Quality" score={checks.audio?.score||0} status={checks.audio?.status} finding={checks.audio?.finding} weight={15} color={GREEN} icon={<Mic size={13} color={GREEN}/>}/>
-            <EngineBar label="Duplicate Detection" score={checks.duplicate?.score||0} status={checks.duplicate?.status} finding={checks.duplicate?.finding} weight={10} color={CYAN} icon={<Shield size={13} color={CYAN}/>}/>
+            {adj.breakdown.map(b=>{
+              const colors:Record<string,string>={gps:BLUE,duration:AMBER,image:PURPLE,audio:GREEN,duplicate:CYAN,text_ai:ROSE};
+              const icons:Record<string,React.ReactElement>={
+                gps:<MapPin size={13} color={colors.gps}/>,
+                duration:<Clock size={13} color={colors.duration}/>,
+                image:<Camera size={13} color={colors.image}/>,
+                audio:<Mic size={13} color={colors.audio}/>,
+                duplicate:<Shield size={13} color={colors.duplicate}/>,
+                text_ai:<Cpu size={13} color={colors.text_ai}/>,
+              };
+              const rawChecks:Record<string,any>={gps:checks.gps,duration:checks.timing||checks.duration,image:checks.image,audio:checks.audio,duplicate:checks.duplicate,text_ai:checks.text_ai};
+              const chk=rawChecks[b.key]||{};
+              const adjPct=Math.round(b.weight*100);
+              return (
+                <div key={b.key}>
+                  <EngineBar
+                    label={b.label}
+                    score={b.adjScore}
+                    status={b.gated?"GATED":chk.status}
+                    finding={b.flagOverride?`Score overridden: ${FLAG_LABELS[b.flagOverride]?.label||b.flagOverride} (raw: ${b.rawScore})`:chk.finding}
+                    weight={adjPct}
+                    color={b.flagOverride?RED:colors[b.key]||BLUE}
+                    icon={icons[b.key]||<Shield size={13}/>}
+                  />
+                  {b.flagOverride&&(
+                    <div style={{fontSize:10.5,color:RED,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:6,padding:"4px 10px",marginTop:-8,marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                      <AlertTriangle size={10}/> Score capped at {b.adjScore} due to flag: {b.flagOverride}
+                      {b.rawScore!==b.adjScore&&<span style={{marginLeft:"auto",color:"#9CA3AF"}}>backend was {b.rawScore}</span>}
+                    </div>
+                  )}
+                  {b.gated&&(
+                    <div style={{fontSize:10.5,color:"#9CA3AF",background:"#F8FAFF",border:"1px solid #E8EDF5",borderRadius:6,padding:"4px 10px",marginTop:-8,marginBottom:8}}>
+                      ⛔ Gated — excluded from scoring (upstream check already failed)
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* AI Authenticity */}
