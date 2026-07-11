@@ -66,13 +66,16 @@ export default function AdaDock() {
   }, [store.messages, store.isOpen]);
 
   const detectAndNavigate = useCallback((reply: string) => {
+    // Only navigate when Ada explicitly offers to take the user somewhere.
+    // Require a strong navigational verb so casual mentions of page names
+    // (e.g. "You're on the Reports page") don't trigger unwanted navigation.
     const nav: [RegExp, string][] = [
-      [/\b(show|open|go to|navigate to|take me to)?\s*(submission|submissions)\b/i, "/submissions"],
-      [/\b(show|open|go to)?\s*(enumerator|enumerators|field agents?)\b/i, "/enumerators"],
-      [/\b(show|open|go to)?\s*(map|coverage)\b/i, "/map"],
-      [/\b(show|open|go to)?\s*(insight|insights|analysis)\b/i, "/insights"],
-      [/\b(show|open|go to)?\s*(report|reports)\b/i, "/reports"],
-      [/\b(show|open|go to)?\s*(overview|dashboard|home)\b/i, "/overview"],
+      [/\b(take you to|opening|go to|navigate to|heading to)\s*(the\s+)?(submission|submissions)\b/i, "/submissions"],
+      [/\b(take you to|opening|go to|navigate to|heading to)\s*(the\s+)?(enumerator|enumerators|field agents?)\b/i, "/enumerators"],
+      [/\b(take you to|opening|go to|navigate to|heading to)\s*(the\s+)?(map|coverage map)\b/i, "/map"],
+      [/\b(take you to|opening|go to|navigate to|heading to)\s*(the\s+)?(insight|insights|analysis)\b/i, "/insights"],
+      [/\b(take you to|opening|go to|navigate to|heading to)\s*(the\s+)?(report|reports)\b/i, "/reports"],
+      [/\b(take you to|opening|go to|navigate to|heading to)\s*(the\s+)?(overview|dashboard|home)\b/i, "/overview"],
     ];
     for (const [pattern, path] of nav) {
       if (pattern.test(reply)) {
@@ -101,7 +104,12 @@ export default function AdaDock() {
       const adaContext: Record<string, unknown> = {};
       if (lifecycleRaw) { try { adaContext.lifecycle = JSON.parse(lifecycleRaw); } catch {} }
       if (frameworkRaw) { try { const fw = JSON.parse(frameworkRaw); adaContext.framework_indicators = fw.indicators; adaContext.framework_filename = fw.filename; } catch {} }
-      const res = await adaApi.chat(msg, store.currentPage, adaContext);
+      // Enrich page context: for settings, include the active sub-section so
+      // Ada knows whether the user is on Engine Config, Research Defaults, etc.
+      const settingsSectionEl = document.querySelector('[data-settings-section]');
+      const settingsSection = settingsSectionEl?.getAttribute('data-settings-section');
+      const effectivePage = settingsSection ? `settings-${settingsSection}` : store.currentPage;
+      const res = await adaApi.chat(msg, effectivePage, adaContext);
       const reply: string = res.data.reply;
       addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: reply, timestamp: new Date().toISOString() });
       setState("speaking");
