@@ -5,7 +5,7 @@ import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { insightScoreApi, adaApi, projectsApi } from "../../services/api";
 import { InsightProject } from "../../types";
-import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download, Sparkles, Target } from "lucide-react";
+import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download, Sparkles, Target, ChevronDown } from "lucide-react";
 import OutcomeIntelligencePage from "./OutcomeIntelligencePage";
 
 const BLUE = "#2463EB";
@@ -74,7 +74,113 @@ const CAPABILITIES = [
   },
 ];
 
-function AdaHero({ firstProjectId }: { firstProjectId: string }) {
+function ProjectSelector({
+  projects,
+  selectedId,
+  onSelect,
+}: {
+  projects: InsightProject[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = projects.find(p => p.id === selectedId);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  if (projects.length === 0) return null;
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, width: "100%",
+          padding: "12px 16px", borderRadius: 12,
+          background: selectedId ? "white" : "#EFF6FF",
+          border: selectedId ? "1px solid #E8EDF5" : `2px solid ${BLUE}`,
+          cursor: "pointer", fontFamily: "Inter,sans-serif",
+          boxShadow: selectedId ? "0 1px 6px rgba(10,15,28,.06)" : `0 0 0 4px ${BLUE}14`,
+          transition: "all .15s",
+        }}
+      >
+        <div style={{
+          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+          background: selectedId ? `${BLUE}14` : BLUE,
+          display: "grid", placeItems: "center", fontSize: 14,
+        }}>
+          {selectedId ? "📋" : <Sparkles size={14} color="white" />}
+        </div>
+        <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+          {selected ? (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#080D1A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selected.name}</div>
+              <div style={{ fontSize: 11, color: "#6B7280" }}>{selected.submission_count} interview{selected.submission_count !== 1 ? "s" : ""} · {STATUS_LABEL[selected.status] ?? "Ready"}</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, color: BLUE }}>Select a project to begin</div>
+              <div style={{ fontSize: 11, color: "#3B82F6" }}>Choose which project you want Ada to analyse</div>
+            </>
+          )}
+        </div>
+        <ChevronDown size={16} color={selectedId ? "#9CA3AF" : BLUE} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", flexShrink: 0 }} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            style={{
+              position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50,
+              background: "white", borderRadius: 12, border: "1px solid #E8EDF5",
+              boxShadow: "0 12px 40px rgba(10,15,28,.12)", overflow: "hidden",
+            }}
+          >
+            {projects.map(p => {
+              const color = STATUS_COLOR[p.status] ?? BLUE;
+              const isSelected = p.id === selectedId;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => { onSelect(p.id); setOpen(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12, width: "100%",
+                    padding: "11px 14px", background: isSelected ? "#EFF6FF" : "transparent",
+                    border: "none", cursor: "pointer", fontFamily: "Inter,sans-serif",
+                    borderBottom: "1px solid #F3F4F6", textAlign: "left",
+                    transition: "background .1s",
+                  }}
+                  onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "#F9FAFB"; }}
+                  onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: 7, background: `${BLUE}14`, display: "grid", placeItems: "center", fontSize: 13, flexShrink: 0 }}>📋</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#080D1A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: "#6B7280" }}>{p.submission_count} interview{p.submission_count !== 1 ? "s" : ""}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: color }} />
+                    <span style={{ fontSize: 10.5, fontWeight: 600, color }}>{STATUS_LABEL[p.status] ?? "Ready"}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function AdaHero({ projectId, disabled }: { projectId: string | null; disabled: boolean }) {
   const navigate = useNavigate();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
@@ -84,22 +190,35 @@ function AdaHero({ firstProjectId }: { firstProjectId: string }) {
 
   const ask = useCallback(async () => {
     if (!question.trim() || loading) return;
+    if (!projectId) { setAnswer("Please select a project above to ask questions about your research."); return; }
     setLoading(true);
     setAnswer(null);
     try {
-      const res = await adaApi.chat(question, "insights", { mode: "ask_your_research_global" });
-      setAnswer(res.data?.reply || res.data?.message || "Please select a project to search your research.");
+      const res = await adaApi.chat(question, "insights", { mode: "ask_your_research_global", project_id: projectId });
+      setAnswer(res.data?.reply || res.data?.message || "No answer yet — try asking about themes, patterns, or specific respondent groups.");
     } catch {
-      setAnswer("Please select a project to ask questions about your research.");
+      setAnswer("Unable to reach Ada right now. Make sure a project is selected and try again.");
     } finally {
       setLoading(false);
     }
-  }, [question, loading]);
+  }, [question, loading, projectId]);
 
-  const goTo = (tab?: string) => {
-    if (!firstProjectId) return;
-    navigate(tab ? `/insights/${firstProjectId}?tab=${tab}` : `/insights/${firstProjectId}`);
+  const goTo = (stage: string = "analyse") => {
+    if (!projectId) return;
+    navigate(`/projects/${projectId}/${stage}`);
   };
+
+  const btnStyle = (active: boolean, primary: boolean) => ({
+    display: "flex" as const, alignItems: "center" as const, gap: 7,
+    padding: "9px 20px", borderRadius: 10, border: primary ? "none" : "1px solid rgba(255,255,255,.14)",
+    color: active ? (primary ? "white" : "rgba(255,255,255,.8)") : "rgba(255,255,255,.25)",
+    background: active ? (primary ? BLUE : "rgba(255,255,255,.08)") : "rgba(255,255,255,.04)",
+    fontSize: 13, fontWeight: primary ? 700 : 600,
+    cursor: active ? "pointer" : "not-allowed",
+    fontFamily: "Inter,sans-serif",
+    transition: "opacity .15s",
+    opacity: active ? 1 : 0.5,
+  });
 
   return (
     <div style={{
@@ -139,28 +258,41 @@ function AdaHero({ firstProjectId }: { firstProjectId: string }) {
             <span style={{ fontSize: 9, fontWeight: 700, color: "#93C5FD", letterSpacing: 1.2, textTransform: "uppercase" }}>Ada Briefing</span>
           </div>
 
-          <div style={{ fontSize: 19, fontWeight: 800, color: "white", lineHeight: 1.35, marginBottom: 10, letterSpacing: -.3 }}>
-            I found 16 verified interviews ready for analysis.
-          </div>
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,.52)", lineHeight: 1.65, marginBottom: 20, maxWidth: 480 }}>
-            I expect themes around community perceptions, service access barriers, and unmet household needs. I can run Question Intelligence, Signal Fidelity, and Demographic analysis right now.
-          </div>
+          {disabled ? (
+            <>
+              <div style={{ fontSize: 19, fontWeight: 800, color: "white", lineHeight: 1.35, marginBottom: 10, letterSpacing: -.3 }}>
+                Select a project above to begin.
+              </div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,.42)", lineHeight: 1.65, marginBottom: 20, maxWidth: 480 }}>
+                Once you choose a project, I'll brief you on your verified interviews and what analysis I can run — including Question Intelligence, Signal Fidelity, and Demographic breakdowns.
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 19, fontWeight: 800, color: "white", lineHeight: 1.35, marginBottom: 10, letterSpacing: -.3 }}>
+                I found verified interviews ready for analysis.
+              </div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,.52)", lineHeight: 1.65, marginBottom: 20, maxWidth: 480 }}>
+                I can run Question Intelligence, Signal Fidelity, and Demographic analysis right now. Or review the raw interviews first to get familiar with the data.
+              </div>
+            </>
+          )}
 
           <AnimatePresence mode="wait">
             {answered === null ? (
               <motion.div key="cta" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: "flex", gap: 10, marginBottom: 24 }}>
                 <button
-                  onClick={() => { setAnswered("begin"); setTimeout(() => goTo(), 350); }}
-                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 10, background: BLUE, border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "opacity .15s" }}
-                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.opacity = ".85")}
-                  onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}>
+                  onClick={() => { if (disabled) return; setAnswered("begin"); setTimeout(() => goTo("analyse"), 350); }}
+                  style={btnStyle(!disabled, true)}
+                  title={disabled ? "Select a project first" : undefined}
+                >
                   Begin Analysis <ArrowRight size={13} />
                 </button>
                 <button
-                  onClick={() => { setAnswered("review"); setTimeout(() => goTo("interviews"), 350); }}
-                  style={{ padding: "9px 20px", borderRadius: 10, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.14)", color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "background .15s" }}
-                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.14)")}
-                  onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.08)")}>
+                  onClick={() => { if (disabled) return; setAnswered("review"); setTimeout(() => goTo("verify"), 350); }}
+                  style={btnStyle(!disabled, false)}
+                  title={disabled ? "Select a project first" : undefined}
+                >
                   Review Interviews First
                 </button>
               </motion.div>
@@ -174,15 +306,24 @@ function AdaHero({ firstProjectId }: { firstProjectId: string }) {
           {/* Ask bar */}
           <div style={{ borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: 20 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.25)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Ask Your Research</div>
-            <div style={{ display: "flex", gap: 8, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "9px 12px" }}
-              onFocusCapture={e => (e.currentTarget.style.borderColor = "rgba(37,99,235,.5)")}
+            <div style={{
+              display: "flex", gap: 8, background: disabled ? "rgba(255,255,255,.03)" : "rgba(255,255,255,.06)",
+              border: "1px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "9px 12px",
+              opacity: disabled ? 0.5 : 1,
+            }}
+              onFocusCapture={e => { if (!disabled) e.currentTarget.style.borderColor = "rgba(37,99,235,.5)"; }}
               onBlurCapture={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,.12)")}>
-              <input ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)}
+              <input
+                ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") ask(); }}
-                placeholder="Why are young women less satisfied? · Compare Lagos and Abuja…"
-                style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 13, color: "white", fontFamily: "Inter,sans-serif", caretColor: "#60A5FA" }} />
-              <button onClick={ask} disabled={!question.trim() || loading}
-                style={{ padding: "5px 14px", borderRadius: 7, background: question.trim() && !loading ? BLUE : "rgba(255,255,255,.08)", border: "none", color: question.trim() && !loading ? "white" : "rgba(255,255,255,.3)", fontSize: 12, fontWeight: 700, cursor: question.trim() ? "pointer" : "default", transition: "all .15s", whiteSpace: "nowrap" }}>
+                disabled={disabled}
+                placeholder={disabled ? "Select a project above to ask questions…" : "Why are young women less satisfied? · Compare Lagos and Abuja…"}
+                style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 13, color: "white", fontFamily: "Inter,sans-serif", caretColor: "#60A5FA", cursor: disabled ? "not-allowed" : "text" }}
+              />
+              <button
+                onClick={ask} disabled={!question.trim() || loading || disabled}
+                style={{ padding: "5px 14px", borderRadius: 7, background: question.trim() && !loading && !disabled ? BLUE : "rgba(255,255,255,.08)", border: "none", color: question.trim() && !loading && !disabled ? "white" : "rgba(255,255,255,.3)", fontSize: 12, fontWeight: 700, cursor: question.trim() && !disabled ? "pointer" : "default", transition: "all .15s", whiteSpace: "nowrap" }}
+              >
                 {loading ? "Searching…" : "Ask"}
               </button>
             </div>
@@ -201,20 +342,32 @@ function AdaHero({ firstProjectId }: { firstProjectId: string }) {
   );
 }
 
-function CapabilityGrid({ firstProjectId }: { firstProjectId: string }) {
+function CapabilityGrid({ projectId, disabled }: { projectId: string | null; disabled: boolean }) {
   const navigate = useNavigate();
   return (
     <div>
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.9, marginBottom: 12 }}>What Ada can do for your research</div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.9, marginBottom: 4 }}>What Ada can do for your research</div>
+      {disabled && (
+        <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 12 }}>
+          Select a project above to activate these capabilities.
+        </div>
+      )}
+      {!disabled && <div style={{ marginBottom: 12 }} />}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
         {CAPABILITIES.map(({ Icon, label, desc, color, tab }) => (
           <motion.div
             key={label}
-            whileHover={{ y: -2, boxShadow: "0 6px 24px rgba(37,99,235,.1)" }}
-            onClick={() => navigate(`/insights/${firstProjectId}?tab=${tab}`)}
-            style={{ background: "white", borderRadius: 12, padding: "16px 16px", border: "1px solid #E8EDF5", display: "flex", gap: 12, alignItems: "flex-start", cursor: "pointer", transition: "border-color .15s" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}44`; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E8EDF5"; }}
+            whileHover={disabled ? {} : { y: -2, boxShadow: "0 6px 24px rgba(37,99,235,.1)" }}
+            onClick={() => { if (disabled || !projectId) return; navigate(`/projects/${projectId}/analyse?tab=${tab}`); }}
+            style={{
+              background: "white", borderRadius: 12, padding: "16px 16px",
+              border: "1px solid #E8EDF5", display: "flex", gap: 12, alignItems: "flex-start",
+              cursor: disabled ? "not-allowed" : "pointer",
+              transition: "border-color .15s",
+              opacity: disabled ? 0.45 : 1,
+            }}
+            onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.borderColor = `${color}44`; }}
+            onMouseLeave={e => { if (!disabled) (e.currentTarget as HTMLElement).style.borderColor = "#E8EDF5"; }}
           >
             <div style={{ width: 34, height: 34, borderRadius: 9, background: `${color}12`, display: "grid", placeItems: "center", flexShrink: 0 }}>
               <Icon size={16} color={color} />
@@ -230,11 +383,11 @@ function CapabilityGrid({ firstProjectId }: { firstProjectId: string }) {
   );
 }
 
-function ProjectCard({ project, onClick }: { project: InsightProject; onClick: () => void }) {
+function ProjectCard({ project, onSelect }: { project: InsightProject; onSelect: (id: string) => void }) {
   const [hovered, setHovered] = useState(false);
   const color = STATUS_COLOR[project.status] ?? BLUE;
   return (
-    <motion.div whileHover={{ y: -1 }} onClick={onClick}
+    <motion.div whileHover={{ y: -1 }} onClick={() => onSelect(project.id)}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{ background: "white", borderRadius: 12, padding: "14px 18px", border: `1px solid ${hovered ? "#BFDBFE" : "#E8EDF5"}`, boxShadow: hovered ? "0 4px 20px rgba(37,99,235,.09)" : "0 1px 6px rgba(10,15,28,.04)", cursor: "pointer", transition: "all .15s", display: "flex", alignItems: "center", gap: 14 }}>
       <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: `linear-gradient(135deg, ${BLUE}14, ${PURPLE}14)`, display: "grid", placeItems: "center", fontSize: 18 }}>📋</div>
@@ -257,7 +410,9 @@ function ProjectCard({ project, onClick }: { project: InsightProject; onClick: (
           <div style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
           <span style={{ fontSize: 11, fontWeight: 600, color }}>{STATUS_LABEL[project.status] ?? "Ready"}</span>
         </div>
-        <ChevronRight size={14} color={hovered ? BLUE : "#D1D5DB"} style={{ transition: "color .15s" }} />
+        <div style={{ fontSize: 11, color: BLUE, fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}>
+          Select <ChevronRight size={12} color={hovered ? BLUE : "#D1D5DB"} style={{ transition: "color .15s" }} />
+        </div>
       </div>
     </motion.div>
   );
@@ -269,18 +424,16 @@ export default function InsightsPage() {
   const [projects, setProjects] = useState<InsightProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<InsightsTab>("analysis");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const navigate = useNavigate();
   useAda();
   useAdaGreeting({ page: "insights" });
 
   useEffect(() => {
-    // Try InsightScore API first; fall back to main project API so projects
-    // always show even before analysis has been run on them.
     insightScoreApi.getProjects()
       .then(r => {
         const list: InsightProject[] = r.data || [];
         if (list.length > 0) { setProjects(list); setLoading(false); return; }
-        // InsightScore has nothing yet — pull from main project store
         return projectsApi.list().then(pr => {
           const main = (pr.data?.projects || pr.data || []).map((p: { id: string; name: string; submission_count?: number; created_at?: string }) => ({
             id: p.id,
@@ -294,7 +447,6 @@ export default function InsightsPage() {
         });
       })
       .catch(() => {
-        // Last resort: still try main projects
         projectsApi.list()
           .then(pr => {
             const main = (pr.data?.projects || pr.data || []).map((p: { id: string; name: string; submission_count?: number; created_at?: string }) => ({
@@ -312,19 +464,25 @@ export default function InsightsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const FALLBACK_PROJECT = "658464e5-09dc-4b99-a664-05690de9921a";
-  const firstProjectId = projects[0]?.id ?? FALLBACK_PROJECT;
+  // Auto-select only project if there's exactly one
+  useEffect(() => {
+    if (projects.length === 1 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedProjectId]);
+
+  const disabled = !selectedProjectId;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* Prominent mode switcher */}
+      {/* Mode switcher */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {([
           {
             id: "analysis" as InsightsTab,
             icon: Sparkles,
             label: "AI Analysis",
-            desc: "Run Question Intelligence, Signal Fidelity, Demographic breakdowns, and Evidence Engine on your verified interviews.",
+            desc: "Run Question Intelligence, Signal Fidelity, Demographic breakdowns, and Evidence Engine on your verified interviews. Ada surfaces findings your team might miss.",
             color: BLUE,
             badge: "InsightScore",
           },
@@ -332,7 +490,7 @@ export default function InsightsPage() {
             id: "outcome" as InsightsTab,
             icon: Target,
             label: "Outcome Intelligence",
-            desc: "Track KPIs, outcome indicators, and research targets across your project portfolio.",
+            desc: "Track KPIs, outcome indicators, and research targets across your portfolio. See how each project is progressing toward your theory of change.",
             color: PURPLE,
             badge: "New",
           },
@@ -350,9 +508,7 @@ export default function InsightsPage() {
                 gap: 10, padding: "18px 20px", borderRadius: 14, border: "none",
                 cursor: "pointer", fontFamily: "Inter,sans-serif", textAlign: "left",
                 background: active ? tab.color : "white",
-                boxShadow: active
-                  ? `0 6px 24px ${tab.color}30`
-                  : "0 2px 12px rgba(10,15,28,.06)",
+                boxShadow: active ? `0 6px 24px ${tab.color}30` : "0 2px 12px rgba(10,15,28,.06)",
                 outline: active ? "none" : `1px solid #E8EDF5`,
                 transition: "all .18s",
               }}
@@ -382,29 +538,54 @@ export default function InsightsPage() {
 
       {activeTab === "outcome" && <OutcomeIntelligencePage />}
 
-      {activeTab === "analysis" && <>
-      <AdaHero firstProjectId={firstProjectId} />
-      <CapabilityGrid firstProjectId={firstProjectId} />
+      {activeTab === "analysis" && (
+        <>
+          {/* Project selector — always visible, prominent when nothing selected */}
+          {!loading && projects.length > 0 && (
+            <ProjectSelector
+              projects={projects}
+              selectedId={selectedProjectId}
+              onSelect={setSelectedProjectId}
+            />
+          )}
 
-      <div>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.9, marginBottom: 12 }}>Your Projects</div>
-        {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {[1, 2].map(i => <div key={i} style={{ height: 72, borderRadius: 12, background: "white", border: "1px solid #E8EDF5" }} />)}
+          <AdaHero projectId={selectedProjectId} disabled={disabled} />
+          <CapabilityGrid projectId={selectedProjectId} disabled={disabled} />
+
+          <div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.9, marginBottom: 4 }}>Your Projects</div>
+            {!selectedProjectId && projects.length > 0 && (
+              <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>
+                Click a project below to select it, or use the picker above.
+              </div>
+            )}
+            {loading ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[1, 2].map(i => <div key={i} style={{ height: 72, borderRadius: 12, background: "white", border: "1px solid #E8EDF5" }} />)}
+              </div>
+            ) : projects.length === 0 ? (
+              <div style={{ background: "white", borderRadius: 14, padding: "32px 24px", border: "1px solid #E8EDF5", textAlign: "center" }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 4 }}>No projects yet</div>
+                <div style={{ fontSize: 12.5, color: "#9CA3AF" }}>Ada will brief you here once interviews are ready for analysis.</div>
+              </div>
+            ) : (
+              <div data-ada-target="insights-projects" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {projects.map(p => (
+                  <ProjectCard
+                    key={p.id}
+                    project={p}
+                    onSelect={id => {
+                      setSelectedProjectId(id);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        ) : projects.length === 0 ? (
-          <div style={{ background: "white", borderRadius: 14, padding: "32px 24px", border: "1px solid #E8EDF5", textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 4 }}>No projects yet</div>
-            <div style={{ fontSize: 12.5, color: "#9CA3AF" }}>Ada will brief you here once interviews are ready for analysis.</div>
-          </div>
-        ) : (
-          <div data-ada-target="insights-projects" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {projects.map(p => <ProjectCard key={p.id} project={p} onClick={() => navigate(`/insights/${p.id}`)} />)}
-          </div>
-        )}
-      </div>
-      </>}
+        </>
+      )}
     </div>
   );
 }
