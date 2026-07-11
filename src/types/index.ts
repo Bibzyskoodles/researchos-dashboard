@@ -55,13 +55,17 @@ export interface Submission {
 
 export interface Enumerator {
   enumerator_id: string;
-  total_subs: number;
+  name?: string;
+  total_subs?: number;
+  total_submissions?: number;
   avg_score: number;
-  grade: Grade;
-  trend: 'up' | 'down' | 'neutral';
-  pass_count: number;
-  flag_count: number;
-  last_submission: string;
+  grade?: Grade;
+  trend?: 'up' | 'down' | 'neutral';
+  pass_count?: number;
+  pass_rate?: number;
+  flag_count?: number;
+  flags?: number;
+  last_submission?: string;
 }
 
 export interface DashboardStats {

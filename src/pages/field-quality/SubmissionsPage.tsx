@@ -133,7 +133,7 @@ export default function SubmissionsPage(){
     const adjVerdict = adjMap[s.submission_id]?.verdict ?? s.verdict;
     if(filter!=="ALL"&&adjVerdict!==filter)return false;
     const q = search.toLowerCase();
-    if(q&&!s.submission_id.toLowerCase().includes(q)&&!s.enumerator_id.toLowerCase().includes(q))return false;
+    if(q&&!s.submission_id.toLowerCase().includes(q)&&!s.enumerator_id.toLowerCase().includes(q)&&!(s as any).enumerator_name?.toLowerCase().includes(q)&&!(s as any).respondent_name?.toLowerCase().includes(q))return false;
     return true;
   });
 
@@ -222,7 +222,7 @@ export default function SubmissionsPage(){
                   {imgScore>0&&<MediaBadge type="image" status={sub.checks?.image?.status||""} score={imgScore}/>}
                   {audScore>0&&<MediaBadge type="audio" status={sub.checks?.audio?.status||""} score={audScore}/>}
                 </div>
-                <div style={{fontSize:12,color:"#374151",fontWeight:500,marginBottom:3}}>{sub.enumerator_id}</div>
+                <div style={{fontSize:12,color:"#374151",fontWeight:500,marginBottom:3}}>{(sub as any).enumerator_name || sub.enumerator_id}</div>
                 <div style={{display:"flex",alignItems:"center",gap:12,fontSize:11,color:"#9CA3AF"}}>
                   {sub.gps?.address&&<span style={{display:"flex",alignItems:"center",gap:3}}><MapPin size={10}/>{sub.gps.address.split(",").slice(0,2).join(",")}</span>}
                   {sub.duration_mins&&<span style={{display:"flex",alignItems:"center",gap:3}}><Clock size={10}/>{Math.round(Number(sub.duration_mins))}m</span>}
@@ -252,7 +252,7 @@ export default function SubmissionsPage(){
               <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",justifyContent:"space-between",background:"linear-gradient(135deg,#F8FAFF,white)"}}>
                 <div>
                   <div style={{fontSize:11,fontFamily:"monospace",color:"#9CA3AF",marginBottom:2}}>{selected.submission_id.substring(0,16)}…</div>
-                  <div style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>{selected.enumerator_id}</div>
+                  <div style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>{(selected as any).enumerator_name || selected.enumerator_id}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <ScoreRing score={adjMap[selected.submission_id]?.overall ?? selected.overall_score} size={52}/>

@@ -77,17 +77,22 @@ export default function EnumeratorsPage(){
             {enums.slice(0,3).map((e,i)=>{
               const medals=["🥇","🥈","🥉"];
               const col=COLORS[i];
+              const displayName = e.name || e.enumerator_id;
+              const totalSubs = e.total_submissions ?? e.total_subs ?? 0;
+              const flagCount = e.flags ?? e.flag_count ?? 0;
+              const passCount = e.pass_count ?? Math.round((e.pass_rate ?? 0) * totalSubs / 100);
+              const initials = displayName.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase();
               return(
                 <motion.div key={e.enumerator_id} whileHover={{y:-4, boxShadow: "0 8px 24px rgba(0,61,165,0.12)"}}
                   style={{background:"white",borderRadius:16,padding:"20px",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)",cursor:"pointer",position:"relative",overflow:"hidden"}}
                   onClick={()=>setSelected(selected?.enumerator_id===e.enumerator_id?null:e)}>
                   <div style={{position:"absolute",top:0,right:0,width:80,height:80,borderRadius:"0 0 0 80px",background:col+"12"}}/>
                   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12}}>
-                    <div style={{width:40,height:40,borderRadius:"50%",background:col,display:"grid",placeItems:"center",fontSize:14,fontWeight:800,color:"white"}}>{e.enumerator_id.slice(-2)}</div>
+                    <div style={{width:40,height:40,borderRadius:"50%",background:col,display:"grid",placeItems:"center",fontSize:14,fontWeight:800,color:"white"}}>{initials}</div>
                     <span style={{fontSize:22}}>{medals[i]}</span>
                   </div>
-                  <div style={{fontSize:12,fontWeight:700,color:"#080D1A",marginBottom:2}}>{e.enumerator_id}</div>
-                  <div style={{fontSize:11,color:"#9CA3AF",marginBottom:12}}>{e.total_subs} interviews</div>
+                  <div style={{fontSize:12,fontWeight:700,color:"#080D1A",marginBottom:2}}>{displayName}</div>
+                  <div style={{fontSize:11,color:"#9CA3AF",marginBottom:12}}>{totalSubs} interviews</div>
                   <div style={{fontSize:32,fontWeight:800,color:col,letterSpacing:-2,lineHeight:1,marginBottom:8}}>{e.avg_score}</div>
                   <div style={{height:3,background:"#EEF2F8",borderRadius:2,overflow:"hidden",marginBottom:10}}>
                     <motion.div style={{height:"100%",background:col,borderRadius:2}}
@@ -95,11 +100,11 @@ export default function EnumeratorsPage(){
                   </div>
                   <div style={{display:"flex",gap:8}}>
                     <div style={{flex:1,textAlign:"center",padding:"6px",background:"#F8FAFF",borderRadius:8}}>
-                      <div style={{fontSize:14,fontWeight:800,color:GREEN}}>{e.pass_count}</div>
+                      <div style={{fontSize:14,fontWeight:800,color:GREEN}}>{passCount}</div>
                       <div style={{fontSize:9,color:"#9CA3AF",fontWeight:600,textTransform:"uppercase",letterSpacing:.4}}>Passed</div>
                     </div>
                     <div style={{flex:1,textAlign:"center",padding:"6px",background:"#F8FAFF",borderRadius:8}}>
-                      <div style={{fontSize:14,fontWeight:800,color:e.flag_count>0?AMBER:"#9CA3AF"}}>{e.flag_count}</div>
+                      <div style={{fontSize:14,fontWeight:800,color:flagCount>0?AMBER:"#9CA3AF"}}>{flagCount}</div>
                       <div style={{fontSize:9,color:"#9CA3AF",fontWeight:600,textTransform:"uppercase",letterSpacing:.4}}>Flagged</div>
                     </div>
                   </div>
@@ -116,6 +121,11 @@ export default function EnumeratorsPage(){
               </div>
               {enums.map((e,i)=>{
                 const col=COLORS[i%COLORS.length];
+                const dName = e.name || e.enumerator_id;
+                const tSubs = e.total_submissions ?? e.total_subs ?? 0;
+                const fCnt  = e.flags ?? e.flag_count ?? 0;
+                const pCnt  = e.pass_count ?? Math.round((e.pass_rate ?? 0) * tSubs / 100);
+                const ini   = dName.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase();
                 return(
                   <motion.div key={e.enumerator_id} whileHover={{background:"#F8FAFF"}}
                     onClick={()=>setSelected(selected?.enumerator_id===e.enumerator_id?null:e)}
@@ -123,10 +133,10 @@ export default function EnumeratorsPage(){
                       background:selected?.enumerator_id===e.enumerator_id?"#F0F7FF":"white",
                       borderLeft:selected?.enumerator_id===e.enumerator_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
                     <div style={{fontSize:12,fontWeight:700,fontFamily:"monospace",color:i<3?AMBER:"#9CA3AF",width:20}}>{i+1}</div>
-                    <div style={{width:36,height:36,borderRadius:"50%",background:col,display:"grid",placeItems:"center",fontSize:11,fontWeight:700,color:"white",flexShrink:0}}>{e.enumerator_id.slice(-2)}</div>
+                    <div style={{width:36,height:36,borderRadius:"50%",background:col,display:"grid",placeItems:"center",fontSize:11,fontWeight:700,color:"white",flexShrink:0}}>{ini}</div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600,color:"#080D1A",marginBottom:2}}>{e.enumerator_id}</div>
-                      <div style={{fontSize:11,color:"#9CA3AF"}}>{e.total_subs} interviews · {e.pass_count} passed · {e.flag_count} flagged</div>
+                      <div style={{fontSize:13,fontWeight:600,color:"#080D1A",marginBottom:2}}>{dName}</div>
+                      <div style={{fontSize:11,color:"#9CA3AF"}}>{tSubs} interviews · {pCnt} passed · {fCnt} flagged</div>
                     </div>
                     <div style={{width:100}}>
                       <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,fontSize:10,color:"#9CA3AF"}}>
@@ -150,10 +160,10 @@ export default function EnumeratorsPage(){
                 style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 4px 24px rgba(10,15,28,.1)",position:"sticky",top:16}}>
                 <div style={{padding:"20px",borderBottom:"1px solid #F1F5F9",background:"linear-gradient(135deg,#F8FAFF,white)"}}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:48,height:48,borderRadius:"50%",background:BLUE,display:"grid",placeItems:"center",fontSize:14,fontWeight:800,color:"white"}}>{selected.enumerator_id.slice(-2)}</div>
+                    <div style={{width:48,height:48,borderRadius:"50%",background:BLUE,display:"grid",placeItems:"center",fontSize:14,fontWeight:800,color:"white"}}>{(selected.name||selected.enumerator_id).split(' ').map((w:string)=>w[0]).join('').slice(0,2).toUpperCase()}</div>
                     <div>
-                      <div style={{fontSize:15,fontWeight:700,color:"#080D1A"}}>{selected.enumerator_id}</div>
-                      <div style={{fontSize:11,color:"#9CA3AF"}}>{selected.total_subs} interviews · Grade {selected.grade}</div>
+                      <div style={{fontSize:15,fontWeight:700,color:"#080D1A"}}>{selected.name||selected.enumerator_id}</div>
+                      <div style={{fontSize:11,color:"#9CA3AF"}}>{selected.total_submissions??selected.total_subs??0} interviews · Grade {selected.grade}</div>
                     </div>
                     <div style={{marginLeft:"auto",fontSize:32,fontWeight:800,color:clr(selected.avg_score),letterSpacing:-2}}>{selected.avg_score}</div>
                   </div>
@@ -174,17 +184,17 @@ export default function EnumeratorsPage(){
                   </div>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                    {[["Submissions",selected.total_subs],["Avg Score",selected.avg_score+"/100"],["Passed",selected.pass_count],["Flagged",selected.flag_count]].map(([k,v])=>(
+                    {[["Submissions",selected.total_submissions??selected.total_subs??0],["Avg Score",selected.avg_score+"/100"],["Passed",selected.pass_count??Math.round((selected.pass_rate??0)*(selected.total_submissions??selected.total_subs??1)/100)],["Flagged",selected.flags??selected.flag_count??0]].map(([k,v])=>(
                       <div key={k} style={{padding:"12px",background:"#F8FAFF",borderRadius:10,textAlign:"center"}}>
                         <div style={{fontSize:18,fontWeight:800,color:"#080D1A",letterSpacing:-1}}>{v}</div>
                         <div style={{fontSize:10,color:"#9CA3AF",fontWeight:600,textTransform:"uppercase",letterSpacing:.4,marginTop:2}}>{k}</div>
                       </div>
                     ))}
                   </div>
-                  {selected.flag_count>0&&(
+                  {((selected.flags??selected.flag_count??0)>0)&&(
                     <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",background:"#FFFBEB",borderRadius:10,border:"1px solid #FDE68A"}}>
                       <AlertTriangle size={14} color={AMBER} style={{flexShrink:0,marginTop:1}}/>
-                      <div style={{fontSize:12,color:"#92400E"}}>{selected.flag_count} submission{selected.flag_count>1?"s":""} flagged for review.</div>
+                      <div style={{fontSize:12,color:"#92400E"}}>{selected.flags??selected.flag_count??0} submission{((selected.flags??selected.flag_count??0)>1)?"s":""} flagged for review.</div>
                     </div>
                   )}
                   <button onClick={()=>setActiveTab("scorecard")}
