@@ -3,8 +3,10 @@ import { NavLink, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { useProject } from '../../context/ProjectContext';
-import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard } from 'lucide-react';
+import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard, X } from 'lucide-react';
 import FieldScoreLogo from '../brand/FieldScoreLogo';
+
+interface SidebarProps { onClose?: () => void; }
 
 const BLUE = '#2463EB';
 
@@ -26,7 +28,7 @@ const BROWSE_NAV = [
   ]},
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: SidebarProps) {
   const { user, org, logout } = useAuth();
   const { navigatePage } = useAda();
   const navigate = useNavigate();
@@ -56,13 +58,19 @@ export default function Sidebar() {
   return (
     <aside style={{
       width: 220, background: '#080D1A', display: 'flex',
-      flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
+      flexDirection: 'column', flexShrink: 0, overflow: 'hidden', height: '100%',
     }}>
       {/* Logo */}
       <div style={{
         padding: '18px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <FieldScoreLogo height={17} mode="dark" casing="#080D1A" sub="ResearchOS" />
+        {onClose && (
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.4)', padding: 4, display: 'grid', placeItems: 'center', borderRadius: 5 }}>
+            <X size={15} />
+          </button>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>

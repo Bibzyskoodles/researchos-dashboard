@@ -5,6 +5,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import AdaDock from "./AdaDock";
 import { useAda } from "../../ada/AdaContext";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 // Pages where a Refresh button is meaningful
 const REFRESHABLE = ["/submissions", "/overview", "/enumerators", "/map"];
@@ -15,6 +16,11 @@ export default function AppShell() {
   const { store, setOpen } = useAda();
   const lastCmdSeq = useRef<number | null>(null);
   const [adaToast, setAdaToast] = useState<string | null>(null);
+  const isMobile = useIsMobile(820);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Close drawer on route change
+  useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
 
   // Execute Ada commands
   useEffect(() => {
@@ -90,9 +96,41 @@ export default function AppShell() {
       display: "flex", height: "100vh", overflow: "hidden",
       background: "#F0F4FF", fontFamily: "Inter, sans-serif",
     }}>
-      <Sidebar />
+      {/* Desktop sidebar — always visible above 820px */}
+      {!isMobile && <Sidebar />}
+
+      {/* Mobile drawer backdrop */}
+      <AnimatePresence>
+        {isMobile && drawerOpen && (
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setDrawerOpen(false)}
+            style={{
+              position: "fixed", inset: 0, background: "rgba(8,13,26,.55)",
+              zIndex: 300,
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Mobile drawer */}
+      <AnimatePresence>
+        {isMobile && drawerOpen && (
+          <motion.div
+            key="drawer"
+            initial={{ x: -240 }} animate={{ x: 0 }} exit={{ x: -240 }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            style={{ position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 301, width: 240 }}
+          >
+            <Sidebar onClose={() => setDrawerOpen(false)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <Topbar onRefresh={handleRefresh} />
+        <Topbar onRefresh={handleRefresh} onMenuToggle={isMobile ? () => setDrawerOpen(o => !o) : undefined} />
         <AnimatePresence mode="wait">
           <motion.main
             key={location.pathname}
@@ -100,7 +138,7 @@ export default function AppShell() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18, ease: "easeInOut" }}
-            style={{ flex: 1, overflowY: "auto", padding: "24px" }}
+            style={{ flex: 1, overflowY: "auto", padding: isMobile ? "16px" : "24px" }}
           >
             <Outlet />
           </motion.main>
