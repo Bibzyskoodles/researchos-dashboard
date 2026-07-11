@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { Bell, HelpCircle, Search, RefreshCw, Gift, Menu } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bell, HelpCircle, Search, RefreshCw, Gift, Menu, ChevronDown, Check, FolderOpen } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGamify } from '../../gamify/GamifyContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useProject } from '../../context/ProjectContext';
+import type { Project } from '../../context/ProjectContext';
+import { projectsApi } from '../../services/api';
 
 const PAGE_LABELS: Record<string, string> = {
   overview: 'Overview',
@@ -19,6 +22,119 @@ const PAGE_LABELS: Record<string, string> = {
 interface TopbarProps {
   onRefresh?: () => void;
   onMenuToggle?: () => void;
+}
+
+// Clickable project switcher — shows the active project, opens a dropdown of
+// all projects, and switches the whole workspace scope on selection.
+function ProjectSwitcher({ orgName }: { orgName?: string }) {
+  const { activeProject, setActiveProject } = useProject();
+  const [open, setOpen] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && projects.length === 0) {
+      setLoading(true);
+      projectsApi.list()
+        .then(r => setProjects(r.data.projects || r.data || []))
+        .catch(() => setProjects([]))
+        .finally(() => setLoading(false));
+    }
+  };
+
+  const pick = (p: Project) => {
+    setActiveProject(p.id);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={toggle}
+        title="Switch project"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 7,
+          background: '#F0F4FF', border: `1px solid ${open ? '#2463EB' : '#E2E8F0'}`,
+          borderRadius: 7, padding: '5px 10px', fontSize: 12.5,
+          fontWeight: 600, color: '#080D1A', cursor: 'pointer',
+          fontFamily: 'Inter, sans-serif',
+        }}
+      >
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
+        <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {activeProject?.name || orgName || 'Select project'}
+        </span>
+        <ChevronDown size={12} color="#9CA3AF" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 1000,
+          minWidth: 240, background: 'white', borderRadius: 10,
+          border: '1px solid #E2E8F0', boxShadow: '0 8px 28px rgba(10,15,28,.14)',
+          padding: 6, maxHeight: 320, overflowY: 'auto',
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.7, padding: '6px 10px 4px' }}>
+            Switch project
+          </div>
+          {loading && (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: '#9CA3AF' }}>Loading projects…</div>
+          )}
+          {!loading && projects.length === 0 && (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: '#9CA3AF' }}>No projects found.</div>
+          )}
+          {!loading && projects.map(p => {
+            const isActive = p.id === activeProject?.id;
+            return (
+              <button key={p.id} onClick={() => pick(p)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  padding: '8px 10px', borderRadius: 7, border: 'none',
+                  background: isActive ? '#EFF6FF' : 'transparent', cursor: 'pointer',
+                  fontFamily: 'Inter, sans-serif', textAlign: 'left',
+                }}
+                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = '#F8FAFF'; }}
+                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+              >
+                <FolderOpen size={13} color={isActive ? '#2463EB' : '#9CA3AF'} style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: isActive ? '#2463EB' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.name}
+                  </div>
+                  {p.status && <div style={{ fontSize: 10.5, color: '#9CA3AF', textTransform: 'capitalize' }}>{p.status}</div>}
+                </div>
+                {isActive && <Check size={13} color="#2463EB" style={{ flexShrink: 0 }} />}
+              </button>
+            );
+          })}
+          <div style={{ borderTop: '1px solid #F1F5F9', marginTop: 4, paddingTop: 4 }}>
+            <button onClick={() => { setOpen(false); navigate('/projects'); }}
+              style={{
+                width: '100%', padding: '7px 10px', borderRadius: 7, border: 'none',
+                background: 'transparent', cursor: 'pointer', fontSize: 12,
+                color: '#2463EB', fontWeight: 600, fontFamily: 'Inter, sans-serif', textAlign: 'left',
+              }}>
+              View all projects →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Topbar({ onRefresh, onMenuToggle }: TopbarProps) {
@@ -60,20 +176,8 @@ export default function Topbar({ onRefresh, onMenuToggle }: TopbarProps) {
         </button>
       )}
 
-      {/* Project pill — hide on very small mobile to save space */}
-      {!isMobile && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          background: '#F0F4FF', border: '1px solid #E2E8F0',
-          borderRadius: 7, padding: '5px 10px', fontSize: 12.5,
-          fontWeight: 600, color: '#080D1A', flexShrink: 0,
-        }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
-          <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {org?.name || 'My Workspace'}
-          </span>
-        </div>
-      )}
+      {/* Project switcher — hide on very small mobile to save space */}
+      {!isMobile && <ProjectSwitcher orgName={org?.name} />}
 
       {/* Search */}
       <form onSubmit={handleSearch} style={{
