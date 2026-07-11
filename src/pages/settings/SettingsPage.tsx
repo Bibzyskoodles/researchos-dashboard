@@ -1456,6 +1456,11 @@ export default function SettingsPage() {
   const [adaDismissed, setAdaDismissed] = useState(false);
   const { setOpen } = useAda();
 
+  useEffect(() => {
+    const s = (location.state as any)?.section;
+    if (s) setActive(s);
+  }, [location.state]);
+
   const seenGroups = new Set<string>();
   const sectionGroups: string[] = [];
   SECTIONS.forEach(s => { if (!seenGroups.has(s.group)) { seenGroups.add(s.group); sectionGroups.push(s.group); } });
