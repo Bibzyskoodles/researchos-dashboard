@@ -55,6 +55,7 @@ export default function SubmissionDetailPage(){
   const [toast,setToast]=useState("");
   const [showRaw,setShowRaw]=useState(false);
   const [aiScan,setAiScan]=useState<AiScan>({status:"idle"});
+  const [imageError,setImageError]=useState(false);
   const [,setEngineCfgVersion]=useState(0);
 
   useEffect(()=>{
@@ -274,12 +275,21 @@ GENUINE FIELDWORK SIGNALS (lower the score):
 
   const adaBriefing=(s:any, verdict:"PASS"|"FLAG"|"REJECT")=>{
     if(!s)return"";
-    if(verdict==="PASS") return `This submission passed all quality checks. GPS verified${s.gps?.address?` in ${s.gps.address.split(",")[0]}`:""}, interview duration is appropriate, and all media checks passed.`;
+    const flagArr:string[]=Array.isArray(s.flags)?s.flags:String(s.flags||"").split(",").map((f:string)=>f.trim()).filter(Boolean);
+    const flagDesc=flagArr.map((f:string)=>FLAG_LABELS[f]?.label||f);
+    const gpsOk=!flagArr.some((f:string)=>["GPS_PARSE_ERROR","NO_GPS","GPS_OUTSIDE_NIGERIA"].includes(f));
+    if(verdict==="PASS"){
+      if(flagArr.length===0){
+        return `This submission passed all quality checks. GPS verified${s.gps?.address?` in ${s.gps.address.split(",")[0]}`:""}, interview duration is appropriate, and all media checks passed.`;
+      }
+      // PASS verdict but has minor flags — be transparent
+      return `This submission passed the quality threshold despite ${flagArr.length===1?"a concern":"some concerns"}: ${flagDesc.slice(0,2).join("; ")}. ${gpsOk?"GPS looks good.":"Note: GPS data is unreliable for this submission."} Review the flags before approving for analysis.`;
+    }
     if(verdict==="FLAG"){
-      const flagList=(Array.isArray(s.flags)?s.flags:String(s.flags||"").split(",").filter(Boolean)).map((f:string)=>FLAG_LABELS[f]?.label||f).slice(0,2).join("; ");
+      const flagList=flagDesc.slice(0,2).join("; ");
       return `I found some concerns with this submission. ${flagList}. I recommend reviewing before approving for analysis.`;
     }
-    return `This submission failed quality verification. ${(Array.isArray(s.flags)?s.flags:String(s.flags||"").split(",").filter(Boolean)).map((f:string)=>FLAG_LABELS[f]?.label||f).slice(0,2).join("; ")}. I recommend rejecting this submission.`;
+    return `This submission failed quality verification. ${flagDesc.slice(0,2).join("; ")}. I recommend rejecting this submission.`;
   };
 
   const computeGrade=(score:number)=>{
@@ -306,8 +316,12 @@ GENUINE FIELDWORK SIGNALS (lower the score):
 
   const checks=sub.checks||{};
   const gps=sub.gps||{};
-  const lat=Number(gps.lat)||6.5244;
-  const lon=Number(gps.lon)||3.3792;
+  const flags:string[]=Array.isArray(sub.flags)?sub.flags:String(sub.flags||"").split(",").map((f:string)=>f.trim()).filter(Boolean);
+  const gpsErrorFlags=["GPS_PARSE_ERROR","NO_GPS","GPS_OUTSIDE_NIGERIA"];
+  const hasGpsError=flags.some((f:string)=>gpsErrorFlags.includes(f));
+  const lat=gps.lat&&!isNaN(Number(gps.lat))?Number(gps.lat):null;
+  const lon=gps.lon&&!isNaN(Number(gps.lon))?Number(gps.lon):null;
+  const canShowMap=!hasGpsError&&lat!==null&&lon!==null;
 
   // Compute adjusted score based on current engine config + flags
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -387,7 +401,6 @@ GENUINE FIELDWORK SIGNALS (lower the score):
             <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",gap:8}}>
               <MapPin size={15} color={BLUE}/><span style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>GPS Location</span>
               {(()=>{
-                const flags:string[]=Array.isArray(sub.flags)?sub.flags:String(sub.flags||"").split(",").map((f:string)=>f.trim()).filter(Boolean);
                 const gpsFlag=flags.find((f:string)=>["GPS_PARSE_ERROR","NO_GPS","GPS_OUTSIDE_NIGERIA","LOW_GPS_ACCURACY","GPS_POOR_ACCURACY","OUTSIDE_ASSIGNED_ZONE"].includes(f));
                 if(gpsFlag)return(
                   <span style={{marginLeft:"auto",fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:RED+"15",color:RED,display:"flex",alignItems:"center",gap:4}}>
@@ -403,23 +416,48 @@ GENUINE FIELDWORK SIGNALS (lower the score):
                 );
               })()}
             </div>
-            <div style={{height:200}}>
-              <MapContainer center={[lat,lon]} zoom={14} style={{height:"100%",width:"100%"}} scrollWheelZoom={false}>
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                />
-                <CircleMarker center={[lat,lon]} radius={10} pathOptions={{color:"white",weight:2,fillColor:BLUE,fillOpacity:1}}/>
-              </MapContainer>
-            </div>
-            <div style={{padding:"14px 20px",display:"flex",gap:20,flexWrap:"wrap"}}>
-              <div><div style={{fontSize:10.5,color:"#9CA3AF",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Coordinates</div>
-                <div style={{fontSize:12.5,fontFamily:"monospace",color:"#374151"}}>{lat.toFixed(6)}, {lon.toFixed(6)}</div></div>
-              {gps.address&&<div><div style={{fontSize:10.5,color:"#9CA3AF",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Address</div>
-                <div style={{fontSize:12.5,color:"#374151"}}>{gps.address}</div></div>}
-              {gps.accuracy_m&&<div><div style={{fontSize:10.5,color:"#9CA3AF",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Accuracy</div>
-                <div style={{fontSize:12.5,color:Number(gps.accuracy_m)>100?AMBER:GREEN,fontWeight:600}}>{gps.accuracy_m}m</div></div>}
-            </div>
+            {canShowMap?(
+              <>
+                <div style={{height:200}}>
+                  <MapContainer center={[lat!,lon!]} zoom={14} style={{height:"100%",width:"100%"}} scrollWheelZoom={false}>
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    />
+                    <CircleMarker center={[lat!,lon!]} radius={10} pathOptions={{color:"white",weight:2,fillColor:BLUE,fillOpacity:1}}/>
+                  </MapContainer>
+                </div>
+                <div style={{padding:"14px 20px",display:"flex",gap:20,flexWrap:"wrap"}}>
+                  <div><div style={{fontSize:10.5,color:"#9CA3AF",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Coordinates</div>
+                    <div style={{fontSize:12.5,fontFamily:"monospace",color:"#374151"}}>{lat!.toFixed(6)}, {lon!.toFixed(6)}</div></div>
+                  {gps.address&&<div><div style={{fontSize:10.5,color:"#9CA3AF",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Address</div>
+                    <div style={{fontSize:12.5,color:"#374151"}}>{gps.address}</div></div>}
+                  {gps.accuracy_m&&<div><div style={{fontSize:10.5,color:"#9CA3AF",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Accuracy</div>
+                    <div style={{fontSize:12.5,color:Number(gps.accuracy_m)>100?AMBER:GREEN,fontWeight:600}}>{gps.accuracy_m}m</div></div>}
+                </div>
+              </>
+            ):(
+              <div style={{padding:"28px 20px",display:"flex",flexDirection:"column",alignItems:"center",gap:12,background:"#FEF2F2"}}>
+                <div style={{width:40,height:40,borderRadius:"50%",background:RED+"15",display:"grid",placeItems:"center"}}>
+                  <MapPin size={20} color={RED}/>
+                </div>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontSize:13,fontWeight:700,color:RED,marginBottom:4}}>
+                    {flags.includes("NO_GPS")?"No GPS Data Recorded":"GPS Data Unreadable"}
+                  </div>
+                  <div style={{fontSize:12,color:"#9CA3AF",lineHeight:1.6,maxWidth:260}}>
+                    {flags.includes("NO_GPS")
+                      ?"This submission has no location data. The map cannot be displayed."
+                      :"The GPS coordinates in this submission could not be parsed. Displaying a map would show a misleading location."}
+                  </div>
+                </div>
+                {(gps.lat||gps.lon)&&(
+                  <div style={{fontSize:11,fontFamily:"monospace",color:"#9CA3AF",background:"#F8FAFF",padding:"4px 10px",borderRadius:6,border:"1px solid #E8EDF5"}}>
+                    Raw value: {String(gps.lat)}, {String(gps.lon)}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Image */}
@@ -427,12 +465,29 @@ GENUINE FIELDWORK SIGNALS (lower the score):
             <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",gap:8}}>
               <Camera size={15} color={PURPLE}/><span style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>Image Evidence</span>
             </div>
-            {sub.image_url?(
+            {sub.image_url&&!imageError?(
               <div style={{position:"relative",cursor:"zoom-in"}} onClick={()=>setLightbox(true)}>
-                <img src={sub.image_url} alt="submission" style={{width:"100%",maxHeight:280,objectFit:"cover"}}/>
+                <img
+                  src={sub.image_url}
+                  alt="submission"
+                  style={{width:"100%",maxHeight:280,objectFit:"cover",display:"block"}}
+                  onError={()=>setImageError(true)}
+                />
                 <div style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.6)",color:"white",fontSize:11,padding:"4px 8px",borderRadius:6}}>
                   Click to expand
                 </div>
+              </div>
+            ):sub.image_url&&imageError?(
+              <div style={{padding:"24px 20px",background:"#FEF2F2",display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
+                <Camera size={24} color={RED} style={{opacity:.5}}/>
+                <div style={{fontSize:13,fontWeight:600,color:RED}}>Image could not be loaded</div>
+                <div style={{fontSize:12,color:"#9CA3AF",lineHeight:1.6,maxWidth:300}}>
+                  The image URL requires authentication or is no longer accessible. This is common with KoboToolbox attachments that need a valid session cookie to serve.
+                </div>
+                <a href={sub.image_url} target="_blank" rel="noopener noreferrer"
+                  style={{fontSize:11,color:BLUE,textDecoration:"underline",wordBreak:"break-all",maxWidth:300}}>
+                  Try opening directly ↗
+                </a>
               </div>
             ):(
               <div style={{height:140,display:"grid",placeItems:"center",background:"#F8FAFF",color:"#9CA3AF",fontSize:13}}>
@@ -440,24 +495,28 @@ GENUINE FIELDWORK SIGNALS (lower the score):
               </div>
             )}
             {checks.image&&(
-              <div style={{padding:"14px 20px"}}>
+              <div style={{padding:"14px 20px",display:"flex",flexDirection:"column",gap:10}}>
                 <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"12px",background:"#F8FAFF",borderRadius:10,border:"1px solid #E8EDF5"}}>
                   <div style={{width:24,height:24,borderRadius:"50%",overflow:"hidden",flexShrink:0}}>
                     <img src="/ada-avatar.jpg" alt="Ada" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"50% 15%"}}/>
                   </div>
                   <div>
-                    <div style={{fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>What Ada saw in this image</div>
+                    <div style={{fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>Image quality assessment</div>
                     <div style={{fontSize:12.5,color:"#374151",lineHeight:1.65}}>{checks.image.finding||"No assessment available"}</div>
                   </div>
                 </div>
                 {checks.image.status&&checks.image.status!=="NOT_AVAILABLE"&&(
-                  <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,color:"#9CA3AF"}}>Quality:</span>
                     <span style={{fontSize:12,fontWeight:700,color:clr(checks.image.score||0),fontFamily:"monospace"}}>{checks.image.score}/100</span>
                     <div style={{flex:1,height:4,background:"#EEF2F8",borderRadius:2,overflow:"hidden"}}>
                       <div style={{width:`${checks.image.score||0}%`,height:"100%",background:PURPLE,borderRadius:2}}/>
                     </div>
                   </div>
                 )}
+                <div style={{fontSize:11,color:"#9CA3AF",padding:"6px 10px",background:"#F8FAFF",borderRadius:7,border:"1px solid #E8EDF5"}}>
+                  ⓘ This score measures image <strong>quality</strong> (clarity, blur, exposure) — not whether the image is AI-generated. See "AI Authenticity" below for fraud detection.
+                </div>
               </div>
             )}
           </div>
