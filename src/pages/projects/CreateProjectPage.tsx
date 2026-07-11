@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { projectsApi } from '../../services/api';
 import { getIndustry, StudyType } from '../../context/ResearchContext';
+import { useGamify } from '../../gamify/GamifyContext';
 
 const BLUE = '#2463EB';
 
@@ -276,6 +277,7 @@ function Step4Target({ onSubmit, onBack, loading }: { onSubmit: (target?: number
 
 export default function CreateProjectPage() {
   const navigate = useNavigate();
+  const { recordEvent } = useGamify();
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [studyTypeId, setStudyTypeId] = useState('');
@@ -294,6 +296,7 @@ export default function CreateProjectPage() {
         target_submissions: target,
         start_point: startPoint,
       });
+      recordEvent('project_created');
       navigate(`/projects/${res.data.project.id}`);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create project');

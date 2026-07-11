@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './store/AuthContext';
 import { AdaProvider } from './ada/AdaContext';
+import { GamifyProvider } from './gamify/GamifyContext';
 import { ResearchProvider } from './context/ResearchContext';
 import { ProjectProvider } from './context/ProjectContext';
 import { IndustryProvider } from './store/IndustryContext';
@@ -114,7 +115,9 @@ export default function App() {
         <IndustryProvider>
           <PlatformProvider>
             <AdaProvider>
-              <AppRoutes />
+              <GamifyProvider>
+                <AppRoutes />
+              </GamifyProvider>
             </AdaProvider>
           </PlatformProvider>
         </IndustryProvider>

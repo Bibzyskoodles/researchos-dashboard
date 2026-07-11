@@ -4,6 +4,7 @@ import { Download, Sparkles, Clock, CheckCircle, ChevronDown } from "lucide-reac
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { insightScoreApi, projectsApi } from "../../services/api";
 import { usePlatform } from "../../platform/PlatformProvider";
+import { useGamify } from "../../gamify/GamifyContext";
 
 const BLUE = "#2463EB", GREEN = "#059669", PURPLE = "#7C3AED";
 
@@ -27,6 +28,7 @@ export default function ReportsPage() {
   const [generating, setGenerating] = useState<string | null>(null);
   const [generated, setGenerated] = useState<Record<string, { format: string }>>({});
   const [toast, setToast] = useState("");
+  const { recordEvent } = useGamify();
   useAdaGreeting({ page: "reports" });
 
   useEffect(() => {
@@ -58,10 +60,12 @@ export default function ReportsPage() {
       await insightScoreApi.analyseProject(selectedProject.id);
       await insightScoreApi.waitForAnalysis(selectedProject.id, 60000);
       setGenerated(prev => ({ ...prev, [r.id]: { format: r.format } }));
+      recordEvent('report_generated');
       showToast(`${r.title} ready — click Download`);
     } catch {
       // analysis may already be complete — mark as done anyway
       setGenerated(prev => ({ ...prev, [r.id]: { format: r.format } }));
+      recordEvent('report_generated');
       showToast(`${r.title} ready — click Download`);
     } finally {
       setGenerating(null);

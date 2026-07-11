@@ -8,6 +8,8 @@ import {
   Download, ExternalLink, X, ShieldAlert, Cpu, Send,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
+import { useGamify } from "../../gamify/GamifyContext";
+import CreditsPanel from "../../gamify/CreditsPanel";
 import { orgAdminApi } from "../../services/api";
 import { useNavigate as useNav, useLocation } from "react-router-dom";
 
@@ -298,6 +300,7 @@ function UsersSection() {
   const [inviteMsg, setInviteMsg] = useState("");
   const [inviteSent, setInviteSent] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string|null>(null);
+  const { recordEvent } = useGamify();
 
   const allProjects = ["All","Lagos Baseline 2025","Kano Pilot","Ibadan Youth Survey"];
   const isClientRole = ["Client","Observer"].includes(inviteRole);
@@ -314,6 +317,7 @@ function UsersSection() {
     };
     if (isClientRole) setClients(p => [...p, newUser]);
     else setTeam(p => [...p, newUser]);
+    if (isClientRole) recordEvent('client_invited');
     setInviteSent(true);
     setTimeout(() => { setInviteSent(false); setShowInvite(false); setInviteEmail(""); setInviteMsg(""); setInviteExpiry(""); }, 2000);
   };
@@ -1092,6 +1096,7 @@ function useToast() {
 // ─── BillingSection ───────────────────────────────────────────────────────────
 function BillingSection() {
   const { addMessage, setState, setOpen } = useAda();
+  const { creditsBalance } = useGamify();
   const [currency, setCurrency] = useState<"NGN" | "USD">(MOCK_BILLING.currency);
   const [barsReady, setBarsReady] = useState(false);
   const [adaQuestion, setAdaQuestion] = useState("");
@@ -1117,6 +1122,7 @@ function BillingSection() {
       : `You're getting close to your monthly limit on FieldScore verifications. Consider upgrading before your cycle resets on ${B.next_billing}.`;
 
   const adaSuggestions = [
+    "How do I earn rewards credits?",
     "What's included in the Professional plan?",
     "How does Paystack billing work?",
     "Can I get a discount for annual billing?",
@@ -1248,6 +1254,9 @@ function BillingSection() {
         </div>
       </div>
 
+      {/* ── FieldScore Rewards — credits applied to next payment ── */}
+      <CreditsPanel />
+
       {/* ── Plan at a glance ── quick, no scrolling needed ── */}
       <SettingsCard style={{ padding: 0, overflow: "hidden" }}>
         {/* Plan header row */}
@@ -1272,6 +1281,11 @@ function BillingSection() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {creditsBalance > 0 && (
+              <span style={{ fontSize: 11.5, color: GREEN, fontWeight: 700, background: "#ECFDF5", padding: "3px 10px", borderRadius: 12 }}>
+                −₦{creditsBalance.toLocaleString()} rewards credit
+              </span>
+            )}
             <span style={{ fontSize: 11.5, color: "#9CA3AF" }}>Next charge {B.next_billing}</span>
             <button style={{ ...BTN_PRIMARY, fontSize: 12, padding: "8px 16px" }}>Upgrade →</button>
           </div>

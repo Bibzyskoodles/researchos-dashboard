@@ -43,6 +43,14 @@ export function parseAdaCommand(text: string): AdaCommand | null {
     return { type: 'CREATE_PROJECT' };
   }
 
+  // ── Rewards & certificates ─────────────────────────────────────────────────
+  if (/(credit|reward|milestone|tier|loyalt)/.test(t)) {
+    return { type: 'OPEN_SETTINGS_SECTION', section: 'billing', label: 'Rewards & Credits' };
+  }
+  if (/(certificate|certif|data integrity)/.test(t)) {
+    return { type: 'SHOW_TOAST', message: 'Open a project\'s Verify or Report stage to issue a Data Integrity Certificate for your client.' };
+  }
+
   // ── Settings sections — specific sub-pages ───────────────────────────────
   const settingsSectionMap: [RegExp, string, string][] = [
     [/(billing|payment|plan|invoice|subscription|upgrade|paystack)/, 'billing', 'Billing'],

@@ -68,6 +68,19 @@ export default function AppShell() {
     setTimeout(() => setAdaToast(null), 3000);
   }
 
+  // Quiet milestone notifications from the rewards layer (GamifyContext)
+  useEffect(() => {
+    const onMilestone = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.message) {
+        setAdaToast(detail.message);
+        setTimeout(() => setAdaToast(null), 5000);
+      }
+    };
+    window.addEventListener('fs-milestone', onMilestone);
+    return () => window.removeEventListener('fs-milestone', onMilestone);
+  }, []);
+
   const handleRefresh = REFRESHABLE.includes(location.pathname)
     ? () => window.dispatchEvent(new Event("researchos:refresh"))
     : undefined;

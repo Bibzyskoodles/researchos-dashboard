@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Bell, HelpCircle, Search, RefreshCw } from 'lucide-react';
+import { Bell, HelpCircle, Search, RefreshCw, Gift } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useGamify } from '../../gamify/GamifyContext';
 
 const PAGE_LABELS: Record<string, string> = {
   overview: 'Overview',
@@ -23,6 +24,7 @@ export default function Topbar({ onRefresh }: TopbarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchVal, setSearchVal] = useState('');
+  const { creditsBalance } = useGamify();
 
   const pageName = PAGE_LABELS[location.pathname.replace('/', '')] || 'Overview';
 
@@ -79,6 +81,22 @@ export default function Topbar({ onRefresh }: TopbarProps) {
 
       {/* Right */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+        {/* Rewards credit — ambient, only visible once credits exist */}
+        {creditsBalance > 0 && (
+          <button
+            onClick={() => navigate('/settings', { state: { section: 'billing' } })}
+            title={`₦${creditsBalance.toLocaleString()} rewards credit — applied to your next payment`}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 7,
+              padding: '5px 10px', fontSize: 11.5, fontWeight: 700, color: '#059669',
+              cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+            }}
+          >
+            <Gift size={12} />
+            ₦{creditsBalance.toLocaleString()}
+          </button>
+        )}
         {/* Refresh — only shown on pages with live data */}
         {onRefresh && (
           <button

@@ -5,6 +5,8 @@ import { projectsApi } from '../../services/api';
 import { Project } from '../../context/ProjectContext';
 import { getIndustry, getStudyType } from '../../context/ResearchContext';
 import { verifyKoboToken } from '../../services/kobo/koboToolboxApi';
+import HealthRing from '../../gamify/HealthRing';
+import { useGamify } from '../../gamify/GamifyContext';
 
 const BLUE = '#2463EB';
 const GREEN = '#059669';
@@ -91,7 +93,10 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
         <div style={{ fontWeight: 700, fontSize: 16, color: '#080D1A', lineHeight: 1.3 }}>
           {project.name}
         </div>
-        <StatusBadge status={status} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <StatusBadge status={status} />
+          <HealthRing projectId={project.id} status={status} size={32} />
+        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
@@ -163,6 +168,8 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
     }
   };
 
+  const { recordEvent } = useGamify();
+
   const importProject = async () => {
     if (!selected) return;
     setImporting(true); setImportError('');
@@ -173,6 +180,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
         kobo_asset_uid: selected.uid,
         target_submissions: selected.deployment_count || undefined,
       });
+      recordEvent('project_created');
       setStep('done');
       setTimeout(() => { onImported(); onClose(); }, 1800);
     } catch {
@@ -305,6 +313,15 @@ export default function ProjectsPage() {
   };
 
   useEffect(() => { loadProjects(); }, []);
+
+  // Keep the rewards counter in step with reality so long-standing orgs get
+  // their project milestones recognised, not just newly created ones.
+  const { counters, recordEvent } = useGamify();
+  useEffect(() => {
+    const diff = projects.length - (counters.project_created || 0);
+    if (diff > 0) recordEvent('project_created', diff);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects.length]);
 
   const projectCount = projects.length;
   const collectingCount = projects.filter(p => p.status === 'collect').length;
