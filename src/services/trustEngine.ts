@@ -51,6 +51,7 @@ export interface TrustResult {
   consistency: ConsistencyFinding[];
   ineligibleReasons: string[];
   audit: string[];               // the explainability contract — §10
+  zoneCheck: ZoneCheck | null;   // haversine verification against the assigned zone — §6.7
   backendScore: number | null;
   backendVerdict: string | null;
   delta: number | null;          // trustIndex − backendScore, when both exist
@@ -119,8 +120,10 @@ const HARD_GATE_FLAGS = new Set([
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseFlags(flags: string | string[] | undefined): string[] {
+  // Always copy — the engine may append synthetic flags (§6.7) and must
+  // never mutate the caller's submission object (purity, Bible §0.5).
   return Array.isArray(flags)
-    ? flags
+    ? [...flags]
     : String(flags || "").split(",").map(f => f.trim()).filter(Boolean);
 }
 
@@ -135,6 +138,24 @@ export function gpsScoreFromAccuracy(accuracyM: number): number {
   return Math.max(0, Math.round(100 - Math.log10(Math.max(1, accuracyM)) * 40));
 }
 
+// Bible §6.7 — great-circle distance in metres between two coordinates.
+export function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+export interface ZoneCheck {
+  distanceM: number;
+  radiusM: number;
+  withinZone: boolean;
+  label?: string;
+}
+
 // ─── The engine ───────────────────────────────────────────────────────────────
 
 export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): TrustResult {
@@ -143,6 +164,27 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   const checks = sub.checks || {};
   const backendScore = numOrNull(sub.overall_score);
   const backendVerdict = sub.verdict ?? null;
+  const lat = numOrNull(sub.gps?.lat), lon = numOrNull(sub.gps?.lon);
+  const accuracy = numOrNull(sub.gps?.accuracy_m);
+
+  // ── Assigned-zone verification (Bible §6.7) ──
+  // When the client tells us where the enumerator should be, we verify by
+  // haversine distance. Outside the radius acts exactly like the backend's
+  // OUTSIDE_ASSIGNED_ZONE flag (override + hard gate). When no zone is set,
+  // the platform simply reports where enumeration happened.
+  let zoneCheck: ZoneCheck | null = null;
+  const zone = config.assignedZone;
+  if (zone && zone.lat != null && zone.lon != null && lat != null && lon != null) {
+    const distanceM = Math.round(haversineMeters(lat, lon, zone.lat, zone.lon));
+    const withinZone = distanceM <= zone.radiusM;
+    zoneCheck = { distanceM, radiusM: zone.radiusM, withinZone, label: zone.label };
+    if (withinZone) {
+      audit.push(`Assigned zone: enumeration was ${distanceM} m from the assigned location${zone.label ? ` (${zone.label})` : ""} — within the ${zone.radiusM} m radius. Presence corroborated.`);
+    } else {
+      audit.push(`Assigned zone: enumeration was ${distanceM} m from the assigned location${zone.label ? ` (${zone.label})` : ""} — OUTSIDE the ${zone.radiusM} m radius.`);
+      if (!flags.includes("OUTSIDE_ASSIGNED_ZONE")) flags.push("OUTSIDE_ASSIGNED_ZONE");
+    }
+  }
 
   // Worst (lowest) override per engine — Bible §6.5.
   const overrideByEngine: Partial<Record<EngineKey, { score: number; flag: string }>> = {};
@@ -154,8 +196,6 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   }
 
   // ── L1 Validation — the legacy escape hatch (Bible §5) ──
-  const lat = numOrNull(sub.gps?.lat), lon = numOrNull(sub.gps?.lon);
-  const accuracy = numOrNull(sub.gps?.accuracy_m);
   const anyCheckScore = ENGINE_KEYS.some(k => numOrNull(checks[k]?.score) != null);
   const anyEvidenceData = anyCheckScore || flags.length > 0 || lat != null || lon != null ||
     accuracy != null || numOrNull(sub.duration_mins) != null || !!sub.image_url || !!sub.audio_url;
@@ -170,7 +210,7 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
       verdict: (backendVerdict as Verdict) || "FLAG",
       recommendation: "REVIEW", risk: "MEDIUM",
       completeness: 0, confidence: CONF_LEGACY,
-      breakdown: [], consistency: [], ineligibleReasons: [], audit,
+      breakdown: [], consistency: [], ineligibleReasons: [], audit, zoneCheck,
       backendScore, backendVerdict, delta: null,
     };
   }
@@ -332,7 +372,7 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
       trustIndex: 0, status: "INELIGIBLE", verdict: "REJECT",
       recommendation: "REJECT", risk: "CRITICAL",
       completeness, confidence,
-      breakdown: records, consistency: [], ineligibleReasons, audit,
+      breakdown: records, consistency: [], ineligibleReasons, audit, zoneCheck,
       backendScore, backendVerdict,
       delta: backendScore != null ? 0 - backendScore : null,
     };
@@ -410,7 +450,7 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   return {
     trustIndex, status: "SCORED", verdict, recommendation, risk,
     completeness, confidence,
-    breakdown: records, consistency, ineligibleReasons: [], audit,
+    breakdown: records, consistency, ineligibleReasons: [], audit, zoneCheck,
     backendScore, backendVerdict,
     delta: backendScore != null ? trustIndex - backendScore : null,
   };

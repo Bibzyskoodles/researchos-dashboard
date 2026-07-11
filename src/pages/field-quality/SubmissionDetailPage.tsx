@@ -663,6 +663,24 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
                   {gps.accuracy_m&&<div><div style={{fontSize:10.5,color:"#9CA3AF",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Accuracy</div>
                     <div style={{fontSize:12.5,color:Number(gps.accuracy_m)>100?AMBER:GREEN,fontWeight:600}}>{gps.accuracy_m}m</div></div>}
                 </div>
+                {/* Assigned-zone verification (Bible §6.7) */}
+                {trust.zoneCheck?(
+                  <div style={{margin:"0 20px 14px",padding:"10px 14px",borderRadius:10,
+                    background:trust.zoneCheck.withinZone?"#F0FDF4":"#FFF5F5",
+                    border:`1px solid ${trust.zoneCheck.withinZone?"#BBF7D0":"#FECACA"}`,
+                    display:"flex",alignItems:"center",gap:8}}>
+                    {trust.zoneCheck.withinZone?<CheckCircle size={14} color={GREEN}/>:<XCircle size={14} color={RED}/>}
+                    <div style={{fontSize:12,color:trust.zoneCheck.withinZone?"#166534":"#991B1B",lineHeight:1.5}}>
+                      {trust.zoneCheck.withinZone
+                        ?<>Enumeration happened <strong>{trust.zoneCheck.distanceM.toLocaleString()} m</strong> from the assigned location{trust.zoneCheck.label?<> (<strong>{trust.zoneCheck.label}</strong>)</>:null} — within the {trust.zoneCheck.radiusM.toLocaleString()} m radius. Presence verified.</>
+                        :<>Enumeration happened <strong>{trust.zoneCheck.distanceM.toLocaleString()} m</strong> from the assigned location{trust.zoneCheck.label?<> (<strong>{trust.zoneCheck.label}</strong>)</>:null} — outside the {trust.zoneCheck.radiusM.toLocaleString()} m radius. This is treated as a critical violation.</>}
+                    </div>
+                  </div>
+                ):(
+                  <div style={{margin:"0 20px 14px",padding:"8px 14px",borderRadius:10,background:"#F8FAFF",border:"1px solid #EEF2F8",fontSize:11,color:"#9CA3AF",lineHeight:1.5}}>
+                    No assigned location configured for this project — showing where enumeration happened. Set an expected location in <span style={{color:BLUE,cursor:"pointer",textDecoration:"underline"}} onClick={()=>navigate("/settings",{state:{section:"engine"}})}>Engine Settings</span> to verify enumerator presence automatically.
+                  </div>
+                )}
               </>
             ):(
               <div style={{padding:"28px 20px",display:"flex",flexDirection:"column",alignItems:"center",gap:12,background:"#FEF2F2"}}>

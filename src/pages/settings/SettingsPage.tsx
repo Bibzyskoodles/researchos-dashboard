@@ -1668,6 +1668,10 @@ function EngineSection() {
     duplicate_reject_skips: [..._cfg.gating.duplicate_reject_skips],
   });
   const [requirements, setRequirements] = useState<EngineRequirements>({ ..._cfg.requirements });
+  const [zoneLat, setZoneLat] = useState<string>(_cfg.assignedZone.lat != null ? String(_cfg.assignedZone.lat) : "");
+  const [zoneLon, setZoneLon] = useState<string>(_cfg.assignedZone.lon != null ? String(_cfg.assignedZone.lon) : "");
+  const [zoneRadius, setZoneRadius] = useState<number>(_cfg.assignedZone.radiusM);
+  const [zoneLabel, setZoneLabel] = useState<string>(_cfg.assignedZone.label || "");
   const [aiHighPenalty, setAiHighPenalty] = useState(_cfg.aiHighPenalty);
   const [aiMediumPenalty, setAiMediumPenalty] = useState(_cfg.aiMediumPenalty);
   const [aiMediumFlag, setAiMediumFlag] = useState(_cfg.aiMediumFlag);
@@ -1689,6 +1693,12 @@ function EngineSection() {
       ...current,
       weights: { ...weights } as EngineConfig["weights"],
       requirements: { ...requirements },
+      assignedZone: {
+        lat: zoneLat.trim() !== "" && !isNaN(Number(zoneLat)) ? Number(zoneLat) : null,
+        lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
+        radiusM: zoneRadius,
+        label: zoneLabel.trim(),
+      },
       gating: {
         gps_reject_skips: [...gating.gps_reject_skips],
         duration_reject_skips: [...gating.duration_reject_skips],
@@ -1786,6 +1796,41 @@ function EngineSection() {
             );
           })}
         </div>
+      </SettingsCard>
+
+      {/* Assigned Zone Verification */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>📍 Assigned Zone Verification</div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
+          Tell FieldScore where enumeration should happen and it verifies every submission's GPS against that location using great-circle (haversine) distance. Inside the radius corroborates presence; outside it is treated as a critical violation and the submission is rejected for review. <strong>Leave the coordinates empty to skip verification</strong> — the platform will simply show where each enumeration actually happened (coordinates and address).
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {[
+            { label: "Latitude", value: zoneLat, set: setZoneLat, placeholder: "e.g. 6.5158" },
+            { label: "Longitude", value: zoneLon, set: setZoneLon, placeholder: "e.g. 3.3898" },
+          ].map(f => (
+            <div key={f.label}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>{f.label}</div>
+              <input value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.placeholder}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }} />
+            </div>
+          ))}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>Radius (metres)</div>
+            <input type="number" min={10} value={zoneRadius} onChange={e => setZoneRadius(Math.max(10, Number(e.target.value) || 10))}
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>Location name (optional)</div>
+            <input value={zoneLabel} onChange={e => setZoneLabel(e.target.value)} placeholder="e.g. Akoka Primary Health Centre"
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box" }} />
+          </div>
+        </div>
+        {zoneLat.trim() !== "" && zoneLon.trim() !== "" && (
+          <div style={{ marginTop: 12, fontSize: 11.5, color: GREEN, fontWeight: 600 }}>
+            ✓ Zone verification active — submissions more than {zoneRadius} m from {zoneLabel || `${zoneLat}, ${zoneLon}`} will be rejected for review.
+          </div>
+        )}
       </SettingsCard>
 
       {/* Engine Gating */}

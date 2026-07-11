@@ -2,7 +2,7 @@
 // One-to-one with docs/15_TRUST_INTELLIGENCE_BIBLE.md §13 and the edge-case
 // ledger in §12. A change to either side without the other is a build-breaking event.
 
-import { computeTrustIndex, gpsScoreFromAccuracy } from "./trustEngine";
+import { computeTrustIndex, gpsScoreFromAccuracy, haversineMeters } from "./trustEngine";
 import { DEFAULT_ENGINE_CONFIG } from "./engineConfig";
 import type { EngineConfig } from "./engineConfig";
 
@@ -257,6 +257,42 @@ describe("E24 Consistency clamp", () => {
     const total = r.consistency.reduce((s, c) => s + c.delta, 0);
     expect(total).toBeLessThanOrEqual(-10);
     expect(r.audit.join(" ")).toMatch(/clamped/);
+  });
+});
+
+describe("§6.7 Assigned-zone verification (haversine)", () => {
+  it("haversine is accurate: Lagos→Ibadan ≈ 128 km", () => {
+    const d = haversineMeters(6.5244, 3.3792, 7.3775, 3.947);
+    expect(d).toBeGreaterThan(110000);
+    expect(d).toBeLessThan(130000);
+  });
+
+  it("within the radius: presence corroborated, no penalty", () => {
+    const r = computeTrustIndex(FULL_HOUSE,
+      cfg({ assignedZone: { lat: 6.5001, lon: 3.3001, radiusM: 250, label: "Akoka PHC" } }));
+    expect(r.zoneCheck).not.toBeNull();
+    expect(r.zoneCheck!.withinZone).toBe(true);
+    expect(r.zoneCheck!.distanceM).toBeLessThan(250);
+    expect(r.verdict).toBe("PASS");
+    expect(r.audit.join(" ")).toMatch(/Presence corroborated/);
+  });
+
+  it("outside the radius: OUTSIDE_ASSIGNED_ZONE hard gate → REJECT", () => {
+    const r = computeTrustIndex(FULL_HOUSE,
+      cfg({ assignedZone: { lat: 6.6, lon: 3.3, radiusM: 250, label: "Akoka PHC" } }));
+    expect(r.zoneCheck!.withinZone).toBe(false);
+    expect(r.zoneCheck!.distanceM).toBeGreaterThan(10000);
+    expect(r.verdict).toBe("REJECT");
+    expect(r.risk).toBe("CRITICAL");
+    const gps = r.breakdown.find(b => b.key === "gps")!;
+    expect(gps.flagOverride).toBe("OUTSIDE_ASSIGNED_ZONE");
+    expect(gps.effectiveScore).toBe(15);
+  });
+
+  it("no zone configured: verification skipped, coordinates simply reported", () => {
+    const r = computeTrustIndex(FULL_HOUSE, cfg());
+    expect(r.zoneCheck).toBeNull();
+    expect(r.trustIndex).toBe(92); // unchanged from S1
   });
 });
 

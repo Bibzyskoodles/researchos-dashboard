@@ -319,6 +319,27 @@ skipped (`gated`) — excluded from synthesis and marked in the breakdown. Purpo
 saving and principle 3 (a submission already disqualified by GPS fraud is not additionally
 dragged through image penalties for the same root cause). Defaults: no gating.
 
+### 6.7 Assigned-zone verification (haversine)
+
+The client may declare **where enumeration should happen**: a coordinate pair, a radius in
+metres (default 250), and an optional location name — per project, in Engine Settings.
+
+When a zone is configured and the submission carries usable GPS, the engine computes the
+great-circle distance:
+
+```
+d = 2R·asin(√(sin²(Δφ/2) + cosφ₁·cosφ₂·sin²(Δλ/2)))       R = 6 371 000 m
+```
+
+- **d ≤ radius** → presence corroborated; the distance is recorded in the audit trail and
+  displayed on the submission ("312 m from Akoka PHC — within the 500 m radius").
+- **d > radius** → the engine raises `OUTSIDE_ASSIGNED_ZONE` itself, which flows through the
+  standard machinery: GPS override to 15 (§6.5) **and** a hard gate (§9) — the submission is
+  rejected for review with the measured distance stated.
+- **No zone configured** → verification is skipped entirely and the platform simply reports
+  where enumeration happened: coordinates, map, and reverse-geocoded address. Absence of a
+  client expectation is never a penalty.
+
 ---
 
 ## 7. Evidence Completeness
@@ -463,6 +484,9 @@ Every case below has defined behavior and (where marked ✓) a scenario test.
 | E22 | GPS spoofing beyond flag detection | Phase 2 (velocity checks, device attestation) — same provider interface |
 | E23 ✓ | Weights that don't sum to 1 | Normalization makes only ratios matter |
 | E24 ✓ | Consistency delta would exceed bounds | Clamped to [−10, +3] before application |
+| E25 ✓ | Assigned zone set, enumeration inside radius | Presence corroborated, distance recorded, no penalty |
+| E26 ✓ | Assigned zone set, enumeration outside radius | `OUTSIDE_ASSIGNED_ZONE` raised → GPS override 15 + hard gate → REJECT |
+| E27 ✓ | No assigned zone configured | Verification skipped; coordinates + address simply reported |
 
 ---
 

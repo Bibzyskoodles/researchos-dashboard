@@ -44,6 +44,16 @@ export const DEFAULT_REQUIREMENTS: EngineRequirements = {
   text_ai: "OPTIONAL",
 };
 
+// Bible §6.7 — client-assigned enumeration location. When set, the engine
+// verifies presence by haversine distance; when unset, the platform simply
+// reports where enumeration happened (coordinates + reverse-geocoded address).
+export interface AssignedZone {
+  lat: number | null;
+  lon: number | null;
+  radiusM: number;
+  label?: string;
+}
+
 export interface GatingConfig {
   gps_reject_skips: string[];
   duration_reject_skips: string[];
@@ -62,6 +72,7 @@ export interface EngineConfig {
   weights: EngineWeights;
   enabled: EngineEnabled;          // legacy boolean map, kept in sync with requirements
   requirements: EngineRequirements; // Bible §4 — the authoritative per-engine policy
+  assignedZone: AssignedZone;       // Bible §6.7 — where the enumerator should be
   gating: GatingConfig;
 
   // AI detection penalties
@@ -83,6 +94,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   weights: { gps: 0.25, duration: 0.22, image: 0.20, audio: 0.13, duplicate: 0.10, text_ai: 0.10 },
   enabled: { gps: true, duration: true, image: true, audio: true, duplicate: true, text_ai: true },
   requirements: { ...DEFAULT_REQUIREMENTS },
+  assignedZone: { lat: null, lon: null, radiusM: 250, label: "" },
   gating: {
     gps_reject_skips: [],
     duration_reject_skips: [],
@@ -118,6 +130,7 @@ export function loadEngineConfig(): EngineConfig {
       weights: { ...DEFAULT_ENGINE_CONFIG.weights, ...(parsed.weights || {}) },
       enabled,
       requirements,
+      assignedZone: { ...DEFAULT_ENGINE_CONFIG.assignedZone, ...(parsed.assignedZone || {}) },
       gating: {
         gps_reject_skips: parsed.gating?.gps_reject_skips ?? [...DEFAULT_ENGINE_CONFIG.gating.gps_reject_skips],
         duration_reject_skips: parsed.gating?.duration_reject_skips ?? [...DEFAULT_ENGINE_CONFIG.gating.duration_reject_skips],
