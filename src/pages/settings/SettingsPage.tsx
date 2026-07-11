@@ -1878,12 +1878,80 @@ const SECTION_META: Record<string,{title:string;description:string}> = {
   danger:{title:"Danger Zone",description:"Irreversible actions that affect all your organisation's data"},
 };
 
+const SECTION_ADA_HINTS: Record<string, { short: string; chips: { label: string; message: string }[] }> = {
+  organization: {
+    short: "Your organisation name and logo appear on every report you generate. Keep them up to date so clients see your brand, not a placeholder.",
+    chips: [
+      { label: "What goes on reports?", message: "Your Organisation Name, Logo, and Brand Colour are stamped on every PDF and PPTX you generate from the Reports section. The accent colour appears in chart headers and the footer. Make sure it's your actual brand colour — clients will see it." },
+      { label: "How do I add a logo?", message: "In the Branding section (left menu), you can upload your organisation logo. Supported formats are PNG and SVG. Square logos (1:1 ratio) work best — they appear in report covers and the sidebar." },
+    ],
+  },
+  research: {
+    short: "These thresholds control how I flag submissions. Min duration, GPS tolerance, and the pass score cutoff all affect what appears as PASS, FLAG, or REJECT on every submission detail page.",
+    chips: [
+      { label: "What's a good pass threshold?", message: "For most household surveys, 65–70/100 is the sweet spot. Lower than 65 risks passing weak submissions; above 75 will reject too many genuinely good ones. If you're running a high-stakes study (health, election monitoring), push it to 72–75." },
+      { label: "Recommended Nigeria defaults?", message: "For typical Nigerian fieldwork: GPS tolerance 100m (network GPS in dense urban areas often drifts to 80–120m), min duration 6 mins for short surveys / 12 mins for household surveys, max 90 mins. Pass threshold 68. Duplicate threshold 80% — the default 85% occasionally lets near-duplicates through." },
+    ],
+  },
+  engine: {
+    short: "Score weights and gating rules determine how much each check matters. GPS and Duration carry the most by default because they're the hardest to fake. AI Detection penalises scripted or ChatGPT-generated answers.",
+    chips: [
+      { label: "Should I turn off any engines?", message: "Only disable an engine if your study genuinely doesn't use that media type. If your form has no photos, turn off Image Quality — it will show 'Not scored' instead of dragging the average down. Never disable GPS unless you're doing phone surveys with no location expectation." },
+      { label: "What does gating do?", message: "Gating skips expensive checks when an upstream check already failed decisively. Example: if GPS is rejected (wrong country), there's no point running image and audio analysis — the submission is already disqualified. Gating saves cost and prevents double-penalising a submission for the same root problem." },
+    ],
+  },
+  billing: {
+    short: "Rewards credits are applied to your next invoice automatically. You earn them by issuing certificates, generating reports, and completing quality milestones. No redemption needed — they just reduce what you owe.",
+    chips: [
+      { label: "How do I earn more credits?", message: "Fastest ways to earn: (1) Issue a Data Integrity Certificate after a project completes — ₦5,000 on your first one. (2) Generate a report — ₦2,500 each time. (3) Reach 500 verified submissions — ₦10,000 milestone. (4) Complete 5 projects — ₦20,000. Check your milestone tracker in the Credits panel below." },
+      { label: "When are credits applied?", message: "Credits are applied automatically to your next invoice. You don't need to do anything — when your billing date arrives, your balance is deducted from the total before payment is charged. You can see your current balance and transaction history in the Credits panel." },
+    ],
+  },
+  users: {
+    short: "Each role has different access. Managers see everything. Viewers can see submissions and reports but can't change settings. Observers (clients) see reports only. Invite clients as Observer so they can track progress without touching your configuration.",
+    chips: [
+      { label: "What can each role do?", message: "Admin: full access including billing and team management. Manager: all data, submissions, reports, enumerators — no billing. Viewer: read-only access to submissions and reports, no team or settings. Observer: reports and summary dashboards only — ideal for clients who just need to follow progress." },
+      { label: "How do I invite a client?", message: "Click 'Invite Member', enter their email, and set their role to Observer. They'll receive an email with a login link. They'll see a simplified view with only reports and dashboards — none of your raw data or enumerator details." },
+    ],
+  },
+  security: {
+    short: "Enable 2FA for your whole organisation if you're handling sensitive data. Session timeout of 8 hours is a reasonable default — shorter for higher-security contexts.",
+    chips: [],
+  },
+  integrations: {
+    short: "KoboToolbox sends submissions here via webhook. If submissions aren't arriving, check that your REST Service URL is correct and that 'Send all attachments' is enabled in KoboToolbox.",
+    chips: [
+      { label: "Why aren't my submissions arriving?", message: "Most common causes: (1) The webhook URL in KoboToolbox doesn't match the one here — copy it exactly from the Integrations page. (2) KoboToolbox 'Send all attachments' is disabled — go to Form Settings → REST Services → edit the service → enable 'Send all form data'. (3) Your KoboToolbox account is on a slow plan with delayed webhook delivery. Try submitting a test response and waiting 2 minutes." },
+    ],
+  },
+};
+
 export default function SettingsPage() {
   const location = useLocation();
   const [active, setActive] = useState(() => (location.state as any)?.section || "organization");
   const [adaDismissed, setAdaDismissed] = useState(false);
-  const { setOpen, store: adaStore } = useAda();
+  const { setOpen, store: adaStore, addMessage, setState } = useAda();
   const lastCmdSeq = useRef<number | null>(null);
+  const prevSection = useRef<string | null>(null);
+
+  // Fire a section-specific Ada greeting in the chat whenever the section changes
+  useEffect(() => {
+    if (prevSection.current === active) return;
+    prevSection.current = active;
+    setAdaDismissed(false);
+    const hint = SECTION_ADA_HINTS[active];
+    if (!hint) return;
+    const t = setTimeout(() => {
+      setState("thinking");
+      setTimeout(() => {
+        setState("speaking");
+        addMessage({ id: Date.now().toString(), role: "assistant", content: hint.short, timestamp: new Date().toISOString(), page: `settings-${active}` });
+        setTimeout(() => setState("idle"), 4000);
+      }, 500);
+    }, 800);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
   useEffect(() => {
     const s = (location.state as any)?.section;
@@ -1927,15 +1995,37 @@ export default function SettingsPage() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <AnimatePresence>
           {!adaDismissed && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0, marginBottom: 0 }} style={{ background: "linear-gradient(135deg,#1A1F3E,#0F172A)", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 14 }}>
-              <div onClick={() => setOpen(true)} style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", border: "2px solid rgba(255,255,255,.2)", flexShrink: 0, cursor: "pointer" }}>
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0, marginBottom: 0 }} style={{ background: "linear-gradient(135deg,#1A1F3E,#0F172A)", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", gap: 14, alignItems: "flex-start" }}>
+              <div onClick={() => setOpen(true)} style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", border: "2px solid rgba(255,255,255,.2)", flexShrink: 0, cursor: "pointer", marginTop: 2 }}>
                 <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 2 }}>Let's make ResearchOS feel like your organisation.</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,.5)" }}>I can help you configure branding, set research defaults, and connect your tools. Ask me anything.</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                  <Send size={10} color="#93C5FD" />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#93C5FD", textTransform: "uppercase", letterSpacing: 0.8 }}>Ada · AI Assistant</span>
+                </div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,.82)", lineHeight: 1.6, marginBottom: SECTION_ADA_HINTS[active]?.chips?.length ? 10 : 0 }}>
+                  {SECTION_ADA_HINTS[active]?.short || "I can help you configure branding, set research defaults, and connect your tools. Ask me anything."}
+                </div>
+                {(SECTION_ADA_HINTS[active]?.chips?.length ?? 0) > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                    {SECTION_ADA_HINTS[active].chips.map((chip, i) => (
+                      <button key={i} onClick={() => {
+                        setState("thinking");
+                        setTimeout(() => {
+                          setState("speaking");
+                          addMessage({ id: Date.now().toString(), role: "assistant", content: chip.message, timestamp: new Date().toISOString(), page: `settings-${active}` });
+                          setTimeout(() => setState("idle"), 5000);
+                        }, 500);
+                      }} style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.07)", color: "rgba(255,255,255,.75)", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif", transition: "all .15s" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.14)"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.07)"; }}
+                      >{chip.label}</button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <button onClick={() => setAdaDismissed(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,.3)", padding: 4 }}><X size={14} /></button>
+              <button onClick={() => setAdaDismissed(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,.3)", padding: 4, flexShrink: 0 }}><X size={14} /></button>
             </motion.div>
           )}
         </AnimatePresence>

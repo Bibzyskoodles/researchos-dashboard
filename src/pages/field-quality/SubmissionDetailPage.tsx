@@ -160,41 +160,95 @@ export default function SubmissionDetailPage(){
     setAiScan({ status: "loading" });
     const results: Partial<Pick<AiScan,"image"|"audio"|"text">> = {};
 
-    // --- IMAGE: OpenAI Vision ---
+    // --- IMAGE: OpenAI Vision (AI-generated + stock/internet download detection) ---
     const openaiKey = process.env.REACT_APP_OPENAI_KEY;
     if (sub.image_url && openaiKey) {
       try {
+        const SYSTEM_PROMPT = `You are an expert forensic image analyst for a field research quality control platform. Your job is to detect fraudulent images submitted as supposed field evidence.
+
+Respond ONLY with JSON, no other text: {"fraud_probability": 0-100, "fraud_type": "genuine"|"ai_generated"|"stock_photo"|"internet_download"|"screenshot"|"staged_or_suspicious", "signals": ["signal1", "signal2"], "finding": "one clear sentence for a non-technical auditor"}
+
+fraud_probability: 0 = definitely a real unaltered field photo, 100 = definitely fraudulent.
+
+Look carefully for ALL of these fraud signals:
+
+AI-GENERATED IMAGE SIGNALS:
+- Unnaturally perfect skin, hair, or textures
+- Slight anatomical errors (extra fingers, misshapen ears, asymmetric features)
+- Backgrounds that are surreal, too smooth, or inconsistently blurred
+- Lighting that is perfectly diffused from no real source
+- Objects with impossible geometry or merged elements
+- Text in the image that is garbled, misspelled, or blurred in a non-human way
+
+STOCK PHOTO / PROFESSIONAL PHOTOGRAPHY SIGNALS:
+- Perfect professional composition (rule of thirds, leading lines, no camera shake)
+- Studio or editorial lighting setup (softbox shadows, rim lighting, catchlights)
+- Models posing in obviously staged ways
+- Watermark patterns or faint overlay text (Getty, Shutterstock, iStock, Adobe Stock, etc.)
+- Generic, non-specific location that could be anywhere
+- People look too posed, too clean, or too uniform for genuine fieldwork
+- Perfect product or branding placement typical of commercial photography
+
+INTERNET DOWNLOAD / SCREENSHOT SIGNALS:
+- JPEG compression artifacts inconsistent with a direct camera capture
+- Screenshot borders, taskbar elements, or browser UI visible
+- Image dimensions or aspect ratio typical of web images (e.g. 1200×630 OG image ratio)
+- Visible watermarks, logo overlays, or website footers
+- Image looks like it was photographed off a screen (moiré patterns, pixel grid)
+- News photo style: dramatic angle, editorial caption style implied by composition
+- Social media framing (cropped square, story format with overlaid text areas)
+
+GENUINE FIELDWORK SIGNALS (lower the score):
+- Natural imperfections: slight motion blur, tilted horizon, imperfect framing
+- Context-appropriate setting that matches a real Nigerian/African field environment
+- Respondent looks genuinely engaged, not posing
+- Ambient lighting consistent with outdoor/real indoor environment
+- Visible field equipment (clipboards, tablets, forms, branded research materials)
+- Background details that are specific and verifiable (signage, vehicles, buildings with local character)`;
+
         const resp = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type":"application/json", "Authorization":`Bearer ${openaiKey}` },
           body: JSON.stringify({
             model: "gpt-4o",
-            max_tokens: 200,
-            messages: [{
-              role: "user",
-              content: [
-                { type: "text", text: "Analyse this image submitted as field research evidence. Is it AI-generated, a stock photo, or a real photo taken in the field? Respond with JSON only: {\"ai_probability\": 0-100, \"verdict\": \"genuine\"|\"suspicious\"|\"ai_generated\", \"finding\": \"one sentence\"}. ai_probability 0=definitely real fieldwork photo, 100=definitely AI-generated or stock." },
-                { type: "image_url", image_url: { url: sub.image_url, detail: "low" } }
-              ]
-            }]
+            max_tokens: 400,
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: "Analyse this image submitted as field research evidence from Nigeria. Apply all fraud detection checks." },
+                  { type: "image_url", image_url: { url: sub.image_url, detail: "high" } }
+                ]
+              }
+            ]
           })
         });
         const data = await resp.json();
         const raw = data.choices?.[0]?.message?.content || "{}";
-        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        const jsonMatch = raw.match(/\{[\s\S]*?\}/);
         const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-        const prob = typeof parsed.ai_probability === "number" ? parsed.ai_probability : 50;
+        const prob = typeof parsed.fraud_probability === "number" ? parsed.fraud_probability : 50;
         const authenticity = 100 - prob;
+        const fraudType: string = parsed.fraud_type || "genuine";
+        const signals: string[] = Array.isArray(parsed.signals) ? parsed.signals : [];
+        const fraudLabel = fraudType === "ai_generated" ? "AI-generated image"
+          : fraudType === "stock_photo" ? "Stock photo"
+          : fraudType === "internet_download" ? "Downloaded from internet"
+          : fraudType === "screenshot" ? "Screenshot of another image"
+          : fraudType === "staged_or_suspicious" ? "Staged or suspicious"
+          : "";
+        const finding = parsed.finding || (prob >= 60 ? `Fraud detected (${fraudLabel || "suspicious"}): ${signals.slice(0,2).join("; ") || "multiple signals present"}.` : "Image appears to be a genuine field photograph.");
         results.image = {
           score: authenticity,
-          finding: parsed.finding || (prob >= 60 ? "Image appears to be AI-generated or stock photography." : "Image appears to be a genuine field photograph."),
+          finding: signals.length > 0 ? `${finding} Signals: ${signals.join("; ")}` : finding,
           status: authenticity >= 70 ? "PASS" : authenticity >= 45 ? "FLAG" : "FAIL",
         };
       } catch {
-        results.image = { score: 0, finding: "AI image scan could not complete.", status: "FLAG" };
+        results.image = { score: 0, finding: "AI image scan could not complete — check OpenAI key configuration.", status: "FLAG" };
       }
     } else if (sub.image_url && !openaiKey) {
-      results.image = { score: 50, finding: "OpenAI key not configured — image AI scan unavailable.", status: "FLAG" };
+      results.image = { score: 50, finding: "OpenAI key not configured (REACT_APP_OPENAI_KEY) — image AI scan unavailable.", status: "FLAG" };
     }
 
     // --- AUDIO: use existing is_genuine_interview + transcript analysis ---

@@ -7,6 +7,7 @@ import { getIndustry, getStudyType } from '../../context/ResearchContext';
 import { verifyKoboToken } from '../../services/kobo/koboToolboxApi';
 import HealthRing from '../../gamify/HealthRing';
 import { useGamify } from '../../gamify/GamifyContext';
+import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 
 const BLUE = '#2463EB';
 const GREEN = '#059669';
@@ -317,6 +318,7 @@ export default function ProjectsPage() {
   // Keep the rewards counter in step with reality so long-standing orgs get
   // their project milestones recognised, not just newly created ones.
   const { counters, recordEvent } = useGamify();
+  useAdaGreeting({ page: "projects", delay: 1500 });
   useEffect(() => {
     const diff = projects.length - (counters.project_created || 0);
     if (diff > 0) recordEvent('project_created', diff);
