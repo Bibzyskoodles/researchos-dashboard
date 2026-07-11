@@ -157,7 +157,8 @@ export function computeAdjustedScore(
     overall_score?: number;
     verdict?: string;
     flags?: string | string[];
-    checks?: Record<string, { score?: number; status?: string }>;
+    checks?: Record<string, { score?: number; status?: string } | null>;
+    gps?: { accuracy_m?: number };
   },
   config: EngineConfig
 ): AdjustedScore {
@@ -165,12 +166,11 @@ export function computeAdjustedScore(
     ? sub.flags
     : String(sub.flags || "").split(",").map(f => f.trim()).filter(Boolean);
 
-  // Determine which engine each flag overrides
+  // Determine which engine each flag overrides (worst-case / lowest score wins)
   const flagOverrideByEngine: Record<string, { score: number; flag: string }> = {};
   for (const flag of flags) {
     const override = FLAG_ENGINE_OVERRIDES[flag];
     if (override) {
-      // Take the worst override (lowest score) if multiple flags hit the same engine
       if (
         flagOverrideByEngine[override.engine] === undefined ||
         override.score < flagOverrideByEngine[override.engine].score
@@ -180,36 +180,58 @@ export function computeAdjustedScore(
     }
   }
 
-  // Determine gated engines based on flags + gating config
+  // Gating
   const gatedEngines = new Set<string>();
   const hasGpsReject = flags.some(f => ["GPS_OUTSIDE_NIGERIA", "GPS_PARSE_ERROR", "NO_GPS"].includes(f));
   const hasDurationReject = flags.some(f => ["DURATION_TOO_SHORT", "DURATION_TOO_LONG", "DURATION_NEGATIVE", "BACK_TO_BACK"].includes(f));
   const hasDuplicateReject = flags.some(f => ["DUPLICATE_SUBMISSION"].includes(f));
-
   if (hasGpsReject) config.gating.gps_reject_skips.forEach(e => gatedEngines.add(e));
   if (hasDurationReject) config.gating.duration_reject_skips.forEach(e => gatedEngines.add(e));
   if (hasDuplicateReject) config.gating.duplicate_reject_skips.forEach(e => gatedEngines.add(e));
 
   const engineKeys = ["gps", "duration", "image", "audio", "duplicate", "text_ai"] as const;
 
-  // Raw per-engine scores from backend checks object (fallback to reasonable defaults)
-  const rawScores: Record<string, number> = {
-    gps:       sub.checks?.gps?.score       ?? (sub.overall_score ?? 50),
-    duration:  sub.checks?.duration?.score  ?? (sub.overall_score ?? 50),
-    image:     sub.checks?.image?.score     ?? (sub.overall_score ?? 50),
-    audio:     sub.checks?.audio?.score     ?? (sub.overall_score ?? 50),
-    duplicate: sub.checks?.duplicate?.score ?? 100,
-    text_ai:   sub.checks?.text_ai?.score   ?? (sub.overall_score ?? 50),
+  // GPS fallback: if backend check score is absent/zero, derive from accuracy_m
+  const gpsFromAccuracy: number | null = (sub as any).gps?.accuracy_m != null
+    ? Math.max(0, Math.round(100 - Math.log10(Math.max(1, Number((sub as any).gps.accuracy_m))) * 40))
+    : null;
+
+  // Per-engine raw scores — null means "not run / not measured"
+  // Use backend check score when it's a positive number; fall back to accuracy formula for GPS;
+  // never use overall_score as a proxy for unmeasured engines.
+  const rawScores: Record<string, number | null> = {
+    gps:       (sub.checks?.gps?.score != null && (sub.checks.gps.score as number) > 0)
+                 ? sub.checks.gps.score as number
+                 : gpsFromAccuracy,
+    duration:  sub.checks?.duration?.score != null ? sub.checks.duration.score as number : null,
+    image:     sub.checks?.image?.score     != null ? sub.checks.image.score as number     : null,
+    audio:     sub.checks?.audio?.score     != null ? sub.checks.audio.score as number     : null,
+    duplicate: sub.checks?.duplicate?.score != null ? sub.checks.duplicate.score as number : null,
+    text_ai:   sub.checks?.text_ai?.score   != null ? sub.checks.text_ai.score as number   : null,
   };
 
-  // Compute normalised weights for enabled, non-gated engines
+  // An engine is "measured" if it has a real raw score OR a flag explicitly failed it
+  const isMeasured = (k: string) => rawScores[k] != null || flagOverrideByEngine[k] != null;
+
+  // Normalise weights over enabled, non-gated, measured engines only
   let totalWeight = 0;
   for (const k of engineKeys) {
-    if (config.enabled[k] && !gatedEngines.has(k)) {
+    if (config.enabled[k] && !gatedEngines.has(k) && isMeasured(k)) {
       totalWeight += config.weights[k];
     }
   }
-  if (totalWeight === 0) totalWeight = 1;
+  if (totalWeight === 0) {
+    // Nothing was measured — fall back to backend raw score unchanged
+    return {
+      overall: sub.overall_score ?? 0,
+      verdict: (sub.verdict as "PASS" | "FLAG" | "REJECT") ?? "FLAG",
+      breakdown: engineKeys.map(k => ({
+        key: k, label: ENGINE_LABELS_MAP[k], rawScore: 0, adjScore: 0,
+        weight: 0, contribution: 0, gated: false, flagOverride: null,
+      })),
+      hasAdjustments: false,
+    };
+  }
 
   const breakdown: EngineScoreBreakdown[] = [];
   let weightedSum = 0;
@@ -217,12 +239,13 @@ export function computeAdjustedScore(
   for (const k of engineKeys) {
     const isEnabled = config.enabled[k];
     const isGated = gatedEngines.has(k);
-    const raw = rawScores[k];
+    const measured = isMeasured(k);
+    const raw = rawScores[k] ?? (flagOverrideByEngine[k]?.score ?? 0);
     const override = flagOverrideByEngine[k];
     const adj = override !== undefined ? override.score : raw;
-    const normWeight = (isEnabled && !isGated) ? config.weights[k] / totalWeight : 0;
+    const normWeight = (isEnabled && !isGated && measured) ? config.weights[k] / totalWeight : 0;
 
-    if (isEnabled && !isGated) {
+    if (isEnabled && !isGated && measured) {
       weightedSum += adj * normWeight;
     }
 
@@ -230,9 +253,9 @@ export function computeAdjustedScore(
       key: k,
       label: ENGINE_LABELS_MAP[k],
       rawScore: raw,
-      adjScore: adj,
+      adjScore: measured ? adj : 0,
       weight: normWeight,
-      contribution: isEnabled && !isGated ? adj * normWeight : 0,
+      contribution: isEnabled && !isGated && measured ? adj * normWeight : 0,
       gated: isGated,
       flagOverride: override?.flag ?? null,
     });
@@ -240,7 +263,6 @@ export function computeAdjustedScore(
 
   const overall = Math.round(Math.min(100, Math.max(0, weightedSum)));
 
-  // Verdict: flag overrides if any FLAG-severity flag exists and score is above reject threshold
   const hasHighSeverityFlag = flags.some(f =>
     ["DUPLICATE_SUBMISSION", "DUPLICATE_IMAGE", "DUPLICATE_AUDIO",
      "GPS_OUTSIDE_NIGERIA", "DURATION_NEGATIVE", "BACK_TO_BACK",

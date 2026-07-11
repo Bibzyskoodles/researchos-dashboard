@@ -272,14 +272,22 @@ GENUINE FIELDWORK SIGNALS (lower the score):
     setAiScan({ status: "done", ...results });
   }, [sub, analyzeTranscriptForAi]);
 
-  const adaBriefing=(s:any)=>{
+  const adaBriefing=(s:any, verdict:"PASS"|"FLAG"|"REJECT")=>{
     if(!s)return"";
-    if(s.verdict==="PASS") return `This submission passed all quality checks. GPS verified${s.gps?.address?` in ${s.gps.address.split(",")[0]}`:""}, interview duration is appropriate, and all media checks passed.`;
-    if(s.verdict==="FLAG"){
-      const flags=(Array.isArray(s.flags)?s.flags:String(s.flags||"").split(",").filter(Boolean)).map((f:string)=>FLAG_LABELS[f]?.label||f).slice(0,2).join("; ");
-      return `I found some concerns with this submission. ${flags}. I recommend reviewing before approving for analysis.`;
+    if(verdict==="PASS") return `This submission passed all quality checks. GPS verified${s.gps?.address?` in ${s.gps.address.split(",")[0]}`:""}, interview duration is appropriate, and all media checks passed.`;
+    if(verdict==="FLAG"){
+      const flagList=(Array.isArray(s.flags)?s.flags:String(s.flags||"").split(",").filter(Boolean)).map((f:string)=>FLAG_LABELS[f]?.label||f).slice(0,2).join("; ");
+      return `I found some concerns with this submission. ${flagList}. I recommend reviewing before approving for analysis.`;
     }
     return `This submission failed quality verification. ${(Array.isArray(s.flags)?s.flags:String(s.flags||"").split(",").filter(Boolean)).map((f:string)=>FLAG_LABELS[f]?.label||f).slice(0,2).join("; ")}. I recommend rejecting this submission.`;
+  };
+
+  const computeGrade=(score:number)=>{
+    if(score>=90)return"A";
+    if(score>=80)return"B";
+    if(score>=70)return"C";
+    if(score>=50)return"D";
+    return"F";
   };
 
   if(loading) return(
@@ -341,7 +349,7 @@ GENUINE FIELDWORK SIGNALS (lower the score):
             {displayVerdict}
           </span>
           <span style={{fontSize:12,fontWeight:700,padding:"4px 10px",borderRadius:6,background:"#F8FAFF",border:"1px solid #E8EDF5",color:"#374151"}}>
-            Grade {sub.grade}
+            Grade {computeGrade(displayScore)}
           </span>
           <span style={{fontSize:12,color:"#9CA3AF"}}>{sub.enumerator_id}</span>
           <span style={{fontSize:11,color:"#9CA3AF"}}>{sub.scored_at?new Date(sub.scored_at).toLocaleString():""}</span>
@@ -357,7 +365,7 @@ GENUINE FIELDWORK SIGNALS (lower the score):
           </div>
           <div style={{flex:1}}>
             <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.7,marginBottom:6}}>Ada · Assessment</div>
-            <div style={{fontSize:14,color:"rgba(255,255,255,.85)",lineHeight:1.7}}>{adaBriefing(sub)}</div>
+            <div style={{fontSize:14,color:"rgba(255,255,255,.85)",lineHeight:1.7}}>{adaBriefing(sub, displayVerdict)}</div>
             {sub.supervisor_action&&(
               <div style={{marginTop:12,display:"inline-flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"6px 12px"}}>
                 <span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.5}}>Recommended action:</span>
@@ -538,7 +546,7 @@ GENUINE FIELDWORK SIGNALS (lower the score):
             )}
             <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
               <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:vclr(displayVerdict)+"15",color:vclr(displayVerdict)}}>{displayVerdict}</span>
-              <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:"#F8FAFF",border:"1px solid #E8EDF5",color:"#374151"}}>Grade {sub.grade}</span>
+              <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:"#F8FAFF",border:"1px solid #E8EDF5",color:"#374151"}}>Grade {computeGrade(displayScore)}</span>
             </div>
             {sub.supervisor_action&&<div style={{fontSize:12,color:"#6B7280",marginTop:10,padding:"8px",background:"#F8FAFF",borderRadius:8}}>{sub.supervisor_action}</div>}
             {sub.duration_mins&&<div style={{fontSize:11.5,color:"#9CA3AF",marginTop:8,display:"flex",alignItems:"center",gap:4,justifyContent:"center"}}><Clock size={12}/>{sub.duration_mins} minutes</div>}

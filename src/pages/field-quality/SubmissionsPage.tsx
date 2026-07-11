@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Submission } from "../../types";
-import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle, ExternalLink } from "lucide-react";
+import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle, ExternalLink, Shield, Cpu } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
 import { useLocation, useNavigate } from "react-router-dom";
+import { loadEngineConfig, computeAdjustedScore } from "../../services/engineConfig";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -26,8 +27,9 @@ function ScoreRing({score,size=48}:{score:number;size?:number}){
   );
 }
 
+const CYAN="#06B6D4",ROSE="#E11D48";
 function EngineBar({label,value,color,icon}:{label:string;value:number;color:string;icon:React.ReactNode}){
-  const notScored = value === 0 || value === null || value === undefined;
+  const notScored = value === -1 || value === null || value === undefined;
   const safeVal = notScored ? 0 : Math.min(100, Math.max(0, Math.round(value)));
   return(
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #F8FAFF"}}>
@@ -73,6 +75,19 @@ export default function SubmissionsPage(){
   const navigate = useNavigate();
   useAdaGreeting({ page: "submissions" });
   const { addMessage, setState } = useAdaContext();
+  const [cfgVersion, setCfgVersion] = useState(0);
+  useEffect(() => {
+    const h = () => setCfgVersion(v => v + 1);
+    window.addEventListener("fs-engine-config-changed", h);
+    return () => window.removeEventListener("fs-engine-config-changed", h);
+  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const engineCfg = useMemo(() => loadEngineConfig(), [cfgVersion]);
+  const adjMap = useMemo(() => {
+    const m: Record<string, ReturnType<typeof computeAdjustedScore>> = {};
+    subs.forEach(s => { m[s.submission_id] = computeAdjustedScore(s as any, engineCfg); });
+    return m;
+  }, [subs, engineCfg]);
 
   const load = useCallback((isRefresh=false)=>{
     if(isRefresh) setRefreshing(true);
@@ -111,7 +126,8 @@ export default function SubmissionsPage(){
   },[load,setState,addMessage]);
 
   const filtered=subs.filter(s=>{
-    if(filter!=="ALL"&&s.verdict!==filter)return false;
+    const adjVerdict = adjMap[s.submission_id]?.verdict ?? s.verdict;
+    if(filter!=="ALL"&&adjVerdict!==filter)return false;
     const q = search.toLowerCase();
     if(q&&!s.submission_id.toLowerCase().includes(q)&&!s.enumerator_id.toLowerCase().includes(q))return false;
     return true;
@@ -123,7 +139,7 @@ export default function SubmissionsPage(){
         <div>
           <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>Submissions</h1>
           <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>
-            {loading ? "Loading…" : `${subs.length} total · ${subs.filter(s=>s.verdict==="PASS").length} passed · ${subs.filter(s=>s.verdict==="FLAG").length} flagged`}
+            {loading ? "Loading…" : `${subs.length} total · ${subs.filter(s=>(adjMap[s.submission_id]?.verdict??s.verdict)==="PASS").length} passed · ${subs.filter(s=>(adjMap[s.submission_id]?.verdict??s.verdict)==="FLAG").length} flagged`}
           </p>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -182,20 +198,23 @@ export default function SubmissionsPage(){
           ):filtered.length===0?(
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>No submissions match your filter</div>
           ):filtered.map((sub,i)=>{
+            const adj = adjMap[sub.submission_id];
+            const displayScore = adj?.overall ?? sub.overall_score;
+            const displayVerdict = adj?.verdict ?? sub.verdict;
             const imgScore = sub.checks?.image?.score ?? 0;
             const audScore = sub.checks?.audio?.score ?? 0;
             return(
             <motion.div key={sub.submission_id} onClick={()=>setSelected(selected?.submission_id===sub.submission_id?null:sub)}
               whileHover={{background:"#FAFBFF"}}
-              data-ada-target={sub.verdict==="FLAG"&&!filtered.slice(0,i).some(s=>s.verdict==="FLAG")?"flagged-row":undefined}
+              data-ada-target={displayVerdict==="FLAG"&&!filtered.slice(0,i).some(s=>(adjMap[s.submission_id]?.verdict??s.verdict)==="FLAG")?"flagged-row":undefined}
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",borderBottom:i<filtered.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
                 background:selected?.submission_id===sub.submission_id?"#F0F7FF":"white",
                 borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
-              <ScoreRing score={sub.overall_score}/>
+              <ScoreRing score={displayScore}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
                   <span style={{fontSize:11,fontFamily:"monospace",color:"#6B7280"}}>{sub.submission_id.substring(0,12)}…</span>
-                  <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:vbg(sub.verdict),color:vc(sub.verdict)}}>{sub.verdict}</span>
+                  <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:vbg(displayVerdict),color:vc(displayVerdict)}}>{displayVerdict}</span>
                   {imgScore>0&&<MediaBadge type="image" status={sub.checks?.image?.status||""} score={imgScore}/>}
                   {audScore>0&&<MediaBadge type="audio" status={sub.checks?.audio?.status||""} score={audScore}/>}
                 </div>
@@ -232,7 +251,7 @@ export default function SubmissionsPage(){
                   <div style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>{selected.enumerator_id}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <ScoreRing score={selected.overall_score} size={52}/>
+                  <ScoreRing score={adjMap[selected.submission_id]?.overall ?? selected.overall_score} size={52}/>
                   <button onClick={()=>navigate(`/submissions/${selected.submission_id}`)}
                     title="View full details"
                     style={{display:"flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:7,background:BLUE,border:"none",cursor:"pointer",color:"white",fontSize:11,fontWeight:600,fontFamily:"Inter,sans-serif"}}>
@@ -242,13 +261,18 @@ export default function SubmissionsPage(){
                 </div>
               </div>
               <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16,maxHeight:"calc(100vh - 200px)",overflowY:"auto"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,background:vbg(selected.verdict),border:`1px solid ${vc(selected.verdict)}22`}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:vc(selected.verdict),flexShrink:0}}/>
-                  <div>
-                    <div style={{fontSize:12.5,fontWeight:700,color:vc(selected.verdict)}}>{selected.verdict}</div>
-                    <div style={{fontSize:11,color:"#6B7280",marginTop:1}}>{selected.supervisor_action||"No action required"}</div>
-                  </div>
-                </div>
+                {(()=>{
+                  const selVerdict = adjMap[selected.submission_id]?.verdict ?? selected.verdict;
+                  return (
+                    <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,background:vbg(selVerdict),border:`1px solid ${vc(selVerdict)}22`}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:vc(selVerdict),flexShrink:0}}/>
+                      <div>
+                        <div style={{fontSize:12.5,fontWeight:700,color:vc(selVerdict)}}>{selVerdict}</div>
+                        <div style={{fontSize:11,color:"#6B7280",marginTop:1}}>{selected.supervisor_action||"No action required"}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {selected.checks?.image&&(
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8,display:"flex",alignItems:"center",gap:5}}><Camera size={11}/>Image Quality</div>
@@ -293,10 +317,39 @@ export default function SubmissionsPage(){
                 )}
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Quality Engines</div>
-                  <EngineBar label="GPS Accuracy"  value={(selected as any).checks?.gps?.score ?? (selected.gps?.accuracy_m ? Math.max(0, Math.round(100 - Math.log10(Math.max(1, selected.gps.accuracy_m)) * 40)) : 0)} color={BLUE}   icon={<MapPin size={12} color={BLUE}/>}/>
-                  <EngineBar label="Image Quality" value={selected.checks?.image?.score??0}  color={PURPLE} icon={<Camera size={12} color={PURPLE}/>}/>
-                  <EngineBar label="Audio Quality" value={selected.checks?.audio?.score??0}  color={GREEN}  icon={<Mic size={12} color={GREEN}/>}/>
-                  <EngineBar label="Duration"      value={selected.duration_mins ? Math.min(100, Math.round((Number(selected.duration_mins)/60)*100)) : 0} color={AMBER} icon={<Clock size={12} color={AMBER}/>}/>
+                  {(adjMap[selected.submission_id]?.breakdown ?? []).map(b => {
+                    const engineColors: Record<string,string> = {gps:BLUE,duration:AMBER,image:PURPLE,audio:GREEN,duplicate:CYAN,text_ai:ROSE};
+                    const engineIcons: Record<string,React.ReactNode> = {
+                      gps:<MapPin size={12} color={engineColors.gps}/>,
+                      duration:<Clock size={12} color={engineColors.duration}/>,
+                      image:<Camera size={12} color={engineColors.image}/>,
+                      audio:<Mic size={12} color={engineColors.audio}/>,
+                      duplicate:<Shield size={12} color={engineColors.duplicate}/>,
+                      text_ai:<Cpu size={12} color={engineColors.text_ai}/>,
+                    };
+                    const notMeasured = b.weight === 0 && !b.gated && !b.flagOverride;
+                    const col = b.flagOverride ? RED : (engineColors[b.key] || BLUE);
+                    return (
+                      <div key={b.key}>
+                        <EngineBar
+                          label={b.label}
+                          value={notMeasured ? -1 : b.adjScore}
+                          color={col}
+                          icon={engineIcons[b.key] || <Shield size={12}/>}
+                        />
+                        {b.flagOverride && (
+                          <div style={{fontSize:10,color:RED,background:"#FEF2F2",borderRadius:5,padding:"3px 8px",marginTop:-6,marginBottom:6}}>
+                            ⚑ {b.flagOverride.replace(/_/g," ")} · score capped at {b.adjScore}
+                          </div>
+                        )}
+                        {b.gated && (
+                          <div style={{fontSize:10,color:"#9CA3AF",background:"#F8FAFF",borderRadius:5,padding:"3px 8px",marginTop:-6,marginBottom:6}}>
+                            ⛔ Gated — upstream check failed
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 {selected.gps&&(
                   <div>
