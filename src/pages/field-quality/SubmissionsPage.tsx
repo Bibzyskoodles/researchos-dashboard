@@ -7,6 +7,7 @@ import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAda as useAdaContext } from "../../ada/AdaContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import { loadEngineConfig, computeAdjustedScore } from "../../services/engineConfig";
+import { useProject } from "../../context/ProjectContext";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
@@ -73,6 +74,7 @@ export default function SubmissionsPage(){
   const [search,setSearch]=useState("");
   const location = useLocation();
   const navigate = useNavigate();
+  const { activeProject } = useProject();
   useAdaGreeting({ page: "submissions" });
   const { addMessage, setState } = useAdaContext();
   const [cfgVersion, setCfgVersion] = useState(0);
@@ -93,7 +95,9 @@ export default function SubmissionsPage(){
     if(isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
-    dashboardApi.getSubmissions({limit:100})
+    const params: { limit: number; project_id?: string } = { limit: 100 };
+    if (activeProject?.id) params.project_id = activeProject.id;
+    dashboardApi.getSubmissions(params)
       .then(r=>{
         const submissions = r.data.submissions || r.data || [];
         setSubs(Array.isArray(submissions) ? submissions : []);
@@ -102,7 +106,7 @@ export default function SubmissionsPage(){
         setError("Could not load submissions. Check your connection and try refreshing.");
       })
       .finally(()=>{ setLoading(false); setRefreshing(false); });
-  },[]);
+  },[activeProject?.id]);
 
   useEffect(()=>{
     const params = new URLSearchParams(location.search);

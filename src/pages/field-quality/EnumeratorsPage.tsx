@@ -7,6 +7,7 @@ import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { usePlatform } from "../../platform/PlatformProvider";
 import ScorecardPage from "./ScorecardPage";
+import { useProject } from "../../context/ProjectContext";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const COLORS=[BLUE,PURPLE,GREEN,AMBER,RED];
@@ -20,16 +21,18 @@ export default function EnumeratorsPage(){
   const [selected,setSelected]=useState<Enumerator|null>(null);
   const [activeTab,setActiveTab]=useState<Tab>("team");
   const { t }=usePlatform();
+  const { activeProject } = useProject();
   const termPlural=t("enumerators","enumerators");
   const Term=termPlural.replace(/\b\w/g,c=>c.toUpperCase());
   useAdaGreeting({ page: "enumerators" });
   useAdaAttention({ x: 0.85, y: 0.45 }, { delay: 2000, returnAfterMs: 5000 });
 
   useEffect(()=>{
-    dashboardApi.getEnumerators()
+    const params = activeProject?.id ? { project_id: activeProject.id } : undefined;
+    dashboardApi.getEnumerators(params)
       .then(r=>{ setEnums(r.data.enumerators||[]); })
       .finally(()=>setLoading(false));
-  },[]);
+  },[activeProject?.id]);
 
   const radarData=()=>[
     {subject:"GPS",value:92},{subject:"Image",value:78},

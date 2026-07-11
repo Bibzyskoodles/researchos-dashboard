@@ -7,6 +7,7 @@ import { Submission } from "../../types";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { MapPin, Clock } from "lucide-react";
+import { useProject } from "../../context/ProjectContext";
 
 const GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", BLUE = "#2463EB";
 const clr = (s: number) => s >= 70 ? GREEN : s >= 45 ? AMBER : RED;
@@ -27,12 +28,15 @@ export default function MapPage() {
   const [subs, setSubs] = useState<Submission[]>([]);
   const [filter, setFilter] = useState("ALL");
   const [selected, setSelected] = useState<Submission | null>(null);
+  const { activeProject } = useProject();
   useAdaGreeting({ page: "map" });
   useAdaAttention({ x: 0.5, y: 0.5 }, { delay: 2500, returnAfterMs: 6000 });
 
   useEffect(() => {
-    dashboardApi.getSubmissions({ limit: 100 }).then(r => setSubs(r.data.submissions || []));
-  }, []);
+    const params: { limit: number; project_id?: string } = { limit: 100 };
+    if (activeProject?.id) params.project_id = activeProject.id;
+    dashboardApi.getSubmissions(params).then(r => setSubs(r.data.submissions || []));
+  }, [activeProject?.id]);
 
   const filtered = subs.filter(s => filter === "ALL" || s.verdict === filter);
   const withGps = filtered.filter(s =>

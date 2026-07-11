@@ -14,8 +14,22 @@ export interface Project {
   framework_content?: string;
   framework_indicators?: string;
   questionnaire_id?: string;
+  kobo_asset_uid?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+// Per-project KoboToolbox form UID stored in localStorage (key = ros_kobo_uid_<projectId>)
+export function getProjectKoboUid(projectId: string): string | null {
+  return localStorage.getItem(`ros_kobo_uid_${projectId}`);
+}
+export function setProjectKoboUid(projectId: string, uid: string | null): void {
+  if (uid) {
+    localStorage.setItem(`ros_kobo_uid_${projectId}`, uid);
+  } else {
+    localStorage.removeItem(`ros_kobo_uid_${projectId}`);
+  }
+  window.dispatchEvent(new CustomEvent('ros-kobo-uid-changed', { detail: { projectId, uid } }));
 }
 
 export interface ProjectLifecycle {

@@ -4,6 +4,7 @@ import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, Al
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { dashboardApi } from "../../services/api";
+import { useProject } from "../../context/ProjectContext";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -479,9 +480,13 @@ function CsvUploadCard() {
 
 export default function IntegrationsPage() {
   const orgId = getOrgId();
-  const webhookUrl = orgId
+  const { activeProject } = useProject();
+  const webhookBase = orgId
     ? `https://web-production-f5bab.up.railway.app/webhook/${orgId}`
     : "https://web-production-f5bab.up.railway.app/webhook/your-org-id";
+  const webhookUrl = activeProject?.id
+    ? `${webhookBase}?project_id=${activeProject.id}`
+    : webhookBase;
   const platforms = buildPlatforms(webhookUrl);
   const activeCount = platforms.filter(p => p.status === "active").length;
   const [expandedId, setExpandedId] = useState<string | null>(null);

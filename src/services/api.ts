@@ -42,9 +42,9 @@ export const dashboardApi = {
   getSubmission: (id: string) => api.get(`/api/submissions/${id}`),
   actionSubmission: (id: string, action: 'approve' | 'reject' | 'flag') =>
     api.post(`/api/submissions/${id}/action`, { action }),
-  getSubmissions: (params?: { verdict?: string; limit?: number; offset?: number }) =>
+  getSubmissions: (params?: { verdict?: string; limit?: number; offset?: number; project_id?: string }) =>
     api.get('/api/submissions', { params }),
-  getEnumerators: () => api.get('/api/enumerators'),
+  getEnumerators: (params?: { project_id?: string }) => api.get('/api/enumerators', { params }),
   getStats: () => api.get('/api/stats'),
   koboPing: () => api.get('/kobo/ping'),
   koboImport: (asset_uid: string, limit = 30) =>
