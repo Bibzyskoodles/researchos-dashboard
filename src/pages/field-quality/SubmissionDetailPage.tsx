@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
@@ -7,7 +7,7 @@ import { dashboardApi } from "../../services/api";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { ScoreRing } from "../../components/ui/ScoreRing";
 import { EngineBar } from "../../components/ui/EngineBar";
-import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield, Cpu, Sparkles, Settings } from "lucide-react";
+import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield, Cpu, Sparkles } from "lucide-react";
 import { loadEngineConfig, computeAdjustedScore } from "../../services/engineConfig";
 import type { AdjustedScore } from "../../services/engineConfig";
 
@@ -222,7 +222,7 @@ export default function SubmissionDetailPage(){
   const [showRaw,setShowRaw]=useState(false);
   const [aiScan,setAiScan]=useState<AiScan>({status:"idle"});
   const [imageError,setImageError]=useState(false);
-  const [,setEngineCfgVersion]=useState(0);
+  const [engineCfgVersion,setEngineCfgVersion]=useState(0);
 
   useEffect(()=>{
     if(!id)return;
@@ -528,6 +528,10 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
     return `This submission failed quality verification. ${flagDesc.slice(0,2).join("; ")}. I recommend rejecting this submission.`;
   };
 
+  // Memoized so detail score always matches list (same config snapshot, re-runs on config change)
+  const engineCfg = useMemo(() => loadEngineConfig(), [engineCfgVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  const adj: AdjustedScore = useMemo(() => computeAdjustedScore(sub||{}, engineCfg), [sub, engineCfg]);
+
   const computeGrade=(score:number)=>{
     if(score>=90)return"A";
     if(score>=80)return"B";
@@ -559,10 +563,6 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
   const lon=gps.lon&&!isNaN(Number(gps.lon))?Number(gps.lon):null;
   const canShowMap=!hasGpsError&&lat!==null&&lon!==null;
 
-  // Compute adjusted score based on current engine config + flags
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const engineCfg = loadEngineConfig();
-  const adj: AdjustedScore = computeAdjustedScore(sub, engineCfg);
   const displayScore = adj.overall;
   const displayVerdict = adj.verdict;
 
@@ -591,20 +591,17 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
           style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,background:"white",border:"1px solid #E2E8F0",cursor:"pointer",fontSize:13,fontWeight:600,color:"#374151",fontFamily:"Inter,sans-serif"}}>
           <ArrowLeft size={14}/> Submissions
         </button>
-        <div style={{flex:1,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <div style={{flex:1,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <code style={{fontSize:12,color:"#9CA3AF",background:"#F8FAFF",padding:"4px 10px",borderRadius:6,border:"1px solid #E8EDF5"}}>
-            {sub.submission_id?.slice(0,24)}...
+            {sub.submission_id?.slice(0,24)}…
           </code>
+          <span style={{fontSize:13,fontWeight:800,color:clr(displayScore),letterSpacing:-.5}}>{displayScore}</span>
           <span style={{fontSize:12,fontWeight:600,padding:"4px 12px",borderRadius:20,background:vclr(displayVerdict)+"15",color:vclr(displayVerdict)}}>
             {displayVerdict}
           </span>
-          <span style={{fontSize:12,fontWeight:700,padding:"4px 10px",borderRadius:6,background:"#F8FAFF",border:"1px solid #E8EDF5",color:"#374151"}}>
-            Grade {computeGrade(displayScore)}
-          </span>
-          <span style={{fontSize:12,color:"#9CA3AF"}}>{sub.enumerator_id}</span>
-          <span style={{fontSize:11,color:"#9CA3AF"}}>{sub.scored_at?new Date(sub.scored_at).toLocaleString():""}</span>
+          <span style={{fontSize:12,color:"#9CA3AF"}}>{(sub as any).enumerator_name||sub.enumerator_id}</span>
+          <span style={{fontSize:11,color:"#CBD5E1"}}>{sub.scored_at?new Date(sub.scored_at).toLocaleString():""}</span>
         </div>
-        <ScoreRing score={displayScore} size={72}/>
       </div>
 
       {/* Ada Briefing */}
@@ -829,68 +826,80 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
         {/* RIGHT */}
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
-          {/* Score card */}
-          <div style={{background:"white",borderRadius:16,padding:20,border:`1px solid ${adj.hasAdjustments?"#FCD34D":"#E8EDF5"}`,boxShadow:"0 2px 12px rgba(10,15,28,.06)",textAlign:"center"}}>
-            <ScoreRing score={displayScore} size={120}/>
-            <div style={{fontSize:36,fontWeight:800,color:clr(displayScore),letterSpacing:-2,marginTop:8,lineHeight:1}}>{displayScore}</div>
-            <div style={{fontSize:12,color:"#9CA3AF",marginBottom:8}}>out of 100</div>
-            {adj.hasAdjustments&&(sub.overall_score!==displayScore)&&(
-              <div style={{fontSize:11,color:"#92400E",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,padding:"5px 10px",marginBottom:8}}>
-                Backend raw score: {sub.overall_score} · Adjusted by engine config
+          {/* Score card — single source of truth */}
+          <div style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
+            {/* Top: score + verdict */}
+            <div style={{padding:"24px 20px 16px",textAlign:"center",borderBottom:"1px solid #F1F5F9"}}>
+              <ScoreRing score={displayScore} size={100}/>
+              <div style={{fontSize:44,fontWeight:800,color:clr(displayScore),letterSpacing:-3,marginTop:10,lineHeight:1}}>{displayScore}</div>
+              <div style={{fontSize:11,color:"#9CA3AF",marginBottom:12,letterSpacing:.3}}>QUALITY SCORE</div>
+              <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+                <span style={{fontSize:13,fontWeight:700,padding:"5px 16px",borderRadius:20,background:vclr(displayVerdict)+"18",color:vclr(displayVerdict)}}>{displayVerdict}</span>
+                <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:"#F8FAFF",border:"1px solid #E8EDF5",color:"#374151"}}>Grade {computeGrade(displayScore)}</span>
               </div>
-            )}
-            <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-              <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:vclr(displayVerdict)+"15",color:vclr(displayVerdict)}}>{displayVerdict}</span>
-              <span style={{fontSize:13,fontWeight:700,padding:"5px 14px",borderRadius:20,background:"#F8FAFF",border:"1px solid #E8EDF5",color:"#374151"}}>Grade {computeGrade(displayScore)}</span>
+              {sub.duration_mins&&<div style={{fontSize:11.5,color:"#9CA3AF",marginTop:10,display:"flex",alignItems:"center",gap:4,justifyContent:"center"}}><Clock size={12}/>{sub.duration_mins} min interview</div>}
             </div>
-            {sub.supervisor_action&&<div style={{fontSize:12,color:"#6B7280",marginTop:10,padding:"8px",background:"#F8FAFF",borderRadius:8}}>{sub.supervisor_action}</div>}
-            {sub.duration_mins&&<div style={{fontSize:11.5,color:"#9CA3AF",marginTop:8,display:"flex",alignItems:"center",gap:4,justifyContent:"center"}}><Clock size={12}/>{sub.duration_mins} minutes</div>}
-            <div style={{fontSize:10.5,color:"#9CA3AF",marginTop:10,display:"flex",alignItems:"center",gap:4,justifyContent:"center"}}>
-              <Settings size={10}/> Pass threshold: {engineCfg.passScoreThreshold}/100
-            </div>
-          </div>
 
-          {/* Engine breakdown */}
-          <div style={{background:"white",borderRadius:16,padding:20,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:12}}>Quality Engines</div>
-            {adj.breakdown.map(b=>{
-              const colors:Record<string,string>={gps:BLUE,duration:AMBER,image:PURPLE,audio:GREEN,duplicate:CYAN,text_ai:ROSE};
-              const icons:Record<string,React.ReactElement>={
-                gps:<MapPin size={13} color={colors.gps}/>,
-                duration:<Clock size={13} color={colors.duration}/>,
-                image:<Camera size={13} color={colors.image}/>,
-                audio:<Mic size={13} color={colors.audio}/>,
-                duplicate:<Shield size={13} color={colors.duplicate}/>,
-                text_ai:<Cpu size={13} color={colors.text_ai}/>,
-              };
-              const rawChecks:Record<string,any>={gps:checks.gps,duration:checks.timing||checks.duration,image:checks.image,audio:checks.audio,duplicate:checks.duplicate,text_ai:checks.text_ai};
-              const chk=rawChecks[b.key]||{};
-              const adjPct=Math.round(b.weight*100);
-              return (
-                <div key={b.key}>
-                  <EngineBar
-                    label={b.label}
-                    score={b.adjScore}
-                    status={b.gated?"GATED":chk.status}
-                    finding={b.flagOverride?`Score overridden: ${FLAG_LABELS[b.flagOverride]?.label||b.flagOverride} (raw: ${b.rawScore})`:chk.finding}
-                    weight={adjPct}
-                    color={b.flagOverride?RED:colors[b.key]||BLUE}
-                    icon={icons[b.key]||<Shield size={13}/>}
-                  />
-                  {b.flagOverride&&(
-                    <div style={{fontSize:10.5,color:RED,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:6,padding:"4px 10px",marginTop:-8,marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
-                      <AlertTriangle size={10}/> Score capped at {b.adjScore} due to flag: {b.flagOverride}
-                      {b.rawScore!==b.adjScore&&<span style={{marginLeft:"auto",color:"#9CA3AF"}}>backend was {b.rawScore}</span>}
+            {/* Score breakdown — contribution per engine */}
+            <div style={{padding:"14px 20px"}}>
+              <div style={{fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.8,marginBottom:10}}>How this score was calculated</div>
+              {(()=>{
+                const COLORS:Record<string,string>={gps:BLUE,duration:AMBER,image:PURPLE,audio:GREEN,duplicate:CYAN,text_ai:ROSE};
+                const ICONS:Record<string,React.ReactElement>={
+                  gps:<MapPin size={11}/>,duration:<Clock size={11}/>,image:<Camera size={11}/>,
+                  audio:<Mic size={11}/>,duplicate:<Shield size={11}/>,text_ai:<Cpu size={11}/>,
+                };
+                const measured=adj.breakdown.filter(b=>!b.gated&&b.weight>0);
+                const notMeasured=adj.breakdown.filter(b=>b.gated||(b.weight===0&&!b.flagOverride));
+                return(
+                  <>
+                    {measured.map(b=>{
+                      const col=b.flagOverride?RED:COLORS[b.key]||BLUE;
+                      const pct=Math.round(b.weight*100);
+                      const maxPts=Math.round(pct); // weight% × 100 possible
+                      const earnedPts=Math.round(b.contribution); // actual contribution
+                      return(
+                        <div key={b.key} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                          <div style={{width:22,height:22,borderRadius:6,background:col+"15",display:"grid",placeItems:"center",color:col,flexShrink:0}}>
+                            {ICONS[b.key]}
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                              <span style={{fontSize:12,fontWeight:600,color:"#374151"}}>{b.label}</span>
+                              <span style={{fontSize:11,fontWeight:700,color:col,fontVariantNumeric:"tabular-nums"}}>
+                                {earnedPts}<span style={{fontSize:9,color:"#9CA3AF",fontWeight:400}}> / {maxPts} pts</span>
+                              </span>
+                            </div>
+                            <div style={{height:4,background:"#EEF2F8",borderRadius:2,overflow:"hidden"}}>
+                              <div style={{width:`${b.adjScore}%`,height:"100%",background:col,borderRadius:2}}/>
+                            </div>
+                            {b.flagOverride&&(
+                              <div style={{fontSize:10.5,color:RED,marginTop:3,display:"flex",alignItems:"center",gap:4}}>
+                                <AlertTriangle size={9}/>{FLAG_LABELS[b.flagOverride]?.label||b.flagOverride}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {notMeasured.filter(b=>b.gated).length>0&&(
+                      <div style={{fontSize:10.5,color:"#9CA3AF",padding:"6px 8px",background:"#F8FAFF",borderRadius:7,marginTop:4}}>
+                        Not counted: {notMeasured.filter(b=>b.gated).map(b=>b.label).join(", ")} — excluded because an upstream check already failed.
+                      </div>
+                    )}
+                    {/* Formula footnote */}
+                    <div style={{marginTop:10,padding:"8px 10px",background:"#F8FAFF",borderRadius:8,border:"1px solid #E8EDF5"}}>
+                      <div style={{fontSize:10,color:"#9CA3AF",lineHeight:1.7}}>
+                        <strong style={{color:"#6B7280"}}>Score formula:</strong> {measured.map(b=>`${b.label} (${Math.round(b.weight*100)}%)`).join(" + ")} = <strong style={{color:clr(displayScore)}}>{displayScore}</strong>
+                      </div>
+                      <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>
+                        Pass threshold: <strong>{engineCfg.passScoreThreshold}</strong> · Weights set in <span style={{color:BLUE,cursor:"pointer",textDecoration:"underline"}} onClick={()=>navigate("/settings",{state:{section:"engine"}})}>Engine Settings</span>
+                      </div>
                     </div>
-                  )}
-                  {b.gated&&(
-                    <div style={{fontSize:10.5,color:"#9CA3AF",background:"#F8FAFF",border:"1px solid #E8EDF5",borderRadius:6,padding:"4px 10px",marginTop:-8,marginBottom:8}}>
-                      ⛔ Gated — excluded from scoring (upstream check already failed)
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  </>
+                );
+              })()}
+            </div>
           </div>
 
           {/* AI Authenticity — always auto-runs on load */}
