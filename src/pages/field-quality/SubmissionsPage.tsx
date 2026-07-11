@@ -129,8 +129,12 @@ export default function SubmissionsPage(){
     return ()=>window.removeEventListener("researchos:refresh",handler);
   },[load,setState,addMessage]);
 
+  const hasCustomConfig = engineCfg.savedAt !== null;
+  const effectiveVerdict = (s: typeof subs[0]) =>
+    (hasCustomConfig ? (adjMap[s.submission_id]?.verdict ?? s.verdict) : (s.verdict ?? adjMap[s.submission_id]?.verdict ?? "FLAG")) as "PASS"|"FLAG"|"REJECT";
+
   const filtered=subs.filter(s=>{
-    const adjVerdict = adjMap[s.submission_id]?.verdict ?? s.verdict;
+    const adjVerdict = effectiveVerdict(s);
     if(filter!=="ALL"&&adjVerdict!==filter)return false;
     const q = search.toLowerCase();
     if(q&&!s.submission_id.toLowerCase().includes(q)&&!s.enumerator_id.toLowerCase().includes(q)&&!(s as any).enumerator_name?.toLowerCase().includes(q)&&!(s as any).respondent_name?.toLowerCase().includes(q))return false;
@@ -143,7 +147,7 @@ export default function SubmissionsPage(){
         <div>
           <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>Submissions</h1>
           <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>
-            {loading ? "Loading…" : `${subs.length} total · ${subs.filter(s=>(adjMap[s.submission_id]?.verdict??s.verdict)==="PASS").length} passed · ${subs.filter(s=>(adjMap[s.submission_id]?.verdict??s.verdict)==="FLAG").length} flagged`}
+            {loading ? "Loading…" : `${subs.length} total · ${subs.filter(s=>effectiveVerdict(s)==="PASS").length} passed · ${subs.filter(s=>effectiveVerdict(s)==="FLAG").length} flagged`}
           </p>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -203,14 +207,14 @@ export default function SubmissionsPage(){
             <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>No submissions match your filter</div>
           ):filtered.map((sub,i)=>{
             const adj = adjMap[sub.submission_id];
-            const displayScore = adj?.overall ?? sub.overall_score;
-            const displayVerdict = adj?.verdict ?? sub.verdict;
+            const displayScore = hasCustomConfig ? (adj?.overall ?? sub.overall_score) : (sub.overall_score ?? adj?.overall ?? 0);
+            const displayVerdict = effectiveVerdict(sub);
             const imgScore = sub.checks?.image?.score ?? 0;
             const audScore = sub.checks?.audio?.score ?? 0;
             return(
             <motion.div key={sub.submission_id} onClick={()=>setSelected(selected?.submission_id===sub.submission_id?null:sub)}
               whileHover={{background:"#FAFBFF"}}
-              data-ada-target={displayVerdict==="FLAG"&&!filtered.slice(0,i).some(s=>(adjMap[s.submission_id]?.verdict??s.verdict)==="FLAG")?"flagged-row":undefined}
+              data-ada-target={displayVerdict==="FLAG"&&!filtered.slice(0,i).some(s=>effectiveVerdict(s)==="FLAG")?"flagged-row":undefined}
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",borderBottom:i<filtered.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
                 background:selected?.submission_id===sub.submission_id?"#F0F7FF":"white",
                 borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
@@ -255,7 +259,7 @@ export default function SubmissionsPage(){
                   <div style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>{(selected as any).enumerator_name || selected.enumerator_id}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <ScoreRing score={adjMap[selected.submission_id]?.overall ?? selected.overall_score} size={52}/>
+                  <ScoreRing score={hasCustomConfig ? (adjMap[selected.submission_id]?.overall ?? selected.overall_score) : (selected.overall_score ?? adjMap[selected.submission_id]?.overall ?? 0)} size={52}/>
                   <button onClick={()=>navigate(`/submissions/${selected.submission_id}`)}
                     title="View full details"
                     style={{display:"flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:7,background:BLUE,border:"none",cursor:"pointer",color:"white",fontSize:11,fontWeight:600,fontFamily:"Inter,sans-serif"}}>
@@ -266,7 +270,7 @@ export default function SubmissionsPage(){
               </div>
               <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16,maxHeight:"calc(100vh - 200px)",overflowY:"auto"}}>
                 {(()=>{
-                  const selVerdict = adjMap[selected.submission_id]?.verdict ?? selected.verdict;
+                  const selVerdict = effectiveVerdict(selected);
                   return (
                     <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,background:vbg(selVerdict),border:`1px solid ${vc(selVerdict)}22`}}>
                       <div style={{width:8,height:8,borderRadius:"50%",background:vc(selVerdict),flexShrink:0}}/>

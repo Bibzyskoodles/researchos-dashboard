@@ -563,8 +563,9 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
   const lon=gps.lon&&!isNaN(Number(gps.lon))?Number(gps.lon):null;
   const canShowMap=!hasGpsError&&lat!==null&&lon!==null;
 
-  const displayScore = adj.overall;
-  const displayVerdict = adj.verdict;
+  const hasCustomConfig = engineCfg.savedAt !== null;
+  const displayScore = hasCustomConfig ? adj.overall : (sub.overall_score ?? adj.overall);
+  const displayVerdict: "PASS"|"FLAG"|"REJECT" = hasCustomConfig ? adj.verdict : ((sub.verdict as "PASS"|"FLAG"|"REJECT") ?? adj.verdict);
 
   return(
     <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.2}}
