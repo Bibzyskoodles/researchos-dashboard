@@ -11,6 +11,7 @@ import { useIndustry } from "../../store/IndustryContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useProject } from "../../context/ProjectContext";
 import { loadEngineConfig } from "../../services/engineConfig";
+import { computeTrustIndex } from "../../services/trustEngine";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -162,6 +163,13 @@ export default function OverviewPage() {
   const recentSubs = data.recent_submissions || [];
   const alerts = data.alerts || [];
 
+  // The Trust Index is the one number on every surface (Bible §0, principle 5)
+  // — never the raw backend score, which can legitimately differ once local/
+  // shared scoring policy is applied. Compute it the same way every other
+  // page does, from the same shared engine config.
+  const overviewEngineCfg = loadEngineConfig();
+  const trustFor = (sub: any) => computeTrustIndex(sub, overviewEngineCfg);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
@@ -279,6 +287,10 @@ export default function OverviewPage() {
           {recentSubs.slice(0, 6).map((sub, i) => (
             <motion.div key={sub.submission_id} whileHover={{ background: "#FAFBFF" }} onClick={() => nav(`/submissions/${sub.submission_id}`)}
               style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 20px", borderBottom: i < 5 ? "1px solid #F8FAFF" : "none", cursor: "pointer" }}>
+              {(() => {
+                const t = trustFor(sub);
+                const verdict = sub.verdict_override || t.verdict;
+                return (<>
               <div style={{ width: 42, flexShrink: 0, textAlign: "right" }}>
                 <div style={{ fontSize: 10, fontFamily: "monospace", color: "#9CA3AF" }}>
                   {new Date(sub.scored_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
@@ -288,27 +300,29 @@ export default function OverviewPage() {
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 12, flexShrink: 0 }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: clr(sub.overall_score), marginTop: 4 }} />
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: clr(t.trustIndex), marginTop: 4 }} />
                 {i < 5 && <div style={{ flex: 1, width: 1, background: "#F1F5F9", marginTop: 3 }} />}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: "#080D1A", marginBottom: 2 }}>
-                  {sub.verdict === "PASS" ? "Submission verified" : "Review required"}
+                  {verdict === "PASS" ? "Submission verified" : "Review required"}
                 </div>
                 <div style={{ fontSize: 11, color: "#9CA3AF" }}>
                   {sub.enumerator_id}{sub.gps?.address ? ` · ${sub.gps.address.split(",").slice(0,2).join(",")}` : ""}
                 </div>
                 <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, fontFamily: "monospace", background: sub.verdict === "PASS" ? "#ECFDF5" : sub.verdict === "FLAG" ? "#FFFBEB" : "#FEF2F2", color: sub.verdict === "PASS" ? GREEN : sub.verdict === "FLAG" ? AMBER : RED }}>{sub.verdict}</span>
-                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, fontFamily: "monospace", background: "#EFF6FF", color: BLUE }}>{sub.overall_score}/100</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, fontFamily: "monospace", background: verdict === "PASS" ? "#ECFDF5" : verdict === "FLAG" ? "#FFFBEB" : "#FEF2F2", color: verdict === "PASS" ? GREEN : verdict === "FLAG" ? AMBER : RED }}>{verdict}</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, fontFamily: "monospace", background: "#EFF6FF", color: BLUE }}>{t.trustIndex}/100</span>
                   {sub.flags && (Array.isArray(sub.flags)?sub.flags:sub.flags.split(",").filter(Boolean)).slice(0,2).map(f => (
                     <span key={f} style={{ fontSize: 9.5, fontWeight: 600, padding: "2px 7px", borderRadius: 5, background: "#F1F5F9", color: "#6B7280" }}>{f.trim().replace(/_/g," ")}</span>
                   ))}
                 </div>
               </div>
-              <motion.div whileHover={{ scale: 1.1 }} style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", color: clr(sub.overall_score), flexShrink: 0, minWidth: 32, textAlign: "right" }}>
-                {sub.overall_score}
+              <motion.div whileHover={{ scale: 1.1 }} style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", color: clr(t.trustIndex), flexShrink: 0, minWidth: 32, textAlign: "right" }}>
+                {t.trustIndex}
               </motion.div>
+                </>);
+              })()}
             </motion.div>
           ))}
         </div>
@@ -371,7 +385,7 @@ export default function OverviewPage() {
                   <div style={{ width: 28, height: 28, borderRadius: 7, background: "#FEF3C7", display: "grid", placeItems: "center", fontSize: 13, flexShrink: 0 }}>🚩</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11.5, fontWeight: 600, color: "#92400E" }}>{(Array.isArray(a.flags)?a.flags[0]:((a.flags||"").split(",")[0]||""))?.trim().replace(/_/g," ") || "Review needed"}</div>
-                    <div style={{ fontSize: 10.5, color: "#B45309" }}>{a.enumerator_id} · Score: {a.overall_score}</div>
+                    <div style={{ fontSize: 10.5, color: "#B45309" }}>{a.enumerator_id} · Score: {trustFor(a).trustIndex}</div>
                   </div>
                   <ArrowRight size={12} color={AMBER} />
                 </motion.div>
