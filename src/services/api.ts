@@ -43,6 +43,7 @@ export const authApi = {
 };
 
 export const dashboardApi = {
+  getVersion: () => api.get('/api/version'),
   getDashboard: (params?: { project_id?: string }) => api.get('/api/dashboard', { params }),
   getSubmission: (id: string) => api.get(`/api/submissions/${id}`),
   actionSubmission: (id: string, action: 'approve' | 'reject' | 'flag') =>

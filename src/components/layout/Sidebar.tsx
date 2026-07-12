@@ -5,6 +5,7 @@ import { useAda } from '../../ada/AdaContext';
 import { useProject } from '../../context/ProjectContext';
 import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard, X } from 'lucide-react';
 import FieldScoreLogo from '../brand/FieldScoreLogo';
+import BuildInfoBadge from './BuildInfoBadge';
 
 interface SidebarProps { onClose?: () => void; }
 
@@ -229,6 +230,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
           </button>
         </div>
       </div>
+      <BuildInfoBadge />
     </aside>
   );
 }
