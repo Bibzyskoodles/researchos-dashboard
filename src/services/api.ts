@@ -172,4 +172,10 @@ export const insightScoreApi = {
   },
 };
 
+export const engineConfigApi = {
+  // The org's shared Trust Index scoring policy — see services/engineConfig.ts.
+  get: () => api.get('/api/engine-config'),
+  save: (config: object) => api.put('/api/engine-config', config),
+};
+
 export default api;

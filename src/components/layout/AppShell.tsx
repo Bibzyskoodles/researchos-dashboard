@@ -22,6 +22,16 @@ export default function AppShell() {
   // Close drawer on route change
   useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
 
+  // Pull the organisation's shared Trust Index scoring policy once per app
+  // load — without this, each browser scores from its own private
+  // localStorage config and two supervisors can see different numbers for
+  // the same submission.
+  useEffect(() => {
+    import("../../services/engineConfig").then(({ syncEngineConfigFromServer }) => {
+      syncEngineConfigFromServer();
+    });
+  }, []);
+
   // Execute Ada commands
   useEffect(() => {
     const cmd = store.command;

@@ -1,7 +1,15 @@
-// Persistent engine configuration — stored in localStorage as fs_engine_config_v1.
-// This is the single source of truth for scoring thresholds and weights.
+// Persistent engine configuration — stored in localStorage as fs_engine_config_v1,
+// mirrored to the backend per-organization so every browser/user computes the
+// Trust Index from the SAME shared policy, not a private per-device copy.
 // Both SettingsPage sections (Research Defaults + Engine Config) read/write here.
 // SubmissionDetailPage reads here to compute adjusted scores.
+//
+// Sync model: localStorage is a fast local cache so every page can read the
+// config synchronously without waiting on a network round-trip. On app boot,
+// syncEngineConfigFromServer() fetches the org's saved config and — if one
+// exists — overwrites the local cache and fires the same change event every
+// consumer already listens for. saveEngineConfig() writes locally AND pushes
+// to the backend so the change becomes visible to every other session.
 
 export interface EngineWeights {
   gps: number;
@@ -167,6 +175,51 @@ export function saveEngineConfig(config: EngineConfig): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   // Notify other tabs / components listening for config changes
   window.dispatchEvent(new CustomEvent("fs-engine-config-changed", { detail: toSave }));
+
+  // Push to the backend so every other browser/session in this organisation
+  // picks up the same policy — fire-and-forget, never blocks the local save.
+  import("./api").then(({ engineConfigApi }) => {
+    engineConfigApi.save(toSave).catch(() => {
+      // Offline / logged out / server hiccup — the local save already
+      // succeeded, so scoring in THIS session is unaffected. It will sync
+      // again next time saveEngineConfig() runs.
+    });
+  });
+}
+
+/**
+ * Applies a config fetched from the backend to the local cache WITHOUT
+ * pushing it back to the server (avoids an infinite sync loop). Fires the
+ * same change event saveEngineConfig() does, so every already-mounted page
+ * picks it up immediately via their existing "fs-engine-config-changed" listener.
+ */
+function applyServerConfig(config: EngineConfig): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  window.dispatchEvent(new CustomEvent("fs-engine-config-changed", { detail: config }));
+}
+
+/**
+ * Call once at app boot (after login). Fetches the organisation's shared
+ * Trust Index policy from the backend and, if one has been saved, makes it
+ * authoritative on this device — overwriting whatever was previously in
+ * localStorage (a stale copy, or another org's leftover defaults).
+ * Never throws — a failed sync just leaves the local cache as-is.
+ */
+export async function syncEngineConfigFromServer(): Promise<void> {
+  try {
+    const { engineConfigApi } = await import("./api");
+    const res = await engineConfigApi.get();
+    const remote = res.data?.config;
+    if (remote && typeof remote === "object") {
+      // Route through loadEngineConfig()'s merge/migration logic first so a
+      // config saved by an older frontend version still comes out complete.
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
+      const merged = loadEngineConfig();
+      applyServerConfig(merged);
+    }
+  } catch {
+    // No network, logged out, or nothing saved yet — keep using local/defaults.
+  }
 }
 
 // ─── Client-side score adjustment ─────────────────────────────────────────────
