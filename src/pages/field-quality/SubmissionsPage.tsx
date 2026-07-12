@@ -75,6 +75,25 @@ function MediaBadge({type,status,score}:{type:"image"|"audio";status:string;scor
 
 // ── CSV export ─────────────────────────────────────────────────────────────────
 
+// Fetch every submission in the project page by page so the export covers the
+// whole project, not just the rows currently on screen. Hard cap keeps a
+// runaway project from freezing the browser.
+const EXPORT_PAGE_SIZE = 500;
+const EXPORT_MAX_ROWS = 100_000;
+
+async function fetchAllSubmissions(projectId: string): Promise<Submission[]> {
+  const all: Submission[] = [];
+  let offset = 0;
+  for (;;) {
+    const r = await dashboardApi.getSubmissions({ limit: EXPORT_PAGE_SIZE, offset, project_id: projectId });
+    const page: Submission[] = r.data.submissions || r.data || [];
+    all.push(...page);
+    if (page.length < EXPORT_PAGE_SIZE || all.length >= EXPORT_MAX_ROWS) break;
+    offset += EXPORT_PAGE_SIZE;
+  }
+  return all;
+}
+
 function exportCsv(subs: Submission[], trustMap: Record<string, TrustResult>) {
   const header = [
     "submission_id","enumerator_id","submission_date","duration_mins",
@@ -172,11 +191,16 @@ function FraudSignalsBanner({ signals }: { signals: EnumeratorFraudSignals[] }) 
   );
 }
 
+const PAGE_SIZE = 100;
+
 export default function SubmissionsPage(){
   const [subs,setSubs]=useState<Submission[]>([]);
   const [loading,setLoading]=useState(true);
   const [refreshing,setRefreshing]=useState(false);
   const [error,setError]=useState<string|null>(null);
+  const [offset,setOffset]=useState(0);
+  const [total,setTotal]=useState<number|null>(null); // server-reported total, if the API provides one
+  const [exporting,setExporting]=useState(false);
   const [selected,setSelected]=useState<Submission|null>(null);
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
@@ -212,18 +236,22 @@ export default function SubmissionsPage(){
     })));
   }, [subs]);
 
-  const load = useCallback((isRefresh=false)=>{
+  const load = useCallback((isRefresh=false, pageOffset=0)=>{
     if(isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
     // Never mix projects: without an active project we show nothing rather
     // than silently pooling every project's submissions into one list.
-    if (!activeProject?.id) { setSubs([]); setLoading(false); setRefreshing(false); return; }
-    const params: { limit: number; project_id?: string } = { limit: 100, project_id: activeProject.id };
-    dashboardApi.getSubmissions(params)
+    if (!activeProject?.id) { setSubs([]); setTotal(null); setLoading(false); setRefreshing(false); return; }
+    dashboardApi.getSubmissions({ limit: PAGE_SIZE, offset: pageOffset, project_id: activeProject.id })
       .then(r=>{
         const submissions = r.data.submissions || r.data || [];
         setSubs(Array.isArray(submissions) ? submissions : []);
+        setOffset(pageOffset);
+        // Use the server's total when it reports one; otherwise null means unknown
+        const t = r.data.total ?? r.data.count ?? null;
+        setTotal(typeof t === "number" ? t : null);
+        setSelected(null);
       })
       .catch(()=>{
         setError("Could not load submissions. Check your connection and try refreshing.");
@@ -269,7 +297,16 @@ export default function SubmissionsPage(){
         <div>
           <h1 style={{fontSize:22,fontWeight:800,color:"#080D1A",letterSpacing:-.6,margin:0}}>Submissions</h1>
           <p style={{fontSize:12.5,color:"#9CA3AF",marginTop:4}}>
-            {loading ? "Loading…" : `${subs.length} total · ${subs.filter(s=>effectiveVerdict(s)==="PASS").length} passed · ${subs.filter(s=>effectiveVerdict(s)==="FLAG").length} flagged`}
+            {loading ? "Loading…" : (() => {
+              const passed = subs.filter(s=>effectiveVerdict(s)==="PASS").length;
+              const flagged = subs.filter(s=>effectiveVerdict(s)==="FLAG").length;
+              const hasMore = total != null ? offset + subs.length < total : subs.length === PAGE_SIZE;
+              if (total != null && total > subs.length)
+                return `Showing ${offset+1}–${offset+subs.length} of ${total.toLocaleString()} · ${passed} passed · ${flagged} flagged on this page`;
+              if (hasMore)
+                return `Showing ${offset+1}–${offset+subs.length} · ${passed} passed · ${flagged} flagged on this page`;
+              return `${offset + subs.length} total · ${passed} passed · ${flagged} flagged`;
+            })()}
           </p>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -278,10 +315,25 @@ export default function SubmissionsPage(){
             <RefreshCw size={13} style={{animation:refreshing?"spin 1s linear infinite":"none"}}/>{refreshing?"Refreshing…":"Refresh"}
           </button>
           <button
-            onClick={() => exportCsv(subs, trustMap)}
-            disabled={subs.length === 0}
-            style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:subs.length===0?"not-allowed":"pointer",opacity:subs.length===0?.5:1}}>
-            <Download size={13}/> Export CSV
+            onClick={async () => {
+              if (!activeProject?.id || exporting) return;
+              setExporting(true);
+              try {
+                // Export the ENTIRE project, not just the visible page
+                const all = await fetchAllSubmissions(activeProject.id);
+                const cfg = loadEngineConfig();
+                const fullTrustMap: Record<string, TrustResult> = {};
+                all.forEach(s => { fullTrustMap[s.submission_id] = computeTrustIndex(s as any, cfg); });
+                exportCsv(all, fullTrustMap);
+              } catch {
+                setError("Export failed part-way through. Try again.");
+              } finally {
+                setExporting(false);
+              }
+            }}
+            disabled={subs.length === 0 || exporting}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:subs.length===0||exporting?"not-allowed":"pointer",opacity:subs.length===0||exporting?.5:1}}>
+            <Download size={13}/> {exporting ? "Exporting…" : "Export CSV"}
           </button>
         </div>
       </div>
@@ -390,7 +442,30 @@ export default function SubmissionsPage(){
                 <ChevronRight size={14} color={selected?.submission_id===sub.submission_id?BLUE:"#CBD5E1"}/>
               </div>
             </motion.div>
-          );})}        </div>
+          );})}
+          {/* Pagination footer */}
+          {!loading && !error && (offset > 0 || (total != null ? offset + subs.length < total : subs.length === PAGE_SIZE)) && (
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",borderTop:"1px solid #F1F5F9",background:"#FAFBFF"}}>
+              <button
+                onClick={()=>load(false, Math.max(0, offset - PAGE_SIZE))}
+                disabled={offset === 0}
+                style={{padding:"6px 14px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",fontSize:12,fontWeight:600,color:offset===0?"#CBD5E1":"#374151",cursor:offset===0?"not-allowed":"pointer",fontFamily:"Inter,sans-serif"}}>
+                ← Previous
+              </button>
+              <span style={{fontSize:11.5,color:"#9CA3AF"}}>
+                {total != null
+                  ? `Page ${Math.floor(offset / PAGE_SIZE) + 1} of ${Math.max(1, Math.ceil(total / PAGE_SIZE))}`
+                  : `Page ${Math.floor(offset / PAGE_SIZE) + 1}`}
+              </span>
+              <button
+                onClick={()=>load(false, offset + PAGE_SIZE)}
+                disabled={total != null ? offset + subs.length >= total : subs.length < PAGE_SIZE}
+                style={{padding:"6px 14px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",fontSize:12,fontWeight:600,color:(total != null ? offset + subs.length >= total : subs.length < PAGE_SIZE)?"#CBD5E1":"#374151",cursor:(total != null ? offset + subs.length >= total : subs.length < PAGE_SIZE)?"not-allowed":"pointer",fontFamily:"Inter,sans-serif"}}>
+                Next →
+              </button>
+            </div>
+          )}
+        </div>
 
         <AnimatePresence>
           {selected&&(()=>{
