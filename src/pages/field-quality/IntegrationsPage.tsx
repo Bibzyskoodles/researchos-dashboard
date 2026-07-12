@@ -94,10 +94,11 @@ const buildSteps = (webhookUrl: string): Record<string, string[]> => ({
   ],
 });
 
-function buildPlatforms(webhookUrl: string): Platform[] {
+function buildPlatforms(webhookUrl: string, koboStats: { count: number; last: string } | null): Platform[] {
   const steps = buildSteps(webhookUrl);
   return [
-    { id:"kobo",name:"KoboToolbox",icon:"🗂",status:"active",category:"Data Collection",description:"The most widely used ODK-based platform for NGO fieldwork.",lastReceived:"3 minutes ago",submissionCount:18,setupSteps:steps.kobo },
+    // Kobo status reflects REAL submissions for the active project — never a canned count.
+    { id:"kobo",name:"KoboToolbox",icon:"🗂",status:koboStats && koboStats.count > 0 ? "active" : "available",category:"Data Collection",description:"The most widely used ODK-based platform for NGO fieldwork.",lastReceived:koboStats?.last || undefined,submissionCount:koboStats?.count,setupSteps:steps.kobo },
     { id:"surveycto",name:"SurveyCTO",icon:"📋",status:"available",category:"Data Collection",description:"Enterprise-grade mobile data collection used by research firms.",setupSteps:steps.surveycto },
     { id:"odk",name:"ODK Collect",icon:"📱",status:"available",category:"Data Collection",description:"Open Data Kit — the open-source standard for mobile surveys.",setupSteps:steps.odk },
     { id:"commcare",name:"CommCare",icon:"🏥",status:"available",category:"Data Collection",description:"Mobile data collection platform popular in health programmes.",setupSteps:steps.commcare },
@@ -111,14 +112,7 @@ function buildPlatforms(webhookUrl: string): Platform[] {
   ];
 }
 
-interface ActivityEvent { time: string; platform: string; count: number; status: "processed"|"error"; }
-const RECENT_ACTIVITY: ActivityEvent[] = [
-  {time:"3 mins ago",platform:"KoboToolbox",count:1,status:"processed"},
-  {time:"14 mins ago",platform:"KoboToolbox",count:1,status:"processed"},
-  {time:"1h ago",platform:"KoboToolbox",count:3,status:"processed"},
-  {time:"2h ago",platform:"KoboToolbox",count:1,status:"error"},
-  {time:"3h ago",platform:"KoboToolbox",count:2,status:"processed"},
-];
+interface ActivityEvent { time: string; platform: string; label: string; status: "processed"|"error"; }
 
 interface CopyButtonProps { text: string; onCopy?: () => void; small?: boolean; }
 function CopyButton({ text, onCopy, small }: CopyButtonProps) {
@@ -198,8 +192,8 @@ function PlatformCard({ platform, webhookUrl, onSetupOpen, isExpanded, onCopyUrl
             {isActive && (
               <div style={{ display:"flex",gap:12,fontSize:11.5 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:4 }}><div style={{ width:6,height:6,borderRadius:"50%",background:GREEN }} /><span style={{ color:GREEN,fontWeight:600 }}>{platform.submissionCount} submissions received</span></div>
-                <span style={{ color:"#CBD5E1" }}>·</span>
-                <span style={{ color:"#9CA3AF" }}>Last received {platform.lastReceived}</span>
+                {platform.lastReceived && <><span style={{ color:"#CBD5E1" }}>·</span>
+                <span style={{ color:"#9CA3AF" }}>Last received {platform.lastReceived}</span></>}
               </div>
             )}
             {isAvailable && (
@@ -489,7 +483,29 @@ export default function IntegrationsPage() {
   const webhookUrl = activeProject?.id
     ? `${webhookBase}?project_id=${activeProject.id}`
     : null;
-  const platforms = buildPlatforms(webhookUrl ?? "⚠ select a project first to get your webhook URL");
+  // Real integration status + activity feed from the project's actual submissions
+  const [koboStats, setKoboStats] = useState<{ count: number; last: string } | null>(null);
+  const [recentEvents, setRecentEvents] = useState<ActivityEvent[]>([]);
+  React.useEffect(() => {
+    if (!activeProject?.id) { setKoboStats(null); setRecentEvents([]); return; }
+    dashboardApi.getSubmissions({ limit: 5, project_id: activeProject.id })
+      .then(r => {
+        const subs = r.data.submissions || [];
+        const total = r.data.total ?? subs.length;
+        const latest = subs[0];
+        const last = latest?.scored_at || latest?.submission_date || "";
+        setKoboStats({ count: total, last: last ? new Date(last).toLocaleString() : "" });
+        setRecentEvents(subs.map((sub: any) => ({
+          time: (sub.scored_at || sub.submission_date) ? new Date(sub.scored_at || sub.submission_date).toLocaleString() : "",
+          platform: sub.platform || "Webhook",
+          label: `${String(sub.submission_id || "").slice(0, 10)}… scored ${sub.overall_score ?? "—"}/100`,
+          status: "processed" as const,
+        })));
+      })
+      .catch(() => { setKoboStats(null); setRecentEvents([]); });
+  }, [activeProject?.id]);
+
+  const platforms = buildPlatforms(webhookUrl ?? "⚠ select a project first to get your webhook URL", koboStats);
   const activeCount = platforms.filter(p => p.status === "active").length;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [urlCopied, setUrlCopied] = useState(false);
@@ -563,7 +579,7 @@ export default function IntegrationsPage() {
   }, [setState, addMessage, activeProject?.name]);
 
   const heroText = activeCount > 0
-    ? `Your KoboToolbox integration is active and receiving ${platforms.find(p => p.id === "kobo")?.submissionCount ?? 0} submissions. Want me to help you connect another platform?`
+    ? `Your KoboToolbox integration is active — this project has received ${platforms.find(p => p.id === "kobo")?.submissionCount ?? 0} submission${(platforms.find(p => p.id === "kobo")?.submissionCount ?? 0) === 1 ? "" : "s"}. Want me to help you connect another platform?`
     : "Let's connect your first data source. Which platform does your field team use? KoboToolbox is the most common choice for NGO fieldwork.";
 
   return (
@@ -709,10 +725,14 @@ export default function IntegrationsPage() {
           <div style={{ fontSize:13.5,fontWeight:700,color:"#080D1A" }}>Recent Webhook Activity</div>
           <div style={{ fontSize:11,color:"#9CA3AF",marginTop:2 }}>Last 5 events received by your endpoint</div>
         </div>
-        {RECENT_ACTIVITY.map((event,i) => (
-          <div key={i} style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 20px",borderBottom:i<RECENT_ACTIVITY.length-1?"1px solid #F8FAFF":"none" }}>
+        {recentEvents.length === 0 ? (
+          <div style={{ padding:"18px 20px",fontSize:12.5,color:"#9CA3AF" }}>
+            No webhook activity yet for this project — events appear here the moment your first submission arrives.
+          </div>
+        ) : recentEvents.map((event,i) => (
+          <div key={i} style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 20px",borderBottom:i<recentEvents.length-1?"1px solid #F8FAFF":"none" }}>
             <div style={{ width:7,height:7,borderRadius:"50%",background:event.status==="processed"?GREEN:"#DC2626",flexShrink:0 }} />
-            <div style={{ flex:1 }}><div style={{ fontSize:13,fontWeight:600,color:"#080D1A" }}>{event.platform}</div><div style={{ fontSize:11.5,color:"#9CA3AF" }}>{event.count} submission{event.count!==1?"s":""} received</div></div>
+            <div style={{ flex:1 }}><div style={{ fontSize:13,fontWeight:600,color:"#080D1A" }}>{event.platform}</div><div style={{ fontSize:11.5,color:"#9CA3AF" }}>{event.label}</div></div>
             <div style={{ textAlign:"right" }}><div style={{ fontSize:11.5,color:"#9CA3AF" }}>{event.time}</div><div style={{ fontSize:10.5,fontWeight:600,color:event.status==="processed"?GREEN:"#DC2626",marginTop:2 }}>{event.status}</div></div>
           </div>
         ))}

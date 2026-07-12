@@ -77,11 +77,6 @@ export default function EnumeratorsPage(){
       .finally(()=>setLoading(false));
   },[activeProject?.id]);
 
-  const radarData=()=>[
-    {subject:"GPS",value:92},{subject:"Image",value:78},
-    {subject:"Audio",value:91},{subject:"Duration",value:85},{subject:"Duplicate",value:98},
-  ];
-
   if(_loading) return <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading {termPlural}...</div>;
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
@@ -260,20 +255,6 @@ export default function EnumeratorsPage(){
                     </div>
                   </div>
 
-                  <div>
-                    <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Engine Breakdown</div>
-                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    {radarData().map(d=>(
-                      <div key={d.subject} style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{width:64,fontSize:10.5,color:"#9CA3AF",flexShrink:0}}>{d.subject}</div>
-                        <div style={{flex:1,height:4,background:"#EEF2F8",borderRadius:2,overflow:"hidden"}}>
-                          <div style={{width:`${d.value}%`,height:"100%",background:BLUE,borderRadius:2}}/>
-                        </div>
-                        <div style={{fontSize:10.5,fontWeight:700,color:BLUE,width:24,textAlign:"right"}}>{d.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                  </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                     {[
                       ["Submissions", selected.total_submissions??selected.total_subs??0],
