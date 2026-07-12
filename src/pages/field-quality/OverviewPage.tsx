@@ -144,8 +144,12 @@ export default function OverviewPage() {
 
   if (!data) return <div style={{ padding: 24, color: RED }}>Could not load data</div>;
 
-  const s = data.stats;
-  const chartScores = data.score_chart.map(c => c.score);
+  // Defensive: older backend versions omit fields entirely when a project
+  // has no submissions yet — never let a missing key blank the whole page.
+  const s = data.stats || ({} as DashboardData["stats"]);
+  const chartScores = (data.score_chart || []).map(c => c.score);
+  const recentSubs = data.recent_submissions || [];
+  const alerts = data.alerts || [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -235,7 +239,7 @@ export default function OverviewPage() {
         <KpiCard label="Total Submissions" value={s.total_submissions} sub={org?.name || "Current project"} trend={s.score_trend} color="#080D1A" sparkData={chartScores} />
         <KpiCard label="Avg Trust Score" value={`${s.avg_score}`} sub={s.avg_score >= 80 ? "Excellent quality" : "Good quality"} color={GREEN} sparkData={chartScores} />
         <KpiCard label="Pass Rate" value={`${s.pass_rate}%`} sub={`${s.pass_count} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />
-        <KpiCard label={`Active ${cap(vocab.enumerators)}`} value={s.active_enumerators} sub="All performing well" color={PURPLE} sparkData={data.enumerators.slice(0, 7).map(e => e.avg_score)} />
+        <KpiCard label={`Active ${cap(vocab.enumerators)}`} value={s.active_enumerators} sub="All performing well" color={PURPLE} sparkData={(data.enumerators || []).slice(0, 7).map(e => e.avg_score)} />
       </div>
 
       {/* Main content */}
@@ -252,7 +256,7 @@ export default function OverviewPage() {
               View all <ArrowRight size={11} />
             </motion.span>
           </div>
-          {data.recent_submissions.slice(0, 6).map((sub, i) => (
+          {recentSubs.slice(0, 6).map((sub, i) => (
             <motion.div key={sub.submission_id} whileHover={{ background: "#FAFBFF" }} onClick={() => nav(`/submissions/${sub.submission_id}`)}
               style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 20px", borderBottom: i < 5 ? "1px solid #F8FAFF" : "none", cursor: "pointer" }}>
               <div style={{ width: 42, flexShrink: 0, textAlign: "right" }}>
@@ -310,7 +314,7 @@ export default function OverviewPage() {
                 <span onClick={() => nav("/enumerators")} style={{ fontSize: 11, fontWeight: 600, color: BLUE, cursor: "pointer" }}>All →</span>
               </div>
             </div>
-            {data.enumerators.slice(0, 4).map((e, i) => {
+            {(data.enumerators || []).slice(0, 4).map((e, i) => {
               const cols = [BLUE, PURPLE, GREEN, AMBER];
               const col = cols[i % cols.length];
               return (
@@ -340,7 +344,7 @@ export default function OverviewPage() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>⚠ Requires Attention</div>
                 <span onClick={() => nav("/submissions")} style={{ fontSize: 11, fontWeight: 600, color: AMBER, cursor: "pointer" }}>View all</span>
               </div>
-              {data.alerts.slice(0, 2).map((a, i) => (
+              {alerts.slice(0, 2).map((a, i) => (
                 <motion.div key={a.submission_id} whileHover={{ background: "#FFFBEB" }} onClick={() => nav(`/submissions/${a.submission_id}`)}
                   data-ada-target={i === 0 ? "alert-item" : undefined}
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", borderBottom: "1px solid #FEF3C7", cursor: "pointer" }}>
