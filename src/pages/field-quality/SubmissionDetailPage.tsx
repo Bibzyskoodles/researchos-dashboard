@@ -513,23 +513,33 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
     setAiScan({ status: "done", ...results });
   }, [sub, analyzeTranscriptHeuristic]);
 
-  const adaBriefing=(s:any, verdict:"PASS"|"FLAG"|"REJECT")=>{
+  const adaBriefing=(s:any, verdict:"PASS"|"FLAG"|"REJECT", trustResult?: TrustResult)=>{
     if(!s)return"";
     const flagArr:string[]=Array.isArray(s.flags)?s.flags:String(s.flags||"").split(",").map((f:string)=>f.trim()).filter(Boolean);
     const flagDesc=flagArr.map((f:string)=>FLAG_LABELS[f]?.label||f);
     const gpsOk=!flagArr.some((f:string)=>["GPS_PARSE_ERROR","NO_GPS","GPS_OUTSIDE_NIGERIA"].includes(f));
+    // Never claim "all checks passed" when evidence is actually missing —
+    // completeness < 100% means at least one channel wasn't measured, which
+    // is a materially different situation from every channel measuring clean.
+    const missingLabels = (trustResult?.breakdown || [])
+      .filter(b => b.presence === "ABSENT" || b.presence === "PRESENT_UNMEASURED")
+      .map(b => b.label);
+    const completenessPct = trustResult ? Math.round(trustResult.completeness * 100) : 100;
+    const missingNote = missingLabels.length > 0
+      ? ` ${missingLabels.length === 1 ? missingLabels[0] : missingLabels.slice(0,-1).join(", ") + " and " + missingLabels[missingLabels.length-1]} ${missingLabels.length === 1 ? "wasn't" : "weren't"} available for this submission — that's excluded from scoring, not held against the enumerator, but it does mean this verdict is based on ${completenessPct}% of possible evidence.`
+      : "";
     if(verdict==="PASS"){
       if(flagArr.length===0){
-        return `This submission passed all quality checks. GPS verified${s.gps?.address?` in ${s.gps.address.split(",")[0]}`:""}, interview duration is appropriate, and all media checks passed.`;
+        return `This submission passed every check it was measured against. GPS verified${s.gps?.address?` in ${s.gps.address.split(",")[0]}`:""}, interview duration is appropriate.${missingNote}`;
       }
       // PASS verdict but has minor flags — be transparent
-      return `This submission passed the quality threshold despite ${flagArr.length===1?"a concern":"some concerns"}: ${flagDesc.slice(0,2).join("; ")}. ${gpsOk?"GPS looks good.":"Note: GPS data is unreliable for this submission."} Review the flags before approving for analysis.`;
+      return `This submission passed the quality threshold despite ${flagArr.length===1?"a concern":"some concerns"}: ${flagDesc.slice(0,2).join("; ")}. ${gpsOk?"GPS looks good.":"Note: GPS data is unreliable for this submission."}${missingNote} Review the flags before approving for analysis.`;
     }
     if(verdict==="FLAG"){
       const flagList=flagDesc.slice(0,2).join("; ");
-      return `I found some concerns with this submission. ${flagList}. I recommend reviewing before approving for analysis.`;
+      return `I found some concerns with this submission. ${flagList}.${missingNote} I recommend reviewing before approving for analysis.`;
     }
-    return `This submission failed quality verification. ${flagDesc.slice(0,2).join("; ")}. I recommend rejecting this submission.`;
+    return `This submission failed quality verification. ${flagDesc.slice(0,2).join("; ")}.${missingNote} I recommend rejecting this submission.`;
   };
 
   // Memoized so detail score always matches list (same config snapshot, re-runs on config change)
@@ -613,7 +623,7 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
           </div>
           <div style={{flex:1}}>
             <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.7,marginBottom:6}}>Ada · Assessment</div>
-            <div style={{fontSize:14,color:"rgba(255,255,255,.85)",lineHeight:1.7}}>{adaBriefing(sub, displayVerdict)}</div>
+            <div style={{fontSize:14,color:"rgba(255,255,255,.85)",lineHeight:1.7}}>{adaBriefing(sub, displayVerdict, trust)}</div>
             {sub.supervisor_action&&(
               <div style={{marginTop:12,display:"inline-flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"6px 12px"}}>
                 <span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.5}}>Recommended action:</span>
