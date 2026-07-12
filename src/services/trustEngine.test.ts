@@ -55,7 +55,9 @@ describe("S2 The missing photo — required absence is a zero, never redistribut
     flags: [],
   };
   it("caps the attainable score by the image weight share", () => {
-    const r = computeTrustIndex(sub, cfg());
+    // Pin the threshold: this scenario tests gray-zone semantics at 70,
+    // independent of the shipped default (60).
+    const r = computeTrustIndex(sub, cfg({ passScoreThreshold: 70 }));
     // inclusion {gps .3125, dur .275, img .25 @ 0, aud .1625}: Q = 66.45 → 66
     expect(r.trustIndex).toBe(66);
     expect(r.verdict).toBe("FLAG");
@@ -152,7 +154,7 @@ describe("S8 The gray zone — sub-threshold is REVIEW, never auto-REJECT", () =
   it("classifies 50–69 as HIGH risk / FLAG", () => {
     const r = computeTrustIndex(
       { ...FULL_HOUSE, checks: fullChecks({ gps: 60, duration: 60, image: 60, audio: 60, duplicate: 60, text_ai: 60 }) },
-      cfg()
+      cfg({ passScoreThreshold: 70 }) // pin: gray zone is relative to the threshold
     );
     expect(r.trustIndex).toBe(60);
     expect(r.verdict).toBe("FLAG");

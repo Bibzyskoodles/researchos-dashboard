@@ -265,17 +265,22 @@ export function computeAdjustedScore(
     : null;
 
   // Per-engine raw scores — null means "not run / not measured"
-  // Use backend check score when it's a positive number; fall back to accuracy formula for GPS;
-  // never use overall_score as a proxy for unmeasured engines.
+  // Backend checks with status NOT_AVAILABLE / DISABLED carry a placeholder
+  // score of 50 that is not a measurement (e.g. no audio in the submission)
+  // — treat those as absent rather than letting them contribute points.
+  const realScore = (check?: { score?: number; status?: string } | null): number | null => {
+    const st = (check?.status || "").toUpperCase();
+    if (st === "NOT_AVAILABLE" || st === "DISABLED") return null;
+    return check?.score != null ? (check.score as number) : null;
+  };
+  const gpsCheckScore = realScore(sub.checks?.gps);
   const rawScores: Record<string, number | null> = {
-    gps:       (sub.checks?.gps?.score != null && (sub.checks.gps.score as number) > 0)
-                 ? sub.checks.gps.score as number
-                 : gpsFromAccuracy,
-    duration:  sub.checks?.duration?.score != null ? sub.checks.duration.score as number : null,
-    image:     sub.checks?.image?.score     != null ? sub.checks.image.score as number     : null,
-    audio:     sub.checks?.audio?.score     != null ? sub.checks.audio.score as number     : null,
-    duplicate: sub.checks?.duplicate?.score != null ? sub.checks.duplicate.score as number : null,
-    text_ai:   sub.checks?.text_ai?.score   != null ? sub.checks.text_ai.score as number   : null,
+    gps:       (gpsCheckScore != null && gpsCheckScore > 0) ? gpsCheckScore : gpsFromAccuracy,
+    duration:  realScore(sub.checks?.duration),
+    image:     realScore(sub.checks?.image),
+    audio:     realScore(sub.checks?.audio),
+    duplicate: realScore(sub.checks?.duplicate),
+    text_ai:   realScore(sub.checks?.text_ai),
   };
 
   // An engine is "measured" if it has a real raw score OR a flag explicitly failed it

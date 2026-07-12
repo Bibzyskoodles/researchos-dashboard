@@ -238,19 +238,30 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   }
 
   // ── L2 Evidence assembly (Bible §3) ──
+  // A backend check with status NOT_AVAILABLE / DISABLED carries a placeholder
+  // score of 50 that is NOT a measurement — the channel simply wasn't there
+  // (e.g. no audio recorded). Treat it as no score at all, otherwise missing
+  // evidence silently contributes 50/100 at full weight (Bible §3: absent
+  // optional evidence is excluded, never scored).
+  const measuredScore = (check?: { score?: number; status?: string } | null): number | null => {
+    const status = (check?.status || "").toUpperCase();
+    if (status === "NOT_AVAILABLE" || status === "DISABLED") return null;
+    return numOrNull(check?.score);
+  };
+
   // GPS raw score: backend measurement wins; accuracy-derived fallback is lower confidence.
-  const gpsBackend = numOrNull(checks.gps?.score);
+  const gpsBackend = measuredScore(checks.gps);
   const gpsDerived = accuracy != null ? gpsScoreFromAccuracy(accuracy) : null;
   const gpsRaw = gpsBackend != null && gpsBackend > 0 ? gpsBackend : gpsDerived;
   const gpsConfidence = gpsBackend != null && gpsBackend > 0 ? CONF_MEASURED : CONF_GPS_DERIVED;
 
   const rawScores: Record<EngineKey, number | null> = {
     gps: gpsRaw,
-    duration: numOrNull(checks.duration?.score),
-    image: numOrNull(checks.image?.score),
-    audio: numOrNull(checks.audio?.score),
-    duplicate: numOrNull(checks.duplicate?.score),
-    text_ai: numOrNull(checks.text_ai?.score),
+    duration: measuredScore(checks.duration),
+    image: measuredScore(checks.image),
+    audio: measuredScore(checks.audio),
+    duplicate: measuredScore(checks.duplicate),
+    text_ai: measuredScore(checks.text_ai),
   };
 
   // Evidence presence per engine — Bible §3 table.
