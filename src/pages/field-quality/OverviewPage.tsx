@@ -9,6 +9,7 @@ import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useIndustry } from "../../store/IndustryContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { useProject } from "../../context/ProjectContext";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -99,6 +100,7 @@ export default function OverviewPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const { user, org } = useAuth();
+  const { activeProject } = useProject();
   const { setState, setOpen, guideToElement } = useAda();
   const { vocab } = useIndustry();
   const nav = useNavigate();
@@ -110,8 +112,11 @@ export default function OverviewPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     const load = (initial: boolean) => {
-      dashboardApi.getDashboard()
+      // Scope everything to the active project; "All projects" (no active
+      // project) shows the org-wide combined view.
+      dashboardApi.getDashboard(activeProject?.id ? { project_id: activeProject.id } : undefined)
         .then(res => {
           if (cancelled) return;
           setData(res.data);
@@ -126,7 +131,7 @@ export default function OverviewPage() {
     load(true);
     const id = setInterval(() => load(false), 30000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [setState, guideToElement]);
+  }, [setState, guideToElement, activeProject?.id]);
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { usePlatform } from '../../platform/PlatformProvider';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
+import { useProject } from '../../context/ProjectContext';
 
 const BLUE = '#2463EB', GREEN = '#059669', AMBER = '#D97706', RED = '#DC2626', PURPLE = '#7C3AED';
 
@@ -333,6 +334,7 @@ function EnumRow({ p, rank, onTierChange, expanded, onToggle }: {
 export default function ScorecardPage() {
   const { t } = usePlatform();
   useAdaGreeting({ page: "scorecard" });
+  const { activeProject } = useProject();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -344,11 +346,12 @@ export default function ScorecardPage() {
   const [showPrivacyInfo, setShowPrivacyInfo] = useState(false);
 
   useEffect(() => {
-    dashboardApi.getSubmissions({ limit: 500 })
+    // Active project scopes the data; none = explicit "All projects" view.
+    dashboardApi.getSubmissions({ limit: 500, ...(activeProject?.id ? { project_id: activeProject.id } : {}) })
       .then(r => { setSubmissions(Array.isArray(r.data.submissions || r.data) ? (r.data.submissions || r.data) : []); })
       .catch(() => setSubmissions([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeProject?.id]);
 
   const profiles = useMemo(() => {
     const raw = buildProfiles(submissions);

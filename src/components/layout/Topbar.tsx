@@ -27,7 +27,7 @@ interface TopbarProps {
 // Clickable project switcher — shows the active project, opens a dropdown of
 // all projects, and switches the whole workspace scope on selection.
 function ProjectSwitcher({ orgName }: { orgName?: string }) {
-  const { activeProject, setActiveProject } = useProject();
+  const { activeProject, setActiveProject, clearActiveProject } = useProject();
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,7 +76,7 @@ function ProjectSwitcher({ orgName }: { orgName?: string }) {
       >
         <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
         <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {activeProject?.name || orgName || 'Select project'}
+          {activeProject?.name || 'All projects'}
         </span>
         <ChevronDown size={12} color="#9CA3AF" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
       </button>
@@ -91,6 +91,24 @@ function ProjectSwitcher({ orgName }: { orgName?: string }) {
           <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.7, padding: '6px 10px 4px' }}>
             Switch project
           </div>
+          {/* All projects — org-wide view */}
+          <button onClick={() => { clearActiveProject(); setOpen(false); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              padding: '8px 10px', borderRadius: 7, border: 'none',
+              background: !activeProject ? '#EFF6FF' : 'transparent', cursor: 'pointer',
+              fontFamily: 'Inter, sans-serif', textAlign: 'left',
+            }}
+            onMouseEnter={e => { if (activeProject) (e.currentTarget as HTMLButtonElement).style.background = '#F8FAFF'; }}
+            onMouseLeave={e => { if (activeProject) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+          >
+            <FolderOpen size={13} color={!activeProject ? '#2463EB' : '#9CA3AF'} style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: !activeProject ? '#2463EB' : '#111827' }}>All projects</div>
+              <div style={{ fontSize: 10.5, color: '#9CA3AF' }}>Combined view across every project</div>
+            </div>
+            {!activeProject && <Check size={13} color="#2463EB" style={{ flexShrink: 0 }} />}
+          </button>
           {loading && (
             <div style={{ padding: '10px 12px', fontSize: 12, color: '#9CA3AF' }}>Loading projects…</div>
           )}
@@ -128,7 +146,7 @@ function ProjectSwitcher({ orgName }: { orgName?: string }) {
                 background: 'transparent', cursor: 'pointer', fontSize: 12,
                 color: '#2463EB', fontWeight: 600, fontFamily: 'Inter, sans-serif', textAlign: 'left',
               }}>
-              View all projects →
+              Manage projects →
             </button>
           </div>
         </div>

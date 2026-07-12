@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { usePlatform } from '../../platform/PlatformProvider';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
+import { useProject } from '../../context/ProjectContext';
 
 const BLUE = '#2463EB', GREEN = '#059669', AMBER = '#D97706', RED = '#DC2626', PURPLE = '#7C3AED';
 
@@ -387,6 +388,7 @@ function StatChip({ label, before, after, unit = '', invert = false }: {
 export default function DataCleaningPage() {
   const { t } = usePlatform();
   useAdaGreeting({ page: "data-cleaning" });
+  const { activeProject } = useProject();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
@@ -407,11 +409,12 @@ export default function DataCleaningPage() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(CATEGORY_ORDER));
 
   useEffect(() => {
-    dashboardApi.getSubmissions({ limit: 500 })
+    // Active project scopes the data; none = explicit "All projects" view.
+    dashboardApi.getSubmissions({ limit: 500, ...(activeProject?.id ? { project_id: activeProject.id } : {}) })
       .then(r => { setSubmissions(Array.isArray(r.data.submissions || r.data) ? (r.data.submissions || r.data) : []); })
       .catch(() => setSubmissions([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeProject?.id]);
 
   const toggleRule = useCallback((id: string) => {
     setRules(prev => prev.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));

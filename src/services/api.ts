@@ -38,7 +38,7 @@ export const authApi = {
 };
 
 export const dashboardApi = {
-  getDashboard: () => api.get('/api/dashboard'),
+  getDashboard: (params?: { project_id?: string }) => api.get('/api/dashboard', { params }),
   getSubmission: (id: string) => api.get(`/api/submissions/${id}`),
   actionSubmission: (id: string, action: 'approve' | 'reject' | 'flag') =>
     api.post(`/api/submissions/${id}/action`, { action }),

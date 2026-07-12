@@ -96,6 +96,7 @@ interface ProjectContextValue {
   lifecycle: ProjectLifecycle | null;
   currentStage: 'design' | 'collect' | 'verify' | 'analyse' | 'report' | null;
   setActiveProject: (id: string) => void;
+  clearActiveProject: () => void; // explicit "All projects" view
   canAdvanceTo: (stage: string) => boolean;
   refreshLifecycle: () => void;
   isLoadingLifecycle: boolean;
@@ -147,6 +148,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     fetchLifecycle(id);
   }, [fetchProject, fetchLifecycle]);
 
+  const clearActiveProject = useCallback(() => {
+    setActiveProjectState(null);
+    setLifecycle(null);
+    localStorage.removeItem('ros_active_project_id');
+    try { sessionStorage.removeItem('ros_active_lifecycle'); } catch {}
+  }, []);
+
   const refreshLifecycle = useCallback(() => {
     if (projectId) fetchLifecycle(projectId);
   }, [projectId, fetchLifecycle]);
@@ -171,6 +179,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       lifecycle,
       currentStage,
       setActiveProject,
+      clearActiveProject,
       canAdvanceTo,
       refreshLifecycle,
       isLoadingLifecycle,
@@ -187,6 +196,7 @@ export function useProject() {
     lifecycle: null,
     currentStage: null,
     setActiveProject: () => {},
+    clearActiveProject: () => {},
     canAdvanceTo: () => false,
     refreshLifecycle: () => {},
     isLoadingLifecycle: false,

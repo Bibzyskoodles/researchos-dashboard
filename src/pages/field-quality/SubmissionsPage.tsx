@@ -240,10 +240,9 @@ export default function SubmissionsPage(){
     if(isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
-    // Never mix projects: without an active project we show nothing rather
-    // than silently pooling every project's submissions into one list.
-    if (!activeProject?.id) { setSubs([]); setTotal(null); setLoading(false); setRefreshing(false); return; }
-    dashboardApi.getSubmissions({ limit: PAGE_SIZE, offset: pageOffset, project_id: activeProject.id })
+    // Active project scopes the list; no active project = the user explicitly
+    // chose "All projects" in the switcher (org-wide combined view).
+    dashboardApi.getSubmissions({ limit: PAGE_SIZE, offset: pageOffset, ...(activeProject?.id ? { project_id: activeProject.id } : {}) })
       .then(r=>{
         const submissions = r.data.submissions || r.data || [];
         setSubs(Array.isArray(submissions) ? submissions : []);

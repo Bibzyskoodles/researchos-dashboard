@@ -71,9 +71,8 @@ export default function EnumeratorsPage(){
   useAdaAttention({ x: 0.85, y: 0.45 }, { delay: 2000, returnAfterMs: 5000 });
 
   useEffect(()=>{
-    // Never mix projects: without an active project show nothing.
-    if(!activeProject?.id){ setEnums([]); setLoading(false); return; }
-    dashboardApi.getEnumerators({ project_id: activeProject.id })
+    // Active project scopes the list; none = explicit "All projects" view.
+    dashboardApi.getEnumerators(activeProject?.id ? { project_id: activeProject.id } : undefined)
       .then(r=>{ setEnums(r.data.enumerators||[]); })
       .finally(()=>setLoading(false));
   },[activeProject?.id]);

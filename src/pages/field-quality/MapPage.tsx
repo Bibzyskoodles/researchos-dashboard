@@ -33,9 +33,8 @@ export default function MapPage() {
   useAdaAttention({ x: 0.5, y: 0.5 }, { delay: 2500, returnAfterMs: 6000 });
 
   useEffect(() => {
-    // Never mix projects: without an active project show nothing.
-    if (!activeProject?.id) { setSubs([]); return; }
-    dashboardApi.getSubmissions({ limit: 100, project_id: activeProject.id }).then(r => setSubs(r.data.submissions || []));
+    // Active project scopes the map; none = explicit "All projects" view.
+    dashboardApi.getSubmissions({ limit: 100, ...(activeProject?.id ? { project_id: activeProject.id } : {}) }).then(r => setSubs(r.data.submissions || []));
   }, [activeProject?.id]);
 
   const filtered = subs.filter(s => filter === "ALL" || s.verdict === filter);
