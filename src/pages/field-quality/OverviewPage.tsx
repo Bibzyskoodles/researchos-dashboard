@@ -10,6 +10,7 @@ import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useIndustry } from "../../store/IndustryContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useProject } from "../../context/ProjectContext";
+import { loadEngineConfig } from "../../services/engineConfig";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -54,14 +55,18 @@ function KpiCard({ label, value, sub, trend, color, sparkData }: {
   );
 }
 
-function TrustArc({ score }: { score: number }) {
-  const engines = [
-    { k: "GPS", v: 92, c: BLUE }, { k: "Image", v: 78, c: PURPLE },
-    { k: "Audio", v: 91, c: GREEN }, { k: "Duration", v: 85, c: AMBER },
-    { k: "Duplicate", v: 98, c: "#06B6D4" },
+function TrustArc({ score, hasData }: { score: number; hasData: boolean }) {
+  // Show the client's REAL configured engine weights — never invented scores.
+  const engineMeta: { key: keyof ReturnType<typeof loadEngineConfig>["weights"]; label: string; c: string }[] = [
+    { key: "gps", label: "GPS", c: BLUE }, { key: "duration", label: "Duration", c: AMBER },
+    { key: "image", label: "Image", c: PURPLE }, { key: "audio", label: "Audio", c: GREEN },
+    { key: "duplicate", label: "Duplicate", c: "#06B6D4" }, { key: "text_ai", label: "AI Detect", c: RED },
   ];
+  const ecfg = loadEngineConfig();
+  const active = engineMeta.filter(e => ecfg.requirements[e.key] !== "DISABLED");
+  const totalW = active.reduce((sum, e) => sum + ecfg.weights[e.key], 0);
   const r = 48; const c2 = 2 * Math.PI * r;
-  const color = clr(score);
+  const color = hasData ? clr(score) : "#CBD5E1";
   return (
     <div style={{ display: "flex", gap: 20, alignItems: "center", padding: "16px 20px" }}>
       <div style={{ position: "relative", width: 110, height: 110, flexShrink: 0 }}>
@@ -70,27 +75,33 @@ function TrustArc({ score }: { score: number }) {
           <motion.circle cx={55} cy={55} r={r} fill="none" stroke={color} strokeWidth={7}
             strokeLinecap="round" strokeDasharray={c2}
             initial={{ strokeDashoffset: c2 }}
-            animate={{ strokeDashoffset: c2 - c2 * (score / 100) }}
+            animate={{ strokeDashoffset: hasData ? c2 - c2 * (score / 100) : c2 }}
             transition={{ duration: 1.2, ease: "easeOut" }} />
         </svg>
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ fontSize: 24, fontWeight: 800, color, letterSpacing: -2, lineHeight: 1 }}>{score}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: hasData ? color : "#CBD5E1", letterSpacing: -2, lineHeight: 1 }}>{hasData ? score : "—"}</div>
           <div style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 600, letterSpacing: .5 }}>TRUST</div>
         </div>
       </div>
       <div style={{ flex: 1 }}>
-        {engines.map(e => (
-          <div key={e.k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: e.c, flexShrink: 0 }} />
-            <div style={{ fontSize: 11, color: "#374151", width: 64, flexShrink: 0 }}>{e.k}</div>
-            <div style={{ flex: 1, height: 3, background: "#EEF2F8", borderRadius: 2, overflow: "hidden" }}>
-              <motion.div style={{ height: "100%", background: e.c, borderRadius: 2 }}
-                initial={{ width: 0 }} animate={{ width: `${e.v}%` }}
-                transition={{ duration: 1, delay: 0.3, ease: "easeOut" }} />
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .6, marginBottom: 8 }}>
+          {hasData ? "Engine weights (your policy)" : "No submissions scored yet — engine weights:"}
+        </div>
+        {active.map(e => {
+          const pct = totalW > 0 ? Math.round((ecfg.weights[e.key] / totalW) * 100) : 0;
+          return (
+            <div key={e.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: e.c, flexShrink: 0 }} />
+              <div style={{ fontSize: 11, color: "#374151", width: 64, flexShrink: 0 }}>{e.label}</div>
+              <div style={{ flex: 1, height: 3, background: "#EEF2F8", borderRadius: 2, overflow: "hidden" }}>
+                <motion.div style={{ height: "100%", background: e.c, borderRadius: 2 }}
+                  initial={{ width: 0 }} animate={{ width: `${pct}%` }}
+                  transition={{ duration: 1, delay: 0.3, ease: "easeOut" }} />
+              </div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: "#374151", width: 30, textAlign: "right" }}>{pct}%</div>
             </div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#374151", width: 22, textAlign: "right" }}>{e.v}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -302,7 +313,7 @@ export default function OverviewPage() {
               <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>Trust Score</div>
               <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>Weighted across all engines</div>
             </div>
-            <TrustArc score={s.avg_score} />
+            <TrustArc score={s.avg_score ?? 0} hasData={(s.total_submissions ?? 0) > 0} />
           </div>
 
           {/* Enumerator leaderboard */}
