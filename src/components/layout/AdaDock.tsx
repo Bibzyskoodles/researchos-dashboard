@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAda, parseAdaCommand } from "../../ada/AdaContext";
+import { useProject } from "../../context/ProjectContext";
 import { adaApi } from "../../services/api";
 import { X, Send } from "lucide-react";
 
@@ -37,6 +38,7 @@ export default function AdaDock() {
   const endRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const { activeProject } = useProject();
   const prevPathRef = useRef(location.pathname);
 
   useEffect(() => {
@@ -102,6 +104,10 @@ export default function AdaDock() {
       const lifecycleRaw = sessionStorage.getItem('ros_active_lifecycle');
       const frameworkRaw = sessionStorage.getItem('ros_active_framework');
       const adaContext: Record<string, unknown> = {};
+      // Always tell Ada which project scope the user is looking at
+      adaContext.active_project = activeProject
+        ? { id: activeProject.id, name: activeProject.name, status: activeProject.status }
+        : null; // null = "All projects" combined view
       if (lifecycleRaw) { try { adaContext.lifecycle = JSON.parse(lifecycleRaw); } catch {} }
       if (frameworkRaw) { try { const fw = JSON.parse(frameworkRaw); adaContext.framework_indicators = fw.indicators; adaContext.framework_filename = fw.filename; } catch {} }
       // Enrich page context: for settings, include the active sub-section so
