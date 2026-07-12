@@ -47,6 +47,10 @@ export const dashboardApi = {
   getSubmission: (id: string) => api.get(`/api/submissions/${id}`),
   actionSubmission: (id: string, action: 'approve' | 'reject' | 'flag') =>
     api.post(`/api/submissions/${id}/action`, { action }),
+  overrideVerdict: (id: string, verdict: 'PASS' | 'FLAG' | 'REJECT', reason: string) =>
+    api.post(`/api/submissions/${id}/action`, { action: 'override', verdict, reason }),
+  clearOverride: (id: string) =>
+    api.post(`/api/submissions/${id}/action`, { action: 'clear_override' }),
   getSubmissions: (params?: { verdict?: string; limit?: number; offset?: number; project_id?: string }) =>
     api.get('/api/submissions', { params }),
   getEnumerators: (params?: { project_id?: string }) => api.get('/api/enumerators', { params }),

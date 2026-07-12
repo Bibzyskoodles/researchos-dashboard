@@ -94,10 +94,10 @@ async function fetchAllSubmissions(projectId: string): Promise<Submission[]> {
   return all;
 }
 
-function exportCsv(subs: Submission[], trustMap: Record<string, TrustResult>) {
+function exportCsv(subs: Submission[], trustMap: Record<string, TrustResult>, filenameTag = "all") {
   const header = [
     "submission_id","enumerator_id","submission_date","duration_mins",
-    "backend_score","trust_index","verdict","risk","completeness","confidence",
+    "backend_score","trust_index","verdict","verdict_override","override_reason","risk","completeness","confidence",
     "flags","gps_lat","gps_lon","gps_accuracy_m","gps_address",
   ];
   const rows = subs.map(s => {
@@ -110,6 +110,8 @@ function exportCsv(subs: Submission[], trustMap: Record<string, TrustResult>) {
       s.overall_score ?? "",
       t ? t.trustIndex : "",
       t ? t.verdict : s.verdict ?? "",
+      s.verdict_override || "",
+      `"${(s.override_reason || "").replace(/"/g,'""')}"`,
       t ? t.risk : "",
       t ? t.completeness.toFixed(3) : "",
       t ? t.confidence.toFixed(3) : "",
@@ -122,7 +124,7 @@ function exportCsv(subs: Submission[], trustMap: Record<string, TrustResult>) {
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `submissions_trust_index_${new Date().toISOString().slice(0,10)}.csv`;
+  a.href = url; a.download = `submissions_${filenameTag}_${new Date().toISOString().slice(0,10)}.csv`;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
@@ -201,6 +203,8 @@ export default function SubmissionsPage(){
   const [offset,setOffset]=useState(0);
   const [total,setTotal]=useState<number|null>(null); // server-reported total, if the API provides one
   const [exporting,setExporting]=useState(false);
+  const [exportMenuOpen,setExportMenuOpen]=useState(false);
+  const [checkedIds,setCheckedIds]=useState<Set<string>>(new Set());
   const [selected,setSelected]=useState<Submission|null>(null);
   const [filter,setFilter]=useState("ALL");
   const [search,setSearch]=useState("");
@@ -282,8 +286,11 @@ export default function SubmissionsPage(){
     return ()=>window.removeEventListener("researchos:refresh",handler);
   },[load,setState,addMessage]);
 
+  // A supervisor override is a distinct, attributed layer — it changes what's
+  // DISPLAYED as the working verdict, but never the algorithm's own Verdict
+  // column, which stays intact in the data underneath at all times.
   const effectiveVerdict = (s: typeof subs[0]) =>
-    (trustMap[s.submission_id]?.verdict ?? s.verdict ?? "FLAG") as "PASS"|"FLAG"|"REJECT";
+    (s.verdict_override || trustMap[s.submission_id]?.verdict || s.verdict || "FLAG") as "PASS"|"FLAG"|"REJECT";
 
   const filtered=subs.filter(s=>{
     const adjVerdict = effectiveVerdict(s);
@@ -316,27 +323,75 @@ export default function SubmissionsPage(){
             style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:refreshing?"not-allowed":"pointer",opacity:refreshing?.6:1}}>
             <RefreshCw size={13} style={{animation:refreshing?"spin 1s linear infinite":"none"}}/>{refreshing?"Refreshing…":"Refresh"}
           </button>
-          <button
-            onClick={async () => {
-              if (!activeProject?.id || exporting) return;
-              setExporting(true);
-              try {
-                // Export the ENTIRE project, not just the visible page
-                const all = await fetchAllSubmissions(activeProject.id);
-                const cfg = loadEngineConfig();
-                const fullTrustMap: Record<string, TrustResult> = {};
-                all.forEach(s => { fullTrustMap[s.submission_id] = computeTrustIndex(s as any, cfg); });
-                exportCsv(all, fullTrustMap);
-              } catch {
-                setError("Export failed part-way through. Try again.");
-              } finally {
-                setExporting(false);
-              }
-            }}
-            disabled={subs.length === 0 || exporting}
-            style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:subs.length===0||exporting?"not-allowed":"pointer",opacity:subs.length===0||exporting?.5:1}}>
-            <Download size={13}/> {exporting ? "Exporting…" : "Export CSV"}
-          </button>
+          <div style={{position:"relative"}}>
+            <button
+              onClick={()=>setExportMenuOpen(o=>!o)}
+              disabled={subs.length === 0 || exporting}
+              style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"1px solid #E2E8F0",borderRadius:8,background:"white",fontSize:12.5,fontWeight:600,color:"#374151",cursor:subs.length===0||exporting?"not-allowed":"pointer",opacity:subs.length===0||exporting?.5:1}}>
+              <Download size={13}/> {exporting ? "Exporting…" : "Export CSV"} {!exporting && <ChevronDown size={12}/>}
+            </button>
+            {exportMenuOpen && !exporting && (
+              <>
+                <div onClick={()=>setExportMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:998}}/>
+                <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,zIndex:999,minWidth:260,background:"white",borderRadius:10,border:"1px solid #E2E8F0",boxShadow:"0 8px 28px rgba(10,15,28,.14)",padding:6}}>
+                  <button onClick={async()=>{
+                      setExportMenuOpen(false);
+                      if (!activeProject?.id || exporting) return;
+                      setExporting(true);
+                      try {
+                        const all = await fetchAllSubmissions(activeProject.id);
+                        const cfg = loadEngineConfig();
+                        const fullTrustMap: Record<string, TrustResult> = {};
+                        all.forEach(s => { fullTrustMap[s.submission_id] = computeTrustIndex(s as any, cfg); });
+                        exportCsv(all, fullTrustMap, "all");
+                      } catch { setError("Export failed part-way through. Try again."); }
+                      finally { setExporting(false); }
+                    }}
+                    style={{display:"block",width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",fontFamily:"Inter,sans-serif"}}
+                    onMouseEnter={e=>(e.currentTarget.style.background="#F8FAFF")} onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
+                    <div style={{fontSize:12.5,fontWeight:600,color:"#111827"}}>Export entire project</div>
+                    <div style={{fontSize:11,color:"#9CA3AF"}}>Every submission, ignoring filters</div>
+                  </button>
+                  <button onClick={async()=>{
+                      setExportMenuOpen(false);
+                      if (!activeProject?.id || exporting) return;
+                      setExporting(true);
+                      try {
+                        const all = await fetchAllSubmissions(activeProject.id);
+                        const cfg = loadEngineConfig();
+                        const fullTrustMap: Record<string, TrustResult> = {};
+                        all.forEach(s => { fullTrustMap[s.submission_id] = computeTrustIndex(s as any, cfg); });
+                        const q = search.toLowerCase();
+                        const matching = all.filter(s => {
+                          const ver = (s.verdict_override || fullTrustMap[s.submission_id]?.verdict || s.verdict || "FLAG");
+                          if (filter !== "ALL" && ver !== filter) return false;
+                          if (q && !s.submission_id.toLowerCase().includes(q) && !s.enumerator_id.toLowerCase().includes(q)) return false;
+                          return true;
+                        });
+                        exportCsv(matching, fullTrustMap, filter.toLowerCase());
+                      } catch { setError("Export failed part-way through. Try again."); }
+                      finally { setExporting(false); }
+                    }}
+                    style={{display:"block",width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",fontFamily:"Inter,sans-serif"}}
+                    onMouseEnter={e=>(e.currentTarget.style.background="#F8FAFF")} onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
+                    <div style={{fontSize:12.5,fontWeight:600,color:"#111827"}}>Export matching current filter</div>
+                    <div style={{fontSize:11,color:"#9CA3AF"}}>{filter === "ALL" ? "All verdicts" : `${filter} only`}{search ? ` · matching "${search}"` : ""} — whole project</div>
+                  </button>
+                  <button disabled={checkedIds.size===0} onClick={()=>{
+                      setExportMenuOpen(false);
+                      if (checkedIds.size===0) return;
+                      const chosen = subs.filter(s => checkedIds.has(s.submission_id));
+                      exportCsv(chosen, trustMap, "selected");
+                    }}
+                    style={{display:"block",width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:7,border:"none",background:"transparent",cursor:checkedIds.size===0?"not-allowed":"pointer",fontFamily:"Inter,sans-serif",opacity:checkedIds.size===0?0.45:1}}
+                    onMouseEnter={e=>{ if(checkedIds.size>0) e.currentTarget.style.background="#F8FAFF"; }} onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
+                    <div style={{fontSize:12.5,fontWeight:600,color:"#111827"}}>Export selected ({checkedIds.size})</div>
+                    <div style={{fontSize:11,color:"#9CA3AF"}}>Tick rows below, on this page, then export just those</div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -405,6 +460,16 @@ export default function SubmissionsPage(){
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",borderBottom:i<filtered.length-1?"1px solid #F8FAFF":"none",cursor:"pointer",
                 background:selected?.submission_id===sub.submission_id?"#F0F7FF":"white",
                 borderLeft:selected?.submission_id===sub.submission_id?`3px solid ${BLUE}`:"3px solid transparent"}}>
+              <input type="checkbox" checked={checkedIds.has(sub.submission_id)}
+                onClick={e=>e.stopPropagation()}
+                onChange={e=>{
+                  setCheckedIds(prev=>{
+                    const next = new Set(prev);
+                    if (e.target.checked) next.add(sub.submission_id); else next.delete(sub.submission_id);
+                    return next;
+                  });
+                }}
+                style={{width:15,height:15,flexShrink:0,cursor:"pointer",accentColor:BLUE}}/>
               <ScoreRing score={displayScore}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>

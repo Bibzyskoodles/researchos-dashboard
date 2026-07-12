@@ -39,6 +39,13 @@ export interface Submission {
   verdict: Verdict;
   flags: string | string[];
   supervisor_action: string;
+  review_status?: string;
+  // Verdict is always the algorithm's original, permanent call — never
+  // overwritten. An override is recorded separately, always attributed.
+  verdict_override?: 'PASS' | 'FLAG' | 'REJECT' | null;
+  override_reason?: string | null;
+  override_by?: string | null;
+  override_at?: string | null;
   scored_at: string;
   gps: {
     lat: number;

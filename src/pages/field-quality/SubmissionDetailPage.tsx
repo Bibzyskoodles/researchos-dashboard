@@ -277,6 +277,8 @@ export default function SubmissionDetailPage(){
 
   const isMobile=useIsMobile();
   const [acting,setActing]=useState("");
+  const [overrideTarget,setOverrideTarget]=useState("");
+  const [overrideReason,setOverrideReason]=useState("");
   const act=async(action:"approve"|"reject"|"flag",label:string,status:string)=>{
     if(!id)return;
     setActing(action);
@@ -559,7 +561,11 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
 
   // The Trust Index is the one number, on every surface (Bible §0, principle 5).
   const displayScore = trust.trustIndex;
-  const displayVerdict: "PASS"|"FLAG"|"REJECT" = trust.verdict;
+  const algorithmicVerdict: "PASS"|"FLAG"|"REJECT" = trust.verdict;
+  // A supervisor override changes what's DISPLAYED, never the algorithm's
+  // own call underneath — always shown alongside it, never in its place.
+  const displayVerdict: "PASS"|"FLAG"|"REJECT" = (sub?.verdict_override as any) || algorithmicVerdict;
+  const isOverridden = !!sub?.verdict_override && sub.verdict_override !== algorithmicVerdict;
 
   return(
     <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.2}}
@@ -1093,6 +1099,68 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
                 <AlertTriangle size={14}/> {acting==="flag"?"Flagging…":"Flag for review"}
               </button>
             </div>
+          </div>
+
+          {/* Verdict Override — a supervisor's own call, separate from the algorithm's */}
+          <div style={{background:"white",borderRadius:16,padding:20,border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8}}>Verdict Override</div>
+            <div style={{fontSize:11.5,color:"#9CA3AF",marginBottom:12,lineHeight:1.5}}>
+              The Trust Index computed <strong style={{color:vclr(algorithmicVerdict)}}>{algorithmicVerdict}</strong>. If you know something the engine doesn't — a field visit confirmed it, or a false GPS/image flag — you can override the verdict shown across the dashboard. The algorithm's own call is never erased; both stay on record.
+            </div>
+            {isOverridden ? (
+              <div style={{padding:"12px 14px",borderRadius:10,background:"#F5F3FF",border:"1px solid #E9D5FF",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <span style={{fontSize:12,fontWeight:700,color:"#7C3AED"}}>Overridden to {sub.verdict_override}</span>
+                  <span style={{fontSize:10.5,color:"#9CA3AF"}}>(algorithm said {algorithmicVerdict})</span>
+                </div>
+                <div style={{fontSize:11.5,color:"#374151",marginBottom:4}}>"{sub.override_reason}"</div>
+                <div style={{fontSize:10.5,color:"#9CA3AF"}}>
+                  — {sub.override_by}{sub.override_at ? `, ${new Date(sub.override_at).toLocaleString()}` : ""}
+                </div>
+                <button disabled={acting!==""} onClick={async()=>{
+                    setActing("clear_override");
+                    try{ await dashboardApi.clearOverride(id!); setSub((s:any)=>s?{...s,verdict_override:null,override_reason:null}:s); showToast("Override cleared"); }
+                    catch{ showToast("Could not clear override"); }
+                    finally{ setActing(""); }
+                  }}
+                  style={{marginTop:8,fontSize:11,fontWeight:600,color:"#7C3AED",background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>
+                  Clear override — revert to algorithm's verdict
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div style={{display:"flex",gap:6,marginBottom:8}}>
+                  {(["PASS","FLAG","REJECT"] as const).filter(v=>v!==algorithmicVerdict).map(v=>(
+                    <button key={v} onClick={()=>setOverrideTarget(overrideTarget===v?"":v)}
+                      style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${overrideTarget===v?vclr(v):"#E2E8F0"}`,background:overrideTarget===v?vclr(v)+"12":"white",color:overrideTarget===v?vclr(v):"#6B7280",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
+                      Override to {v}
+                    </button>
+                  ))}
+                </div>
+                {overrideTarget && (
+                  <div>
+                    <textarea value={overrideReason} onChange={e=>setOverrideReason(e.target.value)}
+                      placeholder="Required: why does this deserve a different verdict? (e.g. &quot;Confirmed by field visit — GPS_PARSE_ERROR was a device bug, location is correct&quot;)"
+                      style={{width:"100%",minHeight:60,padding:"8px 10px",borderRadius:8,border:"1px solid #E2E8F0",fontSize:12,fontFamily:"Inter,sans-serif",resize:"vertical" as const,boxSizing:"border-box" as const,marginBottom:8}}/>
+                    <button disabled={acting!==""||overrideReason.trim().length<10}
+                      onClick={async()=>{
+                        setActing("override");
+                        try{
+                          await dashboardApi.overrideVerdict(id!, overrideTarget as any, overrideReason.trim());
+                          setSub((s:any)=>s?{...s,verdict_override:overrideTarget,override_reason:overrideReason.trim(),override_by:"you",override_at:new Date().toISOString()}:s);
+                          showToast(`Overridden to ${overrideTarget}`);
+                          setOverrideTarget(""); setOverrideReason("");
+                        }catch{ showToast("Could not save override"); }
+                        finally{ setActing(""); }
+                      }}
+                      style={{width:"100%",padding:"9px",borderRadius:8,background:overrideReason.trim().length>=10?vclr(overrideTarget):"#E2E8F0",border:"none",color:"white",fontSize:12.5,fontWeight:700,cursor:overrideReason.trim().length>=10?"pointer":"not-allowed",fontFamily:"Inter,sans-serif"}}>
+                      {acting==="override"?"Saving…":`Confirm override to ${overrideTarget}`}
+                    </button>
+                    <div style={{fontSize:10.5,color:"#9CA3AF",marginTop:4}}>{overrideReason.trim().length}/10 characters minimum</div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Raw details */}
