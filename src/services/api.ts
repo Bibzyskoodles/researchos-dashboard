@@ -2,6 +2,11 @@ import axios from 'axios';
 
 const BASE_URL = process.env.REACT_APP_API_URL || 'https://web-production-f5bab.up.railway.app';
 
+// Single source of truth for the backend host — the Integrations page builds
+// webhook URLs from this so they always point at the same server the
+// dashboard talks to.
+export const API_BASE_URL = BASE_URL;
+
 const api = axios.create({
   baseURL: BASE_URL,
   // ✅ SECURITY: Send httpOnly cookies automatically

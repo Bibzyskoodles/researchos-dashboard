@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, AlertCircle } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { dashboardApi } from "../../services/api";
+import { dashboardApi, API_BASE_URL } from "../../services/api";
 import { useProject } from "../../context/ProjectContext";
 
 const BLUE = "#2463EB";
@@ -146,7 +146,7 @@ function SetupInstructions({ platform, webhookUrl, onCopyUrl }: SetupInstruction
         <div style={{ fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:0.7,marginBottom:14 }}>Setup Instructions</div>
         <ol style={{ margin:0,padding:0,listStyle:"none",display:"flex",flexDirection:"column",gap:10 }}>
           {platform.setupSteps.map((step, i) => {
-            const isUrlStep = step.includes("web-production-f5bab") || step.startsWith("Send a POST");
+            const isUrlStep = step.includes("/webhook/") || step.startsWith("Send a POST");
             return (
               <li key={i} style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
                 <div style={{ width:20,height:20,borderRadius:"50%",background:BLUE,color:"white",fontSize:10,fontWeight:700,display:"grid",placeItems:"center",flexShrink:0,marginTop:1 }}>{i+1}</div>
@@ -475,9 +475,9 @@ function CsvUploadCard() {
 export default function IntegrationsPage() {
   const orgId = getOrgId();
   const { activeProject, setActiveProject } = useProject();
-  const webhookBase = orgId
-    ? `https://web-production-f5bab.up.railway.app/webhook/${orgId}`
-    : "https://web-production-f5bab.up.railway.app/webhook/your-org-id";
+  // Webhook host = the same backend the dashboard talks to (never hardcoded:
+  // a stale host here silently routes client data to the wrong server).
+  const webhookBase = `${API_BASE_URL.replace(/\/$/, "")}/webhook/${orgId || "your-org-id"}`;
   // A webhook URL is only ever issued WITH a project binding. Without one,
   // submissions would arrive org-level and could land in the wrong project.
   const webhookUrl = activeProject?.id
