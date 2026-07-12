@@ -480,7 +480,7 @@ function CsvUploadCard() {
 
 export default function IntegrationsPage() {
   const orgId = getOrgId();
-  const { activeProject } = useProject();
+  const { activeProject, setActiveProject } = useProject();
   const webhookBase = orgId
     ? `https://web-production-f5bab.up.railway.app/webhook/${orgId}`
     : "https://web-production-f5bab.up.railway.app/webhook/your-org-id";
@@ -498,6 +498,29 @@ export default function IntegrationsPage() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
   const handleNotify = (name: string) => showToast(`We'll notify you when ${name} integration is available`);
+
+  // Form ↔ project link
+  const [linkUid, setLinkUid] = useState("");
+  const [linkSaving, setLinkSaving] = useState(false);
+  const [linkMsg, setLinkMsg] = useState("");
+  const [editingLink, setEditingLink] = useState(false);
+
+  const saveFormLink = async () => {
+    if (!activeProject?.id || !linkUid.trim() || linkSaving) return;
+    setLinkSaving(true); setLinkMsg("");
+    try {
+      const { projectsApi } = await import("../../services/api");
+      await projectsApi.update(activeProject.id, { kobo_asset_uid: linkUid.trim() });
+      setLinkMsg("✓ Form linked — this form's submissions (including earlier ones) now belong to this project.");
+      setEditingLink(false);
+      // Refresh the project in context so the linked uid shows immediately
+      setActiveProject(activeProject.id);
+    } catch {
+      setLinkMsg("Could not link the form — check your connection and try again.");
+    } finally {
+      setLinkSaving(false);
+    }
+  };
 
   // KoboToolbox pull/import (testing helper)
   const [assetUid, setAssetUid] = useState("");
@@ -592,11 +615,42 @@ export default function IntegrationsPage() {
                   <div style={{ flex:1,background:"#F8FAFF",border:"1px solid #E2E8F0",borderRadius:8,padding:"9px 14px",fontFamily:"monospace",fontSize:12.5,color:"#374151",wordBreak:"break-all" as const }}>{webhookUrl}</div>
                   <CopyButton text={webhookUrl} onCopy={handleCopyUrl} />
                 </div>
-                {activeProject?.kobo_asset_uid && (
-                  <div style={{ marginTop:10,fontSize:11.5,color:"#9CA3AF" }}>
-                    Linked KoboToolbox form: <code style={{ fontFamily:"monospace",background:"#F1F5F9",padding:"1px 6px",borderRadius:4 }}>{activeProject.kobo_asset_uid}</code> — submissions from other forms sent to this URL will be flagged.
-                  </div>
-                )}
+                {/* Form ↔ project link — powers routing verification and claims
+                    historical submissions written before URL-based routing */}
+                <div style={{ marginTop:12,padding:"10px 14px",borderRadius:8,background:"#F8FAFF",border:"1px solid #EEF2F8" }}>
+                  {activeProject?.kobo_asset_uid && !editingLink ? (
+                    <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" as const }}>
+                      <span style={{ fontSize:11.5,color:"#374151" }}>
+                        Linked KoboToolbox form: <code style={{ fontFamily:"monospace",background:"#F1F5F9",padding:"1px 6px",borderRadius:4 }}>{activeProject.kobo_asset_uid}</code>
+                      </span>
+                      <span style={{ fontSize:11,color:"#9CA3AF" }}>Submissions from other forms sent to this URL will be flagged.</span>
+                      <button onClick={()=>{ setEditingLink(true); setLinkUid(activeProject.kobo_asset_uid || ""); }}
+                        style={{ marginLeft:"auto",fontSize:11,fontWeight:600,color:BLUE,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif" }}>Change</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize:11.5,fontWeight:600,color:"#374151",marginBottom:4 }}>
+                        {activeProject?.kobo_asset_uid ? "Change linked KoboToolbox form" : "Link your KoboToolbox form to this project"}
+                      </div>
+                      <div style={{ fontSize:11,color:"#9CA3AF",marginBottom:8,lineHeight:1.5 }}>
+                        Paste the form's asset UID (find it with "Test Connection" below, or in the form's URL on KoboToolbox). Linking lets FieldScore verify every submission came from the right form — and pulls this form's earlier submissions into this project.
+                      </div>
+                      <div style={{ display:"flex",gap:8 }}>
+                        <input value={linkUid} onChange={e=>setLinkUid(e.target.value)} placeholder="e.g. aBcD1234xyz"
+                          style={{ flex:1,minWidth:160,border:"1px solid #E2E8F0",borderRadius:7,padding:"7px 10px",fontSize:12,fontFamily:"monospace",outline:"none" }} />
+                        <button onClick={saveFormLink} disabled={!linkUid.trim()||linkSaving}
+                          style={{ padding:"7px 14px",borderRadius:7,background:BLUE,border:"none",color:"white",fontSize:11.5,fontWeight:600,cursor:linkSaving?"wait":"pointer",fontFamily:"Inter,sans-serif",opacity:!linkUid.trim()||linkSaving?0.6:1 }}>
+                          {linkSaving ? "Linking…" : "Link form"}
+                        </button>
+                        {editingLink && (
+                          <button onClick={()=>setEditingLink(false)}
+                            style={{ padding:"7px 10px",borderRadius:7,background:"white",border:"1px solid #E2E8F0",color:"#6B7280",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif" }}>Cancel</button>
+                        )}
+                      </div>
+                      {linkMsg && <div style={{ marginTop:6,fontSize:11.5,color:linkMsg.startsWith("✓")?GREEN:"#DC2626" }}>{linkMsg}</div>}
+                    </div>
+                  )}
+                </div>
                 {!orgId && <div style={{ marginTop:10,fontSize:11.5,color:AMBER }}>⚠ Organisation ID not found — log in to see your personalised URL.</div>}
               </>
             ) : (
