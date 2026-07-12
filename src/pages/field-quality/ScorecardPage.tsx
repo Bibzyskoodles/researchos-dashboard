@@ -10,6 +10,8 @@ import {
 import { usePlatform } from '../../platform/PlatformProvider';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 import { useProject } from '../../context/ProjectContext';
+import { loadEngineConfig } from '../../services/engineConfig';
+import { computeTrustIndex } from '../../services/trustEngine';
 
 const BLUE = '#2463EB', GREEN = '#059669', AMBER = '#D97706', RED = '#DC2626', PURPLE = '#7C3AED';
 
@@ -71,6 +73,11 @@ function assignBadges(p: Omit<EnumeratorProfile, 'badges'>): Badge[] {
 
 // ─── Build profiles from submissions ──────────────────────────────────────────
 function buildProfiles(submissions: Submission[]): EnumeratorProfile[] {
+  // The Trust Index is the one number on every surface — grading enumerators
+  // off the raw backend score would ignore flag-based penalties (e.g. a GPS
+  // parse error) that the Trust Index correctly applies.
+  const engineCfg = loadEngineConfig();
+  const trustOf = (s: Submission) => computeTrustIndex(s as any, engineCfg).trustIndex;
   const map = new Map<string, Submission[]>();
   for (const s of submissions) {
     if (!map.has(s.enumerator_id)) map.set(s.enumerator_id, []);
@@ -82,7 +89,7 @@ function buildProfiles(submissions: Submission[]): EnumeratorProfile[] {
     const pass = subs.filter(s => s.verdict === 'PASS').length;
     const flag = subs.filter(s => s.verdict === 'FLAG').length;
     const reject = subs.filter(s => s.verdict === 'REJECT').length;
-    const avgScore = subs.reduce((a, s) => a + s.overall_score, 0) / total;
+    const avgScore = subs.reduce((a, s) => a + trustOf(s), 0) / total;
     const passRate = pass / total * 100;
     const flagRate = (flag + reject) / total;
 
@@ -92,8 +99,8 @@ function buildProfiles(submissions: Submission[]): EnumeratorProfile[] {
     const q = Math.max(1, Math.floor(sorted.length / 4));
     const firstQ = sorted.slice(0, q);
     const lastQ = sorted.slice(-q);
-    const firstAvg = firstQ.reduce((a, s) => a + s.overall_score, 0) / (firstQ.length || 1);
-    const lastAvg = lastQ.reduce((a, s) => a + s.overall_score, 0) / (lastQ.length || 1);
+    const firstAvg = firstQ.reduce((a, s) => a + trustOf(s), 0) / (firstQ.length || 1);
+    const lastAvg = lastQ.reduce((a, s) => a + trustOf(s), 0) / (lastQ.length || 1);
     const trendDelta = lastAvg - firstAvg;
     const trend: EnumeratorProfile['trend'] = Math.abs(trendDelta) < 5 ? 'stable' : trendDelta > 0 ? 'improving' : 'declining';
 
@@ -104,7 +111,7 @@ function buildProfiles(submissions: Submission[]): EnumeratorProfile[] {
       const start = Math.floor(b * total / bucketCount);
       const end = Math.floor((b + 1) * total / bucketCount);
       const bucket = sorted.slice(start, end);
-      scoreHistory.push(bucket.length ? bucket.reduce((a, s) => a + s.overall_score, 0) / bucket.length : avgScore);
+      scoreHistory.push(bucket.length ? bucket.reduce((a, s) => a + trustOf(s), 0) / bucket.length : avgScore);
     }
 
     // Lifetime score: weighted composite

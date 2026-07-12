@@ -4,6 +4,8 @@ import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, Al
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { dashboardApi, API_BASE_URL } from "../../services/api";
+import { loadEngineConfig } from "../../services/engineConfig";
+import { computeTrustIndex } from "../../services/trustEngine";
 import { useProject } from "../../context/ProjectContext";
 
 const BLUE = "#2463EB";
@@ -498,7 +500,7 @@ export default function IntegrationsPage() {
         setRecentEvents(subs.map((sub: any) => ({
           time: (sub.scored_at || sub.submission_date) ? new Date(sub.scored_at || sub.submission_date).toLocaleString() : "",
           platform: sub.platform || "Webhook",
-          label: `${String(sub.submission_id || "").slice(0, 10)}… scored ${sub.overall_score ?? "—"}/100`,
+          label: `${String(sub.submission_id || "").slice(0, 10)}… scored ${computeTrustIndex(sub, loadEngineConfig()).trustIndex ?? "—"}/100`,
           status: "processed" as const,
         })));
       })

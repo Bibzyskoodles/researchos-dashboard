@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { dashboardApi, adaApi } from '../../services/api';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 import { Submission } from '../../types';
+import { loadEngineConfig } from '../../services/engineConfig';
+import { computeTrustIndex } from '../../services/trustEngine';
 import {
   Target, Sparkles, ChevronDown, ChevronRight, AlertCircle,
   CheckCircle2, XCircle, Lightbulb, BarChart2, FileText,
@@ -140,7 +142,10 @@ function buildPrompt(submissions: Submission[], brief: string, questionSample: s
   const n = submissions.length;
   const verdicts = { PASS: 0, FLAG: 0, REJECT: 0 } as Record<string, number>;
   for (const s of submissions) verdicts[s.verdict] = (verdicts[s.verdict] || 0) + 1;
-  const avgScore = submissions.reduce((a, s) => a + s.overall_score, 0) / n;
+  // Trust Index, not raw backend score — this average gets narrated by Ada
+  // and must match the number shown on every other page for the same data.
+  const outcomeEngineCfg = loadEngineConfig();
+  const avgScore = submissions.reduce((a, s) => a + computeTrustIndex(s as any, outcomeEngineCfg).trustIndex, 0) / n;
   const enums = new Set(submissions.map(s => s.enumerator_id)).size;
   const hasDates = submissions.some(s => s.scored_at);
   const dateRange = hasDates ? (() => {

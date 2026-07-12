@@ -8,6 +8,8 @@ import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { MapPin, Clock } from "lucide-react";
 import { useProject } from "../../context/ProjectContext";
+import { loadEngineConfig } from "../../services/engineConfig";
+import { computeTrustIndex } from "../../services/trustEngine";
 
 const GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", BLUE = "#2463EB";
 const clr = (s: number) => s >= 70 ? GREEN : s >= 45 ? AMBER : RED;
@@ -37,6 +39,13 @@ export default function MapPage() {
     dashboardApi.getSubmissions({ limit: 100, ...(activeProject?.id ? { project_id: activeProject.id } : {}) }).then(r => setSubs(r.data.submissions || []));
   }, [activeProject?.id]);
 
+  // The Trust Index is the one number on every surface — never the raw
+  // backend score, which doesn't apply flag-based penalties the way the
+  // Trust Index does (e.g. a GPS parse error forces GPS near-zero here,
+  // but the backend's own formula never learned that rule).
+  const engineCfg = loadEngineConfig();
+  const trustOf = (s: Submission) => computeTrustIndex(s as any, engineCfg).trustIndex;
+
   const filtered = subs.filter(s => filter === "ALL" || s.verdict === filter);
   const withGps = filtered.filter(s =>
     s.gps?.lat && s.gps?.lon &&
@@ -46,8 +55,8 @@ export default function MapPage() {
 
   const statCards = [
     { label: "Mapped",       value: withGps.length,                                                           color: "rgba(255,255,255,.92)" },
-    { label: "High Quality", value: withGps.filter(s => s.overall_score >= 70).length,                        color: GREEN },
-    { label: "Needs Review", value: withGps.filter(s => s.overall_score >= 45 && s.overall_score < 70).length, color: AMBER },
+    { label: "High Quality", value: withGps.filter(s => trustOf(s) >= 70).length,                        color: GREEN },
+    { label: "Needs Review", value: withGps.filter(s => trustOf(s) >= 45 && trustOf(s) < 70).length, color: AMBER },
     { label: "Flagged",      value: withGps.filter(s => s.verdict === "FLAG").length,                          color: RED },
   ];
 
@@ -79,7 +88,8 @@ export default function MapPage() {
             <CircleMarker key={`halo-${sub.submission_id}`} center={[Number(sub.gps.lat), Number(sub.gps.lon)]} radius={22} pathOptions={{ color: RED, weight: 0, fillColor: RED, fillOpacity: 0.12 }} />
           ))}
           {withGps.map(sub => {
-            const color = clr(sub.overall_score);
+            const subTrust = trustOf(sub);
+            const color = clr(subTrust);
             const isFlag = sub.verdict === "FLAG";
             return (
               <CircleMarker key={sub.submission_id} center={[Number(sub.gps.lat), Number(sub.gps.lon)]} radius={isFlag ? 9 : 6}
@@ -91,7 +101,7 @@ export default function MapPage() {
                     <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 10, lineHeight: 1.5 }}>{sub.gps?.address?.split(",").slice(0, 2).join(",") || "Location unavailable"}</div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: vbg(sub.verdict), color }}>{sub.verdict}</span>
-                      <span style={{ fontSize: 16, fontWeight: 900, color, fontFamily: "monospace", letterSpacing: -.5 }}>{sub.overall_score}</span>
+                      <span style={{ fontSize: 16, fontWeight: 900, color, fontFamily: "monospace", letterSpacing: -.5 }}>{subTrust}</span>
                       <span style={{ fontSize: 11, color: "#9CA3AF" }}>/100</span>
                     </div>
                   </div>
@@ -120,8 +130,8 @@ export default function MapPage() {
 
       {selected && (
         <div style={{ background: "white", borderRadius: 14, border: "1px solid #E8EDF5", padding: "18px 22px", display: "flex", gap: 20, alignItems: "center", boxShadow: "0 2px 12px rgba(10,15,28,.07)" }}>
-          <div style={{ width: 48, height: 48, borderRadius: "50%", background: clr(selected.overall_score) + "18", display: "grid", placeItems: "center", border: `2px solid ${clr(selected.overall_score)}44`, flexShrink: 0 }}>
-            <span style={{ fontSize: 15, fontWeight: 900, color: clr(selected.overall_score), fontFamily: "monospace" }}>{selected.overall_score}</span>
+          <div style={{ width: 48, height: 48, borderRadius: "50%", background: clr(trustOf(selected)) + "18", display: "grid", placeItems: "center", border: `2px solid ${clr(trustOf(selected))}44`, flexShrink: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 900, color: clr(trustOf(selected)), fontFamily: "monospace" }}>{trustOf(selected)}</span>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A", marginBottom: 2 }}>{selected.enumerator_id}</div>
@@ -131,7 +141,7 @@ export default function MapPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 10px", borderRadius: 6, background: vbg(selected.verdict), color: clr(selected.overall_score) }}>{selected.verdict}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 10px", borderRadius: 6, background: vbg(selected.verdict), color: clr(trustOf(selected)) }}>{selected.verdict}</span>
             <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", padding: 4, lineHeight: 0 }}>✕</button>
           </div>
         </div>

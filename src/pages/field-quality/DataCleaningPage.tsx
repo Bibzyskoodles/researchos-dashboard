@@ -11,6 +11,8 @@ import {
 import { usePlatform } from '../../platform/PlatformProvider';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 import { useProject } from '../../context/ProjectContext';
+import { loadEngineConfig } from '../../services/engineConfig';
+import { computeTrustIndex } from '../../services/trustEngine';
 
 const BLUE = '#2463EB', GREEN = '#059669', AMBER = '#D97706', RED = '#DC2626', PURPLE = '#7C3AED';
 
@@ -429,6 +431,11 @@ export default function DataCleaningPage() {
   }, []);
 
   // ─── Analysis engine ────────────────────────────────────────────────────────
+  // The Trust Index is the one number on every surface — cleaning rules
+  // and before/after stats must match what every other page shows.
+  const cleaningEngineCfg = useMemo(() => loadEngineConfig(), []);
+  const trustOf = useCallback((s: Submission) => computeTrustIndex(s as any, cleaningEngineCfg).trustIndex, [cleaningEngineCfg]);
+
   const analysis = useMemo(() => {
     if (!submissions.length) return null;
 
@@ -510,7 +517,7 @@ export default function DataCleaningPage() {
     for (const sub of submissions) {
       if (sub.verdict === 'REJECT') hits.rejected.add(sub.submission_id);
       if (sub.verdict === 'FLAG') hits.flagged.add(sub.submission_id);
-      if (sub.overall_score < config.minScore) hits.low_score.add(sub.submission_id);
+      if (trustOf(sub) < config.minScore) hits.low_score.add(sub.submission_id);
       const dur = Number(sub.duration_mins);
       if (dur > 0 && dur < config.minDuration) hits.too_fast.add(sub.submission_id);
       if (dur > config.maxDuration) hits.abandoned.add(sub.submission_id);
@@ -531,8 +538,8 @@ export default function DataCleaningPage() {
 
     const removed = submissions.filter(s => removedIds.has(s.submission_id));
     const kept = submissions.filter(s => !removedIds.has(s.submission_id));
-    const avgBefore = submissions.reduce((a, s) => a + s.overall_score, 0) / submissions.length;
-    const avgAfter = kept.length ? kept.reduce((a, s) => a + s.overall_score, 0) / kept.length : 0;
+    const avgBefore = submissions.reduce((a, s) => a + trustOf(s), 0) / submissions.length;
+    const avgAfter = kept.length ? kept.reduce((a, s) => a + trustOf(s), 0) / kept.length : 0;
     const passBefore = submissions.filter(s => s.verdict === 'PASS').length / submissions.length * 100;
     const passAfter = kept.length ? kept.filter(s => s.verdict === 'PASS').length / kept.length * 100 : 0;
     // Margin of error approximation: 1.96 * sqrt(p*(1-p)/n) for a proportion near 0.5
@@ -652,7 +659,7 @@ export default function DataCleaningPage() {
       ...(anonymizeGps ? ['gps_lat', 'gps_lon'] : [])];
     const rows = analysis.kept.map(s => {
       const fixedAddr = s.gps?.address ? applyTextFix(s.gps.address) : '';
-      const base = [s.submission_id, s.enumerator_id, s.verdict, s.overall_score, s.duration_mins ?? '', s.scored_at ?? '', `"${fixedAddr}"`];
+      const base = [s.submission_id, s.enumerator_id, s.verdict, trustOf(s), s.duration_mins ?? '', s.scored_at ?? '', `"${fixedAddr}"`];
       if (anonymizeGps && s.gps?.lat && s.gps?.lon) {
         base.push(s.gps.lat.toFixed(3), s.gps.lon.toFixed(3));
       } else if (anonymizeGps) {
@@ -956,7 +963,7 @@ export default function DataCleaningPage() {
                         )}
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: RED, fontFamily: 'monospace' }}>{sub.overall_score}</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: RED, fontFamily: 'monospace' }}>{trustOf(sub)}</div>
                         <div style={{ fontSize: 10, color: '#9CA3AF' }}>{sub.duration_mins ? Math.round(Number(sub.duration_mins)) + 'm' : '—'}</div>
                       </div>
                     </div>
