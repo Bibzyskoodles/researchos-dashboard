@@ -542,7 +542,7 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
   if(error||!sub) return(
     <div style={{padding:40,textAlign:"center"}}>
       <div style={{fontSize:16,color:RED,marginBottom:12}}>{error||"Submission not found"}</div>
-      <button onClick={()=>navigate("/submissions")} style={{padding:"8px 16px",borderRadius:8,background:BLUE,color:"white",border:"none",cursor:"pointer",fontSize:13}}>
+      <button onClick={()=>navigate(-1)} style={{padding:"8px 16px",borderRadius:8,background:BLUE,color:"white",border:"none",cursor:"pointer",fontSize:13}}>
         ← Back to Submissions
       </button>
     </div>
@@ -582,7 +582,7 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
 
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-        <button onClick={()=>navigate("/submissions")}
+        <button onClick={()=>navigate(-1)}
           style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,background:"white",border:"1px solid #E2E8F0",cursor:"pointer",fontSize:13,fontWeight:600,color:"#374151",fontFamily:"Inter,sans-serif"}}>
           <ArrowLeft size={14}/> Submissions
         </button>
