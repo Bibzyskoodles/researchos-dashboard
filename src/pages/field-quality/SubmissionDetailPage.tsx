@@ -979,9 +979,22 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
 
                     {/* Formula footnote + backend reconciliation */}
                     <div style={{marginTop:10,padding:"8px 10px",background:"#F8FAFF",borderRadius:8,border:"1px solid #E8EDF5"}}>
-                      <div style={{fontSize:10,color:"#9CA3AF",lineHeight:1.7}}>
-                        <strong style={{color:"#6B7280"}}>Trust Index:</strong> {included.map(b=>`${b.label} (${Math.round(b.weight*100)}%)`).join(" + ")}{trust.consistency.length>0?" + cross-evidence reasoning":""} = <strong style={{color:clr(displayScore)}}>{displayScore}</strong>
-                      </div>
+                      {(() => {
+                        // Show the actual POINTS each engine contributed (what
+                        // the bars above display), not weight percentages —
+                        // percentages don't sum to a score (32+29+26+13=100,
+                        // not 69), and Image here contributed 0 despite a 26%
+                        // weight, which a percentage-only equation hides entirely.
+                        const consistencyPts = trust.consistency.reduce((a,c)=>a+c.delta,0);
+                        const parts = included.map(b => ({ label: b.label, pts: Math.round(b.contribution) }));
+                        const partsSum = parts.reduce((a,p)=>a+p.pts,0) + Math.round(consistencyPts);
+                        const roundingDiff = displayScore - partsSum;
+                        return (
+                          <div style={{fontSize:10,color:"#9CA3AF",lineHeight:1.7}}>
+                            <strong style={{color:"#6B7280"}}>Trust Index:</strong> {parts.map(p=>`${p.label} (${p.pts}pt${p.pts===1?"":"s"})`).join(" + ")}{trust.consistency.length>0?` + cross-evidence reasoning (${consistencyPts>0?"+":""}${Math.round(consistencyPts)}pts)`:""} = <strong style={{color:clr(displayScore)}}>{partsSum}</strong>{roundingDiff!==0 && <span> (rounds to <strong style={{color:clr(displayScore)}}>{displayScore}</strong>)</span>}
+                          </div>
+                        );
+                      })()}
                       {trust.backendScore!=null&&trust.delta!=null&&trust.delta!==0&&(
                         <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>
                           Backend raw score: <strong>{trust.backendScore}</strong> (Δ {trust.delta>0?"+":""}{trust.delta} — see reasoning above)
