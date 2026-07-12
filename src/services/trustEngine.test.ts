@@ -117,6 +117,18 @@ describe("S5 The duplicate — hard gates beat arithmetic", () => {
   });
 });
 
+describe("S5b The ChatGPT photo — AI-generated image is a hard gate, not a nudge", () => {
+  it("rejects at CRITICAL risk even when every other engine scores perfectly", () => {
+    const r = computeTrustIndex({ ...FULL_HOUSE, flags: ["AI_GENERATED_IMAGE"] }, cfg());
+    expect(r.verdict).toBe("REJECT");
+    expect(r.risk).toBe("CRITICAL");
+    expect(r.recommendation).toBe("REJECT");
+    const image = r.breakdown.find(b => b.key === "image")!;
+    expect(image.effectiveScore).toBe(5);
+    expect(image.flagOverride).toBe("AI_GENERATED_IMAGE");
+  });
+});
+
 describe("S6 Rushed & silent — the consistency engine sees the pattern", () => {
   it("fires R1 and lands on REJECT via the AUDIO_EMPTY hard gate", () => {
     const r = computeTrustIndex(

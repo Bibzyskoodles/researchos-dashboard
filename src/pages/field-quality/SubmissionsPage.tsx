@@ -559,12 +559,21 @@ export default function SubmissionsPage(){
               <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16,maxHeight:"calc(100vh - 200px)",overflowY:"auto"}}>
                 {(()=>{
                   const selVerdict = effectiveVerdict(selected);
+                  const selFlags = Array.isArray(selected.flags) ? selected.flags : String(selected.flags||"").split(",").filter(Boolean);
+                  // "No action required" is only true for a clean PASS with no flags —
+                  // defaulting to it whenever supervisor_action was empty made a FLAG/REJECT
+                  // (e.g. AI_GENERATED_IMAGE) read as "verified", which is the opposite of true.
+                  const defaultMsg = selVerdict === "PASS" && selFlags.length === 0
+                    ? "No action required"
+                    : selFlags.length > 0
+                    ? `Needs review — ${selFlags.length} flag${selFlags.length>1?"s":""}: ${selFlags.slice(0,2).join(", ")}${selFlags.length>2?"…":""}`
+                    : `${selVerdict} — needs supervisor review`;
                   return (
                     <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,background:vbg(selVerdict),border:`1px solid ${vc(selVerdict)}22`}}>
                       <div style={{width:8,height:8,borderRadius:"50%",background:vc(selVerdict),flexShrink:0}}/>
                       <div>
                         <div style={{fontSize:12.5,fontWeight:700,color:vc(selVerdict)}}>{selVerdict}</div>
-                        <div style={{fontSize:11,color:"#6B7280",marginTop:1}}>{selected.supervisor_action||"No action required"}</div>
+                        <div style={{fontSize:11,color:"#6B7280",marginTop:1}}>{selected.supervisor_action||defaultMsg}</div>
                       </div>
                     </div>
                   );

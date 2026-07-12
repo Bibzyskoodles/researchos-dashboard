@@ -122,68 +122,6 @@ async function checkImageDimensions(blob: Blob): Promise<{ flag: boolean; note: 
   });
 }
 
-async function analyzeTranscriptWithGpt(transcript: string, openaiKey: string): Promise<AiResult> {
-  const PROMPT = `You are a forensic speech analyst. Your job is to detect whether this interview transcript was produced by a real human respondent or fabricated via AI / text-to-speech.
-
-Respond ONLY with JSON: {"ai_probability": 0-100, "indicators": ["indicator1","indicator2"], "finding": "one clear sentence for a non-technical auditor"}
-
-ai_probability: 0 = definitely a genuine human respondent, 100 = definitely AI/scripted/TTS.
-
-Look for:
-HUMAN SPEECH SIGNALS (lower the score):
-- Filler words: um, uh, err, like, you know, hmm, actually, right, so
-- Self-corrections: "I mean", "wait", "no wait", "actually I meant", "sorry"
-- Incomplete sentences or trailing thoughts
-- Contractions: I'm, don't, can't, it's, they're, wasn't
-- Run-on sentences joined with "and" or "but"
-- Repeated words or slight awkwardness
-- Regional/colloquial phrasing, code-switching, or local vernacular
-- Inconsistent punctuation or grammar typical of spoken transcription
-
-AI/TTS/SCRIPTED SIGNALS (raise the score):
-- No filler words at all throughout the entire transcript
-- Perfectly uniform sentence length and structure
-- No contractions in a long transcript (very formal, unnatural)
-- No self-corrections or hesitation at all
-- Text reads like an essay, not speech
-- Overly complete, comprehensive answers with no ambiguity
-- Perfect grammar throughout long responses
-- Repetitive structural patterns (e.g. every answer starts the same way)
-- No local vernacular, regional expressions, or language mixing`;
-
-  try {
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiKey}` },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        max_tokens: 300,
-        messages: [
-          { role: "system", content: PROMPT },
-          { role: "user", content: `Analyse this interview transcript:\n\n${transcript.slice(0, 4000)}` },
-        ],
-      }),
-    });
-    const data = await resp.json();
-    const raw = data.choices?.[0]?.message?.content || "{}";
-    const jsonMatch = raw.match(/\{[\s\S]*?\}/);
-    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-    const prob = typeof parsed.ai_probability === "number" ? parsed.ai_probability : 50;
-    const authenticity = 100 - prob;
-    const indicators: string[] = Array.isArray(parsed.indicators) ? parsed.indicators : [];
-    const finding = parsed.finding || (prob >= 60
-      ? `Transcript likely AI-generated or scripted. ${indicators.slice(0,2).join("; ")}.`
-      : "Transcript reads like genuine human speech.");
-    return {
-      score: authenticity,
-      finding: indicators.length > 0 ? `${finding} Indicators: ${indicators.join("; ")}` : finding,
-      status: authenticity >= 70 ? "PASS" : authenticity >= 45 ? "FLAG" : "FAIL",
-    };
-  } catch {
-    return { score: 50, finding: "Transcript AI analysis failed — check OpenAI key.", status: "FLAG" };
-  }
-}
-
 const clr=(s:number)=>s>=70?GREEN:s>=45?AMBER:RED;
 const vclr=(v:string)=>v==="PASS"?GREEN:v==="FLAG"?AMBER:RED;
 const riskClr=(r:string)=>r==="VERY_LOW"||r==="LOW"?GREEN:r==="MEDIUM"?AMBER:r==="HIGH"?"#EA580C":RED;
@@ -319,37 +257,28 @@ export default function SubmissionDetailPage(){
     return { score: Math.max(0, 100 - Math.round(riskScore * 1.25)), finding, status };
   }, []);
 
+  // Every AI-authenticity opinion here is sourced from the backend's engine
+  // (sub.checks.image / sub.checks.audio) — the one place that actually ran
+  // the filename check, metadata scan, and GPT-4o vision call server-side.
+  // This used to re-run its own GPT-4o calls directly from the browser using
+  // a REACT_APP_OPENAI_KEY baked into the JS bundle — a key any visitor could
+  // read out of devtools, and a second opinion that could (and did) contradict
+  // the real, authoritative flag. Client-side re-scanning of image bytes for
+  // metadata/dimensions is kept below since it costs nothing and needs no key.
   const runAiScan = useCallback(async () => {
     if (!sub) return;
     setAiScan({ status: "loading" });
     const results: Partial<Pick<AiScan,"image"|"metadata"|"download"|"audio"|"text">> = {};
-    const openaiKey = process.env.REACT_APP_OPENAI_KEY;
 
     if (sub.image_url) {
-      // Fetch image blob once — shared across metadata scan, dimension check, base64 for Vision
       let imageBlob: Blob | null = null;
-      let imageBase64: string | null = null;
       try {
         const imgResp = await fetch(sub.image_url, { mode: "cors" });
-        if (imgResp.ok) {
-          imageBlob = await imgResp.blob();
-          imageBase64 = await new Promise<string>((res, rej) => {
-            const reader = new FileReader();
-            reader.onload = () => res(reader.result as string);
-            reader.onerror = rej;
-            reader.readAsDataURL(imageBlob!);
-          });
-        }
-      } catch { /* CORS blocked — fall back to URL-based calls */ }
+        if (imgResp.ok) imageBlob = await imgResp.blob();
+      } catch { /* CORS blocked — fall back to URL-based metadata scan */ }
 
-      const imagePayload = imageBase64
-        ? { type: "image_url" as const, image_url: { url: imageBase64, detail: "high" as const } }
-        : { type: "image_url" as const, image_url: { url: sub.image_url, detail: "high" as const } };
-
-      // Run all image checks in parallel
-      const [metaResult, dimResult, visionResult, downloadResult] = await Promise.all([
-
-        // 1. METADATA: EXIF/XMP/C2PA AI tool signatures
+      const [metaResult, dimResult] = await Promise.all([
+        // METADATA: EXIF/XMP/C2PA AI tool signatures (client-side, no API key)
         imageBlob
           ? (async () => {
               const arr = await imageBlob!.arrayBuffer();
@@ -360,136 +289,43 @@ export default function SubmissionDetailPage(){
               const c2pa = text.includes("c2pa") || text.includes("C2PA") || text.includes("content/c2pa");
               if (c2pa && !found.some(f=>f.toLowerCase().includes("c2pa"))) found.push("C2PA content credentials");
               if (found.length > 0) {
-                const hasC2PA = found.some(f=>f.toLowerCase().includes("c2pa")||f.toLowerCase().includes("content credential"));
-                if (hasC2PA && found.length === 1) return { score: 5, finding: `C2PA cryptographic watermark detected — this image was created by an AI tool that embeds Content Credentials (DALL-E 3, Adobe Firefly, etc.).`, status: "FAIL" as const };
                 return { score: 5, finding: `AI tool signature in metadata: ${found.slice(0,3).join(", ")}. Near-certain AI origin.`, status: "FAIL" as const };
               }
               return { score: 95, finding: "No AI tool signatures or C2PA watermarks in image metadata.", status: "PASS" as const };
             })()
           : scanImageMetadata(sub.image_url),
 
-        // 2. DIMENSIONS: detect standard web/social/stock image sizes
+        // DIMENSIONS: detect standard web/social/stock image sizes (no API key)
         imageBlob
           ? checkImageDimensions(imageBlob)
           : Promise.resolve({ flag: false, note: "" }),
-
-        // 3. VISION: GPT-4o AI generation + staged/suspicious detection
-        openaiKey
-          ? (async (): Promise<AiResult> => {
-              try {
-                const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-                  method: "POST",
-                  headers: { "Content-Type":"application/json", "Authorization":`Bearer ${openaiKey}` },
-                  body: JSON.stringify({
-                    model: "gpt-4o",
-                    max_tokens: 400,
-                    messages: [
-                      { role: "system", content: `You are an expert forensic image analyst detecting AI-generated or synthetic field research images. Focus ONLY on whether the image is AI-generated or digitally synthesised.
-
-Respond ONLY with JSON: {"fraud_probability": 0-100, "fraud_type": "genuine"|"ai_generated"|"staged_or_suspicious", "signals": ["signal1","signal2"], "finding": "one clear sentence"}
-
-AI-GENERATED SIGNALS: unnaturally perfect skin/hair/textures; anatomical errors (extra fingers, misshapen ears); surreal or too-smooth backgrounds; lighting from no real source; impossible geometry; garbled or blurred text; overly smooth gradients.
-GENUINE SIGNALS: motion blur, tilted horizon, imperfect framing; context-appropriate Nigerian/African field setting; respondent looks genuinely engaged; ambient real-world lighting; visible field equipment.` },
-                      { role: "user", content: [
-                        { type: "text", text: "Is this image AI-generated or genuine field research evidence from Nigeria?" },
-                        imagePayload,
-                      ]},
-                    ],
-                  }),
-                });
-                const data = await resp.json();
-                const raw = data.choices?.[0]?.message?.content || "{}";
-                const parsed = JSON.parse((raw.match(/\{[\s\S]*?\}/)||["{}"])[0]);
-                const prob = typeof parsed.fraud_probability === "number" ? parsed.fraud_probability : 50;
-                const auth = 100 - prob;
-                const signals: string[] = Array.isArray(parsed.signals) ? parsed.signals : [];
-                const base = parsed.finding || (prob >= 60 ? `Image shows AI generation signals.` : "Image appears genuine.");
-                return { score: auth, finding: signals.length ? `${base} Signals: ${signals.join("; ")}` : base, status: auth >= 70 ? "PASS" : auth >= 45 ? "FLAG" : "FAIL" };
-              } catch {
-                return { score: 50, finding: "Visual AI analysis failed — check OpenAI key.", status: "FLAG" };
-              }
-            })()
-          : Promise.resolve({ score: 50, finding: "OpenAI key not configured — visual AI scan unavailable.", status: "FLAG" as const }),
-
-        // 4. DOWNLOAD: GPT-4o focused exclusively on stock/internet download detection
-        openaiKey
-          ? (async (): Promise<AiResult> => {
-              try {
-                const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-                  method: "POST",
-                  headers: { "Content-Type":"application/json", "Authorization":`Bearer ${openaiKey}` },
-                  body: JSON.stringify({
-                    model: "gpt-4o",
-                    max_tokens: 400,
-                    messages: [
-                      { role: "system", content: `You are a forensic analyst specialising in detecting stock photos and images downloaded from the internet, submitted as fake field research evidence.
-
-Respond ONLY with JSON: {"download_probability": 0-100, "source_type": "original_field_photo"|"stock_photo"|"news_or_editorial_photo"|"social_media_download"|"screenshot_of_image"|"website_screenshot", "signals": ["signal1","signal2"], "finding": "one clear sentence for a non-technical auditor"}
-
-download_probability: 0 = definitely taken in the field right now, 100 = definitely sourced from the internet.
-
-STOCK PHOTO SIGNALS (raise score):
-- Professional studio or editorial lighting (softboxes, rim lights, catchlights)
-- Models posed in obviously commercial ways — too clean, too uniform
-- Visible or ghost watermarks (Getty, Shutterstock, iStock, Adobe Stock, 123RF, Alamy)
-- Generic location that could be any country — nothing locally specific
-- Unrealistically even backgrounds or backdrop paper
-- Perfect rule-of-thirds composition with no camera shake
-
-INTERNET / SOCIAL MEDIA DOWNLOAD SIGNALS (raise score):
-- JPEG compression inconsistent with a direct camera capture (blockiness at low resolution)
-- Screenshot borders, browser chrome, taskbar, notification bars visible
-- Aspect ratio typical of web content: 1200×630, 16:9 banners, 1:1 Instagram square
-- Visible watermarks, URL overlays, logo bugs, website footers cropped in
-- Moiré pattern or pixel grid suggesting photographed-off-screen
-- Cropping artifacts, letterboxing, or black bars
-- News editorial style: dramatic angles, dramatic shadows, wide shot of public event
-
-GENUINE FIELD PHOTO SIGNALS (lower score):
-- Natural imperfections: slight blur, tilted, uneven framing
-- Specifically Nigerian or West African environment visible (signage, dress, surroundings)
-- Respondent looks natural, not posed, possibly mid-sentence
-- Outdoor ambient light with environment-appropriate shadows
-- Field equipment visible: clipboard, tablet, ID lanyard, branded forms
-- Background details verifiable to a real place (licence plates, shop signs, landmarks)` },
-                      { role: "user", content: [
-                        { type: "text", text: "Was this photo taken during real field research, or was it downloaded/sourced from the internet?" },
-                        imagePayload,
-                      ]},
-                    ],
-                  }),
-                });
-                const data = await resp.json();
-                const raw = data.choices?.[0]?.message?.content || "{}";
-                const parsed = JSON.parse((raw.match(/\{[\s\S]*?\}/)||["{}"])[0]);
-                const prob = typeof parsed.download_probability === "number" ? parsed.download_probability : 50;
-                const auth = 100 - prob;
-                const signals: string[] = Array.isArray(parsed.signals) ? parsed.signals : [];
-                const sourceLabel = parsed.source_type === "stock_photo" ? "Stock photo"
-                  : parsed.source_type === "news_or_editorial_photo" ? "News/editorial photo"
-                  : parsed.source_type === "social_media_download" ? "Social media download"
-                  : parsed.source_type === "screenshot_of_image" ? "Screenshot of another image"
-                  : parsed.source_type === "website_screenshot" ? "Website screenshot"
-                  : "";
-                const base = parsed.finding || (prob >= 60
-                  ? `Image likely downloaded from internet${sourceLabel ? ` (${sourceLabel})` : ""}.`
-                  : "Image appears to be an original field photograph.");
-                return { score: auth, finding: signals.length ? `${base} Signals: ${signals.join("; ")}` : base, status: auth >= 70 ? "PASS" : auth >= 45 ? "FLAG" : "FAIL" };
-              } catch {
-                return { score: 50, finding: "Download detection failed — check OpenAI key.", status: "FLAG" };
-              }
-            })()
-          : Promise.resolve({ score: 50, finding: "OpenAI key not configured — download detection unavailable.", status: "FLAG" as const }),
       ]);
 
       results.metadata = metaResult;
-      results.image = visionResult;
+
+      // AI-GENERATION VERDICT: sourced from the backend's authoritative engine
+      // (includes the filename check, metadata scan, and GPT-4o vision call).
+      const imgCheck = sub.checks?.image;
+      if (imgCheck && imgCheck.status !== "NOT_AVAILABLE") {
+        const isAi = !!imgCheck.ai_generated;
+        const conf = imgCheck.ai_generated_confidence || "LOW";
+        const authScore = isAi ? (conf === "HIGH" ? 5 : conf === "MEDIUM" ? 25 : 60) : Math.max(imgCheck.score ?? 70, 70);
+        const sigs: string[] = imgCheck.ai_generated_signals || [];
+        results.image = {
+          score: authScore,
+          finding: sigs.length ? `${imgCheck.finding || ""} Signals: ${sigs.join("; ")}`.trim() : (imgCheck.finding || "No AI-generation signals detected."),
+          status: isAi ? (conf === "HIGH" ? "FAIL" : "FLAG") : "PASS",
+        };
+      } else {
+        results.image = { score: 50, finding: "Backend AI-generation check unavailable for this submission.", status: "FLAG" };
+      }
+
       results.download = dimResult.flag
-        ? { score: Math.min(downloadResult.score, 30), finding: `${dimResult.note} ${downloadResult.finding}`, status: "FAIL" }
-        : downloadResult;
+        ? { score: 30, finding: dimResult.note, status: "FAIL" }
+        : { score: 90, finding: dimResult.note || "Dimensions consistent with a real camera/smartphone shot.", status: "PASS" };
     }
 
-    // --- AUDIO: GPT-4o transcript analysis (falls back to heuristic if no key) ---
+    // AUDIO: backend engine result when available, heuristic transcript scan otherwise
     const checks = sub.checks || {};
     if (checks.audio?.is_genuine_interview !== undefined) {
       const genuine = checks.audio.is_genuine_interview;
@@ -499,9 +335,7 @@ GENUINE FIELD PHOTO SIGNALS (lower score):
         status: genuine ? "PASS" : "FAIL",
       };
     } else if (checks.audio?.transcript) {
-      results.audio = openaiKey
-        ? await analyzeTranscriptWithGpt(checks.audio.transcript, openaiKey)
-        : analyzeTranscriptHeuristic(checks.audio.transcript);
+      results.text = analyzeTranscriptHeuristic(checks.audio.transcript);
     } else if (sub.audio_url && !checks.audio?.transcript) {
       results.audio = {
         score: 50,
