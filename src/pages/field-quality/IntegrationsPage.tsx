@@ -484,10 +484,12 @@ export default function IntegrationsPage() {
   const webhookBase = orgId
     ? `https://web-production-f5bab.up.railway.app/webhook/${orgId}`
     : "https://web-production-f5bab.up.railway.app/webhook/your-org-id";
+  // A webhook URL is only ever issued WITH a project binding. Without one,
+  // submissions would arrive org-level and could land in the wrong project.
   const webhookUrl = activeProject?.id
     ? `${webhookBase}?project_id=${activeProject.id}`
-    : webhookBase;
-  const platforms = buildPlatforms(webhookUrl);
+    : null;
+  const platforms = buildPlatforms(webhookUrl ?? "⚠ select a project first to get your webhook URL");
   const activeCount = platforms.filter(p => p.status === "active").length;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [urlCopied, setUrlCopied] = useState(false);
@@ -533,9 +535,9 @@ export default function IntegrationsPage() {
     setUrlCopied(true);
     setTimeout(() => setUrlCopied(false), 2000);
     setState("speaking");
-    addMessage({ id:Date.now().toString(),role:"assistant",content:"Paste that URL into your platform's webhook settings. Come back here once you've sent a test submission and I'll confirm it's working.",timestamp:new Date().toISOString(),page:"integrations" });
+    addMessage({ id:Date.now().toString(),role:"assistant",content:`That URL is bound to "${activeProject?.name || "your project"}" — every submission sent to it lands in that project only. Paste it into that project's form webhook settings, send a test response, and come back here so I can confirm it arrived.`,timestamp:new Date().toISOString(),page:"integrations" });
     setTimeout(() => setState("idle"), 4000);
-  }, [setState, addMessage]);
+  }, [setState, addMessage, activeProject?.name]);
 
   const heroText = activeCount > 0
     ? `Your KoboToolbox integration is active and receiving ${platforms.find(p => p.id === "kobo")?.submissionCount ?? 0} submissions. Want me to help you connect another platform?`
@@ -574,13 +576,34 @@ export default function IntegrationsPage() {
         <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,flexWrap:"wrap" as const }}>
           <div style={{ flex:1,minWidth:0 }}>
             <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6 }}><Zap size={15} color={BLUE} /><div style={{ fontSize:13.5,fontWeight:700,color:"#080D1A" }}>Your FieldScore Webhook URL</div></div>
-            <div style={{ fontSize:12,color:"#6B7280",marginBottom:12 }}>This is your unique endpoint. Paste it into any supported platform to start sending submissions to FieldScore.</div>
-            <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-              <div style={{ flex:1,background:"#F8FAFF",border:"1px solid #E2E8F0",borderRadius:8,padding:"9px 14px",fontFamily:"monospace",fontSize:12.5,color:"#374151",wordBreak:"break-all" as const }}>{webhookUrl}</div>
-              <CopyButton text={webhookUrl} onCopy={handleCopyUrl} />
-            </div>
-            {!orgId && <div style={{ marginTop:10,fontSize:11.5,color:AMBER }}>⚠ Organisation ID not found — log in to see your personalised URL.</div>}
-            <div style={{ marginTop:10,fontSize:11.5,color:"#9CA3AF" }}>All submissions sent to this URL are automatically scored and verified by FieldScore.</div>
+            {webhookUrl ? (
+              <>
+                {/* Project binding — impossible to miss */}
+                <div style={{ display:"inline-flex",alignItems:"center",gap:7,background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,padding:"6px 12px",marginBottom:10 }}>
+                  <div style={{ width:6,height:6,borderRadius:"50%",background:GREEN }} />
+                  <span style={{ fontSize:12,color:"#1E40AF" }}>
+                    This URL delivers submissions to: <strong>{activeProject?.name}</strong>
+                  </span>
+                </div>
+                <div style={{ fontSize:12,color:"#6B7280",marginBottom:12 }}>
+                  Paste it into the form for <strong>this project only</strong>. Running another project too? Switch to it in the top bar first — each project has its own URL, and pasting the wrong one sends that form's data to the wrong project.
+                </div>
+                <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                  <div style={{ flex:1,background:"#F8FAFF",border:"1px solid #E2E8F0",borderRadius:8,padding:"9px 14px",fontFamily:"monospace",fontSize:12.5,color:"#374151",wordBreak:"break-all" as const }}>{webhookUrl}</div>
+                  <CopyButton text={webhookUrl} onCopy={handleCopyUrl} />
+                </div>
+                {activeProject?.kobo_asset_uid && (
+                  <div style={{ marginTop:10,fontSize:11.5,color:"#9CA3AF" }}>
+                    Linked KoboToolbox form: <code style={{ fontFamily:"monospace",background:"#F1F5F9",padding:"1px 6px",borderRadius:4 }}>{activeProject.kobo_asset_uid}</code> — submissions from other forms sent to this URL will be flagged.
+                  </div>
+                )}
+                {!orgId && <div style={{ marginTop:10,fontSize:11.5,color:AMBER }}>⚠ Organisation ID not found — log in to see your personalised URL.</div>}
+              </>
+            ) : (
+              <div style={{ padding:"16px 18px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,fontSize:12.5,color:"#92400E",lineHeight:1.7 }}>
+                <strong>Select a project first.</strong> Webhook URLs are issued per project so every form's submissions land in exactly one project. Use the project switcher in the top bar (or the Projects page) to choose the project this form belongs to, then come back here to copy its URL.
+              </div>
+            )}
           </div>
           {urlCopied && <motion.div initial={{ opacity:0,scale:0.9 }} animate={{ opacity:1,scale:1 }} style={{ padding:"8px 14px",borderRadius:8,background:"#ECFDF5",border:"1px solid #A7F3D0",fontSize:12,fontWeight:600,color:GREEN,flexShrink:0,display:"flex",alignItems:"center",gap:4 }}><Check size={12} />URL copied!</motion.div>}
         </div>
@@ -622,7 +645,7 @@ export default function IntegrationsPage() {
         <div style={{ fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:0.7,marginBottom:14 }}>Platforms</div>
         <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14 }}>
           {platforms.map(platform => (
-            <PlatformCard key={platform.id} platform={platform} webhookUrl={webhookUrl} onSetupOpen={handleSetupOpen} isExpanded={expandedId===platform.id} onCopyUrl={handleCopyUrl} onNotify={handleNotify} />
+            <PlatformCard key={platform.id} platform={platform} webhookUrl={webhookUrl ?? "⚠ select a project first to get your webhook URL"} onSetupOpen={handleSetupOpen} isExpanded={expandedId===platform.id} onCopyUrl={handleCopyUrl} onNotify={handleNotify} />
           ))}
         </div>
       </div>
