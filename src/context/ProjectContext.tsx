@@ -15,6 +15,7 @@ export interface Project {
   framework_indicators?: string;
   questionnaire_id?: string;
   kobo_asset_uid?: string;
+  insightscore_project_id?: string;
   created_at?: string;
   updated_at?: string;
 }

@@ -521,6 +521,29 @@ export default function IntegrationsPage() {
   const [linkMsg, setLinkMsg] = useState("");
   const [editingLink, setEditingLink] = useState(false);
 
+  // InsightScore project link — without this, scored submissions are never
+  // bridged for qualitative analysis and AI Analysis shows 0 interviews.
+  const [iscId, setIscId] = useState("");
+  const [iscSaving, setIscSaving] = useState(false);
+  const [iscMsg, setIscMsg] = useState("");
+  const [editingIsc, setEditingIsc] = useState(false);
+
+  const saveIscLink = async () => {
+    if (!activeProject?.id || !iscId.trim() || iscSaving) return;
+    setIscSaving(true); setIscMsg("");
+    try {
+      const { projectsApi } = await import("../../services/api");
+      await projectsApi.update(activeProject.id, { insightscore_project_id: iscId.trim() });
+      setIscMsg("✓ Linked — new PASS submissions will be analysed for qualitative themes.");
+      setEditingIsc(false);
+      setActiveProject(activeProject.id);
+    } catch {
+      setIscMsg("Could not link the InsightScore project — check your connection and try again.");
+    } finally {
+      setIscSaving(false);
+    }
+  };
+
   const saveFormLink = async () => {
     if (!activeProject?.id || !linkUid.trim() || linkSaving) return;
     setLinkSaving(true); setLinkMsg("");
@@ -664,6 +687,42 @@ export default function IntegrationsPage() {
                         )}
                       </div>
                       {linkMsg && <div style={{ marginTop:6,fontSize:11.5,color:linkMsg.startsWith("✓")?GREEN:"#DC2626" }}>{linkMsg}</div>}
+                    </div>
+                  )}
+                </div>
+                {/* InsightScore project link — without this, verified submissions
+                    are scored but never bridged for qualitative analysis. */}
+                <div style={{ marginTop:10,padding:"10px 14px",borderRadius:8,background:"#F5F3FF",border:"1px solid #E9D5FF" }}>
+                  {activeProject?.insightscore_project_id && !editingIsc ? (
+                    <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" as const }}>
+                      <span style={{ fontSize:11.5,color:"#374151" }}>
+                        Linked InsightScore project: <code style={{ fontFamily:"monospace",background:"#F1F5F9",padding:"1px 6px",borderRadius:4 }}>{activeProject.insightscore_project_id}</code>
+                      </span>
+                      <span style={{ fontSize:11,color:"#9CA3AF" }}>PASS submissions are analysed for qualitative themes.</span>
+                      <button onClick={()=>{ setEditingIsc(true); setIscId(activeProject.insightscore_project_id || ""); }}
+                        style={{ marginLeft:"auto",fontSize:11,fontWeight:600,color:"#7C3AED",background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif" }}>Change</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize:11.5,fontWeight:600,color:"#374151",marginBottom:4 }}>
+                        {activeProject?.insightscore_project_id ? "Change linked InsightScore project" : "Link this project to InsightScore for qualitative analysis"}
+                      </div>
+                      <div style={{ fontSize:11,color:"#9CA3AF",marginBottom:8,lineHeight:1.5 }}>
+                        Without this, submissions are still verified for fraud but never sent for theme/sentiment analysis — AI Analysis will show 0 interviews. Create a project on the AI Analysis page first if you haven't, then paste its project ID here.
+                      </div>
+                      <div style={{ display:"flex",gap:8 }}>
+                        <input value={iscId} onChange={e=>setIscId(e.target.value)} placeholder="InsightScore project ID"
+                          style={{ flex:1,minWidth:160,border:"1px solid #E2E8F0",borderRadius:7,padding:"7px 10px",fontSize:12,fontFamily:"monospace",outline:"none" }} />
+                        <button onClick={saveIscLink} disabled={!iscId.trim()||iscSaving}
+                          style={{ padding:"7px 14px",borderRadius:7,background:"#7C3AED",border:"none",color:"white",fontSize:11.5,fontWeight:600,cursor:iscSaving?"wait":"pointer",fontFamily:"Inter,sans-serif",opacity:!iscId.trim()||iscSaving?0.6:1 }}>
+                          {iscSaving ? "Linking…" : "Link project"}
+                        </button>
+                        {editingIsc && (
+                          <button onClick={()=>setEditingIsc(false)}
+                            style={{ padding:"7px 10px",borderRadius:7,background:"white",border:"1px solid #E2E8F0",color:"#6B7280",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif" }}>Cancel</button>
+                        )}
+                      </div>
+                      {iscMsg && <div style={{ marginTop:6,fontSize:11.5,color:iscMsg.startsWith("✓")?GREEN:"#DC2626" }}>{iscMsg}</div>}
                     </div>
                   )}
                 </div>
