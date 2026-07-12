@@ -130,7 +130,11 @@ export function analyseEnumeratorSignals(
       const d1 = parseDate(prev.submission_date), d2 = parseDate(curr.submission_date);
       if (lat1 == null || lon1 == null || lat2 == null || lon2 == null || !d1 || !d2) continue;
       const durationMinutes = (d2.getTime() - d1.getTime()) / 60000;
-      if (durationMinutes <= 0) continue;
+      // Sub-minute gaps are almost always batch-import artifacts (rows scored
+      // together carry near-identical timestamps), not real field movement —
+      // dividing by them fabricates absurd speeds. True duplicates are the
+      // duplicate engine's job; travel analysis needs a real time gap.
+      if (durationMinutes < 1) continue;
       const distanceM = haversineMeters(lat1, lon1, lat2, lon2);
       const impliedSpeedKph = (distanceM / 1000) / (durationMinutes / 60);
       const { risk, riskLabel } = classifySpeed(impliedSpeedKph);

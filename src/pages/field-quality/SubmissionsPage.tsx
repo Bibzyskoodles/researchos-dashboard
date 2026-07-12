@@ -231,7 +231,10 @@ export default function SubmissionsPage(){
     return analyseEnumeratorSignals(subs.map(s => ({
       submission_id: s.submission_id,
       enumerator_id: s.enumerator_id,
-      submission_date: s.scored_at || s.submission_date || "",
+      // Field time, NOT processing time: a bulk import scores everything
+      // within seconds, and using scored_at would make ordinary interviews
+      // look like impossible travel. scored_at is only a last resort.
+      submission_date: s.submission_date || s.scored_at || "",
       gps: s.gps ? { lat: s.gps.lat, lon: s.gps.lon } : null,
     })));
   }, [subs]);
