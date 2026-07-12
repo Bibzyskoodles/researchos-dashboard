@@ -210,15 +210,21 @@ export default function OverviewPage() {
               <span style={{ fontSize: 9.5, fontWeight: 700, color: "#93C5FD", letterSpacing: 1, textTransform: "uppercase" }}>AI Briefing · {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
             </div>
             <div style={{ fontSize: 26, fontWeight: 800, color: "white", letterSpacing: -.8, marginBottom: 6, lineHeight: 1.1 }}>{greet}, {firstName}!</div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,.55)", marginBottom: 20 }}>Here is what happened while you were away.</div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,.55)", marginBottom: 20 }}>
+              {(s.total_submissions ?? 0) > 0 ? "Here is what happened while you were away." : "This project is ready and waiting for its first submission."}
+            </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {[
-                { icon: <CheckCircle size={13} color="#34D399" />, text: <><strong style={{ color: "white" }}>{s.total_submissions} submissions processed</strong> <span style={{ color: "rgba(255,255,255,.5)" }}>— data quality is {s.avg_score >= 80 ? "excellent" : "good"}</span></> },
-                { icon: s.score_trend >= 0 ? <TrendingUp size={13} color="#34D399" /> : <TrendingDown size={13} color="#F87171" />, text: <><span style={{ color: "rgba(255,255,255,.5)" }}>Average trust score </span><strong style={{ color: s.score_trend >= 0 ? "#34D399" : "#F87171" }}>{s.score_trend >= 0 ? "↑" : "↓"} {Math.abs(s.score_trend)}pts this week</strong><span style={{ color: "rgba(255,255,255,.5)" }}> to </span><strong style={{ color: "white" }}>{s.avg_score}/100</strong></> },
-                { icon: <Activity size={13} color="#34D399" />, text: <><strong style={{ color: "white" }}>GPS compliance is strong</strong><span style={{ color: "rgba(255,255,255,.5)" }}> — 100% verified within Nigeria</span></> },
+              {((s.total_submissions ?? 0) === 0 ? [
+                // Empty project — say so honestly and point at the fix
+                { icon: <Activity size={13} color="#60A5FA" />, text: <><strong style={{ color: "white" }}>No submissions yet</strong><span style={{ color: "rgba(255,255,255,.5)" }}> — once your form is connected, every submission is scored within seconds of arriving</span></> },
+                { icon: <CheckCircle size={13} color="#34D399" />, text: <><span style={{ color: "rgba(255,255,255,.5)" }}>Check </span><strong style={{ color: "white" }}>Integrations</strong><span style={{ color: "rgba(255,255,255,.5)" }}> to copy this project's webhook URL and link your form</span></> },
+              ] : [
+                { icon: <CheckCircle size={13} color="#34D399" />, text: <><strong style={{ color: "white" }}>{s.total_submissions} submission{s.total_submissions === 1 ? "" : "s"} processed</strong> <span style={{ color: "rgba(255,255,255,.5)" }}>— average trust score {s.avg_score}/100</span></> },
+                s.score_trend !== 0 ? { icon: s.score_trend >= 0 ? <TrendingUp size={13} color="#34D399" /> : <TrendingDown size={13} color="#F87171" />, text: <><span style={{ color: "rgba(255,255,255,.5)" }}>Trust score </span><strong style={{ color: s.score_trend >= 0 ? "#34D399" : "#F87171" }}>{s.score_trend >= 0 ? "↑" : "↓"} {Math.abs(s.score_trend)}pts this week</strong></> } : null,
+                { icon: <Activity size={13} color={s.pass_rate >= 70 ? "#34D399" : "#FBBF24"} />, text: <><strong style={{ color: "white" }}>{s.pass_rate}% pass rate</strong><span style={{ color: "rgba(255,255,255,.5)" }}> — {s.pass_count} passed, {s.flag_count} flagged, {s.reject_count} rejected</span></> },
                 s.flag_count > 0 ? { icon: <AlertTriangle size={13} color="#FBBF24" />, text: <><strong style={{ color: "#FBBF24" }}>{s.flag_count} submission{s.flag_count > 1 ? "s" : ""} require attention</strong><span style={{ color: "rgba(255,255,255,.5)" }}> — review before approving</span></> } : null,
-              ].filter(Boolean).map((item: any, i) => (
+              ]).filter(Boolean).map((item: any, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13 }}>
                   <div style={{ flexShrink: 0, marginTop: 1 }}>{item.icon}</div>
                   <div>{item.text}</div>
@@ -229,11 +235,14 @@ export default function OverviewPage() {
 
           <div data-ada-target="overview-actions" style={{ width: 220, flexShrink: 0, padding: "28px 20px 28px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.3)", textTransform: "uppercase", letterSpacing: .8, marginBottom: 4 }}>Recommended</div>
-            {[
+            {((s.total_submissions ?? 0) === 0 ? [
+              { label: "Connect your data source", to: "/integrations" },
+              { label: "Review engine settings", to: "/settings" },
+            ] : [
               s.flag_count > 0 ? { label: `Review ${s.flag_count} flagged submission${s.flag_count > 1 ? "s" : ""}`, to: "/submissions" } : null,
-              { label: `Analyse ${s.pass_count} verified responses`, to: "/insights" },
+              s.pass_count > 0 ? { label: `Analyse ${s.pass_count} verified response${s.pass_count === 1 ? "" : "s"}`, to: "/insights" } : null,
               { label: "Generate interim report", to: "/reports" },
-            ].filter(Boolean).map((action: any, i) => (
+            ]).filter(Boolean).map((action: any, i) => (
               <motion.div key={i} whileHover={{ x: 3 }} onClick={() => nav(action.to)}
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 10, cursor: "pointer" }}>
                 <div style={{ width: 20, height: 20, borderRadius: 5, background: "rgba(37,99,235,.4)", display: "grid", placeItems: "center", fontSize: 9.5, fontWeight: 700, color: "#93C5FD", flexShrink: 0 }}>{i + 1}</div>
@@ -247,10 +256,10 @@ export default function OverviewPage() {
 
       {/* KPI Cards */}
       <div data-ada-target="overview-stats" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 14 }}>
-        <KpiCard label="Total Submissions" value={s.total_submissions} sub={org?.name || "Current project"} trend={s.score_trend} color="#080D1A" sparkData={chartScores} />
-        <KpiCard label="Avg Trust Score" value={`${s.avg_score}`} sub={s.avg_score >= 80 ? "Excellent quality" : "Good quality"} color={GREEN} sparkData={chartScores} />
-        <KpiCard label="Pass Rate" value={`${s.pass_rate}%`} sub={`${s.pass_count} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />
-        <KpiCard label={`Active ${cap(vocab.enumerators)}`} value={s.active_enumerators} sub="All performing well" color={PURPLE} sparkData={(data.enumerators || []).slice(0, 7).map(e => e.avg_score)} />
+        <KpiCard label="Total Submissions" value={s.total_submissions} sub={org?.name || "Current project"} trend={(s.total_submissions ?? 0) > 0 ? s.score_trend : undefined} color="#080D1A" sparkData={chartScores} />
+        <KpiCard label="Avg Trust Score" value={(s.total_submissions ?? 0) > 0 ? `${s.avg_score}` : "—"} sub={(s.total_submissions ?? 0) === 0 ? "No data yet" : s.avg_score >= 80 ? "Excellent quality" : s.avg_score >= 60 ? "Good quality" : "Needs attention"} color={GREEN} sparkData={chartScores} />
+        <KpiCard label="Pass Rate" value={(s.total_submissions ?? 0) > 0 ? `${s.pass_rate}%` : "—"} sub={(s.total_submissions ?? 0) === 0 ? "No data yet" : `${s.pass_count} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />
+        <KpiCard label={`Active ${cap(vocab.enumerators)}`} value={s.active_enumerators} sub={(s.active_enumerators ?? 0) === 0 ? "None active yet" : `Across ${s.total_submissions} submission${s.total_submissions === 1 ? "" : "s"}`} color={PURPLE} sparkData={(data.enumerators || []).slice(0, 7).map(e => e.avg_score)} />
       </div>
 
       {/* Main content */}
