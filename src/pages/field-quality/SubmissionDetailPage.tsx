@@ -149,6 +149,9 @@ const FLAG_LABELS:Record<string,{label:string,severity:"high"|"medium"|"low"}> =
   AUDIO_EMPTY: {label:"No Speech Detected — the audio recording contains no speech",severity:"high"},
   AI_GENERATED_IMAGE: {label:"AI-Generated Image — the submitted photo shows signs of being AI-generated or synthetic, not a genuine field photo",severity:"high"},
   DOWNLOADED_IMAGE: {label:"Downloaded Image — reverse image search found this exact photo already published elsewhere on the internet",severity:"high"},
+  AI_GENERATED_RESPONSE: {label:"AI-Generated Response — one or more open-ended answers show signs of being written by an AI tool",severity:"high"},
+  IMAGE_PARSE_ERROR: {label:"Image Check Failed — the AI image review response could not be parsed",severity:"low"},
+  AUDIO_PARSE_ERROR: {label:"Audio Check Failed — the AI audio review response could not be parsed",severity:"low"},
 };
 
 // ScoreRing and EngineBar now live in src/components/ui (shared).
