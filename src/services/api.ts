@@ -135,7 +135,7 @@ export const analyticsApi = {
 };
 
 // ✅ SECURITY: Use environment variable for InsightScore URL
-const INSIGHT_API_URL = process.env.REACT_APP_INSIGHTSCORE_API_URL || 'https://web-production-f5bab.up.railway.app';
+const INSIGHT_API_URL = process.env.REACT_APP_INSIGHTSCORE_API_URL || 'https://insightscore-production.up.railway.app';
 
 const insightApi = axios.create({
   baseURL: INSIGHT_API_URL,
