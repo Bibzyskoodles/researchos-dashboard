@@ -150,6 +150,9 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const frameworkInputRef = React.useRef<HTMLInputElement>(null);
+  const [frameworkBusy, setFrameworkBusy] = useState(false);
+  const [frameworkError, setFrameworkError] = useState('');
 
   const handleDelete = async () => {
     if (!projectId) return;
@@ -159,6 +162,36 @@ export default function ProjectPage() {
       navigate('/projects');
     } catch {
       setDeleting(false);
+    }
+  };
+
+  const handleFrameworkFile = async (file: File) => {
+    if (!projectId) return;
+    setFrameworkError('');
+    setFrameworkBusy(true);
+    try {
+      const content = await file.text();
+      const res = await projectsApi.framework(projectId, { filename: file.name, content });
+      setProject(res.data.project);
+    } catch (e: any) {
+      setFrameworkError(e?.response?.data?.error || 'Could not upload framework — please try again.');
+    } finally {
+      setFrameworkBusy(false);
+      if (frameworkInputRef.current) frameworkInputRef.current.value = '';
+    }
+  };
+
+  const handleFrameworkRemove = async () => {
+    if (!projectId) return;
+    setFrameworkError('');
+    setFrameworkBusy(true);
+    try {
+      const res = await projectsApi.framework(projectId, { filename: '', content: '', indicators: '[]' });
+      setProject(res.data.project);
+    } catch (e: any) {
+      setFrameworkError(e?.response?.data?.error || 'Could not remove framework — please try again.');
+    } finally {
+      setFrameworkBusy(false);
     }
   };
 
@@ -338,8 +371,8 @@ export default function ProjectPage() {
             )}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <ActionBtn label="View all submissions" primary onClick={() => navigate(`/projects/${projectId}/collect`)} />
-              <ActionBtn label="Check webhook" />
-              <ActionBtn label="Add enumerators" />
+              <ActionBtn label="Check webhook" onClick={() => navigate('/integrations')} />
+              <ActionBtn label="Add enumerators" onClick={() => navigate('/enumerators')} />
             </div>
           </StageCard>
 
@@ -419,6 +452,13 @@ export default function ProjectPage() {
 
       {/* Framework section */}
       <div style={{ ...CARD, padding: '16px 20px', marginTop: 8 }}>
+        <input
+          ref={frameworkInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.txt,.csv,.xlsx"
+          style={{ display: 'none' }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFrameworkFile(f); }}
+        />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 2 }}>
@@ -431,19 +471,24 @@ export default function ProjectPage() {
           {project.framework_filename ? (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <span style={{ fontSize: 12, color: GREEN }}>✓ {project.framework_filename}</span>
-              <ActionBtn label="Replace" />
-              <ActionBtn label="Remove" />
+              <ActionBtn label={frameworkBusy ? 'Working…' : 'Replace'} onClick={() => !frameworkBusy && frameworkInputRef.current?.click()} />
+              <ActionBtn label={frameworkBusy ? 'Working…' : 'Remove'} onClick={() => !frameworkBusy && handleFrameworkRemove()} />
             </div>
           ) : (
-            <button style={{
-              border: '1.5px dashed #CBD5E1', background: 'none', borderRadius: 8,
-              padding: '8px 14px', fontSize: 12, color: '#6B7280', cursor: 'pointer',
-              fontFamily: 'Inter, sans-serif',
-            }}>
-              📄 Upload {studyType.framework_label}
+            <button
+              onClick={() => !frameworkBusy && frameworkInputRef.current?.click()}
+              style={{
+                border: '1.5px dashed #CBD5E1', background: 'none', borderRadius: 8,
+                padding: '8px 14px', fontSize: 12, color: '#6B7280', cursor: frameworkBusy ? 'default' : 'pointer',
+                fontFamily: 'Inter, sans-serif',
+              }}>
+              {frameworkBusy ? 'Uploading…' : `📄 Upload ${studyType.framework_label}`}
             </button>
           )}
         </div>
+        {frameworkError && (
+          <div style={{ fontSize: 11.5, color: RED, marginTop: 8 }}>{frameworkError}</div>
+        )}
       </div>
     </div>
   );
