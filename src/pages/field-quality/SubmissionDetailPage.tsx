@@ -357,9 +357,27 @@ export default function SubmissionDetailPage(){
         results.image = { score: 50, finding: "Backend AI-generation check unavailable for this submission.", status: "FLAG" };
       }
 
-      results.download = dimResult.flag
-        ? { score: 30, finding: dimResult.note, status: "FAIL" }
-        : { score: 90, finding: dimResult.note || "Dimensions consistent with a real camera/smartphone shot.", status: "PASS" };
+      // DOWNLOADED / STOCK PHOTO: sourced from the backend's reverse image
+      // search (Google Cloud Vision Web Detection) when it ran — the only
+      // way to actually confirm a photo exists elsewhere online, which a
+      // dimension heuristic can never do. Falls back to the client-side
+      // dimension check only when the backend result isn't present (e.g.
+      // GOOGLE_VISION_API_KEY not configured, or a submission scored before
+      // this check existed).
+      const isDownloaded = !!imgCheck?.image_downloaded;
+      const downloadConf = imgCheck?.image_downloaded_confidence || "LOW";
+      const downloadSigs: string[] = imgCheck?.image_downloaded_signals || [];
+      if (imgCheck && downloadSigs.length > 0) {
+        results.download = {
+          score: isDownloaded ? (downloadConf === "HIGH" ? 5 : 25) : 90,
+          finding: downloadSigs.length ? `Reverse image search: ${downloadSigs.join("; ")}` : "No matching copies of this image found on the public web.",
+          status: isDownloaded ? (downloadConf === "HIGH" ? "FAIL" : "FLAG") : "PASS",
+        };
+      } else {
+        results.download = dimResult.flag
+          ? { score: 30, finding: `${dimResult.note} (reverse image search unavailable for this submission — dimension check only)`, status: "FAIL" }
+          : { score: 90, finding: (dimResult.note || "Dimensions consistent with a real camera/smartphone shot.") + " (reverse image search unavailable for this submission — dimension check only)", status: "PASS" };
+      }
     }
 
     // AUDIO: backend engine result when available, heuristic transcript scan otherwise
