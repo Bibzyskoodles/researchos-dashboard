@@ -193,4 +193,21 @@ export const engineConfigApi = {
   save: (config: object) => api.put('/api/engine-config', config),
 };
 
+export const orgSettingsApi = {
+  getSettings: () => api.get('/api/org/settings'),
+  updateSettings: (data: object) => api.put('/api/org/settings', data),
+  getWorkspace: () => api.get('/api/org/workspace'),
+  updateWorkspace: (data: object) => api.put('/api/org/workspace', data),
+  getNotifications: () => api.get('/api/org/notifications'),
+  updateNotifications: (data: object) => api.put('/api/org/notifications', data),
+  getStorage: () => api.get('/api/org/storage'),
+  updateStorage: (data: object) => api.put('/api/org/storage', data),
+  getSecurity: () => api.get('/api/org/security'),
+  updateSecurity: (data: object) => api.put('/api/org/security', data),
+  getBilling: () => api.get('/api/org/billing'),
+  listInvites: () => api.get('/api/org/invites'),
+  createInvite: (email: string, role: string) => api.post('/api/org/invites', { email, role }),
+  revokeInvite: (id: string) => api.post(`/api/org/invites/${id}/revoke`),
+};
+
 export default api;

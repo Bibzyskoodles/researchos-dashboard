@@ -4,7 +4,7 @@ import {
   Building2, Layers, Users, Shield, Palette, Puzzle, Brain,
   FlaskConical, Database, Lock, Bell, CreditCard, Code2,
   ClipboardList, ChevronRight, Check, AlertTriangle, RefreshCw,
-  Upload, Plus, Trash2, Eye, EyeOff, Copy, Zap, Globe,
+  Upload, Plus, Trash2, Eye, EyeOff, Copy, Zap,
   Download, ExternalLink, X, ShieldAlert, Cpu, Send,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
@@ -15,7 +15,7 @@ import { useNavigate as useNav, useLocation } from "react-router-dom";
 import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
 import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
 import { useProject } from "../../context/ProjectContext";
-import { dashboardApi } from "../../services/api";
+import { dashboardApi, orgSettingsApi, projectsApi } from "../../services/api";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -162,13 +162,42 @@ const SECTIONS = [
 ];
 
 function OrgSection() {
-  const [name, setName] = useState("ResearchOS Demo Org");
+  const [name, setName] = useState("");
   const [industry, setIndustry] = useState("Research & Consulting");
   const [country, setCountry] = useState("Nigeria");
   const [timezone, setTimezone] = useState("Africa/Lagos");
-  const [website, setWebsite] = useState("https://researchos.io");
+  const [website, setWebsite] = useState("");
   const [saved, setSaved] = useState(false);
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    orgSettingsApi.getSettings()
+      .then(r => {
+        const d = r.data || {};
+        setName(d.name || "");
+        setIndustry(d.industry || "Research & Consulting");
+        setCountry(d.country || "Nigeria");
+        setTimezone(d.timezone || "Africa/Lagos");
+        setWebsite(d.website || "");
+      })
+      .catch(() => setLoadError("Could not load organisation settings."));
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    setSaveError("");
+    try {
+      await orgSettingsApi.updateSettings({ name, industry, country, timezone, website });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setSaveError(e?.response?.data?.error || "Could not save — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
@@ -189,8 +218,10 @@ function OrgSection() {
             <SettingsField label="Website" hint="Used in branded reports"><input style={INPUT} value={website} onChange={e => setWebsite(e.target.value)} /></SettingsField>
           </div>
         </SettingsGroup>
+        {loadError && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{loadError}</div>}
+        {saveError && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{saveError}</div>}
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-          <button onClick={save} style={BTN_PRIMARY}>{saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Changes"}</button>
+          <button onClick={save} disabled={saving} style={{ ...BTN_PRIMARY, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Changes"}</button>
         </div>
       </SettingsCard>
       <SettingsCard style={{ padding: 24 }}>
@@ -207,9 +238,42 @@ function OrgSection() {
 }
 
 function WorkspaceSection() {
-  const [wsName, setWsName] = useState("Lagos Retail Audit");
-  const [desc, setDesc] = useState("Primary workspace for Q3 2025 fieldwork");
+  const [wsName, setWsName] = useState("");
+  const [desc, setDesc] = useState("");
   const [lang, setLang] = useState("English");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; submission_count?: number; status?: string }>>([]);
+
+  useEffect(() => {
+    orgSettingsApi.getWorkspace()
+      .then(r => {
+        const d = r.data || {};
+        setWsName(d.name || "");
+        setDesc(d.description || "");
+        setLang(d.language || "English");
+      })
+      .catch(() => {});
+    projectsApi.list()
+      .then(r => setProjects(r.data?.projects || r.data || []))
+      .catch(() => {});
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      await orgSettingsApi.updateWorkspace({ name: wsName, description: desc, language: lang });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Could not save — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <SettingsCard style={{ padding: 24 }}>
       <SettingsGroup label="Workspace Configuration">
@@ -222,14 +286,19 @@ function WorkspaceSection() {
         </SettingsField>
       </SettingsGroup>
       <SectionDivider label="Active Projects" />
-      {[{ name: "Lagos Retail Audit", subs: 18, status: "active" },{ name: "Abuja Healthcare Survey", subs: 0, status: "draft" }].map(p => (
-        <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "#F8FAFF", border: "1px solid #EEF2F8", marginBottom: 8 }}>
+      {projects.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: "#9CA3AF", padding: "8px 0" }}>No projects yet.</div>
+      ) : projects.map(p => (
+        <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "#F8FAFF", border: "1px solid #EEF2F8", marginBottom: 8 }}>
           <div style={{ fontSize: 18 }}>📂</div>
-          <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{p.name}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{p.subs} submissions</div></div>
-          <Badge label={p.status} color={p.status === "active" ? GREEN : AMBER} />
+          <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{p.name}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{p.submission_count ?? 0} submissions</div></div>
+          <Badge label={p.status || "active"} color={p.status === "draft" ? AMBER : GREEN} />
         </div>
       ))}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Workspace</button></div>
+      {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+        <button onClick={save} disabled={saving} style={{ ...BTN_PRIMARY, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Workspace"}</button>
+      </div>
     </SettingsCard>
   );
 }
@@ -946,43 +1015,55 @@ function ResearchSection() {
 }
 
 function StorageSection() {
-  const usedGB = 2.4; const totalGB = 10; const pct = (usedGB / totalGB) * 100;
-  const breakdown = [
-    { label: "Media (Audio/Video)", gb: 1.8, color: BLUE },
-    { label: "Reports & Documents", gb: 0.4, color: PURPLE },
-    { label: "AI Processing Outputs", gb: 0.15, color: GREEN },
-    { label: "System & Logs", gb: 0.05, color: AMBER },
-  ];
+  const [autoDeleteAudio, setAutoDeleteAudio] = useState(true);
+  const [archiveOld, setArchiveOld] = useState(false);
+  const [keepAiOutputs, setKeepAiOutputs] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    orgSettingsApi.getStorage()
+      .then(r => {
+        const d = r.data || {};
+        if (d.auto_delete_audio !== undefined) setAutoDeleteAudio(d.auto_delete_audio);
+        if (d.archive_old !== undefined) setArchiveOld(d.archive_old);
+        if (d.keep_ai_outputs !== undefined) setKeepAiOutputs(d.keep_ai_outputs);
+      })
+      .catch(() => {});
+  }, []);
+
+  const save = async (next: { auto_delete_audio: boolean; archive_old: boolean; keep_ai_outputs: boolean }) => {
+    setSaving(true);
+    setError("");
+    try {
+      await orgSettingsApi.updateStorage(next);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Could not save — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Storage Overview">
-          <div style={{ padding: "20px 24px", background: "#F8FAFF", borderRadius: 12, border: "1px solid #EEF2F8" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{usedGB} GB used</span><span style={{ fontSize: 13, color: "#9CA3AF" }}>{totalGB} GB total</span></div>
-            <div style={{ height: 8, background: "#E2E8F0", borderRadius: 4, overflow: "hidden" }}>
-              <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, ease: "easeOut" }} style={{ height: "100%", background: `linear-gradient(to right, ${BLUE}, ${PURPLE})`, borderRadius: 4 }} />
-            </div>
-            <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 6 }}>{(totalGB - usedGB).toFixed(1)} GB available</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-            {breakdown.map(b => (
-              <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: b.color, flexShrink: 0 }} />
-                <div style={{ flex: 1, fontSize: 13, color: "#374151" }}>{b.label}</div>
-                <div style={{ flex: 2, height: 4, background: "#EEF2F8", borderRadius: 2, overflow: "hidden" }}>
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${(b.gb / totalGB) * 100}%` }} transition={{ duration: 1, delay: 0.2 }} style={{ height: "100%", background: b.color, borderRadius: 2 }} />
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", width: 48, textAlign: "right" }}>{b.gb} GB</div>
-              </div>
-            ))}
+          <div style={{ padding: "16px 18px", background: "#F8FAFF", borderRadius: 12, border: "1px solid #EEF2F8", fontSize: 12.5, color: "#6B7280" }}>
+            Storage usage reporting isn't available yet — media (audio/photo) is stored via your KoboToolbox/hosting provider, not billed per-GB here. This section controls retention policy only.
           </div>
         </SettingsGroup>
         <SectionDivider label="Retention Policy" />
         <SettingsGroup>
-          <Toggle value={true} onChange={() => {}} label="Auto-delete Raw Audio after 90 days" description="Audio files are deleted after analysis is complete" />
-          <Toggle value={false} onChange={() => {}} label="Archive submissions older than 12 months" description="Move to cold storage to reduce active storage usage" />
-          <Toggle value={true} onChange={() => {}} label="Keep AI outputs indefinitely" description="Insight reports and analysis are never auto-deleted" />
+          <Toggle value={autoDeleteAudio} onChange={v => { setAutoDeleteAudio(v); save({ auto_delete_audio: v, archive_old: archiveOld, keep_ai_outputs: keepAiOutputs }); }} label="Auto-delete Raw Audio after 90 days" description="Audio files are deleted after analysis is complete" />
+          <Toggle value={archiveOld} onChange={v => { setArchiveOld(v); save({ auto_delete_audio: autoDeleteAudio, archive_old: v, keep_ai_outputs: keepAiOutputs }); }} label="Archive submissions older than 12 months" description="Move to cold storage to reduce active storage usage" />
+          <Toggle value={keepAiOutputs} onChange={v => { setKeepAiOutputs(v); save({ auto_delete_audio: autoDeleteAudio, archive_old: archiveOld, keep_ai_outputs: v }); }} label="Keep AI outputs indefinitely" description="Insight reports and analysis are never auto-deleted" />
         </SettingsGroup>
+        {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
+        {saving && <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8 }}>Saving…</div>}
+        {saved && <div style={{ fontSize: 11.5, color: GREEN, marginTop: 8 }}>Saved</div>}
       </SettingsCard>
     </div>
   );
@@ -991,33 +1072,68 @@ function StorageSection() {
 function SecuritySection() {
   const [twoFa, setTwoFa] = useState(false);
   const [sso, setSso] = useState(false);
-  const [sessionTimeout, setSessionTimeout] = useState("8h");
+  const [sessionTimeout, setSessionTimeout] = useState("24h");
   const [ipRestrict, setIpRestrict] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+
+  const _mapMinsToCode = (mins: number) => mins <= 60 ? "1h" : mins <= 240 ? "4h" : mins <= 480 ? "8h" : mins <= 1440 ? "24h" : "7d";
+  const _mapCodeToMins = (code: string): number => ({ "1h": 60, "4h": 240, "8h": 480, "24h": 1440, "7d": 10080 }[code] || 1440);
+
+  useEffect(() => {
+    orgSettingsApi.getSecurity()
+      .then(r => {
+        const d = r.data || {};
+        setTwoFa(!!d.two_factor_enabled);
+        setSso(!!d.sso_enabled);
+        if (d.session_timeout_mins) setSessionTimeout(_mapMinsToCode(d.session_timeout_mins));
+        setIpRestrict(!!(d.ip_allowlist && d.ip_allowlist.length > 0));
+      })
+      .catch(() => {});
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const r = await orgSettingsApi.updateSecurity({
+        two_factor_enabled: twoFa, sso_enabled: sso,
+        session_timeout_mins: _mapCodeToMins(sessionTimeout),
+        ip_allowlist: ipRestrict ? [] : [],
+      });
+      setSaved(true);
+      setNote(r.data?.note || "");
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Could not save — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Authentication">
-          <Toggle value={twoFa} onChange={setTwoFa} label="Two-Factor Authentication" description="Require 2FA for all users in this organisation" />
-          <Toggle value={sso} onChange={setSso} label="Single Sign-On (SSO)" description="Enterprise plan required · Connect via SAML or OIDC" />
+          <Toggle value={twoFa} onChange={setTwoFa} label="Two-Factor Authentication" description="Records your intent — not yet enforced at login (no TOTP verification flow is built)" />
+          <Toggle value={sso} onChange={setSso} label="Single Sign-On (SSO)" description="Records your intent — requires an identity provider (SAML/OIDC) to be configured, not yet available" />
         </SettingsGroup>
         <SectionDivider label="Session Management" />
         <SettingsGroup>
-          <SettingsField label="Session Timeout">
+          <SettingsField label="Session Timeout" hint="How long a login stays valid before requiring re-authentication">
             <select style={{ ...INPUT }} value={sessionTimeout} onChange={e => setSessionTimeout(e.target.value)}>
               {[["1h","1 hour"],["4h","4 hours"],["8h","8 hours"],["24h","24 hours"],["7d","7 days"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </SettingsField>
-          <Toggle value={ipRestrict} onChange={setIpRestrict} label="IP Restriction" description="Only allow logins from specified IP ranges (Enterprise)" />
+          <Toggle value={ipRestrict} onChange={setIpRestrict} label="IP Restriction" description="Only allow logins from specified IP ranges (not yet enforced — allowlist editor coming later)" />
         </SettingsGroup>
-        <SectionDivider label="Active Sessions" />
-        {[{device:"Chrome · macOS",location:"Lagos, Nigeria",active:true,time:"Now"},{device:"Safari · iPhone",location:"Lagos, Nigeria",active:false,time:"2h ago"}].map((s,i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "#F8FAFF", border: "1px solid #EEF2F8", marginBottom: 8 }}>
-            <Globe size={16} color="#9CA3AF" />
-            <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{s.device}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{s.location} · {s.time}</div></div>
-            {s.active ? <Badge label="Current" color={GREEN} /> : <button style={{ ...BTN_GHOST, fontSize: 11, padding: "4px 10px", color: RED, borderColor: "#FEE2E2" }}>Revoke</button>}
-          </div>
-        ))}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Security Settings</button></div>
+        {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
+        {note && <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8 }}>{note}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+          <button onClick={save} disabled={saving} style={{ ...BTN_PRIMARY, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Security Settings"}</button>
+        </div>
       </SettingsCard>
     </div>
   );
@@ -1034,16 +1150,45 @@ function NotificationsSection() {
     {label:"Storage Warning",desc:"When storage exceeds 80%"},
     {label:"Integration Error",desc:"When a connected integration fails"},
   ];
-  const [prefs, setPrefs] = useState<Record<string,Record<string,boolean>>>(() => {
+  const defaultPrefs = (): Record<string,Record<string,boolean>> => {
     const init: Record<string,Record<string,boolean>> = {};
     events.forEach(e => { init[e.label] = {email:true,slack:false,inapp:true}; });
     return init;
-  });
+  };
+  const [prefs, setPrefs] = useState<Record<string,Record<string,boolean>>>(defaultPrefs);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    orgSettingsApi.getNotifications()
+      .then(r => { if (r.data && Object.keys(r.data).length > 0) setPrefs(r.data); })
+      .catch(() => {});
+  }, []);
+
   const toggle = (event: string, channel: string) => {
     setPrefs(p => ({...p,[event]:{...p[event],[channel]:!p[event][channel]}}));
   };
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      await orgSettingsApi.updateNotifications(prefs);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Could not save — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <SettingsCard style={{ padding: 24, overflowX: "auto" }}>
+      <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 14 }}>
+        Only Email delivery is currently wired up. Slack and In-App toggles save your preference for when those channels are built, but won't send anything yet.
+      </div>
       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 460 }}>
         <thead><tr><th style={{ ...LABEL, textAlign: "left", padding: "0 0 12px", width: "50%" }}>Event</th>{channels.map(c => <th key={c.id} style={{ ...LABEL, textAlign: "center", padding: "0 0 12px" }}>{c.label}</th>)}</tr></thead>
         <tbody>
@@ -1061,36 +1206,13 @@ function NotificationsSection() {
           ))}
         </tbody>
       </table>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Notifications</button></div>
+      {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+        <button onClick={save} disabled={saving} style={{ ...BTN_PRIMARY, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Notifications"}</button>
+      </div>
     </SettingsCard>
   );
 }
-
-// ─── Billing mock data ────────────────────────────────────────────────────────
-const MOCK_BILLING = {
-  plan: "Professional",
-  status: "active" as "active" | "trial" | "expired",
-  cycle_start: "2026-07-01",
-  cycle_end: "2026-07-31",
-  days_remaining: 24,
-  days_total: 31,
-  currency: "NGN" as "NGN" | "USD",
-  monthly_price: 350000,
-  next_billing: "2026-08-01",
-  payment_method: { type: "card", last4: "4242", brand: "Visa", expiry: "09/28" },
-  capacity: [
-    { key: "fieldscore",     label: "FieldScore Verifications",       hint: "Submissions scored by the fraud-detection engine", icon: "🔍", used: 347, total: 2000, color: "#2463EB" },
-    { key: "insightscore",   label: "Qualitative Interviews Analysed",hint: "Interviews processed through InsightScore AI",      icon: "💬", used: 12,  total: 200,  color: "#7C3AED" },
-    { key: "reports",        label: "Executive Reports",               hint: "Full narrative reports generated by Ada",           icon: "📄", used: 3,   total: 20,   color: "#059669" },
-    { key: "presentations",  label: "PowerPoint Decks",                hint: "Presentation-ready slide exports",                  icon: "📊", used: 1,   total: 10,   color: "#D97706" },
-    { key: "questionnaires", label: "AI Questionnaires",               hint: "Questionnaires designed by Ada",                    icon: "📋", used: 0,   total: 5,    color: "#06B6D4" },
-  ],
-  invoice_history: [
-    { date: "2026-07-01", amount: 350000, status: "paid", ref: "INV-2026-007" },
-    { date: "2026-06-01", amount: 350000, status: "paid", ref: "INV-2026-006" },
-    { date: "2026-05-01", amount: 350000, status: "paid", ref: "INV-2026-005" },
-  ],
-};
 
 // ─── Animated counter ─────────────────────────────────────────────────────────
 function AnimatedNumber({ target }: { target: number }) {
@@ -1119,32 +1241,43 @@ function useToast() {
 }
 
 // ─── BillingSection ───────────────────────────────────────────────────────────
+interface BillingData {
+  plan: string; status: string; trial_ends_at?: string | null;
+  usage_this_month: { submissions_scored: number; submissions_passed: number };
+  total_submissions_all_time: number;
+  payment_processing_configured: boolean;
+  invoices: Array<{ ref: string; amount: number; status: string; date: string }>;
+}
+
 function BillingSection() {
   const { addMessage, setState, setOpen } = useAda();
   const { creditsBalance } = useGamify();
-  const [currency, setCurrency] = useState<"NGN" | "USD">(MOCK_BILLING.currency);
-  const [barsReady, setBarsReady] = useState(false);
   const [adaQuestion, setAdaQuestion] = useState("");
   const [adaAnswer, setAdaAnswer] = useState<string | null>(null);
   const [adaAsking, setAdaAsking] = useState(false);
+  const [billing, setBilling] = useState<BillingData | null>(null);
+  const [billingError, setBillingError] = useState("");
   const toast = useToast();
 
-  const B = MOCK_BILLING;
-  const rate = 1600;
-  const fmt = (n: number) => currency === "NGN"
-    ? `₦${n.toLocaleString()}`
-    : `$${(n / rate).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  useEffect(() => {
+    orgSettingsApi.getBilling()
+      .then(r => setBilling(r.data))
+      .catch(() => setBillingError("Could not load billing information."));
+  }, []);
+
+  const B = billing || {
+    plan: "trial", status: "active", trial_ends_at: null,
+    usage_this_month: { submissions_scored: 0, submissions_passed: 0 },
+    total_submissions_all_time: 0, payment_processing_configured: false, invoices: [],
+  };
 
   const statusColor = B.status === "active" ? GREEN : B.status === "trial" ? AMBER : RED;
-  const statusLabel = B.status === "active" ? "Active" : B.status === "trial" ? "Trial" : "Expired";
+  const statusLabel = B.status === "active" ? "Active" : B.status === "trial" ? "Trial" : B.status;
+  const scored = B.usage_this_month.submissions_scored;
 
-  const primaryPct = Math.round((B.capacity[0].used / B.capacity[0].total) * 100);
-  const adaMsg =
-    primaryPct < 50
-      ? `You're well within this month's limits — ${B.capacity[0].used.toLocaleString()} of your ${B.capacity[0].total.toLocaleString()} FieldScore verifications used. Plenty of room for more fieldwork this cycle.`
-      : primaryPct < 80
-      ? `You've used about half your FieldScore capacity this cycle. Worth keeping an eye on it if you have more fieldwork planned before ${B.next_billing}.`
-      : `You're getting close to your monthly limit on FieldScore verifications. Consider upgrading before your cycle resets on ${B.next_billing}.`;
+  const adaMsg = billing
+    ? `You've scored ${scored.toLocaleString()} submission${scored === 1 ? "" : "s"} this month (${B.usage_this_month.submissions_passed.toLocaleString()} passed). ${B.total_submissions_all_time.toLocaleString()} total, all time.`
+    : "Loading your usage…";
 
   const adaSuggestions = [
     "How do I earn rewards credits?",
@@ -1182,10 +1315,6 @@ function BillingSection() {
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => { const t = setTimeout(() => setBarsReady(true), 100); return () => clearTimeout(t); }, []);
-
-  const handleDownload = () => toast.show("Invoice download coming soon.");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1288,22 +1417,15 @@ function BillingSection() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: "1px solid #F1F5F9", flexWrap: "wrap" as const, gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 20, fontWeight: 900, color: "#080D1A", letterSpacing: -0.5 }}>{B.plan}</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: "#080D1A", letterSpacing: -0.5, textTransform: "capitalize" as const }}>{B.plan}</span>
               <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: `${statusColor}14`, color: statusColor, border: `1px solid ${statusColor}30` }}>{statusLabel}</span>
             </div>
-            <div style={{ width: 1, height: 24, background: "#E8EDF5" }} />
-            <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-              {/* Currency toggle inline */}
-              {(["NGN","USD"] as const).map(c => (
-                <button key={c} onClick={() => setCurrency(c)}
-                  style={{ padding: "3px 8px", borderRadius: 5, border: "none", background: currency === c ? "#EFF6FF" : "transparent", color: currency === c ? BLUE : "#9CA3AF", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "Inter,sans-serif" }}>
-                  {c}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#080D1A", letterSpacing: -0.5 }}>
-              {fmt(B.monthly_price)}<span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>/mo</span>
-            </div>
+            {B.trial_ends_at && (
+              <>
+                <div style={{ width: 1, height: 24, background: "#E8EDF5" }} />
+                <span style={{ fontSize: 12.5, color: "#6B7280" }}>Trial ends {new Date(B.trial_ends_at).toLocaleDateString()}</span>
+              </>
+            )}
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {creditsBalance > 0 && (
@@ -1311,108 +1433,68 @@ function BillingSection() {
                 −₦{creditsBalance.toLocaleString()} rewards credit
               </span>
             )}
-            <span style={{ fontSize: 11.5, color: "#9CA3AF" }}>Next charge {B.next_billing}</span>
-            <button style={{ ...BTN_PRIMARY, fontSize: 12, padding: "8px 16px" }}>Upgrade →</button>
+            <a href="mailto:bibilade@intelligencyai.com.ng?subject=Upgrade%20request" style={{ ...BTN_PRIMARY, fontSize: 12, padding: "8px 16px", textDecoration: "none", display: "inline-block" }}>Contact us to upgrade →</a>
           </div>
         </div>
 
-        {/* Paystack + card row */}
+        {/* Payment status row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", flexWrap: "wrap" as const, gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {/* Paystack logo pill */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, border: "1px solid #E8EDF5", background: "#F8FAFF" }}>
-              <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
-                <rect width="32" height="32" rx="6" fill="#011B33"/>
-                <rect x="6" y="10" width="20" height="4" rx="2" fill="#00C3F7"/>
-                <rect x="6" y="18" width="14" height="4" rx="2" fill="#00C3F7" opacity="0.5"/>
-              </svg>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#374151", letterSpacing: 0.3 }}>Paystack</span>
-            </div>
-            <div style={{ width: 1, height: 20, background: "#E8EDF5" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 34, height: 22, borderRadius: 4, background: "#1A3A7A", display: "grid", placeItems: "center", fontSize: 8.5, fontWeight: 800, color: "white", letterSpacing: 0.3 }}>VISA</div>
-              <div>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: "#111827" }}>{B.payment_method.brand} ···· {B.payment_method.last4}</div>
-                <div style={{ fontSize: 10.5, color: "#9CA3AF" }}>Expires {B.payment_method.expiry}</div>
-              </div>
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <CreditCard size={16} color="#9CA3AF" />
+            <span style={{ fontSize: 12.5, color: "#6B7280" }}>
+              {B.payment_processing_configured ? "Payment processing is configured for this account." : "No payment method on file — payment processing isn't configured for this account yet."}
+            </span>
           </div>
-          <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 14px" }}>Update card</button>
         </div>
       </SettingsCard>
 
-      {/* ── Usage this cycle ── */}
+      {/* ── Usage this month ── */}
       <SettingsCard style={{ padding: 24 }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>Usage This Cycle</div>
-          <div style={{ fontSize: 11.5, color: "#9CA3AF" }}>Resets {B.next_billing}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>Usage This Month</div>
         </div>
+        {billingError && <div style={{ fontSize: 12, color: RED }}>{billingError}</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {B.capacity.map((cap, idx) => {
-            const pct = Math.round((cap.used / cap.total) * 100);
-            const remaining = cap.total - cap.used;
-            const isWarn = pct >= 80 && pct < 95;
-            const isCrit = pct >= 95;
-            const trackColor = isCrit ? RED : isWarn ? AMBER : cap.color;
-            const borderColor = isCrit ? "#FECACA" : isWarn ? "#FDE68A" : "#EEF2F8";
-            const bg = isCrit ? "#FFF5F5" : isWarn ? "#FFFBEB" : "white";
-            return (
-              <motion.div key={cap.key}
-                initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
-                style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${borderColor}`, background: bg }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 15, flexShrink: 0 }}>{cap.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, color: "#111827" }}>{cap.label}</div>
-                      <div style={{ fontSize: 12.5, fontWeight: 800, color: "#111827", fontVariantNumeric: "tabular-nums" as const }}>
-                        <AnimatedNumber target={cap.used} />
-                        <span style={{ fontSize: 11, fontWeight: 400, color: "#9CA3AF" }}>/{cap.total.toLocaleString()}</span>
-                      </div>
-                    </div>
-                    <div style={{ height: 4, background: "#F1F5F9", borderRadius: 2, overflow: "hidden" }}>
-                      <motion.div
-                        initial={{ width: 0 }} animate={{ width: barsReady ? `${pct}%` : 0 }}
-                        transition={{ duration: 0.7, ease: "easeOut", delay: 0.05 + idx * 0.04 }}
-                        style={{ height: "100%", background: trackColor, borderRadius: 2 }}
-                      />
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-                      <div style={{ fontSize: 10.5, color: "#9CA3AF" }}>{remaining.toLocaleString()} remaining</div>
-                      {isWarn && <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: AMBER, fontWeight: 700 }}><AlertTriangle size={10} /> Nearing limit</div>}
-                      {isCrit && <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: RED, fontWeight: 700 }}><AlertTriangle size={10} /> Limit reached</div>}
-                      {!isWarn && !isCrit && <div style={{ fontSize: 10.5, color: "#CBD5E1" }}>{pct}%</div>}
-                    </div>
+          <div style={{ padding: "12px 14px", borderRadius: 10, border: "1px solid #EEF2F8", background: "white" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 15, flexShrink: 0 }}>🔍</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: "#111827" }}>FieldScore Verifications</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "#111827", fontVariantNumeric: "tabular-nums" as const }}>
+                    <AnimatedNumber target={scored} />
                   </div>
                 </div>
-              </motion.div>
-            );
-          })}
+                <div style={{ fontSize: 10.5, color: "#9CA3AF" }}>{B.usage_this_month.submissions_passed.toLocaleString()} passed this month · {B.total_submissions_all_time.toLocaleString()} all-time</div>
+              </div>
+            </div>
+          </div>
         </div>
       </SettingsCard>
 
       {/* ── Invoice history ── */}
       <SettingsCard style={{ padding: 24 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 16 }}>Invoice History</div>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {B.invoice_history.map((inv, i) => (
-            <div key={inv.ref} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderBottom: i < B.invoice_history.length - 1 ? "1px solid #F8FAFF" : "none" }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F0FDF4", display: "grid", placeItems: "center", flexShrink: 0 }}>
-                <CreditCard size={13} color={GREEN} />
+        {B.invoices.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: "#9CA3AF" }}>No invoices yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {B.invoices.map((inv, i) => (
+              <div key={inv.ref} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderBottom: i < B.invoices.length - 1 ? "1px solid #F8FAFF" : "none" }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F0FDF4", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <CreditCard size={13} color={GREEN} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>₦{inv.amount.toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: "monospace" }}>{inv.ref} · {inv.date}</div>
+                </div>
+                <Badge label={inv.status} color={inv.status === "paid" ? GREEN : AMBER} />
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{fmt(inv.amount)}</div>
-                <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: "monospace" }}>{inv.ref} · {inv.date}</div>
-              </div>
-              <Badge label="Paid" color={GREEN} />
-              <button onClick={handleDownload} style={{ ...BTN_GHOST, fontSize: 11, padding: "5px 10px", display: "flex", alignItems: "center", gap: 4 }}>
-                <Download size={11} /> PDF
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         <div style={{ marginTop: 14, fontSize: 11.5, color: "#9CA3AF" }}>
-          For older invoices or billing queries, email{" "}
+          For billing queries, email{" "}
           <a href="mailto:bibilade@intelligencyai.com.ng" style={{ color: BLUE, textDecoration: "none" }}>bibilade@intelligencyai.com.ng</a>
         </div>
       </SettingsCard>
