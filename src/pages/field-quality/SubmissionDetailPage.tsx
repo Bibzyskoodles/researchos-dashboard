@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { dashboardApi } from "../../services/api";
@@ -11,6 +11,8 @@ import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Ca
 import { loadEngineConfig } from "../../services/engineConfig";
 import { computeTrustIndex, HARD_GATE_FLAGS } from "../../services/trustEngine";
 import type { TrustResult } from "../../services/trustEngine";
+import InvestigationPlayer from "../../investigation/InvestigationPlayer";
+import { useProject } from "../../context/ProjectContext";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED",CYAN="#06B6D4",ROSE="#E11D48";
 
@@ -173,6 +175,19 @@ export default function SubmissionDetailPage(){
   const [rescoring,setRescoring]=useState(false);
   const [rescoreResult,setRescoreResult]=useState<any>(null);
   const [rescoreError,setRescoreError]=useState("");
+  const [showInvestigation,setShowInvestigation]=useState(false);
+  const [scoringImageContext,setScoringImageContext]=useState<string|undefined>(undefined);
+  const { activeProject }=useProject();
+
+  // The project's real image_context, shown during the investigation's image
+  // step ("Expected: …"). Loaded best-effort; absent → the step omits it.
+  useEffect(()=>{
+    const pid=sub?.project_id;
+    if(!pid)return;
+    dashboardApi.getScoringConfig(pid)
+      .then(r=>{const c=r.data?.config||r.data;if(c?.image_context)setScoringImageContext(String(c.image_context));})
+      .catch(()=>{});
+  },[sub?.project_id]);
 
   useEffect(()=>{
     if(!id)return;
@@ -540,12 +555,29 @@ export default function SubmissionDetailPage(){
           <span style={{fontSize:12,color:"#9CA3AF"}}>{(sub as any).enumerator_name||sub.enumerator_id}</span>
           <span style={{fontSize:11,color:"#CBD5E1"}}>{sub.scored_at?new Date(sub.scored_at).toLocaleString():""}</span>
         </div>
+        <button onClick={()=>setShowInvestigation(true)}
+          title="Replay this submission's stored AI investigation as a step-by-step cinematic sequence — every observation shown is real engine output, nothing is re-run or invented"
+          style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,background:"linear-gradient(135deg,#0F172A,#1E2A4A)",border:"1px solid #2E3A5C",cursor:"pointer",fontSize:13,fontWeight:700,color:"white",fontFamily:"Inter,sans-serif"}}>
+          ▶ Replay Investigation
+        </button>
         <button onClick={()=>{setRescoreOpen(true);setRescoreResult(null);setRescoreError("");}}
           title="Re-evaluate this submission under current scoring rules — scores are frozen at the time they were first computed and don't update automatically when detection logic improves"
           style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,background:"white",border:"1px solid #E2E8F0",cursor:"pointer",fontSize:13,fontWeight:600,color:"#374151",fontFamily:"Inter,sans-serif"}}>
           <Cpu size={14}/> Rescore
         </button>
       </div>
+
+      {/* Investigation replay — pure frontend theatre over the stored checks */}
+      <AnimatePresence>
+        {showInvestigation&&(
+          <InvestigationPlayer
+            sub={sub}
+            onClose={()=>setShowInvestigation(false)}
+            projectName={activeProject?.name}
+            imageContext={scoringImageContext}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Rescore modal */}
       {rescoreOpen&&(

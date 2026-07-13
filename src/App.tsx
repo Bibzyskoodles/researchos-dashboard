@@ -28,6 +28,11 @@ import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 import OverviewPage from './pages/field-quality/OverviewPage';
 import SubmissionDetailPage from './pages/field-quality/SubmissionDetailPage';
 import ScorecardPage from './pages/field-quality/ScorecardPage';
+import LiveInvestigationPage from './pages/field-quality/LiveInvestigationPage';
+
+// The public FieldScore demo is lazy-loaded so its scripted dataset and
+// tour machinery never weigh down the main app bundle.
+const DemoPage = React.lazy(() => import('./demo/DemoPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -59,6 +64,13 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
+      {/* Public interactive demo — zero auth, zero API calls, fully scripted */}
+      <Route path="/demo" element={
+        <React.Suspense fallback={<div style={{ height: '100vh', background: '#0A0F1F', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,.5)', fontFamily: 'Inter,sans-serif', fontSize: 14 }}>Loading FieldScore demo…</div>}>
+          <DemoPage />
+        </React.Suspense>
+      } />
+
       <Route path="/" element={
         <ProtectedRoute>
           <ResearchProvider>
@@ -78,6 +90,7 @@ function AppRoutes() {
         <Route path="projects/:projectId/design" element={<DesignStagePage />} />
         <Route path="projects/:projectId/collect" element={<CollectStagePage />} />
         <Route path="projects/:projectId/verify" element={<VerifyStagePage />} />
+        <Route path="projects/:projectId/live" element={<LiveInvestigationPage />} />
         <Route path="projects/:projectId/verify/:id" element={<SubmissionDetailPage />} />
         <Route path="projects/:projectId/verify/enumerators" element={<EnumeratorsPage />} />
         <Route path="projects/:projectId/verify/map" element={<MapPage />} />
