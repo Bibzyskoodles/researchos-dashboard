@@ -27,6 +27,7 @@ import ReportsPage from './pages/reports/ReportsPage';
 import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 import OverviewPage from './pages/field-quality/OverviewPage';
 import SubmissionDetailPage from './pages/field-quality/SubmissionDetailPage';
+import ScorecardPage from './pages/field-quality/ScorecardPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -77,7 +78,7 @@ function AppRoutes() {
         <Route path="projects/:projectId/design" element={<DesignStagePage />} />
         <Route path="projects/:projectId/collect" element={<CollectStagePage />} />
         <Route path="projects/:projectId/verify" element={<VerifyStagePage />} />
-        <Route path="projects/:projectId/verify/:submissionId" element={<SubmissionsPage />} />
+        <Route path="projects/:projectId/verify/:id" element={<SubmissionDetailPage />} />
         <Route path="projects/:projectId/verify/enumerators" element={<EnumeratorsPage />} />
         <Route path="projects/:projectId/verify/map" element={<MapPage />} />
         <Route path="projects/:projectId/analyse" element={<AnalyseStagePage />} />
@@ -94,6 +95,7 @@ function AppRoutes() {
         <Route path="insights/:id" element={<Navigate to="/insights" replace />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="enumerators" element={<EnumeratorsPage />} />
+        <Route path="scorecard" element={<ScorecardPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="questionnaire" element={<Navigate to="/projects" replace />} />
