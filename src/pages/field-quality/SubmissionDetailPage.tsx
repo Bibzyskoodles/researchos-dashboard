@@ -367,7 +367,8 @@ export default function SubmissionDetailPage(){
       const isDownloaded = !!imgCheck?.image_downloaded;
       const downloadConf = imgCheck?.image_downloaded_confidence || "LOW";
       const downloadSigs: string[] = imgCheck?.image_downloaded_signals || [];
-      if (imgCheck && downloadSigs.length > 0) {
+      const downloadWasChecked = !!imgCheck?.image_downloaded_checked;
+      if (imgCheck && downloadWasChecked) {
         results.download = {
           score: isDownloaded ? (downloadConf === "HIGH" ? 5 : 25) : 90,
           finding: downloadSigs.length ? `Reverse image search: ${downloadSigs.join("; ")}` : "No matching copies of this image found on the public web.",
