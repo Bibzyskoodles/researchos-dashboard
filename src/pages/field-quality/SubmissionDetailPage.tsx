@@ -245,8 +245,20 @@ export default function SubmissionDetailPage(){
       const r=await dashboardApi.rescoreSubmission(id,rescoreLevel);
       setRescoreResult(r.data);
       if(r.data?.changed){
-        // Reflect the new verdict/score immediately without a full page reload.
-        setSub((s:any)=>s?{...s,overall_score:r.data.current.score,verdict:r.data.current.verdict,flags:r.data.current.flags}:s);
+        // Refetch the whole submission rather than patching individual
+        // fields — a partial patch (overall_score/verdict/flags only,
+        // as this used to do) left supervisor_action, checks, and every
+        // other field stale, so "Recommended action" could still read
+        // "No action required. Submission verified." under a fresh FLAG
+        // verdict. One source of truth: whatever the server now says.
+        try{
+          const full=await dashboardApi.getSubmission(id);
+          setSub(full.data);
+        }catch{
+          // Fetch failed — the rescore itself still succeeded, just tell
+          // the user to refresh manually rather than show stale fields.
+          setRescoreError("Rescore succeeded but the page couldn't refresh automatically — please reload.");
+        }
       }
     }catch(e:any){
       setRescoreError(e?.response?.data?.error||"Rescore failed — please try again.");
