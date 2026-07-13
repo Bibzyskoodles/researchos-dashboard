@@ -148,6 +148,7 @@ const FLAG_LABELS:Record<string,{label:string,severity:"high"|"medium"|"low"}> =
   AUDIO_AI_UNAVAILABLE: {label:"Audio Check Unavailable — the AI audio review could not be completed",severity:"low"},
   AUDIO_EMPTY: {label:"No Speech Detected — the audio recording contains no speech",severity:"high"},
   AI_GENERATED_IMAGE: {label:"AI-Generated Image — the submitted photo shows signs of being AI-generated or synthetic, not a genuine field photo",severity:"high"},
+  DOWNLOADED_IMAGE: {label:"Downloaded Image — reverse image search found this exact photo already published elsewhere on the internet",severity:"high"},
 };
 
 // ScoreRing and EngineBar now live in src/components/ui (shared).

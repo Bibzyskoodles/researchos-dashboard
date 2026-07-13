@@ -110,6 +110,7 @@ const FLAG_ENGINE_OVERRIDES: Record<string, { engine: EngineKey; score: number }
   AUDIO_QUALITY_ISSUE:     { engine: "audio",     score: 25 },
   IMAGE_QUALITY_ISSUE:     { engine: "image",     score: 25 },
   AI_GENERATED_IMAGE:      { engine: "image",     score: 5 },
+  DOWNLOADED_IMAGE:        { engine: "image",     score: 5 },
 };
 
 // A confirmed AI-generated image is fabricated evidence — as disqualifying
@@ -121,7 +122,7 @@ export const HARD_GATE_FLAGS = new Set([
   "DUPLICATE_SUBMISSION", "DUPLICATE_IMAGE", "DUPLICATE_AUDIO",
   "GPS_OUTSIDE_NIGERIA", "OUTSIDE_ASSIGNED_ZONE",
   "DURATION_NEGATIVE", "BACK_TO_BACK", "AUDIO_EMPTY",
-  "AI_GENERATED_IMAGE",
+  "AI_GENERATED_IMAGE", "DOWNLOADED_IMAGE",
 ]);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
