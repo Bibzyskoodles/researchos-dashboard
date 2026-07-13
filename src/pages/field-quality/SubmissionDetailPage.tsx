@@ -308,6 +308,10 @@ export default function SubmissionDetailPage(){
     const results: Partial<Pick<AiScan,"image"|"metadata"|"download"|"audio"|"text">> = {};
 
     if (sub.image_url) {
+      // AI-GENERATION VERDICT: sourced from the backend's authoritative engine
+      // (includes the filename check, metadata scan, and GPT-4o vision call).
+      const imgCheck = sub.checks?.image;
+
       let imageBlob: Blob | null = null;
       try {
         const imgResp = await fetch(sub.image_url, { mode: "cors" });
@@ -315,8 +319,19 @@ export default function SubmissionDetailPage(){
       } catch { /* CORS blocked — fall back to URL-based metadata scan */ }
 
       const [metaResult, dimResult] = await Promise.all([
-        // METADATA: EXIF/XMP/C2PA AI tool signatures (client-side, no API key)
-        imageBlob
+        // METADATA: prefer the backend's server-side EXIF/XMP/C2PA scan (it
+        // fetches the image directly, so it isn't subject to the browser CORS
+        // restriction that makes the client-side version fail on every
+        // Kobo-hosted image regardless of what the image actually contains).
+        (imgCheck && imgCheck.status !== "NOT_AVAILABLE")
+          ? (() => {
+              const metaSigs: string[] = imgCheck.ai_metadata_signals || [];
+              if (metaSigs.length > 0) {
+                return { score: 15, finding: `Metadata signals: ${metaSigs.join("; ")}.`, status: "FAIL" as const };
+              }
+              return { score: 90, finding: "No AI tool signatures or missing-camera-metadata patterns found.", status: "PASS" as const };
+            })()
+          : imageBlob
           ? (async () => {
               const arr = await imageBlob!.arrayBuffer();
               const bytes = new Uint8Array(arr);
@@ -340,9 +355,6 @@ export default function SubmissionDetailPage(){
 
       results.metadata = metaResult;
 
-      // AI-GENERATION VERDICT: sourced from the backend's authoritative engine
-      // (includes the filename check, metadata scan, and GPT-4o vision call).
-      const imgCheck = sub.checks?.image;
       if (imgCheck && imgCheck.status !== "NOT_AVAILABLE") {
         const isAi = !!imgCheck.ai_generated;
         const conf = imgCheck.ai_generated_confidence || "LOW";
