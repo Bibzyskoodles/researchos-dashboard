@@ -348,9 +348,10 @@ export default function SubmissionDetailPage(){
         const conf = imgCheck.ai_generated_confidence || "LOW";
         const authScore = isAi ? (conf === "HIGH" ? 5 : conf === "MEDIUM" ? 25 : 60) : Math.max(imgCheck.score ?? 70, 70);
         const sigs: string[] = imgCheck.ai_generated_signals || [];
+        const aiGenFinding = imgCheck.ai_generated_finding || imgCheck.finding || "";
         results.image = {
           score: authScore,
-          finding: sigs.length ? `${imgCheck.finding || ""} Signals: ${sigs.join("; ")}`.trim() : (imgCheck.finding || "No AI-generation signals detected."),
+          finding: sigs.length ? `${aiGenFinding} Signals: ${sigs.join("; ")}`.trim() : (aiGenFinding || "No AI-generation signals detected."),
           status: isAi ? (conf === "HIGH" ? "FAIL" : "FLAG") : "PASS",
         };
       } else {
