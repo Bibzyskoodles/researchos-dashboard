@@ -325,9 +325,16 @@ export default function SubmissionDetailPage(){
         // Kobo-hosted image regardless of what the image actually contains).
         (imgCheck && imgCheck.status !== "NOT_AVAILABLE")
           ? (() => {
+              // A single weak signal (e.g. missing EXIF alone) is inconclusive —
+              // ordinary re-shared/re-encoded photos lose EXIF too. Only 2+
+              // converging signals actually indicate something suspicious;
+              // matches the threshold ai_detection.py uses for the same data.
               const metaSigs: string[] = imgCheck.ai_metadata_signals || [];
-              if (metaSigs.length > 0) {
+              if (metaSigs.length >= 2) {
                 return { score: 15, finding: `Metadata signals: ${metaSigs.join("; ")}.`, status: "FAIL" as const };
+              }
+              if (metaSigs.length === 1) {
+                return { score: 70, finding: `One weak metadata signal (inconclusive on its own): ${metaSigs[0]}.`, status: "FLAG" as const };
               }
               return { score: 90, finding: "No AI tool signatures or missing-camera-metadata patterns found.", status: "PASS" as const };
             })()
