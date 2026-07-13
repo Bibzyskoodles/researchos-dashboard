@@ -137,10 +137,14 @@ export const analyticsApi = {
 // ✅ SECURITY: Use environment variable for InsightScore URL
 const INSIGHT_API_URL = process.env.REACT_APP_INSIGHTSCORE_API_URL || 'https://insightscore-production.up.railway.app';
 
+// InsightScore is a separate service with no cookie-based auth (its
+// endpoints aren't gated by the FieldScore session) — withCredentials here
+// makes the browser require a non-wildcard Access-Control-Allow-Origin,
+// which InsightScore's CORSMiddleware (allow_origins=["*"]) doesn't send,
+// so every request was silently blocked by CORS with no visible error
+// beyond the console.
 const insightApi = axios.create({
   baseURL: INSIGHT_API_URL,
-  // ✅ SECURITY: Send httpOnly cookies automatically
-  withCredentials: true,
 });
 
 // ✅ SECURITY: Don't manually add token - it's in httpOnly cookie
