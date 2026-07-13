@@ -14,6 +14,8 @@ import { orgAdminApi } from "../../services/api";
 import { useNavigate as useNav, useLocation } from "react-router-dom";
 import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
 import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
+import { useProject } from "../../context/ProjectContext";
+import { dashboardApi } from "../../services/api";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -1657,6 +1659,7 @@ function GatingToggle({ label, checked, onChange }: { label: string; checked: bo
 
 function EngineSection() {
   const { addMessage, setState } = useAda();
+  const { activeProject } = useProject();
   const _cfg = loadEngineConfig();
   const [weights, setWeights] = useState<WeightMap>({ ..._cfg.weights } as WeightMap);
   const [gating, setGating] = useState<GatingMap>({
@@ -1682,6 +1685,27 @@ function EngineSection() {
   const [aiMediumPenalty, setAiMediumPenalty] = useState(_cfg.aiMediumPenalty);
   const [aiMediumFlag, setAiMediumFlag] = useState(_cfg.aiMediumFlag);
   const [saved, setSaved] = useState(false);
+  const [backendSaveError, setBackendSaveError] = useState("");
+
+  // The image/audio context hints below used to be saved ONLY to this
+  // browser's localStorage — invisible to the actual scoring engine, which
+  // reads image_context/audio_context from the project's row in Postgres.
+  // A project could be set to "Health" here and the AI still had zero
+  // context for what a Health-project photo should look like. Load the
+  // real backend value (source of truth for scoring) when a project is
+  // active, so what's on screen matches what the AI actually uses.
+  useEffect(() => {
+    if (!activeProject?.id) return;
+    dashboardApi.getScoringConfig(activeProject.id)
+      .then(r => {
+        const c = r.data?.config || {};
+        if (c.image_context) setImageContentHint(c.image_context);
+        if (c.audio_context) setAudioContentHint(c.audio_context);
+        if (c.pass_threshold) setPassScoreThreshold(Number(c.pass_threshold));
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject?.id]);
 
   const totalW = ENGINE_ORDER.reduce((s, k) => s + (requirements[k as keyof EngineRequirements] !== "DISABLED" ? weights[k as keyof WeightMap] : 0), 0);
 
@@ -1718,6 +1742,24 @@ function EngineSection() {
       aiMediumPenalty,
       aiMediumFlag,
     });
+
+    // Also push the context hints + threshold to the backend, project-scoped —
+    // this is what the actual scoring engine reads (config_loader.py). Without
+    // this, the fields above only ever affected the frontend's own re-display
+    // math, never what the AI checks were told about the project.
+    setBackendSaveError("");
+    if (activeProject?.id) {
+      dashboardApi.updateScoringConfig(activeProject.id, {
+        image_context: imageContentHint.trim(),
+        audio_context: audioContentHint.trim(),
+        pass_threshold: passScoreThreshold,
+      }).catch(() => setBackendSaveError(
+        "Saved locally, but couldn't save to the server — the AI checks won't see this context until it's retried."
+      ));
+    } else {
+      setBackendSaveError("No active project selected — image/audio context was only saved to this browser, not to the scoring engine.");
+    }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     setState("thinking");
@@ -1837,15 +1879,18 @@ function EngineSection() {
                 )}
                 {isEnabled && key === "image" && (
                   <div style={{ marginTop: 10 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "#9CA3AF", marginBottom: 4 }}>What should the photo show? <span style={{ fontWeight: 400 }}>(guides reviewers)</span></div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "#9CA3AF", marginBottom: 4 }}>What should the photo show? <span style={{ fontWeight: 400 }}>(sent to the AI image check for this project)</span></div>
                     <input value={imageContentHint} onChange={e => setImageContentHint(e.target.value)}
-                      placeholder="e.g. Respondent's face and household entry clearly visible"
+                      placeholder="e.g. Health facility survey — clinics, health workers, patients, medical equipment"
                       style={{ ...INPUT, fontSize: 12 }} />
+                    {!activeProject?.id && (
+                      <div style={{ fontSize: 10.5, color: "#D97706", marginTop: 4 }}>No active project — select one from the sidebar so this reaches the scoring engine, not just this browser.</div>
+                    )}
                   </div>
                 )}
                 {isEnabled && key === "audio" && (
                   <div style={{ marginTop: 10 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "#9CA3AF", marginBottom: 4 }}>What should the audio capture? <span style={{ fontWeight: 400 }}>(guides reviewers)</span></div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "#9CA3AF", marginBottom: 4 }}>What should the audio capture? <span style={{ fontWeight: 400 }}>(sent to the AI audio check for this project)</span></div>
                     <input value={audioContentHint} onChange={e => setAudioContentHint(e.target.value)}
                       placeholder="e.g. Both interviewer and respondent voices, full questionnaire duration"
                       style={{ ...INPUT, fontSize: 12 }} />
@@ -2027,6 +2072,11 @@ function EngineSection() {
         </div>
       </SettingsCard>
 
+      {backendSaveError && (
+        <div style={{ fontSize: 12, color: "#D97706", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "10px 14px" }}>
+          {backendSaveError}
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button onClick={save} style={BTN_PRIMARY}>
           {saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Engine Config"}

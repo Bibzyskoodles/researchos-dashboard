@@ -71,6 +71,10 @@ export const dashboardApi = {
     api.get(`/api/submissions/${id}/rescore-history`),
   rescoreProject: (projectId: string, level: 'recompute' | 'full', filter?: 'all' | 'flagged_only') =>
     api.post(`/api/projects/${projectId}/rescore`, { level, filter: filter || 'all' }),
+  getScoringConfig: (projectId: string) =>
+    api.get(`/api/projects/${projectId}/scoring-config`),
+  updateScoringConfig: (projectId: string, config: Record<string, any>) =>
+    api.put(`/api/projects/${projectId}/scoring-config`, config),
 };
 
 export const questionnaireApi = {
