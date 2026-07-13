@@ -65,6 +65,12 @@ export const dashboardApi = {
     api.delete(`/api/submissions/${id}`),
   bulkDelete: (ids: string[]) =>
     api.post('/api/submissions/bulk-delete', { ids }),
+  rescoreSubmission: (id: string, level: 'recompute' | 'full') =>
+    api.post(`/api/submissions/${id}/rescore`, { level }),
+  rescoreHistory: (id: string) =>
+    api.get(`/api/submissions/${id}/rescore-history`),
+  rescoreProject: (projectId: string, level: 'recompute' | 'full', filter?: 'all' | 'flagged_only') =>
+    api.post(`/api/projects/${projectId}/rescore`, { level, filter: filter || 'all' }),
 };
 
 export const questionnaireApi = {

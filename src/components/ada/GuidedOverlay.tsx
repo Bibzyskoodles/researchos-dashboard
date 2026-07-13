@@ -20,7 +20,6 @@ async function speakText(
   onStart?: () => void,
   onEnd?: () => void,
 ): Promise<void> {
-  const OAI_KEY = process.env.REACT_APP_OPENAI_KEY || '';
   const clean = text.replace(/\n/g, ' ').trim();
   if (!clean) { onEnd?.(); return; }
 
@@ -51,18 +50,6 @@ async function speakText(
           model_id: 'eleven_turbo_v2_5',
           voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.3, use_speaker_boost: true },
         }),
-      });
-      if (res.ok && await playBlob(await res.blob())) return;
-    } catch { /* fall through */ }
-  }
-
-  if (OAI_KEY) {
-    try {
-      stopPrev();
-      const res = await fetch('https://api.openai.com/v1/audio/speech', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${OAI_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'tts-1-hd', input: clean, voice: 'shimmer', speed: 1.0 }),
       });
       if (res.ok && await playBlob(await res.blob())) return;
     } catch { /* fall through */ }

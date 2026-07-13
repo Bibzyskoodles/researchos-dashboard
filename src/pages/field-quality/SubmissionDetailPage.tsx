@@ -163,6 +163,11 @@ export default function SubmissionDetailPage(){
   const [aiScan,setAiScan]=useState<AiScan>({status:"idle"});
   const [imageError,setImageError]=useState(false);
   const [engineCfgVersion,setEngineCfgVersion]=useState(0);
+  const [rescoreOpen,setRescoreOpen]=useState(false);
+  const [rescoreLevel,setRescoreLevel]=useState<"recompute"|"full">("recompute");
+  const [rescoring,setRescoring]=useState(false);
+  const [rescoreResult,setRescoreResult]=useState<any>(null);
+  const [rescoreError,setRescoreError]=useState("");
 
   useEffect(()=>{
     if(!id)return;
@@ -228,6 +233,24 @@ export default function SubmissionDetailPage(){
       showToast("Action failed — please try again");
     }finally{
       setActing("");
+    }
+  };
+
+  const runRescore=async()=>{
+    if(!id)return;
+    setRescoring(true);
+    setRescoreError("");
+    try{
+      const r=await dashboardApi.rescoreSubmission(id,rescoreLevel);
+      setRescoreResult(r.data);
+      if(r.data?.changed){
+        // Reflect the new verdict/score immediately without a full page reload.
+        setSub((s:any)=>s?{...s,overall_score:r.data.current.score,verdict:r.data.current.verdict,flags:r.data.current.flags}:s);
+      }
+    }catch(e:any){
+      setRescoreError(e?.response?.data?.error||"Rescore failed — please try again.");
+    }finally{
+      setRescoring(false);
     }
   };
 
@@ -447,7 +470,91 @@ export default function SubmissionDetailPage(){
           <span style={{fontSize:12,color:"#9CA3AF"}}>{(sub as any).enumerator_name||sub.enumerator_id}</span>
           <span style={{fontSize:11,color:"#CBD5E1"}}>{sub.scored_at?new Date(sub.scored_at).toLocaleString():""}</span>
         </div>
+        <button onClick={()=>{setRescoreOpen(true);setRescoreResult(null);setRescoreError("");}}
+          title="Re-evaluate this submission under current scoring rules — scores are frozen at the time they were first computed and don't update automatically when detection logic improves"
+          style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,background:"white",border:"1px solid #E2E8F0",cursor:"pointer",fontSize:13,fontWeight:600,color:"#374151",fontFamily:"Inter,sans-serif"}}>
+          <Cpu size={14}/> Rescore
+        </button>
       </div>
+
+      {/* Rescore modal */}
+      {rescoreOpen&&(
+        <div onClick={()=>!rescoring&&setRescoreOpen(false)}
+          style={{position:"fixed",inset:0,background:"rgba(8,13,26,.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"white",borderRadius:16,padding:24,width:420,maxWidth:"100%",boxShadow:"0 20px 60px rgba(8,13,26,.35)"}}>
+            <div style={{fontSize:15,fontWeight:800,color:"#080D1A",marginBottom:4}}>Rescore this submission?</div>
+            <div style={{fontSize:12,color:"#6B7280",marginBottom:16,lineHeight:1.5}}>
+              Scores are frozen the moment a submission arrives. If detection logic has improved since, the stored verdict may be out of date.
+            </div>
+
+            {!rescoreResult&&(
+              <>
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:18}}>
+                  <label style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:9,border:`1px solid ${rescoreLevel==="recompute"?BLUE:"#E2E8F0"}`,background:rescoreLevel==="recompute"?"#F8FAFF":"white",cursor:"pointer"}}>
+                    <input type="radio" checked={rescoreLevel==="recompute"} onChange={()=>setRescoreLevel("recompute")} style={{marginTop:3}}/>
+                    <div>
+                      <div style={{fontSize:12.5,fontWeight:700,color:"#080D1A"}}>Quick recompute</div>
+                      <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>Apply current scoring rules to the evidence already collected. Instant, no cost.</div>
+                    </div>
+                  </label>
+                  <label style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:9,border:`1px solid ${rescoreLevel==="full"?BLUE:"#E2E8F0"}`,background:rescoreLevel==="full"?"#F8FAFF":"white",cursor:"pointer"}}>
+                    <input type="radio" checked={rescoreLevel==="full"} onChange={()=>setRescoreLevel("full")} style={{marginTop:3}}/>
+                    <div>
+                      <div style={{fontSize:12.5,fontWeight:700,color:"#080D1A"}}>Full rescore</div>
+                      <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>Re-run every AI check from the original submission. Takes ~30 seconds; only available if this submission was ingested recently enough to have a stored raw payload.</div>
+                    </div>
+                  </label>
+                </div>
+                {rescoreError&&(
+                  <div style={{fontSize:12,color:RED,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 12px",marginBottom:14}}>{rescoreError}</div>
+                )}
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <button onClick={()=>setRescoreOpen(false)} disabled={rescoring}
+                    style={{padding:"8px 16px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:rescoring?"default":"pointer",fontSize:12.5,fontWeight:600,color:"#6B7280",fontFamily:"Inter,sans-serif"}}>Cancel</button>
+                  <button onClick={runRescore} disabled={rescoring}
+                    style={{padding:"8px 18px",borderRadius:8,border:"none",background:BLUE,cursor:rescoring?"default":"pointer",fontSize:12.5,fontWeight:700,color:"white",fontFamily:"Inter,sans-serif",opacity:rescoring?.7:1}}>
+                    {rescoring?"Rescoring…":"Rescore"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {rescoreResult&&(
+              <div>
+                <div style={{fontSize:13,fontWeight:800,color:"#080D1A",marginBottom:12}}>Rescore complete</div>
+                {rescoreResult.changed?(
+                  <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+                      <span style={{color:"#9CA3AF"}}>Trust Index:</span>
+                      <strong style={{fontFamily:"monospace"}}>{rescoreResult.previous.score}</strong>
+                      <span style={{color:"#9CA3AF"}}>→</span>
+                      <strong style={{fontFamily:"monospace",color:clr(rescoreResult.current.score)}}>{rescoreResult.current.score}</strong>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+                      <span style={{color:"#9CA3AF"}}>Verdict:</span>
+                      <strong>{rescoreResult.previous.verdict}</strong>
+                      <span style={{color:"#9CA3AF"}}>→</span>
+                      <strong style={{color:vclr(rescoreResult.current.verdict)}}>{rescoreResult.current.verdict}</strong>
+                    </div>
+                    {rescoreResult.current.flags?.filter((f:string)=>!rescoreResult.previous.flags?.includes(f)).map((f:string)=>(
+                      <div key={f} style={{fontSize:12,color:RED,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:7,padding:"5px 10px",width:"fit-content"}}>New flag: {f}</div>
+                    ))}
+                  </div>
+                ):(
+                  <div style={{fontSize:13,color:"#6B7280",marginBottom:16}}>No change — this submission was already scored correctly under current logic.</div>
+                )}
+                <div style={{display:"flex",justifyContent:"flex-end"}}>
+                  <button onClick={()=>window.location.reload()}
+                    style={{padding:"8px 18px",borderRadius:8,border:"none",background:BLUE,cursor:"pointer",fontSize:12.5,fontWeight:700,color:"white",fontFamily:"Inter,sans-serif"}}>
+                    Done — refresh page
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Ada Briefing */}
       <div style={{background:"linear-gradient(135deg,#1A1F3E 0%,#0F172A 40%,#1E1B4B 100%)",borderRadius:16,padding:"24px 28px",border:"1px solid rgba(255,255,255,.06)"}}>
