@@ -1702,6 +1702,13 @@ function EngineSection() {
         if (c.image_context) setImageContentHint(c.image_context);
         if (c.audio_context) setAudioContentHint(c.audio_context);
         if (c.pass_threshold) setPassScoreThreshold(Number(c.pass_threshold));
+        // Project-level zone (fallback gate — an enumerator's own assigned
+        // zone below always wins over this when set). Same staleness bug as
+        // image_context: this used to only ever reach localStorage.
+        if (c.zone_lat != null && c.zone_lat !== "") setZoneLat(String(c.zone_lat));
+        if (c.zone_lon != null && c.zone_lon !== "") setZoneLon(String(c.zone_lon));
+        if (c.zone_radius_m) setZoneRadius(Number(c.zone_radius_m));
+        if (c.zone_label) setZoneLabel(c.zone_label);
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1753,6 +1760,10 @@ function EngineSection() {
         image_context: imageContentHint.trim(),
         audio_context: audioContentHint.trim(),
         pass_threshold: passScoreThreshold,
+        zone_lat: zoneLat.trim() !== "" && !isNaN(Number(zoneLat)) ? Number(zoneLat) : null,
+        zone_lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
+        zone_radius_m: zoneRadius,
+        zone_label: zoneLabel.trim(),
       }).catch(() => setBackendSaveError(
         "Saved locally, but couldn't save to the server — the AI checks won't see this context until it's retried."
       ));
@@ -1906,8 +1917,13 @@ function EngineSection() {
       <SettingsCard style={{ padding: 24 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>📍 Assigned Zone Verification</div>
         <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
-          Tell FieldScore where enumeration should happen and it verifies every submission's GPS against that location using great-circle (haversine) distance. Inside the radius corroborates presence; outside it is treated as a critical violation and the submission is rejected for review. <strong>Leave the coordinates empty to skip verification</strong> — the platform will simply show where each enumeration actually happened (coordinates and address).
+          Tell FieldScore where enumeration should happen and it verifies every submission's GPS against that location using great-circle (haversine) distance. Inside the radius corroborates presence; outside it is treated as a critical violation and the submission is rejected for review. <strong>Leave the coordinates empty to skip verification</strong> — the platform will simply show where each enumeration actually happened (coordinates and address). If an individual enumerator has their own assigned zone set, it always takes priority over this project-level one.
         </div>
+        {!activeProject?.id && (
+          <div style={{ fontSize: 11.5, color: "#D97706", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "8px 12px", marginBottom: 14 }}>
+            No active project selected — this will only be saved to this browser, not to the scoring engine.
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {[
             { label: "Latitude", value: zoneLat, set: setZoneLat, placeholder: "e.g. 6.5158" },
@@ -1942,6 +1958,9 @@ function EngineSection() {
         <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>🗺 Field Site Zone List</div>
         <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 14, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
           Real projects often have <strong>many field sites</strong> (e.g. 40 health centres). Add each one here. When zones are listed, FieldScore picks the <strong>closest zone</strong> to each submission's GPS coordinates and verifies against it — so one config serves the whole project. When this list has entries, the single zone above is ignored.
+        </div>
+        <div style={{ fontSize: 11.5, color: "#D97706", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "8px 12px", marginBottom: 14 }}>
+          Not yet enforced by the scoring engine — this list only affects this browser's own display right now, unlike the single zone above (which is real). Use the single zone field for an actual enforced project geofence until multi-site support is wired to the backend.
         </div>
 
         {/* Existing zones */}
