@@ -114,8 +114,10 @@ const FLAG_ENGINE_OVERRIDES: Record<string, { engine: EngineKey; score: number }
 
 // A confirmed AI-generated image is fabricated evidence — as disqualifying
 // as a duplicate submission or GPS outside the survey country, not a
-// weighted-average nudge.
-const HARD_GATE_FLAGS = new Set([
+// weighted-average nudge. Exported so any narrative/UI code (e.g. Ada's
+// briefing) can lead with "this is why it was rejected" using the same
+// classification as the scoring math, instead of drifting out of sync.
+export const HARD_GATE_FLAGS = new Set([
   "DUPLICATE_SUBMISSION", "DUPLICATE_IMAGE", "DUPLICATE_AUDIO",
   "GPS_OUTSIDE_NIGERIA", "OUTSIDE_ASSIGNED_ZONE",
   "DURATION_NEGATIVE", "BACK_TO_BACK", "AUDIO_EMPTY",

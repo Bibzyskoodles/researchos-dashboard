@@ -9,7 +9,7 @@ import { ScoreRing } from "../../components/ui/ScoreRing";
 import { EngineBar } from "../../components/ui/EngineBar";
 import { ArrowLeft, Copy, CheckCircle, XCircle, AlertTriangle, Clock, MapPin, Camera, Mic, Shield, Cpu, Sparkles } from "lucide-react";
 import { loadEngineConfig } from "../../services/engineConfig";
-import { computeTrustIndex } from "../../services/trustEngine";
+import { computeTrustIndex, HARD_GATE_FLAGS } from "../../services/trustEngine";
 import type { TrustResult } from "../../services/trustEngine";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED",CYAN="#06B6D4",ROSE="#E11D48";
@@ -147,6 +147,7 @@ const FLAG_LABELS:Record<string,{label:string,severity:"high"|"medium"|"low"}> =
   IMAGE_AI_UNAVAILABLE: {label:"Image Check Unavailable — the AI image review could not be completed",severity:"low"},
   AUDIO_AI_UNAVAILABLE: {label:"Audio Check Unavailable — the AI audio review could not be completed",severity:"low"},
   AUDIO_EMPTY: {label:"No Speech Detected — the audio recording contains no speech",severity:"high"},
+  AI_GENERATED_IMAGE: {label:"AI-Generated Image — the submitted photo shows signs of being AI-generated or synthetic, not a genuine field photo",severity:"high"},
 };
 
 // ScoreRing and EngineBar now live in src/components/ui (shared).
@@ -385,6 +386,20 @@ export default function SubmissionDetailPage(){
     const missingNote = missingLabels.length > 0
       ? ` ${missingLabels.length === 1 ? missingLabels[0] : missingLabels.slice(0,-1).join(", ") + " and " + missingLabels[missingLabels.length-1]} ${missingLabels.length === 1 ? "wasn't" : "weren't"} available for this submission — that's excluded from scoring, not held against the enumerator, but it does mean this verdict is based on ${completenessPct}% of possible evidence.`
       : "";
+    // A hard-gated verdict (e.g. AI_GENERATED_IMAGE, DUPLICATE_SUBMISSION) is
+    // driven entirely by ONE engine's own finding — that engine must be named
+    // and quoted here. Without this, the narrative could discuss five other
+    // engines being unavailable while never mentioning the one that actually
+    // decided the verdict (previously observed: verdict REJECT for
+    // AI_GENERATED_IMAGE, but the Image engine itself was never described).
+    const hardGateFlag = flagArr.find(f => HARD_GATE_FLAGS.has(f));
+    const hardGateEngine = hardGateFlag
+      ? trustResult?.breakdown.find(b => b.flagOverride === hardGateFlag)
+      : undefined;
+    const hardGateFinding = hardGateEngine ? s.checks?.[hardGateEngine.key]?.finding : "";
+    const hardGateNote = hardGateEngine
+      ? ` ${hardGateEngine.label} is why: ${hardGateFinding || FLAG_LABELS[hardGateFlag!]?.label || hardGateFlag} (score forced to ${hardGateEngine.effectiveScore}, hard gate — this alone determines the verdict regardless of every other engine).`
+      : "";
     if(verdict==="PASS"){
       if(flagArr.length===0){
         return `This submission passed every check it was measured against. GPS verified${s.gps?.address?` in ${s.gps.address.split(",")[0]}`:""}, interview duration is appropriate.${missingNote}`;
@@ -394,9 +409,9 @@ export default function SubmissionDetailPage(){
     }
     if(verdict==="FLAG"){
       const flagList=flagDesc.slice(0,2).join("; ");
-      return `I found some concerns with this submission. ${flagList}.${missingNote} I recommend reviewing before approving for analysis.`;
+      return `I found some concerns with this submission. ${flagList}.${hardGateNote}${missingNote} I recommend reviewing before approving for analysis.`;
     }
-    return `This submission failed quality verification. ${flagDesc.slice(0,2).join("; ")}.${missingNote} I recommend rejecting this submission.`;
+    return `This submission failed quality verification. ${flagDesc.slice(0,2).join("; ")}.${hardGateNote}${missingNote} I recommend rejecting this submission.`;
   };
 
   // Memoized so detail score always matches list (same config snapshot, re-runs on config change)
