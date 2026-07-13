@@ -304,48 +304,27 @@ function WorkspaceSection() {
 }
 
 // ─── Collaboration & Team ─────────────────────────────────────────────────────
+// Real roles are admin/manager/viewer (see auth.py's ROLE_PERMISSIONS) — the
+// richer 7-role model this UI previously implied (Project Manager, Field
+// Supervisor, Analyst, Auditor, Client, Observer) was never actually backed
+// by distinct permissions, so it's collapsed to what's real rather than kept
+// as a misleading facade.
 
-const ROLE_META: Record<string, { color: string; bg: string; desc: string; scope: string; icon: string }> = {
-  Admin:            { color: "#7C3AED", bg: "#F5F3FF", desc: "Full org control — billing, settings, all projects, all data.", scope: "Organisation", icon: "👑" },
-  "Project Manager":{ color: "#2463EB", bg: "#EFF6FF", desc: "Creates and manages projects. Invites team members and field supervisors.", scope: "Organisation", icon: "🗂" },
-  "Field Supervisor":{ color: "#0891B2", bg: "#ECFEFF", desc: "Oversees enumerators. Can flag submissions, manage field team, invite upward for oversight.", scope: "Project", icon: "🏕" },
-  Analyst:          { color: "#059669", bg: "#ECFDF5", desc: "Analyses data, generates and shares reports. No field team management.", scope: "Project", icon: "📊" },
-  Client:           { color: "#D97706", bg: "#FFFBEB", desc: "External stakeholder. Sees only deliverables (reports & dashboards) for assigned projects.", scope: "Project", icon: "🤝" },
-  Auditor:          { color: "#6B7280", bg: "#F9FAFB", desc: "Read-only access to everything including the audit log. For oversight and compliance.", scope: "Organisation", icon: "🔍" },
-  Observer:         { color: "#9CA3AF", bg: "#F3F4F6", desc: "Temporary read-only access. Expires automatically — useful for pilots and demos.", scope: "Project", icon: "👁" },
+const ROLE_META: Record<string, { color: string; bg: string; desc: string; icon: string }> = {
+  admin:   { color: "#7C3AED", bg: "#F5F3FF", desc: "Full org control — billing, settings, users, all projects and data.", icon: "👑" },
+  manager: { color: "#2463EB", bg: "#EFF6FF", desc: "Creates and manages projects, views and exports data. Can't manage users or billing.", icon: "🗂" },
+  viewer:  { color: "#6B7280", bg: "#F9FAFB", desc: "Read-only access to projects and reports.", icon: "👁" },
 };
+const ROLE_LABELS: Record<string, string> = { admin: "Admin", manager: "Manager", viewer: "Viewer" };
 
-interface CollabUser {
-  id: string; name: string; email: string; role: string;
-  status: "active" | "pending" | "expired";
-  projects: string[]; last: string; invitedBy?: string; expiresAt?: string;
-  type: "internal" | "client" | "observer";
-}
-
-const MOCK_TEAM: CollabUser[] = [
-  { id:"1", name:"Bibzi Adeoyeleke", email:"bibiladeoyeleke@gmail.com", role:"Admin", status:"active", projects:["All"], last:"Just now", type:"internal" },
-  { id:"2", name:"Amara Okafor", email:"amara@intelligencyai.com.ng", role:"Project Manager", status:"active", projects:["All"], last:"2h ago", type:"internal" },
-  { id:"3", name:"Tunde Lawal", email:"tunde@intelligencyai.com.ng", role:"Field Supervisor", status:"active", projects:["Lagos Baseline 2025","Kano Pilot"], last:"Yesterday", type:"internal", invitedBy:"Amara Okafor" },
-  { id:"4", name:"Ngozi Ibe", email:"ngozi@intelligencyai.com.ng", role:"Analyst", status:"active", projects:["Lagos Baseline 2025"], last:"3d ago", type:"internal", invitedBy:"Bibzi Adeoyeleke" },
-  { id:"5", name:"Chidi Eze", email:"chidi@intelligencyai.com.ng", role:"Field Supervisor", status:"pending", projects:["Kano Pilot"], last:"Never", type:"internal", invitedBy:"Tunde Lawal" },
-];
-
-const MOCK_CLIENTS: CollabUser[] = [
-  { id:"c1", name:"Dr. Fatima Al-Hassan", email:"fatima@unicef.org", role:"Client", status:"active", projects:["Lagos Baseline 2025"], last:"4d ago", type:"client", invitedBy:"Bibzi Adeoyeleke" },
-  { id:"c2", name:"Marcus Webb", email:"m.webb@devpartners.org", role:"Client", status:"pending", projects:["Kano Pilot"], last:"Never", type:"client", invitedBy:"Amara Okafor", expiresAt:"2026-09-01" },
-  { id:"c3", name:"Pilot Observer", email:"observer@demo.researchos.io", role:"Observer", status:"expired", projects:["Lagos Baseline 2025"], last:"30d ago", type:"observer", expiresAt:"2026-06-15" },
-];
-
-const MOCK_LINKS = [
-  { id:"l1", label:"UNICEF · Lagos Baseline — Executive Dashboard", project:"Lagos Baseline 2025", created:"2026-07-01", views:14, expires:"Never", url:"https://share.researchos.io/r/abc123" },
-  { id:"l2", label:"DevPartners · Kano Pilot — Interim Report", project:"Kano Pilot", created:"2026-07-08", views:3, expires:"2026-08-01", url:"https://share.researchos.io/r/xyz789" },
-];
+interface OrgUser { id: string; name: string; email: string; role: string; created_at: string; last_login?: string | null; }
+interface OrgInvite { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; }
 
 function RolePill({ role }: { role: string }) {
   const m = ROLE_META[role] || { color: "#6B7280", bg: "#F3F4F6", icon: "•" };
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px 3px 6px", borderRadius:20, background:m.bg, border:`1px solid ${m.color}22`, fontSize:11.5, fontWeight:600, color:m.color, whiteSpace:"nowrap" as const }}>
-      <span style={{ fontSize:11 }}>{m.icon}</span>{role}
+      <span style={{ fontSize:11 }}>{m.icon}</span>{ROLE_LABELS[role] || role}
     </span>
   );
 }
@@ -362,43 +341,54 @@ function MemberAvatar({ name, size = 30 }: { name: string; size?: number }) {
 
 function UsersSection() {
   const [tab, setTab] = useState<"team"|"clients"|"links">("team");
-  const [team, setTeam] = useState<CollabUser[]>(MOCK_TEAM);
-  const [clients, setClients] = useState<CollabUser[]>(MOCK_CLIENTS);
-  const [links] = useState(MOCK_LINKS);
+  const [users, setUsers] = useState<OrgUser[]>([]);
+  const [invites, setInvites] = useState<OrgInvite[]>([]);
+  const [loadError, setLoadError] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("Field Supervisor");
-  const [inviteProjects, setInviteProjects] = useState("All");
-  const [inviteExpiry, setInviteExpiry] = useState("");
-  const [inviteMsg, setInviteMsg] = useState("");
+  const [inviteRole, setInviteRole] = useState("manager");
+  const [inviteSending, setInviteSending] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
-  const [copiedLink, setCopiedLink] = useState<string|null>(null);
-  const { recordEvent } = useGamify();
+  const [inviteError, setInviteError] = useState("");
+  const [inviteAcceptUrl, setInviteAcceptUrl] = useState<string | null>(null);
 
-  const allProjects = ["All","Lagos Baseline 2025","Kano Pilot","Ibadan Youth Survey"];
-  const isClientRole = ["Client","Observer"].includes(inviteRole);
-
-  const sendInvite = () => {
-    if (!inviteEmail.trim()) return;
-    const newUser: CollabUser = {
-      id: Date.now().toString(), name: inviteEmail.split("@")[0], email: inviteEmail,
-      role: inviteRole, status:"pending",
-      projects: inviteProjects === "All" ? ["All"] : [inviteProjects],
-      last:"Never", invitedBy:"Bibzi Adeoyeleke",
-      expiresAt: inviteExpiry || undefined,
-      type: isClientRole ? (inviteRole === "Observer" ? "observer" : "client") : "internal",
-    };
-    if (isClientRole) setClients(p => [...p, newUser]);
-    else setTeam(p => [...p, newUser]);
-    if (isClientRole) recordEvent('client_invited');
-    setInviteSent(true);
-    setTimeout(() => { setInviteSent(false); setShowInvite(false); setInviteEmail(""); setInviteMsg(""); setInviteExpiry(""); }, 2000);
+  const load = () => {
+    orgSettingsApi.listInvites().then(r => setInvites(r.data?.invites || [])).catch(() => {});
+    (async () => {
+      try {
+        const r = await (await import("../../services/api")).default.get("/api/org/users");
+        setUsers(r.data?.users || []);
+      } catch {
+        setLoadError("Could not load team members.");
+      }
+    })();
   };
 
-  const copyLink = (url: string) => {
-    navigator.clipboard.writeText(url).catch(() => {});
-    setCopiedLink(url);
-    setTimeout(() => setCopiedLink(null), 2000);
+  useEffect(() => { load(); }, []);
+
+  const sendInvite = async () => {
+    if (!inviteEmail.trim() || inviteSending) return;
+    setInviteSending(true);
+    setInviteError("");
+    setInviteAcceptUrl(null);
+    try {
+      const r = await orgSettingsApi.createInvite(inviteEmail.trim(), inviteRole);
+      setInviteSent(true);
+      if (!r.data?.email_sent && r.data?.accept_url) setInviteAcceptUrl(r.data.accept_url);
+      load();
+      setTimeout(() => { setInviteSent(false); if (r.data?.email_sent) { setShowInvite(false); setInviteEmail(""); } }, 2500);
+    } catch (e: any) {
+      setInviteError(e?.response?.data?.error || "Could not send invite — please try again.");
+    } finally {
+      setInviteSending(false);
+    }
+  };
+
+  const revokeInvite = async (id: string) => {
+    try {
+      await orgSettingsApi.revokeInvite(id);
+      load();
+    } catch {}
   };
 
   const tabStyle = (t: typeof tab): React.CSSProperties => ({
@@ -409,19 +399,16 @@ function UsersSection() {
     boxShadow: tab===t ? "0 1px 4px rgba(0,0,0,.08)" : "none",
   });
 
-  // Team hierarchy — shows who invited whom
-  const getInviter = (user: CollabUser) => user.invitedBy ? team.find(u=>u.name===user.invitedBy) : null;
+  const pendingInvites = invites.filter(i => i.status === "pending");
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
       {/* Stats row */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12 }}>
         {[
-          { label:"Active Members", value: team.filter(u=>u.status==="active").length, color:GREEN, icon:"✅" },
-          { label:"Pending Invites", value: [...team,...clients].filter(u=>u.status==="pending").length, color:AMBER, icon:"⏳" },
-          { label:"External Clients", value: clients.filter(u=>u.type==="client").length, color:BLUE, icon:"🤝" },
-          { label:"Shared Links", value: links.length, color:PURPLE, icon:"🔗" },
+          { label:"Team Members", value: users.length, color:GREEN, icon:"✅" },
+          { label:"Pending Invites", value: pendingInvites.length, color:AMBER, icon:"⏳" },
         ].map(s => (
           <div key={s.label} style={{ background:"white", borderRadius:12, border:"1px solid #E8EDF5", padding:"14px 16px", boxShadow:"0 1px 6px rgba(10,15,28,.05)" }}>
             <div style={{ fontSize:20, marginBottom:6 }}>{s.icon}</div>
@@ -448,9 +435,9 @@ function UsersSection() {
         {showInvite && (
           <motion.div initial={{ opacity:0, y:-8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }}
             style={{ background:"white", borderRadius:14, border:"1px solid #E8EDF5", padding:24, boxShadow:"0 4px 20px rgba(10,15,28,.08)" }}>
-            <div style={{ fontSize:15, fontWeight:700, color:"#080D1A", marginBottom:4 }}>Invite someone to ResearchOS</div>
+            <div style={{ fontSize:15, fontWeight:700, color:"#080D1A", marginBottom:4 }}>Invite someone to your team</div>
             <div style={{ fontSize:12.5, color:"#9CA3AF", marginBottom:20 }}>
-              Team members get access to the platform. Clients see only reports. Observers get temporary read-only access.
+              They'll get an email with a secure link to set up their account and join this organisation.
             </div>
 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
@@ -462,19 +449,8 @@ function UsersSection() {
               <div>
                 <label style={LABEL}>Role</label>
                 <select value={inviteRole} onChange={e=>setInviteRole(e.target.value)} style={{ ...INPUT }}>
-                  {Object.keys(ROLE_META).map(r=><option key={r}>{r}</option>)}
+                  {Object.keys(ROLE_META).map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                 </select>
-              </div>
-              <div>
-                <label style={LABEL}>Project access</label>
-                <select value={inviteProjects} onChange={e=>setInviteProjects(e.target.value)} style={{ ...INPUT }}>
-                  {allProjects.map(p=><option key={p}>{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={LABEL}>Access expires {!isClientRole && <span style={{ color:"#CBD5E1" }}>(optional)</span>}</label>
-                <input type="date" value={inviteExpiry} onChange={e=>setInviteExpiry(e.target.value)}
-                  style={{ ...INPUT, color: inviteExpiry ? "#111827" : "#9CA3AF" }} />
               </div>
             </div>
 
@@ -483,27 +459,27 @@ function UsersSection() {
               <div style={{ marginBottom:14, padding:"10px 14px", borderRadius:8, background:ROLE_META[inviteRole].bg, border:`1px solid ${ROLE_META[inviteRole].color}22`, fontSize:12.5, color:ROLE_META[inviteRole].color, display:"flex", gap:8, alignItems:"flex-start" }}>
                 <span style={{ fontSize:16 }}>{ROLE_META[inviteRole].icon}</span>
                 <div>
-                  <strong>{inviteRole} · {ROLE_META[inviteRole].scope}-level</strong><br/>
+                  <strong>{ROLE_LABELS[inviteRole]}</strong><br/>
                   {ROLE_META[inviteRole].desc}
                 </div>
               </div>
             )}
 
-            <div style={{ marginBottom:16 }}>
-              <label style={LABEL}>Personal message <span style={{ color:"#CBD5E1" }}>(optional)</span></label>
-              <textarea value={inviteMsg} onChange={e=>setInviteMsg(e.target.value)}
-                placeholder={isClientRole ? "e.g. Hi! You can now view the progress and reports for the Lagos Baseline study." : "e.g. Welcome to the team — please review the Kano Pilot flagged submissions."}
-                style={{ ...INPUT, height:64, resize:"none", lineHeight:1.6 }} />
-            </div>
+            {inviteError && <div style={{ fontSize:12, color:RED, marginBottom:10 }}>{inviteError}</div>}
+            {inviteAcceptUrl && (
+              <div style={{ marginBottom:14, padding:"10px 14px", borderRadius:8, background:"#FFFBEB", border:"1px solid #FDE68A", fontSize:12 }}>
+                Email delivery isn't configured on this server — share this link with them manually:
+                <div style={{ marginTop:6, fontFamily:"monospace", fontSize:11.5, color:"#374151", wordBreak:"break-all" as const }}>{inviteAcceptUrl}</div>
+              </div>
+            )}
 
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-              <button onClick={sendInvite} style={{ ...BTN_PRIMARY, display:"flex", alignItems:"center", gap:6, minWidth:130 }}>
-                {inviteSent ? <><Check size={13}/>Sent!</> : <><Send size={13}/>Send Invite</>}
+              <button onClick={sendInvite} disabled={inviteSending} style={{ ...BTN_PRIMARY, display:"flex", alignItems:"center", gap:6, minWidth:130, opacity: inviteSending ? 0.6 : 1 }}>
+                {inviteSending ? "Sending…" : inviteSent ? <><Check size={13}/>Sent!</> : <><Send size={13}/>Send Invite</>}
               </button>
               <button onClick={()=>setShowInvite(false)} style={{ padding:"9px 16px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", color:"#6B7280", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"Inter,sans-serif" }}>
                 Cancel
               </button>
-              <span style={{ fontSize:11.5, color:"#CBD5E1", marginLeft:4 }}>An email will be sent with a secure one-time link.</span>
             </div>
           </motion.div>
         )}
@@ -514,152 +490,57 @@ function UsersSection() {
         <SettingsCard style={{ padding:0, overflow:"hidden" }}>
           <div style={{ padding:"14px 20px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <span style={{ fontSize:13, fontWeight:700, color:"#111827" }}>Organisation members</span>
-            <span style={{ fontSize:11.5, color:"#9CA3AF" }}>{team.length} people</span>
+            <span style={{ fontSize:11.5, color:"#9CA3AF" }}>{users.length} people</span>
           </div>
+          {loadError && <div style={{ padding:"12px 20px", fontSize:12, color:RED }}>{loadError}</div>}
           <div>
-            {team.map((u, idx) => {
-              const inviter = getInviter(u);
-              return (
-                <div key={u.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 20px", borderBottom: idx<team.length-1 ? "1px solid #F8FAFF" : "none" }}>
-                  <MemberAvatar name={u.name} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <span style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{u.name}</span>
-                      {u.status==="pending" && <Badge label="Pending" color={AMBER} />}
-                    </div>
-                    <div style={{ fontSize:11.5, color:"#9CA3AF", marginTop:1 }}>
-                      {u.email}
-                      {inviter && <span style={{ marginLeft:8 }}>· invited by {inviter.name}</span>}
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-                    <RolePill role={u.role} />
-                    <div style={{ fontSize:11, color:"#CBD5E1", minWidth:60, textAlign:"right" }}>{u.last}</div>
-                    <div style={{ display:"flex", gap:4 }}>
-                      {u.status==="pending" && (
-                        <button title="Resend invite" style={{ background:"#F0F7FF", border:"none", borderRadius:6, padding:"4px 8px", fontSize:11, color:BLUE, cursor:"pointer", fontFamily:"Inter,sans-serif", fontWeight:600 }}>Resend</button>
-                      )}
-                      <select defaultValue={u.role} onChange={e=>{
-                        const role=e.target.value;
-                        setTeam(p=>p.map(m=>m.id===u.id?{...m,role}:m));
-                      }} style={{ fontSize:11.5, padding:"4px 6px", borderRadius:6, border:"1px solid #E2E8F0", color:"#374151", fontFamily:"Inter,sans-serif", cursor:"pointer", background:"white" }}>
-                        {Object.keys(ROLE_META).filter(r=>!["Client","Observer"].includes(r)).map(r=><option key={r}>{r}</option>)}
-                      </select>
-                      <button title="Remove" onClick={()=>setTeam(p=>p.filter(m=>m.id!==u.id))} style={{ background:"none", border:"none", cursor:"pointer", color:"#E2E8F0", padding:4 }}
-                        onMouseEnter={e=>(e.currentTarget.style.color=RED)} onMouseLeave={e=>(e.currentTarget.style.color="#E2E8F0")}>
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Upward invitation hint */}
-          <div style={{ padding:"12px 20px", background:"#FAFBFF", borderTop:"1px solid #F1F5F9", display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ fontSize:13 }}>⬆️</div>
-            <div style={{ fontSize:12, color:"#6B7280" }}>
-              <strong style={{ color:"#374151" }}>Field Supervisors can invite upward.</strong>{" "}
-              If your supervisor or client needs oversight access, invite them as an Auditor — they'll see your data but can't edit anything.
-            </div>
-            <button onClick={()=>{ setInviteRole("Auditor"); setShowInvite(true); }} style={{ flexShrink:0, padding:"5px 12px", borderRadius:7, border:"1px solid #E2E8F0", background:"white", fontSize:12, fontWeight:600, color:BLUE, cursor:"pointer", fontFamily:"Inter,sans-serif" }}>
-              Invite for oversight →
-            </button>
-          </div>
-        </SettingsCard>
-      )}
-
-      {/* Clients & Observers tab */}
-      {tab === "clients" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <SettingsCard style={{ padding:0, overflow:"hidden" }}>
-            <div style={{ padding:"14px 20px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div>
-                <span style={{ fontSize:13, fontWeight:700, color:"#111827" }}>External access</span>
-                <div style={{ fontSize:11.5, color:"#9CA3AF", marginTop:1 }}>Clients and observers see only what you share with them — no raw data, no org settings.</div>
-              </div>
-              <button onClick={()=>{ setInviteRole("Client"); setShowInvite(true); }} style={{ ...BTN_PRIMARY, fontSize:12, padding:"7px 14px", display:"flex", alignItems:"center", gap:5 }}>
-                <Plus size={12}/>Invite Client
-              </button>
-            </div>
-            <div>
-              {clients.map((c, idx) => (
-                <div key={c.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 20px", borderBottom:idx<clients.length-1?"1px solid #F8FAFF":"none", opacity:c.status==="expired"?0.55:1 }}>
-                  <MemberAvatar name={c.name} size={34} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" as const }}>
-                      <span style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{c.name}</span>
-                      <RolePill role={c.role} />
-                      {c.status==="expired" && <Badge label="Expired" color={RED} />}
-                      {c.status==="pending" && <Badge label="Pending" color={AMBER} />}
-                    </div>
-                    <div style={{ fontSize:11.5, color:"#9CA3AF", marginTop:2 }}>
-                      {c.email} · {c.projects.join(", ")}
-                      {c.expiresAt && <span style={{ marginLeft:6, color: new Date(c.expiresAt)<new Date() ? RED : "#9CA3AF" }}>· expires {c.expiresAt}</span>}
-                      {c.invitedBy && <span style={{ marginLeft:6 }}>· by {c.invitedBy}</span>}
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", gap:6, flexShrink:0, alignItems:"center" }}>
-                    <div style={{ fontSize:11, color:"#CBD5E1" }}>{c.last}</div>
-                    {c.status==="pending" && <button style={{ padding:"4px 10px", borderRadius:6, border:"none", background:"#F0F7FF", color:BLUE, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"Inter,sans-serif" }}>Resend</button>}
-                    {c.status==="expired" && <button style={{ padding:"4px 10px", borderRadius:6, border:"none", background:"#FFF7ED", color:AMBER, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"Inter,sans-serif" }}>Renew</button>}
-                    <button onClick={()=>setClients(p=>p.filter(m=>m.id!==c.id))} style={{ background:"none", border:"none", cursor:"pointer", color:"#E2E8F0", padding:4 }}
-                      onMouseEnter={e=>(e.currentTarget.style.color=RED)} onMouseLeave={e=>(e.currentTarget.style.color="#E2E8F0")}>
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SettingsCard>
-
-          <div style={{ padding:"12px 16px", background:"#FFFBEB", borderRadius:10, border:"1px solid #FDE68A", fontSize:12.5, color:"#92400E" }}>
-            <strong>What can clients see?</strong> Only reports and dashboards for projects they're assigned to. They cannot see raw submissions, enumerator data, questionnaire content, or any org settings.
-          </div>
-        </div>
-      )}
-
-      {/* Shared Links tab */}
-      {tab === "links" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <SettingsCard style={{ padding:0, overflow:"hidden" }}>
-            <div style={{ padding:"14px 20px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div>
-                <span style={{ fontSize:13, fontWeight:700, color:"#111827" }}>Shareable report links</span>
-                <div style={{ fontSize:11.5, color:"#9CA3AF", marginTop:1 }}>Anyone with the link can view — no login required. Password protection and expiry optional.</div>
-              </div>
-              <button style={{ ...BTN_PRIMARY, fontSize:12, padding:"7px 14px", display:"flex", alignItems:"center", gap:5 }}>
-                <Plus size={12}/>Generate Link
-              </button>
-            </div>
-            {links.map((l, idx) => (
-              <div key={l.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 20px", borderBottom:idx<links.length-1?"1px solid #F8FAFF":"none" }}>
-                <div style={{ width:36, height:36, borderRadius:8, background:"#EFF6FF", display:"grid", placeItems:"center", flexShrink:0 }}>
-                  <ExternalLink size={15} color={BLUE} />
-                </div>
+            {users.map((u, idx) => (
+              <div key={u.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 20px", borderBottom: idx<users.length-1 ? "1px solid #F8FAFF" : "none" }}>
+                <MemberAvatar name={u.name || u.email} />
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:"#111827", marginBottom:2 }}>{l.label}</div>
-                  <div style={{ fontSize:11.5, color:"#9CA3AF" }}>
-                    {l.project} · {l.views} views · created {l.created}
-                    {l.expires !== "Never" && <span style={{ marginLeft:6, color:AMBER }}>· expires {l.expires}</span>}
-                  </div>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{u.name || u.email}</div>
+                  <div style={{ fontSize:11.5, color:"#9CA3AF", marginTop:1 }}>{u.email}</div>
                 </div>
-                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                  <button onClick={()=>copyLink(l.url)}
-                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:7, border:"1px solid #E2E8F0", background:"white", fontSize:12, fontWeight:600, color: copiedLink===l.url ? GREEN : "#374151", cursor:"pointer", fontFamily:"Inter,sans-serif" }}>
-                    {copiedLink===l.url ? <><Check size={12}/>Copied</> : <><Copy size={12}/>Copy link</>}
-                  </button>
-                  <button style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:7, border:"none", background:"#FFF1F2", fontSize:12, fontWeight:600, color:RED, cursor:"pointer", fontFamily:"Inter,sans-serif" }}>
-                    <Trash2 size={12}/>Revoke
+                <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                  <RolePill role={u.role} />
+                  <div style={{ fontSize:11, color:"#CBD5E1", minWidth:60, textAlign:"right" }}>{u.last_login ? new Date(u.last_login).toLocaleDateString() : "Never logged in"}</div>
+                </div>
+              </div>
+            ))}
+            {pendingInvites.map((inv, idx) => (
+              <div key={inv.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 20px", borderBottom: idx<pendingInvites.length-1 ? "1px solid #F8FAFF" : "none", background:"#FFFBEB" }}>
+                <MemberAvatar name={inv.email} />
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{inv.email}</span>
+                    <Badge label="Pending" color={AMBER} />
+                  </div>
+                  <div style={{ fontSize:11.5, color:"#9CA3AF", marginTop:1 }}>Expires {new Date(inv.expires_at).toLocaleDateString()}</div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                  <RolePill role={inv.role} />
+                  <button title="Revoke invite" onClick={()=>revokeInvite(inv.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#E2E8F0", padding:4 }}
+                    onMouseEnter={e=>((e.currentTarget as HTMLButtonElement).style.color=RED)} onMouseLeave={e=>((e.currentTarget as HTMLButtonElement).style.color="#E2E8F0")}>
+                    <Trash2 size={13} />
                   </button>
                 </div>
               </div>
             ))}
-          </SettingsCard>
-          <div style={{ padding:"12px 16px", background:"#F0F7FF", borderRadius:10, border:"1px solid #BFDBFE", fontSize:12.5, color:"#1E40AF" }}>
-            <strong>Tip:</strong> Share a report link with your client instead of inviting them — they see the live dashboard without needing an account.
           </div>
+        </SettingsCard>
+      )}
+
+      {/* Clients & Observers tab — not yet built */}
+      {tab === "clients" && (
+        <div style={{ padding:"24px 20px", background:"white", borderRadius:14, border:"1px solid #E8EDF5", fontSize:13, color:"#6B7280", textAlign:"center" as const }}>
+          Client and observer access (external, read-only, project-scoped) isn't built yet — only full team members with Admin/Manager/Viewer roles are supported today.
+        </div>
+      )}
+
+      {/* Shared Links tab — not yet built */}
+      {tab === "links" && (
+        <div style={{ padding:"24px 20px", background:"white", borderRadius:14, border:"1px solid #E8EDF5", fontSize:13, color:"#6B7280", textAlign:"center" as const }}>
+          Shareable, no-login report links aren't built yet.
         </div>
       )}
     </div>
@@ -667,47 +548,25 @@ function UsersSection() {
 }
 
 function RolesSection() {
-  const roles = ["Admin","Project Manager","Field Supervisor","Analyst","Client","Auditor","Observer"];
-  const permissions = [
-    { group: "Projects & Data", items: ["View Projects","Create Projects","Delete Projects","Export Raw Data"] },
-    { group: "Submissions", items: ["View Submissions","Flag Submissions","Approve / Reject","Delete Submissions"] },
-    { group: "Field Team", items: ["View Enumerators","Manage Enumerators","Assign Enumerators","Suspend Enumerators"] },
-    { group: "Reports", items: ["View Reports","Generate Reports","Download Reports","Share Reports"] },
-    { group: "Team & Access", items: ["Invite Team Members","Invite Clients","Manage Roles","Remove Members"] },
-    { group: "Settings & Billing", items: ["View Settings","Edit Settings","Manage Billing","API Access"] },
-    { group: "AI & Ada", items: ["Ada Chat","Ada Analysis","Configure Ada","View Audit Log"] },
-  ];
-  const P: Record<string, Record<string, boolean>> = {
-    "View Projects":         {Admin:true, "Project Manager":true, "Field Supervisor":true, Analyst:true, Client:true, Auditor:true, Observer:true},
-    "Create Projects":       {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Delete Projects":       {Admin:true, "Project Manager":false, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Export Raw Data":       {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:true, Client:false, Auditor:true, Observer:false},
-    "View Submissions":      {Admin:true, "Project Manager":true, "Field Supervisor":true, Analyst:true, Client:false, Auditor:true, Observer:false},
-    "Flag Submissions":      {Admin:true, "Project Manager":true, "Field Supervisor":true, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Approve / Reject":      {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Delete Submissions":    {Admin:true, "Project Manager":false, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "View Enumerators":      {Admin:true, "Project Manager":true, "Field Supervisor":true, Analyst:true, Client:false, Auditor:true, Observer:false},
-    "Manage Enumerators":    {Admin:true, "Project Manager":true, "Field Supervisor":true, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Assign Enumerators":    {Admin:true, "Project Manager":true, "Field Supervisor":true, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Suspend Enumerators":   {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "View Reports":          {Admin:true, "Project Manager":true, "Field Supervisor":true, Analyst:true, Client:true, Auditor:true, Observer:true},
-    "Generate Reports":      {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:true, Client:false, Auditor:false, Observer:false},
-    "Download Reports":      {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:true, Client:true, Auditor:true, Observer:false},
-    "Share Reports":         {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:true, Client:false, Auditor:false, Observer:false},
-    "Invite Team Members":   {Admin:true, "Project Manager":true, "Field Supervisor":true, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Invite Clients":        {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Manage Roles":          {Admin:true, "Project Manager":false, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Remove Members":        {Admin:true, "Project Manager":false, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "View Settings":         {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:false, Client:false, Auditor:true, Observer:false},
-    "Edit Settings":         {Admin:true, "Project Manager":false, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "Manage Billing":        {Admin:true, "Project Manager":false, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "API Access":            {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:true, Client:false, Auditor:false, Observer:false},
-    "Ada Chat":              {Admin:true, "Project Manager":true, "Field Supervisor":true, Analyst:true, Client:false, Auditor:false, Observer:false},
-    "Ada Analysis":          {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:true, Client:false, Auditor:false, Observer:false},
-    "Configure Ada":         {Admin:true, "Project Manager":false, "Field Supervisor":false, Analyst:false, Client:false, Auditor:false, Observer:false},
-    "View Audit Log":        {Admin:true, "Project Manager":true, "Field Supervisor":false, Analyst:false, Client:false, Auditor:true, Observer:false},
+  // Real, enforced permission model — mirrors auth.py's ROLE_PERMISSIONS
+  // exactly. The previous version of this page showed a 7-role, 28-permission
+  // matrix (Field Supervisor, Auditor, Client, Observer, granular actions
+  // like "Suspend Enumerators") that was pure decoration — none of it was
+  // ever checked by the backend. Only 3 roles actually exist and are enforced.
+  const roles = ["admin", "manager", "viewer"];
+  const PERMISSION_LABELS: Record<string, string> = {
+    view: "View projects, submissions & reports",
+    export: "Export data (CSV/reports)",
+    create_project: "Create new projects",
+    manage_integrations: "Manage integrations (KoboToolbox, InsightScore)",
+    manage_users: "Invite/manage team members",
+    billing: "View & manage billing",
   };
-
+  const ROLE_PERMISSIONS: Record<string, string[]> = {
+    admin: ["view", "export", "create_project", "manage_integrations", "manage_users", "billing"],
+    manager: ["view", "export", "create_project"],
+    viewer: ["view"],
+  };
   const roleColor = (r: string) => ROLE_META[r]?.color || "#6B7280";
 
   return (
@@ -718,10 +577,9 @@ function RolesSection() {
           <div key={r} style={{ background:ROLE_META[r]?.bg||"#F9FAFB", borderRadius:10, border:`1px solid ${roleColor(r)}22`, padding:"12px 14px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
               <span style={{ fontSize:16 }}>{ROLE_META[r]?.icon}</span>
-              <span style={{ fontSize:12.5, fontWeight:700, color:roleColor(r) }}>{r}</span>
+              <span style={{ fontSize:12.5, fontWeight:700, color:roleColor(r) }}>{ROLE_LABELS[r]}</span>
             </div>
             <div style={{ fontSize:11, color:"#6B7280", lineHeight:1.5 }}>{ROLE_META[r]?.desc}</div>
-            <div style={{ marginTop:6, fontSize:10.5, fontWeight:600, color:roleColor(r), opacity:0.7 }}>{ROLE_META[r]?.scope}-level</div>
           </div>
         ))}
       </div>
@@ -730,46 +588,39 @@ function RolesSection() {
       <SettingsCard style={{ padding:24, overflowX:"auto" }}>
         <div style={{ fontSize:13, fontWeight:700, color:"#111827", marginBottom:16 }}>Permission matrix</div>
         <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:700 }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:520 }}>
             <thead>
               <tr>
-                <th style={{ ...LABEL, textAlign:"left", padding:"0 0 12px", width:"28%" }}>Permission</th>
+                <th style={{ ...LABEL, textAlign:"left", padding:"0 0 12px", width:"46%" }}>Permission</th>
                 {roles.map(r=>(
                   <th key={r} style={{ ...LABEL, textAlign:"center", padding:"0 0 12px", minWidth:70 }}>
                     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
                       <span style={{ fontSize:13 }}>{ROLE_META[r]?.icon}</span>
-                      <span style={{ color:roleColor(r), fontSize:9.5 }}>{r.replace(" ","\n")}</span>
+                      <span style={{ color:roleColor(r), fontSize:9.5 }}>{ROLE_LABELS[r]}</span>
                     </div>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {permissions.map(g=>(
-                <React.Fragment key={g.group}>
-                  <tr><td colSpan={roles.length+1} style={{ padding:"16px 0 6px" }}>
-                    <span style={{ fontSize:10, fontWeight:700, color:"#CBD5E1", textTransform:"uppercase" as const, letterSpacing:0.8 }}>{g.group}</span>
-                  </td></tr>
-                  {g.items.map(item=>(
-                    <tr key={item} style={{ borderBottom:"1px solid #F8FAFF" }}>
-                      <td style={{ padding:"9px 0", fontSize:12.5, color:"#374151" }}>{item}</td>
-                      {roles.map(r=>(
-                        <td key={r} style={{ textAlign:"center", padding:"9px 0" }}>
-                          {P[item]?.[r]
-                            ? <div style={{ width:18, height:18, borderRadius:"50%", background:roleColor(r)+"22", display:"inline-grid", placeItems:"center" }}><Check size={11} color={roleColor(r)} /></div>
-                            : <div style={{ width:18, height:18, borderRadius:"50%", background:"#F1F5F9", display:"inline-grid", placeItems:"center" }}><X size={10} color="#E2E8F0" /></div>
-                          }
-                        </td>
-                      ))}
-                    </tr>
+              {Object.keys(PERMISSION_LABELS).map(perm=>(
+                <tr key={perm} style={{ borderBottom:"1px solid #F8FAFF" }}>
+                  <td style={{ padding:"9px 0", fontSize:12.5, color:"#374151" }}>{PERMISSION_LABELS[perm]}</td>
+                  {roles.map(r=>(
+                    <td key={r} style={{ textAlign:"center", padding:"9px 0" }}>
+                      {ROLE_PERMISSIONS[r].includes(perm)
+                        ? <div style={{ width:18, height:18, borderRadius:"50%", background:roleColor(r)+"22", display:"inline-grid", placeItems:"center" }}><Check size={11} color={roleColor(r)} /></div>
+                        : <div style={{ width:18, height:18, borderRadius:"50%", background:"#F1F5F9", display:"inline-grid", placeItems:"center" }}><X size={10} color="#E2E8F0" /></div>
+                      }
+                    </td>
                   ))}
-                </React.Fragment>
+                </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div style={{ marginTop:14, padding:"10px 14px", background:"#F0F7FF", borderRadius:8, fontSize:12, color:BLUE }}>
-          Role-level permissions apply across all projects. Project-level overrides (e.g. restricting a Manager to one project) are configurable per project in project settings.
+          These 3 roles are fixed — custom roles and per-project permission overrides aren't supported yet.
         </div>
       </SettingsCard>
     </div>
