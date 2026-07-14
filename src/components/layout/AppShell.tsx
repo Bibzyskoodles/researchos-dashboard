@@ -72,6 +72,21 @@ export default function AppShell() {
         showToast(cmd.label);
         break;
 
+      case 'SWITCH_PROJECT':
+        navigate(`/projects/${cmd.id}`);
+        setOpen(false);
+        break;
+
+      case 'GENERATE_REPORT':
+        // Navigate to the InsightScore project and trigger download via event
+        navigate(`/insights/${cmd.project_id}?tab=intelligence`);
+        setOpen(false);
+        window.dispatchEvent(new CustomEvent('ada:generate_report', {
+          detail: { project_id: cmd.project_id, format: cmd.format }
+        }));
+        showToast(`Generating ${cmd.format.toUpperCase()} report…`);
+        break;
+
       case 'SHOW_TOAST':
         showToast(cmd.message);
         break;

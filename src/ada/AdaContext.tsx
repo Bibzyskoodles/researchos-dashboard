@@ -18,7 +18,8 @@ export type AdaCommand =
   | { type: 'SWITCH_PROJECT'; id: string }
   | { type: 'CREATE_PROJECT' }
   | { type: 'SHOW_TOAST'; message: string }
-  | { type: 'CHANGE_SETTING'; key: string; value: any; label: string };
+  | { type: 'CHANGE_SETTING'; key: string; value: any; label: string }
+  | { type: 'GENERATE_REPORT'; project_id: string; format: 'docx' | 'pptx' | 'xlsx' };
 
 // Map a natural-language message to a command intent, or null if none.
 export function parseAdaCommand(text: string): AdaCommand | null {
@@ -71,6 +72,28 @@ export function parseAdaCommand(text: string): AdaCommand | null {
     for (const [pattern, section, label] of settingsSectionMap) {
       if (pattern.test(t)) {
         return { type: 'OPEN_SETTINGS_SECTION', section, label };
+      }
+    }
+  }
+
+  // ── InsightScore tab navigation ──────────────────────────────────────────
+  // Extract project ID from current URL path (e.g. /insights/abc-123?tab=signal)
+  const insightIdMatch = window.location.pathname.match(/\/insights\/([^/?]+)/);
+  const currentInsightId = insightIdMatch ? insightIdMatch[1] : null;
+
+  if (currentInsightId) {
+    const tabPatterns: [RegExp, string][] = [
+      [/(interview|transcript|response)/, 'interviews'],
+      [/(intelligence|analysis|analyse|analyze|theme|summary|executive|finding)/, 'intelligence'],
+      [/(question intelligence|question score|how (well|good)|question performance)/, 'questions'],
+      [/(demographic|age|gender|location breakdown|segment)/, 'demographics'],
+      [/(signal fidelity|sfi|consistency|response drift)/, 'signal'],
+      [/(intent fidelity|ifi|research intent|interview intent)/, 'intent'],
+      [/(ask|question about|query|ask ada|ask your research)/, 'ask'],
+    ];
+    for (const [pattern, tab] of tabPatterns) {
+      if (pattern.test(t)) {
+        return { type: 'NAVIGATE_TO', path: `/insights/${currentInsightId}?tab=${tab}` };
       }
     }
   }

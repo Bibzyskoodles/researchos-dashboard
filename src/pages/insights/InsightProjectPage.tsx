@@ -351,6 +351,27 @@ export default function InsightProjectPage() {
       .catch(() => {});
   }, [id]);
 
+  // Ada can trigger report downloads via ada:generate_report event
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const { project_id, format } = (e as CustomEvent).detail || {};
+      if (project_id !== id || !format || !id) return;
+      const fmt = format as 'docx' | 'pptx' | 'xlsx';
+      try {
+        const res = await insightScoreApi.downloadReport(id, fmt);
+        const contentType = String(res.headers?.['content-type'] || res.headers?.['Content-Type'] || '');
+        if (contentType.includes('application/json')) return;
+        const url = URL.createObjectURL(new Blob([res.data]));
+        const a = document.createElement('a'); a.href = url;
+        a.download = `ResearchOS_${id}.${format}`;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+      } catch {}
+    };
+    window.addEventListener('ada:generate_report', handler);
+    return () => window.removeEventListener('ada:generate_report', handler);
+  }, [id]);
+
   const setTab = (tab: Tab) => setSearchParams({ tab });
   if (!id) return null;
 
