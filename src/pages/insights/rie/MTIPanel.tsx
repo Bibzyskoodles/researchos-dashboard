@@ -144,16 +144,19 @@ export default function IFIPanel({ projectId }: { projectId: string }) {
   const { t } = usePlatform();
   const [data, setData] = useState<IFIData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    (insightScoreApi as any).getIFI?.(projectId)
+    setLoading(true); setError(false); setData(null);
+    insightScoreApi.getIFI(projectId)
       .then((r: any) => { if (r.data?.overall !== undefined) setData(normaliseData(r.data)); })
-      .catch(() => {})
+      .catch((e: any) => { if (e?.response?.status !== 404) setError(true); })
       .finally(() => setLoading(false));
   }, [projectId]);
 
   if (loading) return <div style={{ padding: "40px 0", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>Loading Intent Fidelity Index...</div>;
+  if (error) return <div style={{ padding: "20px", background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA", fontSize: 13, color: "#7F1D1D" }}>Could not load Intent Fidelity data — the analysis service may be unavailable. Please try again shortly.</div>;
   if (!data) return <IFIPendingState />;
 
   const color = (s: number) => s >= 75 ? GREEN : s >= 55 ? AMBER : RED;

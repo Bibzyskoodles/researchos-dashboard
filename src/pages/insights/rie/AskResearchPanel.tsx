@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { adaApi } from "../../../services/api";
+import { adaApi, insightScoreApi } from "../../../services/api";
 import { InsightReport } from "../../../types";
 
 const BLUE = "#2463EB";
@@ -178,41 +178,69 @@ export default function AskResearchPanel({ projectId, report }: { projectId: str
       context.opportunities = report.opportunities?.slice(0, 3);
     }
 
-    const systemPrompt = `You are Ada, a senior research analyst. The user is asking a question about their research data for project ${projectId}.
-${report ? `Research context: ${report.executive_summary || ""}` : "Analysis is pending."}
-Answer based ONLY on the available evidence. Always include confidence level, relevant quotes when available, and 2-3 follow-up questions. Never fabricate data.`;
-
     try {
-      const res = await adaApi.chat(
-        `[ASK YOUR RESEARCH] ${question}\n\nSystem: ${systemPrompt}`,
-        "insights",
-        context
-      );
-      const rawAnswer = res.data?.reply || res.data?.message || res.data?.response || "I don't have enough evidence to answer this confidently.";
+      // Primary: ask InsightScore directly — it has the full transcript data
+      let parsed: ResearchAnswer | null = null;
 
-      let parsed: ResearchAnswer = { answer: rawAnswer, confidence: 0.7, evidence_count: report?.themes?.length || 0, quotes: [], themes: [], follow_up: [] };
-
-      if (report) {
-        const questionLower = question.toLowerCase();
-        const matchingThemes = report.themes?.filter(t =>
-          t.title.toLowerCase().includes(questionLower.split(" ").find(w => w.length > 4) || "") ||
-          t.summary?.toLowerCase().includes(questionLower.split(" ").find(w => w.length > 4) || "")
-        ) || [];
-
-        parsed.themes = matchingThemes.map(t => t.title);
-
-        const allQuotes = report.themes?.flatMap(t => (t.quotes || []).map(q => typeof q === "string" ? q : (q as any).text || "")).filter(Boolean) || [];
-        parsed.quotes = allQuotes.slice(0, 3);
-        parsed.evidence_count = report.themes?.reduce((s, t) => s + (t.quote_count || 0), 0) || 0;
-
-        parsed.follow_up = [
-          "Which demographic shows the strongest signal here?",
-          "Show me the contradictory evidence",
-          "What does this mean for future studies?",
-        ];
+      try {
+        const res = await insightScoreApi.askResearch(projectId, question, {
+          has_report: !!report,
+          executive_summary: report?.executive_summary,
+          themes: report?.themes?.map(t => ({ title: t.title, sentiment: t.sentiment, quote_count: t.quote_count })),
+        });
+        const d = res.data;
+        if (d?.answer || d?.reply || d?.response) {
+          parsed = {
+            answer: d.answer || d.reply || d.response || "",
+            confidence: d.confidence ?? 0.75,
+            evidence_count: d.evidence_count ?? (report?.themes?.reduce((s: number, t: any) => s + (t.quote_count || 0), 0) || 0),
+            quotes: d.quotes || [],
+            themes: d.themes || [],
+            follow_up: d.follow_up || d.follow_up_questions || [
+              "Which demographic shows the strongest signal here?",
+              "Show me the contradictory evidence",
+              "What does this mean for future studies?",
+            ],
+          };
+        }
+      } catch {
+        // InsightScore /ask not available — fall back to Ada with full report context
       }
 
-      setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, answer: parsed } : item));
+      if (!parsed) {
+        // Fallback: Ada chat with injected report context
+        const systemPrompt = `You are Ada, a senior research analyst. The user is asking about research data for project ${projectId}.
+${report ? `Research context: ${report.executive_summary || ""}` : "Analysis is pending."}
+Answer based ONLY on the available evidence. Always include a confidence level and 2-3 follow-up questions. Never fabricate data.`;
+
+        const res = await adaApi.chat(
+          `[ASK YOUR RESEARCH] ${question}\n\nSystem: ${systemPrompt}`,
+          "insights",
+          context
+        );
+        const rawAnswer = res.data?.reply || res.data?.message || res.data?.response || "I don't have enough evidence to answer this confidently.";
+
+        parsed = { answer: rawAnswer, confidence: 0.7, evidence_count: 0, quotes: [], themes: [], follow_up: [] };
+
+        if (report) {
+          const questionLower = question.toLowerCase();
+          const keyword = questionLower.split(" ").find(w => w.length > 4) || "";
+          const matchingThemes = report.themes?.filter((t: any) =>
+            t.title.toLowerCase().includes(keyword) || t.summary?.toLowerCase().includes(keyword)
+          ) || [];
+          parsed.themes = matchingThemes.map((t: any) => t.title);
+          const allQuotes = report.themes?.flatMap((t: any) => (t.quotes || []).map((q: any) => typeof q === "string" ? q : q.text || "")).filter(Boolean) || [];
+          parsed.quotes = allQuotes.slice(0, 3);
+          parsed.evidence_count = report.themes?.reduce((s: number, t: any) => s + (t.quote_count || 0), 0) || 0;
+          parsed.follow_up = [
+            "Which demographic shows the strongest signal here?",
+            "Show me the contradictory evidence",
+            "What does this mean for future studies?",
+          ];
+        }
+      }
+
+      setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, answer: parsed! } : item));
     } catch {
       setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, error: "I couldn't connect to my knowledge base. Please try again." } : item));
     }

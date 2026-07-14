@@ -157,19 +157,22 @@ function PendingState() {
 export default function QuestionIntelligencePanel({ projectId }: { projectId: string }) {
   const [questions, setQuestions] = useState<QuestionIntel[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filter, setFilter] = useState<"all" | "low" | "high_skip">("all");
 
   useEffect(() => {
-    (insightScoreApi as any).getQuestionIntelligence?.(projectId)
+    setLoading(true); setError(false); setQuestions(null);
+    insightScoreApi.getQuestionIntelligence(projectId)
       .then((r: any) => {
         const qs = r.data?.questions || r.data;
         if (Array.isArray(qs) && qs.length > 0) setQuestions(qs);
       })
-      .catch(() => {})
+      .catch((e: any) => { if (e?.response?.status !== 404) setError(true); })
       .finally(() => setLoading(false));
   }, [projectId]);
 
   if (loading) return <div style={{ padding: "40px 0", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>Loading question intelligence...</div>;
+  if (error) return <div style={{ padding: "20px", background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA", fontSize: 13, color: "#7F1D1D" }}>Could not load Question Intelligence — the analysis service may be unavailable. Please try again shortly.</div>;
   if (!questions) return <PendingState />;
 
   const filtered = questions.filter(q => {

@@ -175,10 +175,16 @@ export const insightScoreApi = {
     while (Date.now() - startTime < timeout) {
       try {
         const status = await insightScoreApi.getStatus(id);
-        if (status.data.complete) return status.data;
-        if (status.data.failed) throw new Error(status.data.error || 'Analysis failed');
+        const d = status.data;
+        // Accept both boolean {complete:true} and string {status:"complete"} shapes
+        const done = d.complete === true || d.status === 'complete';
+        const failed = d.failed === true || d.status === 'error' || d.status === 'failed';
+        if (done) return d;
+        if (failed) throw new Error(d.error || d.message || 'Analysis failed');
       } catch (err: any) {
         if (err.response?.status === 404) throw err;
+        // Re-throw errors we explicitly raised above
+        if (err.message === 'Analysis failed' || (err.message && err.message !== 'Analysis timeout')) throw err;
         if (Date.now() - startTime >= timeout) throw new Error('Analysis timeout');
       }
       await new Promise(resolve => setTimeout(resolve, pollInterval));

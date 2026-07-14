@@ -11,6 +11,7 @@ import { usePlatform } from "../../platform/PlatformProvider";
 import SignalFidelityPanel from "./rie/SignalFidelityPanel";
 import QuestionIntelligencePanel from "./rie/QuestionIntelligencePanel";
 import DemographicIntelligencePanel from "./rie/DemographicIntelligencePanel";
+import IFIPanel from "./rie/MTIPanel";
 import AskResearchPanel from "./rie/AskResearchPanel";
 
 const BLUE = "#2463EB";
@@ -19,7 +20,7 @@ const AMBER = "#D97706";
 const RED = "#DC2626";
 const PURPLE = "#7C3AED";
 
-type Tab = "interviews" | "intelligence" | "questions" | "demographics" | "signal" | "ask";
+type Tab = "interviews" | "intelligence" | "questions" | "demographics" | "signal" | "intent" | "ask";
 
 function AdaBriefing({ message, action, actionLabel }: {
   message: string; action?: () => void; actionLabel?: string;
@@ -323,6 +324,7 @@ const TABS: { key: Tab; label: string; badge?: string }[] = [
   { key: "questions", label: "Questions" },
   { key: "demographics", label: "Demographics" },
   { key: "signal", label: "Signal Fidelity" },
+  { key: "intent", label: "Intent Fidelity" },
   { key: "ask", label: "Ask Your Research" },
 ];
 
@@ -382,11 +384,17 @@ export default function InsightProjectPage() {
                 <button key={fmt} onClick={async () => {
                   try {
                     const res = await insightScoreApi.downloadReport(id, fmt);
-                    const url = URL.createObjectURL(new Blob([res.data]));
+                    const contentType = String(res.headers?.['content-type'] || res.headers?.['Content-Type'] || '');
+                    const blob = new Blob([res.data]);
+                    if (contentType.includes('application/json')) {
+                      alert(`Report download failed. Please try again.`);
+                      return;
+                    }
+                    const url = URL.createObjectURL(blob);
                     const a = document.createElement("a"); a.href = url;
                     a.download = `ResearchOS_${id}.${fmt}`; document.body.appendChild(a);
                     a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-                  } catch {}
+                  } catch { alert(`Could not download ${fmt.toUpperCase()} report. Please try again.`); }
                 }}
                   style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", border: "1px solid #E2E8F0", borderRadius: 8, background: "white", fontSize: 11, fontWeight: 600, color: "#374151", cursor: "pointer" }}>
                   <Download size={11} /> {fmt.toUpperCase()}
@@ -421,6 +429,7 @@ export default function InsightProjectPage() {
           {activeTab === "questions" && <QuestionIntelligencePanel projectId={id} />}
           {activeTab === "demographics" && <DemographicIntelligencePanel projectId={id} />}
           {activeTab === "signal" && <SignalFidelityPanel projectId={id} />}
+          {activeTab === "intent" && <IFIPanel projectId={id} />}
           {activeTab === "ask" && <AskResearchPanel projectId={id} report={report} />}
         </motion.div>
       </AnimatePresence>

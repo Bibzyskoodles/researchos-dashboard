@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi, adaApi, projectsApi } from "../../services/api";
+import { insightScoreApi, adaApi } from "../../services/api";
 import { InsightProject } from "../../types";
 import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download, Sparkles, Target, ChevronDown } from "lucide-react";
 import OutcomeIntelligencePage from "./OutcomeIntelligencePage";
@@ -433,33 +433,12 @@ export default function InsightsPage() {
     insightScoreApi.getProjects()
       .then(r => {
         const list: InsightProject[] = r.data || [];
-        if (list.length > 0) { setProjects(list); setLoading(false); return; }
-        return projectsApi.list().then(pr => {
-          const main = (pr.data?.projects || pr.data || []).map((p: { id: string; name: string; submission_count?: number; created_at?: string }) => ({
-            id: p.id,
-            name: p.name,
-            submission_count: p.submission_count ?? 0,
-            status: "pending" as const,
-            last_activity: p.created_at || new Date().toISOString(),
-            created_at: p.created_at || new Date().toISOString(),
-          }));
-          setProjects(main);
-        });
+        setProjects(list);
       })
       .catch(() => {
-        projectsApi.list()
-          .then(pr => {
-            const main = (pr.data?.projects || pr.data || []).map((p: { id: string; name: string; submission_count?: number; created_at?: string }) => ({
-              id: p.id,
-              name: p.name,
-              submission_count: p.submission_count ?? 0,
-              status: "pending" as const,
-              last_activity: p.created_at || new Date().toISOString(),
-              created_at: p.created_at || new Date().toISOString(),
-            }));
-            setProjects(main);
-          })
-          .catch(() => setProjects([]));
+        // InsightScore service unreachable — show empty state rather than
+        // silently substituting FieldScore IDs (which would 404 on every tab)
+        setProjects([]);
       })
       .finally(() => setLoading(false));
   }, []);

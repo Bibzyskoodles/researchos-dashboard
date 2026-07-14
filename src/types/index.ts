@@ -114,7 +114,7 @@ export interface InsightTheme {
   title: string;
   summary: string;
   quote_count: number;
-  quotes: string[];
+  quotes: (string | { text: string; respondent?: string })[];
   sentiment: 'positive' | 'negative' | 'mixed' | 'neutral';
 }
 

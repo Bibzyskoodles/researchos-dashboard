@@ -128,16 +128,19 @@ export default function SignalFidelityPanel({ projectId }: { projectId: string }
   const { t } = usePlatform();
   const [data, setData] = useState<SFIData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    (insightScoreApi as any).getSignalFidelity?.(projectId)
+    setLoading(true); setError(false); setData(null);
+    insightScoreApi.getSignalFidelity(projectId)
       .then((r: any) => { if (r.data?.overall !== undefined) setData(r.data); })
-      .catch(() => {})
+      .catch((e: any) => { if (e?.response?.status !== 404) setError(true); })
       .finally(() => setLoading(false));
   }, [projectId]);
 
   if (loading) return <div style={{ padding: "40px 0", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>Loading signal fidelity...</div>;
+  if (error) return <div style={{ padding: "20px", background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA", fontSize: 13, color: "#7F1D1D" }}>Could not load Signal Fidelity data — the analysis service may be unavailable. Please try again shortly.</div>;
   if (!data) return <SFIPendingState />;
 
   const color = (s: number) => s >= 75 ? GREEN : s >= 55 ? AMBER : RED;
