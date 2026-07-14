@@ -507,7 +507,7 @@ export default function IntegrationsPage() {
       .catch(() => { setKoboStats(null); setRecentEvents([]); });
   }, [activeProject?.id]);
 
-  const platforms = buildPlatforms(webhookUrl ?? "⚠ select a project first to get your webhook URL", koboStats);
+  const platforms = buildPlatforms(webhookUrl ?? "select-a-project-first", koboStats);
   const activeCount = platforms.filter(p => p.status === "active").length;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [urlCopied, setUrlCopied] = useState(false);
@@ -776,7 +776,7 @@ export default function IntegrationsPage() {
         <div style={{ fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:0.7,marginBottom:14 }}>Platforms</div>
         <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14 }}>
           {platforms.map(platform => (
-            <PlatformCard key={platform.id} platform={platform} webhookUrl={webhookUrl ?? "⚠ select a project first to get your webhook URL"} onSetupOpen={handleSetupOpen} isExpanded={expandedId===platform.id} onCopyUrl={handleCopyUrl} onNotify={handleNotify} />
+            <PlatformCard key={platform.id} platform={platform} webhookUrl={webhookUrl ?? "select-a-project-first"} onSetupOpen={handleSetupOpen} isExpanded={expandedId===platform.id} onCopyUrl={handleCopyUrl} onNotify={handleNotify} />
           ))}
         </div>
       </div>

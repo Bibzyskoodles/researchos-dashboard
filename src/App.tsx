@@ -29,6 +29,7 @@ import IntegrationsPage from './pages/field-quality/IntegrationsPage';
 import OverviewPage from './pages/field-quality/OverviewPage';
 import SubmissionDetailPage from './pages/field-quality/SubmissionDetailPage';
 import ScorecardPage from './pages/field-quality/ScorecardPage';
+import DataCleaningPage from './pages/field-quality/DataCleaningPage';
 import LiveInvestigationPage from './pages/field-quality/LiveInvestigationPage';
 
 // The public FieldScore demo is lazy-loaded so its scripted dataset and
@@ -110,6 +111,7 @@ function AppRoutes() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="enumerators" element={<EnumeratorsPage />} />
         <Route path="scorecard" element={<ScorecardPage />} />
+        <Route path="data-cleaning" element={<DataCleaningPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="questionnaire" element={<Navigate to="/projects" replace />} />

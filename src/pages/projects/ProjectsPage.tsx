@@ -187,7 +187,6 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
     } catch {
       setImportError('Import failed — the project was created but submissions could not be synced. You can sync manually from the Collect stage.');
       setStep('done');
-      setTimeout(() => { onImported(); onClose(); }, 2500);
     } finally {
       setImporting(false);
     }

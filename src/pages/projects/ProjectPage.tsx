@@ -282,7 +282,7 @@ export default function ProjectPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <ActionBtn label="Edit" />
+            <ActionBtn label="Edit" onClick={() => navigate(`/projects/${projectId}/design`)} />
             <button
               onClick={() => setShowDeleteModal(true)}
               style={{
@@ -317,6 +317,15 @@ export default function ProjectPage() {
               {lc.ada_status}
             </p>
             <button
+              onClick={() => {
+                const action = (lc.ada_next_action || '').toLowerCase();
+                if (action.includes('questionnaire') || action.includes('design')) navigate(`/projects/${projectId}/design`);
+                else if (action.includes('collect') || action.includes('webhook') || action.includes('integrat')) navigate(`/projects/${projectId}/collect`);
+                else if (action.includes('verify') || action.includes('score')) navigate(`/projects/${projectId}/verify`);
+                else if (action.includes('analys') || action.includes('insight')) navigate(`/projects/${projectId}/analyse`);
+                else if (action.includes('report')) navigate(`/projects/${projectId}/report`);
+                else navigate(`/projects/${projectId}/design`);
+              }}
               style={{
                 background: BLUE, color: 'white', border: 'none', borderRadius: 7,
                 padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
@@ -341,7 +350,7 @@ export default function ProjectPage() {
           >
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <ActionBtn label="View questionnaire" onClick={() => navigate(`/projects/${projectId}/design`)} />
-              <ActionBtn label="Download XLSForm" />
+              <ActionBtn label="Download XLSForm" onClick={() => navigate(`/projects/${projectId}/design?export=xlsform`)} />
             </div>
           </StageCard>
 

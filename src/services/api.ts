@@ -183,8 +183,8 @@ export const insightScoreApi = {
         if (failed) throw new Error(d.error || d.message || 'Analysis failed');
       } catch (err: any) {
         if (err.response?.status === 404) throw err;
-        // Re-throw errors we explicitly raised above
-        if (err.message === 'Analysis failed' || (err.message && err.message !== 'Analysis timeout')) throw err;
+        // Re-throw errors we explicitly raised above; retry transient network errors
+        if (err.message === 'Analysis failed') throw err;
         if (Date.now() - startTime >= timeout) throw new Error('Analysis timeout');
       }
       await new Promise(resolve => setTimeout(resolve, pollInterval));

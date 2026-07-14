@@ -4,7 +4,7 @@ import {
   Building2, Layers, Users, Shield, Palette, Puzzle, Brain,
   FlaskConical, Database, Lock, Bell, CreditCard, Code2,
   ClipboardList, ChevronRight, Check, AlertTriangle, RefreshCw,
-  Upload, Plus, Trash2, Eye, EyeOff, Copy, Zap,
+  Upload, Plus, Trash2, Copy, Zap,
   Download, ExternalLink, X, ShieldAlert, Cpu, Send,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
@@ -628,12 +628,68 @@ function RolesSection() {
 }
 
 function BrandingSection() {
+  const [logoUrl, setLogoUrl] = React.useState<string>(() => localStorage.getItem("org_logo") || "");
+  const [primaryColor, setPrimaryColor] = React.useState("#2463EB");
+  const [accentColor, setAccentColor] = React.useState("#7C3AED");
+  const [font, setFont] = React.useState("Inter");
+  const [footer, setFooter] = React.useState("Confidential · ResearchOS");
+  const [saving, setSaving] = React.useState(false);
+  const [saved, setSaved] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const logoInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    orgSettingsApi.getSettings()
+      .then(r => {
+        const d = r.data || {};
+        if (d.brand_primary_color) setPrimaryColor(d.brand_primary_color);
+        if (d.brand_accent_color) setAccentColor(d.brand_accent_color);
+        if (d.brand_font) setFont(d.brand_font);
+        if (d.brand_footer) setFooter(d.brand_footer);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setError("Logo must be under 2MB."); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result as string;
+      setLogoUrl(url);
+      localStorage.setItem("org_logo", url);
+    };
+    reader.readAsDataURL(file);
+    if (logoInputRef.current) logoInputRef.current.value = "";
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      await orgSettingsApi.updateSettings({
+        brand_primary_color: primaryColor,
+        brand_accent_color: accentColor,
+        brand_font: font,
+        brand_footer: footer,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Could not save — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const templates = [
     { icon: "📊", label: "PowerPoint Template", hint: ".pptx — Used for presentation outputs", accepted: ".pptx" },
     { icon: "📝", label: "Word Template", hint: ".docx — Used for written report exports", accepted: ".docx" },
     { icon: "📈", label: "Excel Template", hint: ".xlsx — Used for data exports", accepted: ".xlsx" },
     { icon: "📋", label: "Research Report Template", hint: ".docx or .pdf — Master report layout", accepted: ".docx,.pdf" },
   ];
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
@@ -641,33 +697,50 @@ function BrandingSection() {
           <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
             <div>
               <div style={{ ...LABEL }}>Organisation Logo</div>
-              <div style={{ width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", display: "grid", placeItems: "center", background: "#F8FAFF", cursor: "pointer" }}>
-                <div style={{ textAlign: "center" }}><Upload size={20} color="#CBD5E1" /><div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div></div>
+              <div
+                onClick={() => logoInputRef.current?.click()}
+                style={{ width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", display: "grid", placeItems: "center", background: "#F8FAFF", cursor: "pointer", overflow: "hidden" }}
+              >
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                ) : (
+                  <div style={{ textAlign: "center" }}><Upload size={20} color="#CBD5E1" /><div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div></div>
+                )}
               </div>
+              <input ref={logoInputRef} type="file" accept="image/png,image/svg+xml,image/jpeg" style={{ display: "none" }} onChange={handleLogoChange} />
               <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 6 }}>PNG, SVG · Max 2MB</div>
+              {logoUrl && (
+                <button onClick={() => { setLogoUrl(""); localStorage.removeItem("org_logo"); }} style={{ fontSize: 10.5, color: RED, background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 4 }}>Remove</button>
+              )}
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <SettingsField label="Primary Colour">
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input type="color" defaultValue="#2463EB" style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #E2E8F0", cursor: "pointer", padding: 2 }} />
-                    <input style={{ ...INPUT }} defaultValue="#2463EB" />
+                    <input type="color" value={primaryColor} onChange={e => setPrimaryColor(e.target.value)} style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #E2E8F0", cursor: "pointer", padding: 2 }} />
+                    <input style={{ ...INPUT }} value={primaryColor} onChange={e => setPrimaryColor(e.target.value)} />
                   </div>
                 </SettingsField>
                 <SettingsField label="Accent Colour">
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input type="color" defaultValue="#7C3AED" style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #E2E8F0", cursor: "pointer", padding: 2 }} />
-                    <input style={{ ...INPUT }} defaultValue="#7C3AED" />
+                    <input type="color" value={accentColor} onChange={e => setAccentColor(e.target.value)} style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #E2E8F0", cursor: "pointer", padding: 2 }} />
+                    <input style={{ ...INPUT }} value={accentColor} onChange={e => setAccentColor(e.target.value)} />
                   </div>
                 </SettingsField>
                 <SettingsField label="Report Font">
-                  <select style={{ ...INPUT }}>{["Inter","Helvetica Neue","Georgia","Calibri","Roboto","Open Sans"].map(f => <option key={f}>{f}</option>)}</select>
+                  <select style={{ ...INPUT }} value={font} onChange={e => setFont(e.target.value)}>{["Inter","Helvetica Neue","Georgia","Calibri","Roboto","Open Sans"].map(f => <option key={f}>{f}</option>)}</select>
                 </SettingsField>
-                <SettingsField label="Report Footer"><input style={INPUT} defaultValue="Confidential · ResearchOS" /></SettingsField>
+                <SettingsField label="Report Footer"><input style={INPUT} value={footer} onChange={e => setFooter(e.target.value)} /></SettingsField>
               </div>
             </div>
           </div>
         </SettingsGroup>
+        {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+          <button onClick={save} disabled={saving} style={{ ...BTN_PRIMARY, opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Saving…" : saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Brand Settings"}
+          </button>
+        </div>
       </SettingsCard>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Report Templates">
@@ -676,9 +749,8 @@ function BrandingSection() {
               <div style={{ fontSize: 22, flexShrink: 0 }}>{t.icon}</div>
               <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{t.label}</div><div style={{ fontSize: 11.5, color: "#9CA3AF" }}>{t.hint}</div></div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px", display: "flex", alignItems: "center", gap: 5 }}><Download size={12} /> Download</button>
                 <label style={{ ...BTN_PRIMARY, fontSize: 11.5, padding: "6px 12px", display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
-                  <Upload size={12} /> Upload<input type="file" accept={t.accepted} style={{ display: "none" }} />
+                  <Upload size={12} /> Upload<input type="file" accept={t.accepted} style={{ display: "none" }} onChange={() => {}} />
                 </label>
               </div>
             </div>
@@ -694,12 +766,12 @@ const INTEGRATIONS: Integration[] = [
   { id:"kobo",name:"KoboToolbox",icon:"🗂",category:"Data Collection",status:"disconnected",lastSync:"Never",health:0 },
   { id:"surveycto",name:"SurveyCTO",icon:"📋",category:"Data Collection",status:"disconnected",lastSync:"Never",health:0 },
   { id:"odk",name:"ODK Central",icon:"📱",category:"Data Collection",status:"disconnected",lastSync:"Never",health:0 },
-  { id:"gdrive",name:"Google Drive",icon:"💾",category:"Storage",status:"connected",lastSync:"5 mins ago",health:98 },
+  { id:"gdrive",name:"Google Drive",icon:"💾",category:"Storage",status:"disconnected",lastSync:"Never",health:0 },
   { id:"onedrive",name:"OneDrive",icon:"☁️",category:"Storage",status:"disconnected",lastSync:"Never",health:0 },
   { id:"dropbox",name:"Dropbox",icon:"📦",category:"Storage",status:"disconnected",lastSync:"Never",health:0 },
-  { id:"slack",name:"Slack",icon:"💬",category:"Notifications",status:"connected",lastSync:"2h ago",health:100 },
+  { id:"slack",name:"Slack",icon:"💬",category:"Notifications",status:"disconnected",lastSync:"Never",health:0 },
   { id:"teams",name:"Microsoft Teams",icon:"🟦",category:"Notifications",status:"disconnected",lastSync:"Never",health:0 },
-  { id:"powerbi",name:"Power BI",icon:"📊",category:"Analytics",status:"error",lastSync:"3d ago",health:12 },
+  { id:"powerbi",name:"Power BI",icon:"📊",category:"Analytics",status:"disconnected",lastSync:"Never",health:0 },
   { id:"zapier",name:"Zapier",icon:"⚡",category:"Automation",status:"disconnected",lastSync:"Never",health:0 },
   { id:"make",name:"Make (Integromat)",icon:"🔄",category:"Automation",status:"disconnected",lastSync:"Never",health:0 },
 ];
@@ -764,7 +836,31 @@ function AdaSection() {
   const [brief, setBrief] = useState(true);
   const [guidance, setGuidance] = useState(true);
   const [celebrations, setCelebrations] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
   const model = "claude-sonnet-5";
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      await orgSettingsApi.updateSettings({
+        ada_personality: personality,
+        ada_proactive: proactive,
+        ada_daily_brief: brief,
+        ada_element_guidance: guidance,
+        ada_celebrations: celebrations,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Could not save — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
@@ -792,7 +888,12 @@ function AdaSection() {
           <div><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>AI Model</div><div style={{ fontSize: 11.5, color: "#9CA3AF" }}>Powers Ada's intelligence and analysis</div></div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Badge label={model} color={PURPLE} /><Badge label="Enterprise" color={AMBER} /></div>
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}><button style={BTN_PRIMARY}>Save Ada Settings</button></div>
+        {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+          <button onClick={save} disabled={saving} style={{ ...BTN_PRIMARY, opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Saving…" : saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Ada Settings"}
+          </button>
+        </div>
       </SettingsCard>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Memory & Context">
@@ -952,7 +1053,8 @@ function SecuritySection() {
       const r = await orgSettingsApi.updateSecurity({
         two_factor_enabled: twoFa, sso_enabled: sso,
         session_timeout_mins: _mapCodeToMins(sessionTimeout),
-        ip_allowlist: ipRestrict ? [] : [],
+        ip_restrict_enabled: ipRestrict,
+        ip_allowlist: [],
       });
       setSaved(true);
       setNote(r.data?.note || "");
@@ -1355,28 +1457,18 @@ function BillingSection() {
 }
 
 function ApiSection() {
-  const [showKey, setShowKey] = useState(false);
-  const mockKey = "rsos_live_a8f3k2x9p1mq7w4n6j0d5e";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="API Keys">
-          <div style={{ padding: "16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Production Key</div><Badge label="Active" color={GREEN} /></div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input readOnly value={showKey ? mockKey : "rsos_live_••••••••••••••••••"} style={{ ...INPUT, fontFamily: "monospace", fontSize: 12, color: "#374151", flex: 1 }} />
-              <button onClick={() => setShowKey(!showKey)} style={{ ...BTN_GHOST, padding: "9px 12px" }}>{showKey ? <EyeOff size={14} /> : <Eye size={14} />}</button>
-              <button style={{ ...BTN_GHOST, padding: "9px 12px" }}><Copy size={14} /></button>
-            </div>
-            <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6 }}>Created 1 Jun 2025 · Last used 2h ago</div>
+          <div style={{ padding: "14px 16px", background: "#FFF7ED", borderRadius: 10, border: "1px solid #FED7AA", fontSize: 12.5, color: "#92400E", lineHeight: 1.6 }}>
+            API key management is not yet available in-app. Contact <a href="mailto:bibilade@intelligencyai.com.ng" style={{ color: "#2463EB" }}>bibilade@intelligencyai.com.ng</a> to request an API key for your organisation.
           </div>
-          <button style={{ ...BTN_PRIMARY, display: "flex", alignItems: "center", gap: 6, width: "fit-content" }}><Plus size={13} /> Generate New Key</button>
         </SettingsGroup>
         <SectionDivider label="Webhooks" />
         <SettingsGroup>
-          <div style={{ padding: "14px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}><div style={{ fontSize: 12, fontFamily: "monospace", color: "#374151" }}>https://hooks.zapier.com/hooks/catch/...</div><Badge label="active" color={GREEN} /></div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const }}>{["submission.scored","report.ready"].map(e => <Badge key={e} label={e} color={BLUE} />)}</div>
+          <div style={{ padding: "14px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8", fontSize: 12.5, color: "#6B7280" }}>
+            No webhooks configured. Webhooks will let you receive real-time events (submission scored, report ready) at a URL you control.
           </div>
           <button style={{ ...BTN_GHOST, display: "flex", alignItems: "center", gap: 6, width: "fit-content" }}><Plus size={13} /> Add Webhook</button>
         </SettingsGroup>
@@ -1390,50 +1482,19 @@ function ApiSection() {
   );
 }
 
-interface AuditEvent { id: string; user: string; action: string; resource: string; detail: string; ip: string; time: string; severity: "info"|"warning"|"critical"; }
-const AUDIT_EVENTS: AuditEvent[] = [
-  {id:"1",user:"Bibzi A.",action:"LOGIN",resource:"Auth",detail:"Successful login",ip:"105.112.x.x",time:"2 mins ago",severity:"info"},
-  {id:"2",user:"Bibzi A.",action:"EXPORT",resource:"Submissions",detail:"Exported 182 submissions to CSV",ip:"105.112.x.x",time:"1h ago",severity:"info"},
-  {id:"3",user:"Amara O.",action:"UPDATE",resource:"Settings",detail:"Changed GPS tolerance from 100m to 50m",ip:"102.88.x.x",time:"3h ago",severity:"warning"},
-  {id:"4",user:"System",action:"GENERATE",resource:"Report",detail:"Executive Summary generated by Ada",ip:"—",time:"5h ago",severity:"info"},
-  {id:"5",user:"Bibzi A.",action:"INVITE",resource:"Users",detail:"Invited chidi@researchos.io as Viewer",ip:"105.112.x.x",time:"1d ago",severity:"info"},
-  {id:"6",user:"System",action:"ERROR",resource:"Integration",detail:"Power BI sync failed — token expired",ip:"—",time:"3d ago",severity:"critical"},
-  {id:"7",user:"Amara O.",action:"DELETE",resource:"Submission",detail:"Deleted submission SUB-0042 (duplicate)",ip:"102.88.x.x",time:"5d ago",severity:"warning"},
-];
-
 function AuditSection() {
-  const [filter, setFilter] = useState("all");
-  const severityColor = (s: string) => s === "critical" ? RED : s === "warning" ? AMBER : "#9CA3AF";
-  const filtered = filter === "all" ? AUDIT_EVENTS : AUDIT_EVENTS.filter(e => e.severity === filter);
   return (
     <SettingsCard style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {["all","info","warning","critical"].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${filter === f ? BLUE : "#E2E8F0"}`, background: filter === f ? "#EFF6FF" : "white", color: filter === f ? BLUE : "#6B7280", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter,sans-serif", textTransform: "capitalize" as const }}>{f}</button>
-          ))}
-        </div>
-        <button style={{ ...BTN_GHOST, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}><Download size={12} /> Export Audit Log</button>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Audit Log</div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-        {filtered.map((ev, i) => (
-          <div key={ev.id} style={{ display: "flex", gap: 14, padding: "12px 0", borderBottom: i < filtered.length - 1 ? "1px solid #F8FAFF" : "none" }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: severityColor(ev.severity), marginTop: 5, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 3 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "monospace", padding: "1px 6px", borderRadius: 4, background: "#F1F5F9", color: "#374151" }}>{ev.action}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{ev.resource}</span>
-                <span style={{ fontSize: 12, color: "#6B7280" }}>by {ev.user}</span>
-              </div>
-              <div style={{ fontSize: 12, color: "#9CA3AF" }}>{ev.detail}</div>
-            </div>
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div style={{ fontSize: 11.5, color: "#9CA3AF" }}>{ev.time}</div>
-              <div style={{ fontSize: 10.5, color: "#CBD5E1", marginTop: 2 }}>{ev.ip}</div>
-            </div>
-            {ev.severity !== "info" && <AlertTriangle size={13} color={severityColor(ev.severity)} style={{ flexShrink: 0, marginTop: 4 }} />}
-          </div>
-        ))}
+      <div style={{ padding: "20px 24px", background: "#F8FAFF", borderRadius: 12, border: "1px solid #EEF2F8", textAlign: "center" as const }}>
+        <ClipboardList size={28} color="#CBD5E1" style={{ marginBottom: 10 }} />
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Audit logging isn't enabled yet</div>
+        <div style={{ fontSize: 12.5, color: "#9CA3AF", lineHeight: 1.6, maxWidth: 400, margin: "0 auto" }}>
+          When audit logging is turned on, every login, export, settings change, and data deletion will be recorded here with the user, timestamp, and IP address.
+          Contact <a href="mailto:bibilade@intelligencyai.com.ng" style={{ color: BLUE, textDecoration: "none" }}>bibilade@intelligencyai.com.ng</a> to enable audit logging for your organisation.
+        </div>
       </div>
     </SettingsCard>
   );
