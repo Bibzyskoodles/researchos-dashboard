@@ -205,7 +205,8 @@ function AdaHero({ projectId, disabled }: { projectId: string | null; disabled: 
 
   const goTo = (stage: string = "analyse") => {
     if (!projectId) return;
-    navigate(`/projects/${projectId}/${stage}`);
+    if (stage === "analyse") navigate(`/insights/${projectId}`);
+    else navigate(`/projects/${projectId}/${stage}`);
   };
 
   const btnStyle = (active: boolean, primary: boolean) => ({
@@ -358,7 +359,7 @@ function CapabilityGrid({ projectId, disabled }: { projectId: string | null; dis
           <motion.div
             key={label}
             whileHover={disabled ? {} : { y: -2, boxShadow: "0 6px 24px rgba(37,99,235,.1)" }}
-            onClick={() => { if (disabled || !projectId) return; navigate(`/projects/${projectId}/analyse?tab=${tab}`); }}
+            onClick={() => { if (disabled || !projectId) return; navigate(`/insights/${projectId}?tab=${tab}`); }}
             style={{
               background: "white", borderRadius: 12, padding: "16px 16px",
               border: "1px solid #E8EDF5", display: "flex", gap: 12, alignItems: "flex-start",
