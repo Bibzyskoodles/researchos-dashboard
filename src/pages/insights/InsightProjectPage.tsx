@@ -339,12 +339,15 @@ export default function InsightProjectPage() {
   const [project, setProject] = useState<InsightProject | null>(null);
   const [report, setReport] = useState<InsightReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     insightScoreApi.getProject(id)
       .then(r => setProject(r.data))
-      .catch(() => {})
+      .catch((err) => {
+        if (err?.response?.status === 404) setNotFound(true);
+      })
       .finally(() => setLoading(false));
     insightScoreApi.getReport(id)
       .then(r => { if (r.data?.executive_summary || r.data?.themes) setReport(r.data); })
@@ -374,6 +377,23 @@ export default function InsightProjectPage() {
 
   const setTab = (tab: Tab) => setSearchParams({ tab });
   if (!id) return null;
+
+  if (!loading && notFound) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "80px 24px", gap: 16 }}>
+        <div style={{ fontSize: 40 }}>🔬</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#080D1A" }}>Project not in InsightScore yet</div>
+        <div style={{ fontSize: 13, color: "#9CA3AF", maxWidth: 420, textAlign: "center", lineHeight: 1.7 }}>
+          This project hasn't been set up for qualitative analysis. To enable it, make sure the InsightScore bridge is active and submissions are flowing from FieldScore.
+        </div>
+        <AdaBriefing message="Once your verified submissions start flowing through the FieldScore bridge, this project will appear here automatically. You can also enable the bridge in Railway environment variables: INSIGHTSCORE_ENABLED=true." />
+        <button onClick={() => navigate("/insights")}
+          style={{ padding: "10px 20px", borderRadius: 10, background: BLUE, border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          ← Back to Projects
+        </button>
+      </div>
+    );
+  }
 
   const statusColor = project?.status === "complete" ? GREEN : project?.status === "error" ? RED : project?.status === "analysing" ? BLUE : AMBER;
 
