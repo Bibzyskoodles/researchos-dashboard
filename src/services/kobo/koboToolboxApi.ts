@@ -106,28 +106,61 @@ function mapQuestionType(fieldScoreType: string): string {
   return typeMap[fieldScoreType] || 'text';
 }
 
+export function questionnaireToKoboContent(questionnaire: Questionnaire): Record<string, unknown> {
+  const survey: Record<string, unknown>[] = [];
+  const choices: Record<string, unknown>[] = [];
+
+  (questionnaire.questions || []).forEach((q, idx) => {
+    const name = q.name || `q${idx + 1}`;
+    const type = mapQuestionType(q.type);
+    const hasOptions = (q.type === 'select_one' || q.type === 'select_multiple') && q.options?.length;
+
+    let fullType = type;
+    if (hasOptions) {
+      const listName = `list_${name}`;
+      fullType = `${type} ${listName}`;
+      q.options!.forEach(opt => {
+        choices.push({ list_name: listName, name: opt.value, label: opt.label });
+      });
+    }
+
+    survey.push({
+      type: fullType,
+      name,
+      label: q.label || `Question ${idx + 1}`,
+      hint: '',
+      required: q.required ? true : false,
+      ...(q.condition ? { relevant: q.condition } : {}),
+    });
+  });
+
+  return {
+    survey,
+    choices,
+    settings: {
+      form_title: questionnaire.name,
+      form_id: questionnaire.id,
+      version: questionnaire.version || '1',
+    },
+  };
+}
+
 export async function createKoboAsset(
   token: string,
   name: string,
-  xlsForm: string,
-  settings: Record<string, unknown>
+  content: Record<string, unknown>,
 ): Promise<KoboAsset> {
   try {
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('settings', JSON.stringify(settings));
-    const xlsBlob = new Blob([xlsForm], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    formData.append('xls_file', xlsBlob, `${name}.xlsx`);
-
     const response = await fetch(`${KOBO_BASE_URL}/assets/`, {
       method: 'POST',
-      headers: { Authorization: `Token ${token}` },
-      body: formData,
+      headers: {
+        Authorization: `Token ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name, asset_type: 'survey', content }),
     });
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       throw new KoboToolboxError(response.status, 'Failed to create asset', errorData);
     }
     return response.json();
@@ -237,19 +270,15 @@ export async function publishToKoboToolbox(
 ): Promise<PublishResult> {
   try {
     await verifyKoboToken(token);
-    const xlsForm = questionnaireToXLSForm(questionnaire);
-    const asset = await createKoboAsset(token, config.projectName, xlsForm, {
-      id_string: questionnaire.id,
-      description: config.description || '',
-      version: questionnaire.version,
-    });
+    const content = questionnaireToKoboContent(questionnaire);
+    const asset = await createKoboAsset(token, config.projectName, content);
     await deployKoboAsset(token, asset.uid);
     const shareLink = generateShareLink(asset.uid);
     return {
       success: true,
       assetUid: asset.uid,
       shareLink,
-      xlsLink: asset.downloads.xls,
+      xlsLink: asset.downloads?.xls,
       version: parseInt(questionnaire.version || '1', 10) || 1,
       timestamp: new Date().toISOString(),
     };
