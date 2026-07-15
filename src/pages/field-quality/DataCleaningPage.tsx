@@ -554,7 +554,7 @@ export default function DataCleaningPage() {
         moeBefore: moe(submissions.length), moeAfter: moe(kept.length),
       },
     };
-  }, [submissions, rules, config]);
+  }, [submissions, rules, config, trustOf]);
 
   const textCorrections = useMemo(() => {
     const detected = detectTextCorrections(submissions);
@@ -671,7 +671,7 @@ export default function DataCleaningPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const a = document.createElement('a'); a.href = url; a.download = 'clean-dataset.csv'; a.click();
     URL.revokeObjectURL(url);
-  }, [analysis, anonymizeGps, applyTextFix]);
+  }, [analysis, anonymizeGps, applyTextFix, trustOf]);
 
   // Group rules by category
   const rulesByCategory = useMemo(() => {
