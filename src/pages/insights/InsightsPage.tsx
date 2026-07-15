@@ -451,10 +451,8 @@ export default function InsightsPage() {
       setSelectedProjectId(linkedId);
       return;
     }
-    // No linked project — auto-select if only one exists
-    if (projects.length === 1 && !selectedProjectId) {
-      setSelectedProjectId(projects[0].id);
-    }
+    // Active topbar project has no InsightScore link yet — show the "no data" state
+    setSelectedProjectId(null);
   }, [activeProject, projects]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const disabled = !selectedProjectId;
