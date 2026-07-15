@@ -697,17 +697,18 @@ function BrandingSection() {
           <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
             <div>
               <div style={{ ...LABEL }}>Organisation Logo</div>
-              <label style={{ display: "grid", width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", placeItems: "center", background: "#F8FAFF", cursor: "pointer", overflow: "hidden" }}>
+              <div style={{ position: "relative", width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", background: "#F8FAFF", overflow: "hidden", cursor: "pointer", flexShrink: 0 }}>
                 {logoUrl ? (
-                  <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+                  <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", pointerEvents: "none" }} />
                 ) : (
-                  <div style={{ textAlign: "center" }}>
+                  <div style={{ display: "grid", placeItems: "center", width: "100%", height: "100%", pointerEvents: "none" }}>
                     <Upload size={20} color="#CBD5E1" />
                     <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div>
                   </div>
                 )}
-                <input type="file" accept="image/png,image/svg+xml,image/jpeg" onChange={handleLogoChange} style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }} />
-              </label>
+                <input type="file" accept="image/png,image/svg+xml,image/jpeg" onChange={handleLogoChange}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.001, cursor: "pointer", fontSize: 0 }} />
+              </div>
               <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 6 }}>PNG, SVG · Max 2MB</div>
               {logoUrl && (
                 <button onClick={() => { setLogoUrl(""); localStorage.removeItem("org_logo"); }} style={{ fontSize: 10.5, color: RED, background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 4 }}>Remove</button>
