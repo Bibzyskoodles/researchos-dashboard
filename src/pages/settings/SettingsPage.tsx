@@ -706,7 +706,9 @@ function BrandingSection() {
                     <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div>
                   </div>
                 )}
-                <input type="file" accept="image/png,image/svg+xml,image/jpeg" onChange={handleLogoChange}
+                <input type="file" accept="image/png,image/svg+xml,image/jpeg"
+                  onClick={() => console.log('[upload] input clicked directly')}
+                  onChange={handleLogoChange}
                   style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.001, cursor: "pointer", fontSize: 0 }} />
               </div>
               <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 6 }}>PNG, SVG · Max 2MB</div>
