@@ -346,6 +346,7 @@ export default function InsightProjectPage() {
   const [notFound, setNotFound] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [cleanSyncing, setCleanSyncing] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -492,6 +493,44 @@ export default function InsightProjectPage() {
             style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", border: "1px solid #E2E8F0", borderRadius: 8, background: "white", fontSize: 12, fontWeight: 600, color: "#374151", cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.7 : 1 }}>
             <RefreshCw size={11} style={{ animation: syncing ? "spin 1s linear infinite" : "none" }} />
             {syncing ? "Syncing…" : "Sync All"}
+          </button>
+          <button
+            onClick={async () => {
+              if (!window.confirm("This will delete all data in this InsightScore project and re-push from scratch with clean filtering. Continue?")) return;
+              setCleanSyncing(true);
+              setSyncResult(null);
+              try {
+                await insightSyncApi.resetProject(id);
+                // Small delay so InsightScore finishes cleanup before re-ingesting
+                await new Promise(r => setTimeout(r, 1500));
+                const assetUid = activeProject?.kobo_asset_uid;
+                let r2;
+                if (assetUid) {
+                  r2 = await insightSyncApi.koboPush({
+                    insightscore_project_id: id,
+                    asset_uid: assetUid,
+                    project_id: activeProject?.id,
+                    project_name: activeProject?.name,
+                    research_context: (activeProject as any)?.research_purpose || (activeProject as any)?.image_context || undefined,
+                  });
+                } else {
+                  r2 = await insightSyncApi.bulkSync(id);
+                }
+                const d = r2.data;
+                setSyncResult(`Clean sync: pushed ${d.pushed ?? 0} (${d.skipped ?? 0} skipped)`);
+                insightScoreApi.getProject(id).then(res => setProject(res.data)).catch(() => {});
+              } catch (err: any) {
+                setSyncResult(`Clean sync failed: ${err?.response?.data?.error || err?.message || "unknown"}`);
+              } finally {
+                setCleanSyncing(false);
+                setTimeout(() => setSyncResult(null), 6000);
+              }
+            }}
+            disabled={cleanSyncing || syncing}
+            title="Delete InsightScore data and re-sync clean (removes metadata fields from old submissions)"
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", border: "1px solid #FCA5A5", borderRadius: 8, background: cleanSyncing ? "#FEF2F2" : "white", fontSize: 12, fontWeight: 600, color: "#DC2626", cursor: (cleanSyncing || syncing) ? "wait" : "pointer", opacity: (cleanSyncing || syncing) ? 0.7 : 1 }}>
+            <RefreshCw size={11} style={{ animation: cleanSyncing ? "spin 1s linear infinite" : "none" }} />
+            {cleanSyncing ? "Resetting…" : "Clean Sync"}
           </button>
           <button onClick={() => setOpen(true)}
             style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "1px solid #DBEAFE", borderRadius: 8, background: "#EFF6FF", fontSize: 12, fontWeight: 600, color: BLUE, cursor: "pointer" }}>
