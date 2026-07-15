@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { insightScoreApi, adaApi } from "../../services/api";
+import { useProject } from "../../context/ProjectContext";
 import { InsightProject } from "../../types";
 import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download, Sparkles, Target, ChevronDown } from "lucide-react";
 import OutcomeIntelligencePage from "./OutcomeIntelligencePage";
@@ -422,6 +423,7 @@ function ProjectCard({ project, onSelect }: { project: InsightProject; onSelect:
 type InsightsTab = "analysis" | "outcome";
 
 export default function InsightsPage() {
+  const { activeProject } = useProject();
   const [projects, setProjects] = useState<InsightProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<InsightsTab>("analysis");
@@ -436,19 +438,24 @@ export default function InsightsPage() {
         setProjects(list);
       })
       .catch(() => {
-        // InsightScore service unreachable — show empty state rather than
-        // silently substituting FieldScore IDs (which would 404 on every tab)
         setProjects([]);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  // Auto-select only project if there's exactly one
+  // When the topbar project changes, auto-select its linked InsightScore project
   useEffect(() => {
+    if (!activeProject) return;
+    const linkedId = (activeProject as any).insightscore_project_id;
+    if (linkedId) {
+      setSelectedProjectId(linkedId);
+      return;
+    }
+    // No linked project — auto-select if only one exists
     if (projects.length === 1 && !selectedProjectId) {
       setSelectedProjectId(projects[0].id);
     }
-  }, [projects, selectedProjectId]);
+  }, [activeProject, projects]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const disabled = !selectedProjectId;
 
