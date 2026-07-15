@@ -1674,6 +1674,7 @@ function EngineSection() {
   const [newZoneRadius, setNewZoneRadius] = useState(250);
   const [newZoneLabel, setNewZoneLabel] = useState("");
   const [passScoreThreshold, setPassScoreThreshold] = useState(_cfg.passScoreThreshold);
+  const [researchPurpose, setResearchPurpose] = useState("");
   const [imageContentHint, setImageContentHint] = useState(_cfg.imageContentHint || "");
   const [audioContentHint, setAudioContentHint] = useState(_cfg.audioContentHint || "");
   const [aiHighPenalty, setAiHighPenalty] = useState(_cfg.aiHighPenalty);
@@ -1694,6 +1695,7 @@ function EngineSection() {
     dashboardApi.getScoringConfig(activeProject.id)
       .then(r => {
         const c = r.data?.config || {};
+        if (c.research_purpose) setResearchPurpose(c.research_purpose);
         if (c.image_context) setImageContentHint(c.image_context);
         if (c.audio_context) setAudioContentHint(c.audio_context);
         if (c.pass_threshold) setPassScoreThreshold(Number(c.pass_threshold));
@@ -1752,6 +1754,7 @@ function EngineSection() {
     setBackendSaveError("");
     if (activeProject?.id) {
       dashboardApi.updateScoringConfig(activeProject.id, {
+        research_purpose: researchPurpose.trim(),
         image_context: imageContentHint.trim(),
         audio_context: audioContentHint.trim(),
         pass_threshold: passScoreThreshold,
@@ -1826,6 +1829,24 @@ function EngineSection() {
             </button>
           ))}
         </div>
+      </SettingsCard>
+
+      {/* Research Purpose */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>🎯 Research Purpose</div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 14, lineHeight: 1.6 }}>
+          Describe what this project is trying to find out. Ada uses this when analysing your submissions — without it, she infers purpose from field names and may get it wrong.
+        </div>
+        <textarea
+          value={researchPurpose}
+          onChange={e => setResearchPurpose(e.target.value)}
+          placeholder="e.g. This survey asks community members about their experiences with and perceptions of public health facilities in Lagos. Photos and GPS are supporting evidence only — the primary data is respondents' opinions, satisfaction levels, and suggestions."
+          rows={4}
+          style={{ ...INPUT, fontSize: 12.5, resize: "vertical", lineHeight: 1.6 }}
+        />
+        {!activeProject?.id && (
+          <div style={{ fontSize: 10.5, color: "#D97706", marginTop: 6 }}>Select a project from the sidebar so this is saved to the right project.</div>
+        )}
       </SettingsCard>
 
       {/* Score Weights */}
