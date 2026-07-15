@@ -628,6 +628,7 @@ function RolesSection() {
 }
 
 function BrandingSection() {
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoUrl, setLogoUrl] = React.useState<string>(() => localStorage.getItem("org_logo") || "");
   const [primaryColor, setPrimaryColor] = React.useState("#2463EB");
   const [accentColor, setAccentColor] = React.useState("#7C3AED");
@@ -660,7 +661,7 @@ function BrandingSection() {
       localStorage.setItem("org_logo", url);
     };
     reader.readAsDataURL(file);
-
+    e.target.value = "";
   };
 
   const save = async () => {
@@ -696,14 +697,14 @@ function BrandingSection() {
           <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
             <div>
               <div style={{ ...LABEL }}>Organisation Logo</div>
-              <label htmlFor="org-logo-upload" style={{ display: "grid", width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", placeItems: "center", background: "#F8FAFF", cursor: "pointer", overflow: "hidden" }}>
+              <button type="button" onClick={() => logoInputRef.current?.click()} style={{ display: "grid", width: 100, height: 100, borderRadius: 14, border: "2px dashed #E2E8F0", placeItems: "center", background: "#F8FAFF", cursor: "pointer", overflow: "hidden", padding: 0 }}>
                 {logoUrl ? (
-                  <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  <img src={logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none" }} />
                 ) : (
-                  <div style={{ textAlign: "center" }}><Upload size={20} color="#CBD5E1" /><div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div></div>
+                  <div style={{ textAlign: "center", pointerEvents: "none" }}><Upload size={20} color="#CBD5E1" /><div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>Upload</div></div>
                 )}
-              </label>
-              <input id="org-logo-upload" type="file" accept="image/png,image/svg+xml,image/jpeg" style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} onChange={handleLogoChange} />
+              </button>
+              <input ref={logoInputRef} type="file" accept="image/png,image/svg+xml,image/jpeg" style={{ display: "none" }} onChange={handleLogoChange} />
               <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 6 }}>PNG, SVG · Max 2MB</div>
               {logoUrl && (
                 <button onClick={() => { setLogoUrl(""); localStorage.removeItem("org_logo"); }} style={{ fontSize: 10.5, color: RED, background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 4 }}>Remove</button>
