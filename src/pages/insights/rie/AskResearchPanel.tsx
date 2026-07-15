@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { adaApi, insightScoreApi } from "../../../services/api";
+import { insightScoreApi } from "../../../services/api";
 import { InsightReport } from "../../../types";
 
 const BLUE = "#2463EB";
@@ -165,98 +165,42 @@ export default function AskResearchPanel({ projectId, report }: { projectId: str
     const idx = history.length;
     setHistory(prev => [...prev, { question, answer: null, loading: true }]);
 
-    const context: Record<string, unknown> = {
-      project_id: projectId,
-      mode: "ask_your_research",
-      has_report: !!report,
-    };
-    if (report) {
-      context.executive_summary = report.executive_summary;
-      context.themes = report.themes?.map(t => ({ title: t.title, sentiment: t.sentiment, quote_count: t.quote_count }));
-      context.recommendations = report.recommendations?.slice(0, 5);
-      context.risks = report.risks?.slice(0, 3);
-      context.opportunities = report.opportunities?.slice(0, 3);
+    // Require analysis before allowing questions — no hallucination fallback
+    if (!report) {
+      setHistory(prev => prev.map((item, i) => i === idx ? {
+        ...item, loading: false,
+        error: "Run Intelligence analysis first — answers are grounded in your actual interview transcripts, not generated from scratch.",
+      } : item));
+      return;
     }
 
     try {
-      // Primary: ask InsightScore directly — it has the full transcript data
-      let parsed: ResearchAnswer | null = null;
-
-      let insightScoreError = "";
-      try {
-        const res = await insightScoreApi.askResearch(projectId, question, {
-          has_report: !!report,
-          executive_summary: report?.executive_summary,
-          themes: report?.themes?.map(t => ({ title: t.title, sentiment: t.sentiment, quote_count: t.quote_count })),
-        });
-        const d = res.data;
-        if (d?.answer || d?.reply || d?.response) {
-          parsed = {
-            answer: d.answer || d.reply || d.response || "",
-            confidence: d.confidence ?? 0.75,
-            evidence_count: d.evidence_count ?? (report?.themes?.reduce((s: number, t: any) => s + (t.quote_count || 0), 0) || 0),
-            quotes: d.quotes || [],
-            themes: d.themes || [],
-            follow_up: d.follow_up || d.follow_up_questions || [
-              "Which demographic shows the strongest signal here?",
-              "Show me the contradictory evidence",
-              "What does this mean for future studies?",
-            ],
-          };
-        }
-      } catch (e: any) {
-        const status = e?.response?.status;
-        const detail = e?.response?.data?.detail || e?.response?.data?.error || e?.message || "unknown";
-        insightScoreError = `InsightScore /ask returned ${status || "network error"}: ${detail}`;
-        console.warn("AskResearchPanel: InsightScore /ask failed —", insightScoreError);
-      }
-
-      if (!parsed && !report) {
-        // No InsightScore response AND no report — nothing to answer from
-        setHistory(prev => prev.map((item, i) => i === idx ? {
-          ...item, loading: false,
-          error: insightScoreError
-            ? `Could not reach InsightScore: ${insightScoreError}. Run Intelligence analysis first to enable this feature.`
-            : "Run Intelligence analysis first — Ada needs your interview data before she can answer questions.",
-        } : item));
-        return;
-      }
-
-      if (!parsed && report) {
-        // Fallback: Ada chat with report context (no live transcript data)
-        const systemPrompt = `You are Ada, a senior research analyst. Answer based ONLY on the research context provided. Never fabricate quotes or data you don't have.
-Research context: ${report.executive_summary || ""}
-Themes: ${report.themes?.map((t: any) => t.title).join(", ") || "none"}`;
-
-        const res = await adaApi.chat(
-          `[ASK YOUR RESEARCH] ${question}\n\nSystem: ${systemPrompt}`,
-          "insights",
-          context
-        );
-        const rawAnswer = res.data?.reply || res.data?.message || res.data?.response || "I don't have enough evidence to answer this confidently.";
-
-        const questionLower = question.toLowerCase();
-        const keyword = questionLower.split(" ").find((w: string) => w.length > 4) || "";
-        const matchingThemes = report.themes?.filter((t: any) =>
-          t.title.toLowerCase().includes(keyword) || t.summary?.toLowerCase().includes(keyword)
-        ) || [];
-        const allQuotes = report.themes?.flatMap((t: any) =>
-          (t.quotes || []).map((q: any) => typeof q === "string" ? q : q.text || "")
-        ).filter(Boolean) || [];
-
-        parsed = {
-          answer: rawAnswer,
-          confidence: 0.6,
-          evidence_count: report.themes?.reduce((s: number, t: any) => s + (t.quote_count || 0), 0) || 0,
-          quotes: allQuotes.slice(0, 3),
-          themes: matchingThemes.map((t: any) => t.title),
-          follow_up: ["Which demographic shows the strongest signal here?", "Show me the contradictory evidence", "What does this mean for future studies?"],
-        };
-      }
-
-      setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, answer: parsed! } : item));
-    } catch {
-      setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, error: "I couldn't connect to my knowledge base. Please try again." } : item));
+      const res = await insightScoreApi.askResearch(projectId, question, {
+        has_report: true,
+        executive_summary: report.executive_summary,
+        themes: report.themes?.map(t => ({ title: t.title, sentiment: t.sentiment, quote_count: t.quote_count })),
+      });
+      const d = res.data;
+      const parsed: ResearchAnswer = {
+        answer: d.answer || d.reply || d.response || "No answer returned.",
+        confidence: d.confidence ?? 0.75,
+        evidence_count: d.evidence_count ?? (report.themes?.reduce((s: number, t: any) => s + (t.quote_count || 0), 0) || 0),
+        quotes: d.quotes || [],
+        themes: d.themes || [],
+        follow_up: d.follow_up || d.follow_up_questions || [
+          "Which demographic shows the strongest signal here?",
+          "Show me the contradictory evidence",
+          "What does this mean for future studies?",
+        ],
+      };
+      setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, answer: parsed } : item));
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const detail = e?.response?.data?.detail || e?.response?.data?.error || e?.message || "unknown";
+      const msg = status === 404
+        ? "InsightScore /ask endpoint not found — the analysis service may need updating."
+        : `InsightScore returned ${status || "network error"}: ${detail}`;
+      setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, error: msg } : item));
     }
   }, [history.length, projectId, report]);
 
