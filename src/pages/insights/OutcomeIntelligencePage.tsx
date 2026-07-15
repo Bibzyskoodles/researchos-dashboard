@@ -269,16 +269,16 @@ export default function OutcomeIntelligencePage() {
     setReport(null);
     try {
       const prompt = buildPrompt(submissions, brief, questionSample);
-      const res = await adaApi.chat(prompt, 'outcome-intelligence', {
-        system: 'You are a research quality analyst. Return only valid JSON. No markdown.',
-      });
-      const text: string = res.data?.response || res.data?.message || '';
-      // Strip any markdown code fences
-      const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed: OutcomeReport = JSON.parse(clean);
+      const res = await adaApi.analyse(
+        prompt,
+        'You are a research quality analyst. Return only valid JSON matching the OutcomeReport schema. No markdown, no explanation.',
+      );
+      const parsed: OutcomeReport = res.data?.result;
+      if (!parsed || typeof parsed !== 'object') throw new Error('Empty result');
       setReport(parsed);
     } catch (err: any) {
-      setError('Analysis failed. The AI may have returned an unexpected format. Try simplifying your brief.');
+      const detail = err?.response?.data?.error || err?.message || '';
+      setError(`Analysis failed${detail ? ': ' + detail : '. The AI may have returned an unexpected format. Try simplifying your brief.'}`);
     } finally {
       setAnalysing(false);
     }

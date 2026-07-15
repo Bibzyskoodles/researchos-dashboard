@@ -105,6 +105,8 @@ export const orgAdminApi = {
 export const adaApi = {
   chat: (message: string, page: string, context: object) =>
     api.post('/ada/chat', { message, page, ...context }),
+  analyse: (prompt: string, system?: string) =>
+    api.post('/ada/analyse', { prompt, ...(system ? { system } : {}) }),
   pricing: (message: string, volumes: object, goals: string[]) =>
     api.post('/ada/pricing', { message, volumes, goals }),
   brief: (name: string, stats: object) =>
