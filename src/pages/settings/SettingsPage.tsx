@@ -1759,7 +1759,9 @@ function EngineSection() {
         zone_lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
         zone_radius_m: zoneRadius,
         zone_label: zoneLabel.trim(),
-      }).catch(() => setBackendSaveError(
+      }).then(() =>
+        dashboardApi.rescoreProject(activeProject.id, 'recompute')
+      ).catch(() => setBackendSaveError(
         "Saved locally, but couldn't save to the server — the AI checks won't see this context until it's retried."
       ));
     } else {
