@@ -222,7 +222,9 @@ export default function OutcomeIntelligencePage() {
     setLoadingData(true);
     setError(null);
     try {
-      const r = await dashboardApi.getSubmissions({ limit: 500 });
+      const params: any = { limit: 500 };
+      if (activeProject?.id) params.project_id = activeProject.id;
+      const r = await dashboardApi.getSubmissions(params);
       const subs = Array.isArray(r.data.submissions || r.data) ? (r.data.submissions || r.data) : [];
       setSubmissions(subs);
       setDataLoaded(true);
@@ -231,7 +233,7 @@ export default function OutcomeIntelligencePage() {
     } finally {
       setLoadingData(false);
     }
-  }, []);
+  }, [activeProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
