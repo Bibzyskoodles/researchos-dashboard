@@ -38,15 +38,17 @@ function KpiCard({ label, value, sub, trend, color, sparkData }: {
   const c = color || BLUE;
   return (
     <motion.div whileHover={{ y: -2 }} style={{ background: "white", borderRadius: 16, padding: "20px 22px", border: "1px solid #E8EDF5", boxShadow: "0 2px 12px rgba(10,15,28,.06)", flex: 1, minWidth: 0, overflow: "hidden", position: "relative" }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: ".8px", marginBottom: 10 }}>{label}</div>
-      <div style={{ fontSize: 30, fontWeight: 800, color: c, letterSpacing: -2, lineHeight: 1, marginBottom: 4 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11.5, color: "#9CA3AF", marginBottom: 6 }}>{sub}</div>}
-      {trend !== undefined && (
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {trend >= 0 ? <TrendingUp size={11} color={GREEN} /> : <TrendingDown size={11} color={RED} />}
-          <span style={{ fontSize: 11, fontWeight: 600, color: trend >= 0 ? GREEN : RED }}>{Math.abs(trend)}pts this week</span>
-        </div>
-      )}
+      <div style={{ paddingRight: 110 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: ".8px", marginBottom: 10 }}>{label}</div>
+        <div style={{ fontSize: 30, fontWeight: 800, color: c, letterSpacing: -2, lineHeight: 1, marginBottom: 4 }}>{value}</div>
+        {sub && <div style={{ fontSize: 11.5, color: "#9CA3AF", marginBottom: 6 }}>{sub}</div>}
+        {trend !== undefined && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {trend >= 0 ? <TrendingUp size={11} color={GREEN} /> : <TrendingDown size={11} color={RED} />}
+            <span style={{ fontSize: 11, fontWeight: 600, color: trend >= 0 ? GREEN : RED }}>{Math.abs(trend)}pts this week</span>
+          </div>
+        )}
+      </div>
       {sparkData && sparkData.length > 1 && (
         <div style={{ position: "absolute", bottom: 0, right: 0, width: 100, opacity: 0.4 }}>
           <Sparkline data={sparkData} color={c} />
