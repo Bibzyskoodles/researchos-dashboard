@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, AlertCircle } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { dashboardApi, API_BASE_URL } from "../../services/api";
+import { dashboardApi, projectsApi, API_BASE_URL } from "../../services/api";
 import { loadEngineConfig } from "../../services/engineConfig";
 import { computeTrustIndex } from "../../services/trustEngine";
 import { useProject } from "../../context/ProjectContext";
@@ -272,6 +272,8 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
   const [stage, setStage] = useState<'idle' | 'mapping' | 'uploading' | 'done' | 'error'>('idle');
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [createdProjectId, setCreatedProjectId] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -311,6 +313,8 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
         setHeaders(h);
         setRows(r);
         setMapping(autoMap(h));
+        // Pre-fill project name from filename (strip extension)
+        setProjectName(file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim());
         setStage('mapping');
       } catch (err: any) {
         setError('Failed to parse file: ' + (err?.message || 'unknown error'));
@@ -327,30 +331,36 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
   };
 
   const onUpload = async () => {
+    if (!projectName.trim()) { setError('Please enter a project name.'); return; }
     setStage('uploading');
     setError('');
-    const submissions = rows.map(row => {
-      const s: Record<string, any> = { _raw: row };
-      if (projectId) s.project_id = projectId;
-      if (insightscoreProjectId) s.insightscore_project_id = insightscoreProjectId;
-      FIELD_MAP.forEach(f => {
-        if (mapping[f.key] && row[mapping[f.key]] !== undefined) {
-          if (f.key === 'gps_lat' || f.key === 'gps_lon') {
-            if (!s.gps) s.gps = {};
-            if (f.key === 'gps_lat') s.gps.lat = parseFloat(row[mapping[f.key]]) || null;
-            if (f.key === 'gps_lon') s.gps.lon = parseFloat(row[mapping[f.key]]) || null;
-          } else if (f.key === 'overall_score') {
-            s.overall_score = parseFloat(row[mapping[f.key]]) || null;
-          } else {
-            s[f.key] = row[mapping[f.key]];
-          }
-        }
-      });
-      return s;
-    });
     try {
+      // Always create a new project for this upload so submissions are
+      // grouped and visible in the Projects list, not lost in "All projects".
+      const projRes = await projectsApi.create({ name: projectName.trim(), platform: 'excel_import' });
+      const newProjectId: string = projRes.data?.id || projRes.data?.project?.id || '';
+      setCreatedProjectId(newProjectId);
+
+      const submissions = rows.map(row => {
+        const s: Record<string, any> = { _raw: row, project_id: newProjectId };
+        FIELD_MAP.forEach(f => {
+          if (mapping[f.key] && row[mapping[f.key]] !== undefined) {
+            if (f.key === 'gps_lat' || f.key === 'gps_lon') {
+              if (!s.gps) s.gps = {};
+              if (f.key === 'gps_lat') s.gps.lat = parseFloat(row[mapping[f.key]]) || null;
+              if (f.key === 'gps_lon') s.gps.lon = parseFloat(row[mapping[f.key]]) || null;
+            } else if (f.key === 'overall_score') {
+              s.overall_score = parseFloat(row[mapping[f.key]]) || null;
+            } else {
+              s[f.key] = row[mapping[f.key]];
+            }
+          }
+        });
+        return s;
+      });
+
       const res = await dashboardApi.uploadSubmissions(submissions);
-      setResult(`✓ ${res.data?.imported ?? submissions.length} submissions scored and imported.`);
+      setResult(`✓ ${res.data?.imported ?? submissions.length} submissions scored and imported into "${projectName.trim()}".`);
       setStage('done');
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || 'Upload failed';
@@ -360,8 +370,8 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
   };
 
   const reset = () => {
-    setStage('idle'); setFileName(''); setHeaders([]); setRows([]);
-    setMapping({}); setResult(''); setError('');
+    setStage('idle'); setFileName(''); setProjectName(''); setCreatedProjectId('');
+    setHeaders([]); setRows([]); setMapping({}); setResult(''); setError('');
   };
 
   return (
@@ -419,6 +429,18 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
             <FileText size={13} color={BLUE} />
             <span style={{ fontSize: 12, fontWeight: 600, color: BLUE }}>{fileName}</span>
             <span style={{ fontSize: 12, color: '#6B7280', marginLeft: 4 }}>· {rows.length} rows · {headers.length} columns detected</span>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 5 }}>
+              PROJECT NAME <span style={{ color: '#DC2626' }}>*</span>
+            </label>
+            <input
+              value={projectName}
+              onChange={e => setProjectName(e.target.value)}
+              placeholder="e.g. Lagos Health Facility Survey 2026"
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${projectName.trim() ? '#E2E8F0' : '#FCA5A5'}`, fontSize: 13, color: '#111827', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+            />
+            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>A new project will be created and these submissions imported into it.</div>
           </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 10 }}>
             Map your columns — auto-detected where possible
@@ -482,7 +504,14 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '12px 14px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, fontSize: 13, color: GREEN, fontWeight: 500 }}>
             <Check size={15} style={{ flexShrink: 0, marginTop: 1 }} />{result}
           </div>
-          <button onClick={reset} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif', width: 'fit-content' }}>Upload another file</button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {createdProjectId && (
+              <a href={`/projects/${createdProjectId}`} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: BLUE, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+                Open project →
+              </a>
+            )}
+            <button onClick={reset} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Upload another file</button>
+          </div>
         </div>
       )}
 
