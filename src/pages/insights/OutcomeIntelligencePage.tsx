@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { dashboardApi, adaApi } from '../../services/api';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
+import { useProject } from '../../context/ProjectContext';
 import { Submission } from '../../types';
 import { loadEngineConfig } from '../../services/engineConfig';
 import { computeTrustIndex } from '../../services/trustEngine';
@@ -198,6 +199,7 @@ Be specific and rigorous. Base scores on actual numbers from the dataset. If the
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function OutcomeIntelligencePage() {
   useAdaGreeting({ page: "outcome" });
+  const { activeProject } = useProject();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -208,6 +210,13 @@ export default function OutcomeIntelligencePage() {
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<'objectives' | 'gaps' | 'findings'>('objectives');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Auto-populate brief from project settings and auto-load submissions
+  // when the active project has a research_purpose set.
+  useEffect(() => {
+    const purpose = (activeProject as any)?.research_purpose || (activeProject as any)?.image_context || '';
+    if (purpose && !brief) setBrief(purpose);
+  }, [activeProject]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadFromProject = useCallback(async () => {
     setLoadingData(true);
@@ -391,7 +400,9 @@ export default function OutcomeIntelligencePage() {
           <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E8EDF5', overflow: 'hidden', boxShadow: '0 2px 12px rgba(10,15,28,.06)' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', background: '#FAFBFF' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: .8 }}>Study Brief</div>
-              <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>Optional — improves accuracy. Leave blank to infer from data.</div>
+              <div style={{ fontSize: 10.5, color: (activeProject as any)?.research_purpose ? '#059669' : '#9CA3AF', marginTop: 2 }}>
+                {(activeProject as any)?.research_purpose ? 'Pre-filled from project settings — edit if needed.' : 'Optional — improves accuracy. Leave blank to infer from data.'}
+              </div>
             </div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <textarea
