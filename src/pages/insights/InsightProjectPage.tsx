@@ -455,8 +455,9 @@ export default function InsightProjectPage() {
                 setSyncResult(`Synced ${d.pushed} submission${d.pushed !== 1 ? "s" : ""} (${d.skipped} skipped)`);
                 // Reload project to update submission count
                 insightScoreApi.getProject(id).then(res => setProject(res.data)).catch(() => {});
-              } catch {
-                setSyncResult("Sync failed — check backend connection");
+              } catch (err: any) {
+                const msg = err?.response?.data?.error || err?.message || "unknown";
+                setSyncResult(`Sync failed: ${msg}`);
               } finally {
                 setSyncing(false);
                 setTimeout(() => setSyncResult(null), 5000);
