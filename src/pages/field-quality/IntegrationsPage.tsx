@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, DragEvent } from "react";
+import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, AlertCircle } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
@@ -279,23 +280,44 @@ function CsvUploadCard() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadFile = (file: File) => {
-    if (!file.name.match(/\.(csv|tsv|txt)$/i)) {
-      setError('Please upload a CSV file. For Excel, use File → Save As → CSV first.');
+    const isExcel = file.name.match(/\.(xlsx|xls)$/i);
+    const isCsv   = file.name.match(/\.(csv|tsv|txt)$/i);
+    if (!isExcel && !isCsv) {
+      setError('Please upload a CSV or Excel (.xlsx) file.');
       return;
     }
     setFileName(file.name);
     setError('');
     const reader = new FileReader();
     reader.onload = e => {
-      const text = e.target?.result as string;
-      const { headers: h, rows: r } = parseCsv(text);
-      if (!h.length) { setError('Could not parse the file — is it a valid CSV?'); return; }
-      setHeaders(h);
-      setRows(r);
-      setMapping(autoMap(h));
-      setStage('mapping');
+      try {
+        let h: string[], r: Record<string, string>[];
+        if (isExcel) {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const wb = XLSX.read(data, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const json: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          if (!json.length) { setError('Excel sheet appears to be empty.'); return; }
+          h = (json[0] as any[]).map(String);
+          r = json.slice(1).map(row =>
+            Object.fromEntries(h.map((k, i) => [k, String((row as any[])[i] ?? '')]))
+          );
+        } else {
+          const text = e.target?.result as string;
+          const parsed = parseCsv(text);
+          h = parsed.headers; r = parsed.rows;
+        }
+        if (!h.length) { setError('Could not read column headers from the file.'); return; }
+        setHeaders(h);
+        setRows(r);
+        setMapping(autoMap(h));
+        setStage('mapping');
+      } catch (err: any) {
+        setError('Failed to parse file: ' + (err?.message || 'unknown error'));
+      }
     };
-    reader.readAsText(file);
+    if (isExcel) reader.readAsArrayBuffer(file);
+    else reader.readAsText(file);
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -354,7 +376,7 @@ function CsvUploadCard() {
         )}
       </div>
       <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 16 }}>
-        No KoboToolbox connection? Upload a CSV export from any tool — ODK, SurveyCTO, Excel, Google Sheets. Columns are mapped automatically.
+        No KoboToolbox connection? Upload an Excel or CSV export from any tool — KoboToolbox, ODK, SurveyCTO, Google Sheets. Columns are mapped automatically.
       </div>
 
       {stage === 'idle' && (
@@ -373,13 +395,13 @@ function CsvUploadCard() {
           >
             <FileText size={28} color={dragging ? BLUE : '#CBD5E1'} style={{ marginBottom: 10 }} />
             <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>
-              Drop your CSV here, or click to browse
+              Drop your file here, or click to browse
             </div>
             <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>
-              CSV, TSV · For Excel: File → Save As → CSV first
+              Excel (.xlsx) · CSV · TSV — KoboToolbox, ODK, SurveyCTO exports all work
             </div>
           </div>
-          <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" style={{ display: 'none' }}
+          <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" style={{ display: 'none' }}
             onChange={e => { if (e.target.files?.[0]) loadFile(e.target.files[0]); }} />
           {error && (
             <div style={{ marginTop: 10, display: 'flex', gap: 6, alignItems: 'flex-start', color: '#DC2626', fontSize: 12, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px' }}>
