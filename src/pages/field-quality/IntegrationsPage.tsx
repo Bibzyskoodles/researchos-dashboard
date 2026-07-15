@@ -579,7 +579,7 @@ export default function IntegrationsPage() {
   const importKobo = async () => {
     if (!assetUid.trim()) return;
     setKoboBusy("import"); setKoboError(""); setKoboResult(null);
-    try { const r = await dashboardApi.koboImport(assetUid.trim(), 30); setKoboResult(r.data); }
+    try { const r = await dashboardApi.koboImport(assetUid.trim(), 30, activeProject?.id); setKoboResult(r.data); }
     catch (e: any) { setKoboError(e?.response?.data?.error || "Import failed"); }
     finally { setKoboBusy(""); }
   };

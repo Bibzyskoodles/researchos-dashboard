@@ -57,8 +57,8 @@ export const dashboardApi = {
   getEnumerators: (params?: { project_id?: string }) => api.get('/api/enumerators', { params }),
   getStats: () => api.get('/api/stats'),
   koboPing: () => api.get('/kobo/ping'),
-  koboImport: (asset_uid: string, limit = 30) =>
-    api.post('/kobo/import', { asset_uid, limit }),
+  koboImport: (asset_uid: string, limit = 30, project_id?: string) =>
+    api.post('/kobo/import', { asset_uid, limit, ...(project_id ? { project_id } : {}) }),
   uploadSubmissions: (submissions: object[]) =>
     api.post('/api/submissions/upload', { submissions }),
   deleteSubmission: (id: string) =>
