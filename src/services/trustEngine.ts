@@ -232,12 +232,16 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
 
   if (!anyEvidenceData) {
     const passthrough = backendScore ?? 0;
+    const pt = config.passScoreThreshold ?? 60;
+    const unverifiedVerdict: Verdict = backendScore != null
+      ? (backendScore >= pt ? "PASS" : backendScore >= 45 ? "FLAG" : "REJECT")
+      : ((backendVerdict as Verdict) || "FLAG");
     audit.push(backendScore != null
-      ? `No per-engine evidence available — legacy submission. Backend score ${backendScore} passed through unchanged (confidence ${CONF_LEGACY}).`
+      ? `No per-engine evidence available — legacy submission. Backend score ${backendScore} classified against pass threshold ${pt}.`
       : "No evidence and no backend score — nothing to evaluate.");
     return {
       trustIndex: Math.round(passthrough), status: "UNVERIFIED",
-      verdict: (backendVerdict as Verdict) || "FLAG",
+      verdict: unverifiedVerdict,
       recommendation: "REVIEW", risk: "MEDIUM",
       completeness: 0, confidence: CONF_LEGACY,
       breakdown: [], consistency: [], ineligibleReasons: [], audit, zoneCheck,
