@@ -193,6 +193,11 @@ export const insightScoreApi = {
   },
 };
 
+export const insightSyncApi = {
+  bulkSync: (projectId: string, limit = 200) =>
+    api.post('/api/insightscore/sync', { project_id: projectId, limit }),
+};
+
 export const engineConfigApi = {
   // The org's shared Trust Index scoring policy — see services/engineConfig.ts.
   get: () => api.get('/api/engine-config'),

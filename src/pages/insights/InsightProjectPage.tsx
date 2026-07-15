@@ -4,9 +4,9 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi } from "../../services/api";
+import { insightScoreApi, insightSyncApi } from "../../services/api";
 import { InsightProject, InsightReport, InsightSubmission } from "../../types";
-import { ChevronLeft, Download, AlertCircle } from "lucide-react";
+import { ChevronLeft, Download, AlertCircle, RefreshCw } from "lucide-react";
 import { usePlatform } from "../../platform/PlatformProvider";
 import SignalFidelityPanel from "./rie/SignalFidelityPanel";
 import QuestionIntelligencePanel from "./rie/QuestionIntelligencePanel";
@@ -340,6 +340,8 @@ export default function InsightProjectPage() {
   const [report, setReport] = useState<InsightReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -443,6 +445,29 @@ export default function InsightProjectPage() {
               ))}
             </div>
           )}
+          <button
+            onClick={async () => {
+              setSyncing(true);
+              setSyncResult(null);
+              try {
+                const r = await insightSyncApi.bulkSync(id);
+                const d = r.data;
+                setSyncResult(`Synced ${d.pushed} submission${d.pushed !== 1 ? "s" : ""} (${d.skipped} skipped)`);
+                // Reload project to update submission count
+                insightScoreApi.getProject(id).then(res => setProject(res.data)).catch(() => {});
+              } catch {
+                setSyncResult("Sync failed — check backend connection");
+              } finally {
+                setSyncing(false);
+                setTimeout(() => setSyncResult(null), 5000);
+              }
+            }}
+            disabled={syncing}
+            title="Push all PASS submissions to InsightScore"
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", border: "1px solid #E2E8F0", borderRadius: 8, background: "white", fontSize: 12, fontWeight: 600, color: "#374151", cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.7 : 1 }}>
+            <RefreshCw size={11} style={{ animation: syncing ? "spin 1s linear infinite" : "none" }} />
+            {syncing ? "Syncing…" : "Sync All"}
+          </button>
           <button onClick={() => setOpen(true)}
             style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "1px solid #DBEAFE", borderRadius: 8, background: "#EFF6FF", fontSize: 12, fontWeight: 600, color: BLUE, cursor: "pointer" }}>
             <div style={{ width: 18, height: 18, borderRadius: "50%", overflow: "hidden" }}>
@@ -450,6 +475,11 @@ export default function InsightProjectPage() {
             </div>
             Ask Ada
           </button>
+          {syncResult && (
+            <div style={{ position: "fixed", bottom: 24, right: 24, background: "#1E293B", color: "white", borderRadius: 10, padding: "10px 16px", fontSize: 12.5, fontWeight: 600, zIndex: 200, boxShadow: "0 4px 20px rgba(0,0,0,.3)" }}>
+              {syncResult}
+            </div>
+          )}
         </div>
       </div>
 
