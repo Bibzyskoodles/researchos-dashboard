@@ -467,9 +467,7 @@ export default function InsightProjectPage() {
                 const d = r.data;
                 const pushed = d.pushed ?? 0;
                 const skipped = d.skipped ?? 0;
-                const koboSample = d.debug_kobo_ids?.[0] || "none";
-                const passSample = d.debug_pass_ids_sample?.[0] || "none";
-                setSyncResult(`Synced ${pushed} (${skipped} skipped) | Kobo ID: ${koboSample} | DB ID: ${passSample}`);
+                setSyncResult(`Synced ${pushed} submission${pushed !== 1 ? "s" : ""} (${skipped} skipped)`);
                 insightScoreApi.getProject(id).then(res => setProject(res.data)).catch(() => {});
               } catch (err: any) {
                 const msg = err?.response?.data?.error || err?.message || "unknown";
