@@ -475,21 +475,22 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
 
   // ── L6 Risk & Recommendation (Bible §9) ──
   const hasHardGate = flags.some(f => HARD_GATE_FLAGS.has(f));
+  const pt = config.passScoreThreshold ?? 60;
   let risk: RiskLevel; let recommendation: Recommendation; let verdict: Verdict;
   if (hasHardGate) {
     risk = "CRITICAL"; recommendation = "REJECT"; verdict = "REJECT";
     audit.push(`Hard gate: ${flags.filter(f => HARD_GATE_FLAGS.has(f)).join(", ")} → CRITICAL / REJECT regardless of arithmetic.`);
-  } else if (trustIndex < 50) {
-    risk = "CRITICAL"; recommendation = "REJECT"; verdict = "REJECT";
-  } else if (trustIndex < config.passScoreThreshold) {
-    risk = "HIGH"; recommendation = "REVIEW"; verdict = "FLAG";
-    audit.push(`Trust ${trustIndex} is below the pass threshold (${config.passScoreThreshold}) but above 50 — flagged for human review, not auto-rejected (Bible §9).`);
-  } else if (flags.length > 0) {
-    risk = "MEDIUM"; recommendation = "REVIEW"; verdict = "FLAG";
-  } else if (trustIndex >= 85 && completeness >= 0.9) {
-    risk = "VERY_LOW"; recommendation = "APPROVE"; verdict = "PASS";
+  } else if (trustIndex >= pt) {
+    risk = flags.length > 0 ? "LOW" : trustIndex >= 85 && completeness >= 0.9 ? "VERY_LOW" : "LOW";
+    recommendation = "APPROVE"; verdict = "PASS";
+    audit.push(`Trust ${trustIndex} ≥ pass threshold ${pt} → PASS.`);
+  } else if (trustIndex >= 30) {
+    risk = trustIndex < pt * 0.6 ? "HIGH" : "MEDIUM";
+    recommendation = "REVIEW"; verdict = "FLAG";
+    audit.push(`Trust ${trustIndex} is below the pass threshold (${pt}) → FLAG for review.`);
   } else {
-    risk = "LOW"; recommendation = "APPROVE"; verdict = "PASS";
+    risk = "CRITICAL"; recommendation = "REJECT"; verdict = "REJECT";
+    audit.push(`Trust ${trustIndex} is critically low → REJECT.`);
   }
 
   return {
