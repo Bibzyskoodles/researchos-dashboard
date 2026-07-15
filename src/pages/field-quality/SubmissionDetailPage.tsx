@@ -647,7 +647,7 @@ export default function SubmissionDetailPage(){
                   <div style={{fontSize:13,color:"#6B7280",marginBottom:16}}>No change — this submission was already scored correctly under current logic.</div>
                 )}
                 <div style={{display:"flex",justifyContent:"flex-end"}}>
-                  <button onClick={()=>window.location.reload()}
+                  <button onClick={()=>navigate(0)}
                     style={{padding:"8px 18px",borderRadius:8,border:"none",background:BLUE,cursor:"pointer",fontSize:12.5,fontWeight:700,color:"white",fontFamily:"Inter,sans-serif"}}>
                     Done — refresh page
                   </button>

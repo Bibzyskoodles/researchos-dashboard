@@ -308,7 +308,7 @@ export default function ProjectsPage() {
   const loadProjects = () => {
     projectsApi.list()
       .then(r => setProjects(r.data.projects || []))
-      .catch(() => setProjects([]))
+      .catch(() => { setProjects([]); console.error('Failed to load projects'); })
       .finally(() => setLoading(false));
   };
 

@@ -274,11 +274,13 @@ export default function Topbar({ onRefresh, onMenuToggle }: TopbarProps) {
             )}
           </button>
 
-          <button style={{
-            width: 30, height: 30, borderRadius: 7, border: '1px solid #E2E8F0',
-            background: 'transparent', display: 'grid', placeItems: 'center',
-            cursor: 'pointer', color: '#6B7280',
-          }} title="Help">
+          <button
+            onClick={() => window.open('https://researchos.notion.site', '_blank')}
+            style={{
+              width: 30, height: 30, borderRadius: 7, border: '1px solid #E2E8F0',
+              background: 'transparent', display: 'grid', placeItems: 'center',
+              cursor: 'pointer', color: '#6B7280',
+            }} title="Help & Documentation">
             <HelpCircle size={13} />
           </button>
         </>}

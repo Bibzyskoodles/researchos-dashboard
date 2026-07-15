@@ -160,8 +160,10 @@ export default function ProjectPage() {
     try {
       await projectsApi.delete(projectId);
       navigate('/projects');
-    } catch {
+    } catch (err: any) {
       setDeleting(false);
+      const msg = err?.response?.data?.error || 'Failed to delete project. Please try again.';
+      alert(msg);
     }
   };
 

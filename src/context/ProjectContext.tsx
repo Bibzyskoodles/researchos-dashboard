@@ -118,8 +118,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       const res = await api.get(`/api/projects/${id}`);
       setActiveProjectState(res.data.project);
       localStorage.setItem('ros_active_project_id', id);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to load project:', err);
     }
   }, []);
 
@@ -130,8 +130,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       setLifecycle(res.data);
       // Store in sessionStorage so AdaDock can include it in every chat message
       try { sessionStorage.setItem('ros_active_lifecycle', JSON.stringify(res.data)); } catch {}
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to load lifecycle:', err);
     } finally {
       setIsLoadingLifecycle(false);
     }

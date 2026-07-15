@@ -347,7 +347,7 @@ export default function ScorecardPage() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'score' | 'passRate' | 'submissions' | 'risk'>('score');
   const [riskFilter, setRiskFilter] = useState<'all' | 'medium' | 'high' | 'critical'>('all');
-  const [tierFilter] = useState<'all' | 'public'>('all');
+  const [tierFilter, setTierFilter] = useState<'all' | 'public'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tiers, setTiers] = useState<Map<string, PrivacyTier>>(new Map());
   const [showPrivacyInfo, setShowPrivacyInfo] = useState(false);
@@ -446,7 +446,13 @@ export default function ScorecardPage() {
                   );
                 })}
               </div>
-              <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 9, background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 11.5, color: '#92400E', lineHeight: 1.6 }}>
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>
+                  <input type="checkbox" checked={tierFilter === 'public'} onChange={e => setTierFilter(e.target.checked ? 'public' : 'all')} />
+                  Show only public-sharing tiers (2+)
+                </label>
+              </div>
+              <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 9, background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 11.5, color: '#92400E', lineHeight: 1.6 }}>
                 <strong>Enumerator rights:</strong> {enumeratorLabel.charAt(0).toUpperCase() + enumeratorLabel.slice(1)}s can request to view their own scorecard, contest any data point, and opt out of cross-agency sharing at any time. Under NDPA 2023 and GDPR, they have the right to access, correct, and restrict processing of their personal data.
               </div>
             </div>

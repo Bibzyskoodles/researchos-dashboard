@@ -416,6 +416,7 @@ export default function DataCleaningPage() {
       .then(r => { setSubmissions(Array.isArray(r.data.submissions || r.data) ? (r.data.submissions || r.data) : []); })
       .catch(() => setSubmissions([]))
       .finally(() => setLoading(false));
+    setApplied(false);
   }, [activeProject?.id]);
 
   const toggleRule = useCallback((id: string) => {

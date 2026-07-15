@@ -60,7 +60,7 @@ type Tab = "team" | "scorecard";
 
 export default function EnumeratorsPage(){
   const [enums,setEnums]=useState<Enumerator[]>([]);
-  const [_loading,setLoading]=useState(true);
+  const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState<Enumerator|null>(null);
   const [activeTab,setActiveTab]=useState<Tab>("team");
   const { t }=usePlatform();
@@ -74,10 +74,11 @@ export default function EnumeratorsPage(){
     // Active project scopes the list; none = explicit "All projects" view.
     dashboardApi.getEnumerators(activeProject?.id ? { project_id: activeProject.id } : undefined)
       .then(r=>{ setEnums(r.data.enumerators||[]); })
+      .catch(()=>setEnums([]))
       .finally(()=>setLoading(false));
   },[activeProject?.id]);
 
-  if(_loading) return <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading {termPlural}...</div>;
+  if(loading) return <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading {termPlural}...</div>;
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "team", label: `${Term} Overview`, icon: Users },
