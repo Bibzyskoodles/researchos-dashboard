@@ -182,6 +182,7 @@ export default function AskResearchPanel({ projectId, report }: { projectId: str
       // Primary: ask InsightScore directly — it has the full transcript data
       let parsed: ResearchAnswer | null = null;
 
+      let insightScoreError = "";
       try {
         const res = await insightScoreApi.askResearch(projectId, question, {
           has_report: !!report,
@@ -203,15 +204,29 @@ export default function AskResearchPanel({ projectId, report }: { projectId: str
             ],
           };
         }
-      } catch {
-        // InsightScore /ask not available — fall back to Ada with full report context
+      } catch (e: any) {
+        const status = e?.response?.status;
+        const detail = e?.response?.data?.detail || e?.response?.data?.error || e?.message || "unknown";
+        insightScoreError = `InsightScore /ask returned ${status || "network error"}: ${detail}`;
+        console.warn("AskResearchPanel: InsightScore /ask failed —", insightScoreError);
       }
 
-      if (!parsed) {
-        // Fallback: Ada chat with injected report context
-        const systemPrompt = `You are Ada, a senior research analyst. The user is asking about research data for project ${projectId}.
-${report ? `Research context: ${report.executive_summary || ""}` : "Analysis is pending."}
-Answer based ONLY on the available evidence. Always include a confidence level and 2-3 follow-up questions. Never fabricate data.`;
+      if (!parsed && !report) {
+        // No InsightScore response AND no report — nothing to answer from
+        setHistory(prev => prev.map((item, i) => i === idx ? {
+          ...item, loading: false,
+          error: insightScoreError
+            ? `Could not reach InsightScore: ${insightScoreError}. Run Intelligence analysis first to enable this feature.`
+            : "Run Intelligence analysis first — Ada needs your interview data before she can answer questions.",
+        } : item));
+        return;
+      }
+
+      if (!parsed && report) {
+        // Fallback: Ada chat with report context (no live transcript data)
+        const systemPrompt = `You are Ada, a senior research analyst. Answer based ONLY on the research context provided. Never fabricate quotes or data you don't have.
+Research context: ${report.executive_summary || ""}
+Themes: ${report.themes?.map((t: any) => t.title).join(", ") || "none"}`;
 
         const res = await adaApi.chat(
           `[ASK YOUR RESEARCH] ${question}\n\nSystem: ${systemPrompt}`,
@@ -220,24 +235,23 @@ Answer based ONLY on the available evidence. Always include a confidence level a
         );
         const rawAnswer = res.data?.reply || res.data?.message || res.data?.response || "I don't have enough evidence to answer this confidently.";
 
-        parsed = { answer: rawAnswer, confidence: 0.7, evidence_count: 0, quotes: [], themes: [], follow_up: [] };
+        const questionLower = question.toLowerCase();
+        const keyword = questionLower.split(" ").find((w: string) => w.length > 4) || "";
+        const matchingThemes = report.themes?.filter((t: any) =>
+          t.title.toLowerCase().includes(keyword) || t.summary?.toLowerCase().includes(keyword)
+        ) || [];
+        const allQuotes = report.themes?.flatMap((t: any) =>
+          (t.quotes || []).map((q: any) => typeof q === "string" ? q : q.text || "")
+        ).filter(Boolean) || [];
 
-        if (report) {
-          const questionLower = question.toLowerCase();
-          const keyword = questionLower.split(" ").find(w => w.length > 4) || "";
-          const matchingThemes = report.themes?.filter((t: any) =>
-            t.title.toLowerCase().includes(keyword) || t.summary?.toLowerCase().includes(keyword)
-          ) || [];
-          parsed.themes = matchingThemes.map((t: any) => t.title);
-          const allQuotes = report.themes?.flatMap((t: any) => (t.quotes || []).map((q: any) => typeof q === "string" ? q : q.text || "")).filter(Boolean) || [];
-          parsed.quotes = allQuotes.slice(0, 3);
-          parsed.evidence_count = report.themes?.reduce((s: number, t: any) => s + (t.quote_count || 0), 0) || 0;
-          parsed.follow_up = [
-            "Which demographic shows the strongest signal here?",
-            "Show me the contradictory evidence",
-            "What does this mean for future studies?",
-          ];
-        }
+        parsed = {
+          answer: rawAnswer,
+          confidence: 0.6,
+          evidence_count: report.themes?.reduce((s: number, t: any) => s + (t.quote_count || 0), 0) || 0,
+          quotes: allQuotes.slice(0, 3),
+          themes: matchingThemes.map((t: any) => t.title),
+          follow_up: ["Which demographic shows the strongest signal here?", "Show me the contradictory evidence", "What does this mean for future studies?"],
+        };
       }
 
       setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, answer: parsed! } : item));
