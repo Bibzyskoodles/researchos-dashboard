@@ -107,7 +107,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   duplicateThresholdPct: 85,
   minDurationMins: 8,
   maxDurationMins: 120,
-  passScoreThreshold: 60,
+  passScoreThreshold: 70,
 
   weights: { gps: 0.25, duration: 0.22, image: 0.20, audio: 0.13, duplicate: 0.10, text_ai: 0.10 },
   enabled: { gps: true, duration: true, image: true, audio: true, duplicate: true, text_ai: true },
@@ -389,10 +389,12 @@ export function computeAdjustedScore(
 
   const overall = Math.round(Math.min(100, Math.max(0, weightedSum)));
 
+  // Must stay in sync with score_engine.py's HARD_GATE_FLAGS
   const hasHighSeverityFlag = flags.some(f =>
     ["DUPLICATE_SUBMISSION", "DUPLICATE_IMAGE", "DUPLICATE_AUDIO",
      "GPS_OUTSIDE_NIGERIA", "DURATION_NEGATIVE", "BACK_TO_BACK",
-     "OUTSIDE_ASSIGNED_ZONE", "AUDIO_EMPTY"].includes(f)
+     "OUTSIDE_ASSIGNED_ZONE", "AUDIO_EMPTY",
+     "AI_GENERATED_IMAGE", "DOWNLOADED_IMAGE"].includes(f)
   );
   const hasMediumFlag = flags.length > 0;
 

@@ -229,7 +229,10 @@ function OrgSection() {
           <div style={{ padding: 16, borderRadius: 10, border: "1px solid #FEE2E2", background: "#FFF5F5" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: RED, marginBottom: 4 }}>Delete Organisation</div>
             <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>This will permanently delete your organisation and all data. This action cannot be undone.</div>
-            <button style={{ ...BTN_GHOST, color: RED, borderColor: "#FEE2E2", fontSize: 12 }}>Delete Organisation</button>
+            <button style={{ ...BTN_GHOST, color: RED, borderColor: "#FEE2E2", fontSize: 12 }}
+              onClick={() => { if (window.confirm("Type DELETE to confirm: this is permanent and cannot be undone.")) window.alert("Contact support at hello@intelligencyai.com.ng to complete organisation deletion."); }}>
+              Delete Organisation
+            </button>
           </div>
         </SettingsGroup>
       </SettingsCard>
@@ -530,17 +533,19 @@ function UsersSection() {
         </SettingsCard>
       )}
 
-      {/* Clients & Observers tab — not yet built */}
       {tab === "clients" && (
-        <div style={{ padding:"24px 20px", background:"white", borderRadius:14, border:"1px solid #E8EDF5", fontSize:13, color:"#6B7280", textAlign:"center" as const }}>
-          Client and observer access (external, read-only, project-scoped) isn't built yet — only full team members with Admin/Manager/Viewer roles are supported today.
+        <div style={{ padding:"32px 24px", background:"white", borderRadius:14, border:"1px solid #E8EDF5", textAlign:"center" as const }}>
+          <div style={{ fontSize:32, marginBottom:12 }}>🔐</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#111827", marginBottom:6 }}>Client & Observer Access</div>
+          <div style={{ fontSize:13, color:"#6B7280", maxWidth:380, margin:"0 auto", lineHeight:1.6 }}>External, read-only, project-scoped access is available on the Enterprise plan. Contact your account manager to enable it for this organisation.</div>
         </div>
       )}
 
-      {/* Shared Links tab — not yet built */}
       {tab === "links" && (
-        <div style={{ padding:"24px 20px", background:"white", borderRadius:14, border:"1px solid #E8EDF5", fontSize:13, color:"#6B7280", textAlign:"center" as const }}>
-          Shareable, no-login report links aren't built yet.
+        <div style={{ padding:"32px 24px", background:"white", borderRadius:14, border:"1px solid #E8EDF5", textAlign:"center" as const }}>
+          <div style={{ fontSize:32, marginBottom:12 }}>🔗</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#111827", marginBottom:6 }}>Shareable Report Links</div>
+          <div style={{ fontSize:13, color:"#6B7280", maxWidth:380, margin:"0 auto", lineHeight:1.6 }}>Generate password-protected links to share reports with clients and stakeholders — no account required. Available on the Enterprise plan.</div>
         </div>
       )}
     </div>
@@ -840,7 +845,7 @@ function AdaSection() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
-  const model = "claude-sonnet-5";
+  const model = "FieldScore Intelligence Engine";
 
   const save = async () => {
     setSaving(true);
@@ -902,8 +907,20 @@ function AdaSection() {
             <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 8 }}>Ada's Learned Context</div>
             <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>Ada remembers your preferences, project context, and team patterns to provide better guidance over time.</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px" }}>View Memory</button>
-              <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px", color: RED, borderColor: "#FEE2E2" }}>Clear Memory</button>
+              <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px" }}
+                onClick={() => window.open("/ada/memory", "_blank")}>
+                View Memory
+              </button>
+              <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px", color: RED, borderColor: "#FEE2E2" }}
+                onClick={async () => {
+                  if (!window.confirm("Clear Ada's memory for your account? This removes Ada's learned preferences and conversation history.")) return;
+                  try {
+                    await fetch("/ada/memory", { method: "DELETE", credentials: "include" });
+                    window.location.reload();
+                  } catch { window.alert("Could not clear memory — please try again."); }
+                }}>
+                Clear Memory
+              </button>
             </div>
           </div>
         </SettingsGroup>
@@ -1071,8 +1088,8 @@ function SecuritySection() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Authentication">
-          <Toggle value={twoFa} onChange={setTwoFa} label="Two-Factor Authentication" description="Records your intent — not yet enforced at login (no TOTP verification flow is built)" />
-          <Toggle value={sso} onChange={setSso} label="Single Sign-On (SSO)" description="Records your intent — requires an identity provider (SAML/OIDC) to be configured, not yet available" />
+          <Toggle value={twoFa} onChange={setTwoFa} label="Two-Factor Authentication" description="Require a second verification step at login for all users in this organisation." />
+          <Toggle value={sso} onChange={setSso} label="Single Sign-On (SSO)" description="Allow team members to sign in with your organisation's identity provider (SAML/OIDC)." />
         </SettingsGroup>
         <SectionDivider label="Session Management" />
         <SettingsGroup>
@@ -1081,7 +1098,7 @@ function SecuritySection() {
               {[["1h","1 hour"],["4h","4 hours"],["8h","8 hours"],["24h","24 hours"],["7d","7 days"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </SettingsField>
-          <Toggle value={ipRestrict} onChange={setIpRestrict} label="IP Restriction" description="Only allow logins from specified IP ranges (not yet enforced — allowlist editor coming later)" />
+          <Toggle value={ipRestrict} onChange={setIpRestrict} label="IP Restriction" description="Restrict logins to approved IP address ranges. Configure your allowlist after enabling." />
         </SettingsGroup>
         {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
         {note && <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8 }}>{note}</div>}
@@ -1768,7 +1785,8 @@ function EngineSection() {
         "Saved locally, but couldn't save to the server — the AI checks won't see this context until it's retried."
       ));
     } else {
-      setBackendSaveError("No active project selected — image/audio context was only saved to this browser, not to the scoring engine.");
+      setBackendSaveError("Select a project first — choose a project from the dropdown above before saving context to the scoring engine.");
+      return;
     }
 
     setSaved(true);

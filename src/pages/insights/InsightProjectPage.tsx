@@ -199,7 +199,9 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
             ? "I am reviewing the interview responses now. This takes a moment — I am reading each one carefully."
             : analyseState === "error"
               ? "I encountered an issue while reviewing the interviews. Please try again."
-              : `I have **${project?.submission_count ?? 16} verified interviews** ready. I will read each response, identify patterns, and surface the most important findings for you.`}
+              : project?.submission_count != null
+                ? `I have **${project.submission_count} verified interviews** ready. I will read each response, identify patterns, and surface the most important findings for you.`
+                : "I am ready to analyse your verified interviews. I will read each response, identify patterns, and surface the most important findings for you."}
           action={analyseState === "idle" || analyseState === "error" ? beginAnalysis : undefined}
           actionLabel={analyseState === "error" ? "Try Again" : "Begin Analysis"}
         />
@@ -344,6 +346,7 @@ export default function InsightProjectPage() {
   const [notFound, setNotFound] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -390,7 +393,7 @@ export default function InsightProjectPage() {
         <div style={{ fontSize: 13, color: "#9CA3AF", maxWidth: 420, textAlign: "center", lineHeight: 1.7 }}>
           This project hasn't been set up for qualitative analysis. To enable it, make sure the InsightScore bridge is active and submissions are flowing from FieldScore.
         </div>
-        <AdaBriefing message="Once your verified submissions start flowing through the FieldScore bridge, this project will appear here automatically. You can also enable the bridge in Railway environment variables: INSIGHTSCORE_ENABLED=true." />
+        <AdaBriefing message="This project hasn't been set up for qualitative analysis yet. Run a Sync from the project page to connect your field data and begin analysis." />
         <button onClick={() => navigate("/insights")}
           style={{ padding: "10px 20px", borderRadius: 10, background: BLUE, border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
           ← Back to Projects
@@ -427,19 +430,24 @@ export default function InsightProjectPage() {
             <div style={{ display: "flex", gap: 6 }}>
               {(["docx", "pptx", "xlsx"] as const).map(fmt => (
                 <button key={fmt} onClick={async () => {
+                  setDownloadError(null);
                   try {
                     const res = await insightScoreApi.downloadReport(id, fmt);
                     const contentType = String(res.headers?.['content-type'] || res.headers?.['Content-Type'] || '');
                     const blob = new Blob([res.data]);
                     if (contentType.includes('application/json')) {
-                      alert(`Report download failed. Please try again.`);
+                      setDownloadError(`${fmt.toUpperCase()} download failed — please try again.`);
+                      setTimeout(() => setDownloadError(null), 5000);
                       return;
                     }
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a"); a.href = url;
                     a.download = `ResearchOS_${id}.${fmt}`; document.body.appendChild(a);
                     a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-                  } catch { alert(`Could not download ${fmt.toUpperCase()} report. Please try again.`); }
+                  } catch {
+                    setDownloadError(`Could not download ${fmt.toUpperCase()} report — please try again.`);
+                    setTimeout(() => setDownloadError(null), 5000);
+                  }
                 }}
                   style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", border: "1px solid #E2E8F0", borderRadius: 8, background: "white", fontSize: 11, fontWeight: 600, color: "#374151", cursor: "pointer" }}>
                   <Download size={11} /> {fmt.toUpperCase()}
@@ -460,6 +468,7 @@ export default function InsightProjectPage() {
                     asset_uid: assetUid,
                     project_id: activeProject?.id,
                     project_name: activeProject?.name,
+                    research_context: (activeProject as any)?.research_purpose || (activeProject as any)?.image_context || undefined,
                   });
                 } else {
                   r = await insightSyncApi.bulkSync(id);
@@ -494,6 +503,11 @@ export default function InsightProjectPage() {
           {syncResult && (
             <div style={{ position: "fixed", bottom: 24, right: 24, background: "#1E293B", color: "white", borderRadius: 10, padding: "10px 16px", fontSize: 12.5, fontWeight: 600, zIndex: 200, boxShadow: "0 4px 20px rgba(0,0,0,.3)" }}>
               {syncResult}
+            </div>
+          )}
+          {downloadError && (
+            <div style={{ position: "fixed", bottom: 24, right: 24, background: "#DC2626", color: "white", borderRadius: 10, padding: "10px 16px", fontSize: 12.5, fontWeight: 600, zIndex: 200, boxShadow: "0 4px 20px rgba(0,0,0,.3)" }}>
+              {downloadError}
             </div>
           )}
         </div>

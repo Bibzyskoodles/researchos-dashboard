@@ -183,15 +183,11 @@ export default function AskResearchPanel({ projectId, fieldsScoreProjectId, repo
       const d = res.data;
       const parsed: ResearchAnswer = {
         answer: d.answer || d.reply || d.response || "No answer returned.",
-        confidence: d.confidence ?? 0.82,
+        confidence: d.confidence ?? undefined,
         evidence_count: d.evidence_count ?? (report.themes?.reduce((s: number, t: any) => s + (t.quote_count || 0), 0) || 0),
         quotes: d.quotes || [],
         themes: d.themes || [],
-        follow_up: d.follow_up || d.follow_up_questions || [
-          "Which demographic shows the strongest signal here?",
-          "Show me the contradictory evidence",
-          "What does this mean for future studies?",
-        ],
+        follow_up: d.follow_up || d.follow_up_questions || [],
       };
       setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, answer: parsed } : item));
     } catch (e: any) {

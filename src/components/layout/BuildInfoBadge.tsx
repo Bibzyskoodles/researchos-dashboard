@@ -2,18 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { dashboardApi } from '../../services/api';
 import { BUILD_INFO } from '../../buildInfo.generated';
 
-// Answers "is the browser actually running what we just pushed?" without
-// guessing from Vercel/Railway dashboards. Click to expand full shas.
+// Gated behind REACT_APP_SHOW_BUILD_INFO=true — never shown to end users.
+const ENABLED = process.env.REACT_APP_SHOW_BUILD_INFO === 'true';
+
 export default function BuildInfoBadge() {
   const [open, setOpen] = useState(false);
   const [backend, setBackend] = useState<{ commit: string; branch: string; server_time: string } | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (!ENABLED) return;
     dashboardApi.getVersion()
       .then(r => setBackend(r.data))
       .catch(() => setError(true));
   }, []);
+
+  if (!ENABLED) return null;
 
   const shortFront = BUILD_INFO.commit === 'unknown' ? 'unknown' : BUILD_INFO.commit.slice(0, 7);
   const shortBack = backend?.commit && backend.commit !== 'unknown' ? backend.commit.slice(0, 7) : null;
