@@ -196,6 +196,8 @@ export const insightScoreApi = {
 export const insightSyncApi = {
   bulkSync: (projectId: string, limit = 200) =>
     api.post('/api/insightscore/sync', { project_id: projectId, limit }),
+  koboPush: (params: { insightscore_project_id: string; asset_uid: string; project_id?: string; project_name?: string; research_context?: string; limit?: number }) =>
+    api.post('/kobo/insightscore-push', { limit: 200, ...params }),
 };
 
 export const engineConfigApi = {

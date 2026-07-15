@@ -5,6 +5,7 @@ import DOMPurify from "dompurify";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { insightScoreApi, insightSyncApi } from "../../services/api";
+import { useProject } from "../../context/ProjectContext";
 import { InsightProject, InsightReport, InsightSubmission } from "../../types";
 import { ChevronLeft, Download, AlertCircle, RefreshCw } from "lucide-react";
 import { usePlatform } from "../../platform/PlatformProvider";
@@ -335,6 +336,7 @@ export default function InsightProjectPage() {
   const navigate = useNavigate();
   const { setOpen } = useAda();
 
+  const { activeProject } = useProject();
   const activeTab = (searchParams.get("tab") as Tab) || "intelligence";
   const [project, setProject] = useState<InsightProject | null>(null);
   const [report, setReport] = useState<InsightReport | null>(null);
@@ -450,17 +452,29 @@ export default function InsightProjectPage() {
               setSyncing(true);
               setSyncResult(null);
               try {
-                const r = await insightSyncApi.bulkSync(id);
+                const assetUid = activeProject?.kobo_asset_uid;
+                let r;
+                if (assetUid) {
+                  r = await insightSyncApi.koboPush({
+                    insightscore_project_id: id,
+                    asset_uid: assetUid,
+                    project_id: activeProject?.id,
+                    project_name: activeProject?.name,
+                  });
+                } else {
+                  r = await insightSyncApi.bulkSync(id);
+                }
                 const d = r.data;
-                setSyncResult(`Synced ${d.pushed} submission${d.pushed !== 1 ? "s" : ""} (${d.skipped} skipped)`);
-                // Reload project to update submission count
+                const pushed = d.pushed ?? 0;
+                const skipped = d.skipped ?? 0;
+                setSyncResult(`Synced ${pushed} submission${pushed !== 1 ? "s" : ""} (${skipped} skipped)`);
                 insightScoreApi.getProject(id).then(res => setProject(res.data)).catch(() => {});
               } catch (err: any) {
                 const msg = err?.response?.data?.error || err?.message || "unknown";
                 setSyncResult(`Sync failed: ${msg}`);
               } finally {
                 setSyncing(false);
-                setTimeout(() => setSyncResult(null), 5000);
+                setTimeout(() => setSyncResult(null), 6000);
               }
             }}
             disabled={syncing}
