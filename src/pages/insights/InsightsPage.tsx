@@ -423,13 +423,19 @@ function ProjectCard({ project, onSelect }: { project: InsightProject; onSelect:
 type InsightsTab = "analysis" | "outcome";
 
 export default function InsightsPage() {
-  const { activeProject } = useProject();
+  const { activeProject, refreshActiveProject } = useProject();
   const [projects, setProjects] = useState<InsightProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<InsightsTab>("analysis");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   useAda();
   useAdaGreeting({ page: "insights" });
+
+  // Refresh the active project on mount to pick up insightscore_project_id
+  // that may have been saved after the last Excel upload.
+  useEffect(() => {
+    if (refreshActiveProject) refreshActiveProject();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     insightScoreApi.getProjects()

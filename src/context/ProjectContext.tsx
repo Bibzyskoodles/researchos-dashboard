@@ -101,6 +101,7 @@ interface ProjectContextValue {
   canAdvanceTo: (stage: string) => boolean;
   refreshLifecycle: () => void;
   isLoadingLifecycle: boolean;
+  refreshActiveProject: () => void;
 }
 
 const ProjectCtx = createContext<ProjectContextValue | null>(null);
@@ -184,6 +185,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       canAdvanceTo,
       refreshLifecycle,
       isLoadingLifecycle,
+      refreshActiveProject: () => { if (activeProject?.id) fetchProject(activeProject.id); },
     }}>
       {children}
     </ProjectCtx.Provider>
@@ -201,6 +203,7 @@ export function useProject() {
     canAdvanceTo: () => false,
     refreshLifecycle: () => {},
     isLoadingLifecycle: false,
+    refreshActiveProject: () => {},
   } as ProjectContextValue;
   return ctx;
 }
