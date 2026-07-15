@@ -526,8 +526,8 @@ export default function InsightsPage() {
 
       {activeTab === "analysis" && (
         <>
-          {/* Project selector — always visible, prominent when nothing selected */}
-          {!loading && projects.length > 0 && (
+          {/* Project selector — only show when no active project in topbar */}
+          {!loading && projects.length > 0 && !activeProject && (
             <ProjectSelector
               projects={projects}
               selectedId={selectedProjectId}
@@ -540,7 +540,7 @@ export default function InsightsPage() {
 
           <div>
             <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.9, marginBottom: 4 }}>Your Projects</div>
-            {!selectedProjectId && projects.length > 0 && (
+            {!selectedProjectId && projects.length > 0 && !activeProject && (
               <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>
                 Click a project below to select it, or use the picker above.
               </div>
