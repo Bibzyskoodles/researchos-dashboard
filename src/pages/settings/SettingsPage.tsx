@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Layers, Users, Shield, Palette, Puzzle, Brain,
   FlaskConical, Database, Lock, Bell, CreditCard, Code2,
-  ClipboardList, ChevronRight, Check, AlertTriangle, RefreshCw,
-  Upload, Plus, Trash2, Copy, Zap,
-  Download, ExternalLink, X, ShieldAlert, Cpu, Send,
+  ClipboardList, ChevronRight, Check, RefreshCw,
+  Upload, Plus, Trash2, Zap,
+  ExternalLink, X, ShieldAlert, Cpu, Send,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useGamify } from "../../gamify/GamifyContext";
@@ -628,7 +628,6 @@ function RolesSection() {
 }
 
 function BrandingSection() {
-  const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoUrl, setLogoUrl] = React.useState<string>(() => localStorage.getItem("org_logo") || "");
   const [primaryColor, setPrimaryColor] = React.useState("#2463EB");
   const [accentColor, setAccentColor] = React.useState("#7C3AED");
