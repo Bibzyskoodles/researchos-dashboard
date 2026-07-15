@@ -50,7 +50,7 @@ function ProjectSwitcher({ orgName }: { orgName?: string }) {
     if (next && projects.length === 0) {
       setLoading(true);
       projectsApi.list()
-        .then(r => setProjects(r.data.projects || r.data || []))
+        .then(r => { const d = r.data; setProjects(Array.isArray(d) ? d : Array.isArray(d?.projects) ? d.projects : []); })
         .catch(() => setProjects([]))
         .finally(() => setLoading(false));
     }
