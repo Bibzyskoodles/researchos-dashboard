@@ -516,7 +516,7 @@ export default function InsightProjectPage() {
           {activeTab === "demographics" && <DemographicIntelligencePanel projectId={id} />}
           {activeTab === "signal" && <SignalFidelityPanel projectId={id} />}
           {activeTab === "intent" && <IFIPanel projectId={id} />}
-          {activeTab === "ask" && <AskResearchPanel projectId={id} report={report} />}
+          {activeTab === "ask" && <AskResearchPanel projectId={id} fieldsScoreProjectId={activeProject?.id} report={report} />}
         </motion.div>
       </AnimatePresence>
 

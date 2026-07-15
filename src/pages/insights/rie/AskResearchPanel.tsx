@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { insightScoreApi } from "../../../services/api";
+import api from "../../../services/api";
 import { InsightReport } from "../../../types";
 
 const BLUE = "#2463EB";
@@ -148,7 +148,7 @@ function AnswerCard({ item, onFollowUp }: { item: QAItem; onFollowUp: (q: string
   );
 }
 
-export default function AskResearchPanel({ projectId, report }: { projectId: string; report: InsightReport | null }) {
+export default function AskResearchPanel({ projectId, fieldsScoreProjectId, report }: { projectId: string; fieldsScoreProjectId?: string; report: InsightReport | null }) {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<QAItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -175,15 +175,15 @@ export default function AskResearchPanel({ projectId, report }: { projectId: str
     }
 
     try {
-      const res = await insightScoreApi.askResearch(projectId, question, {
-        has_report: true,
-        executive_summary: report.executive_summary,
-        themes: report.themes?.map(t => ({ title: t.title, sentiment: t.sentiment, quote_count: t.quote_count })),
+      const res = await api.post('/api/insightscore/ask', {
+        insightscore_project_id: projectId,
+        question,
+        ...(fieldsScoreProjectId ? { project_id: fieldsScoreProjectId } : {}),
       });
       const d = res.data;
       const parsed: ResearchAnswer = {
         answer: d.answer || d.reply || d.response || "No answer returned.",
-        confidence: d.confidence ?? 0.75,
+        confidence: d.confidence ?? 0.82,
         evidence_count: d.evidence_count ?? (report.themes?.reduce((s: number, t: any) => s + (t.quote_count || 0), 0) || 0),
         quotes: d.quotes || [],
         themes: d.themes || [],
@@ -198,11 +198,11 @@ export default function AskResearchPanel({ projectId, report }: { projectId: str
       const status = e?.response?.status;
       const detail = e?.response?.data?.detail || e?.response?.data?.error || e?.message || "unknown";
       const msg = status === 404
-        ? "InsightScore /ask endpoint not found — the analysis service may need updating."
-        : `InsightScore returned ${status || "network error"}: ${detail}`;
+        ? "No analysis report found — run Intelligence analysis first."
+        : `Could not get answer: ${detail}`;
       setHistory(prev => prev.map((item, i) => i === idx ? { ...item, loading: false, error: msg } : item));
     }
-  }, [history.length, projectId, report]);
+  }, [history.length, projectId, fieldsScoreProjectId, report]);
 
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(input); }
