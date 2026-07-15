@@ -263,10 +263,10 @@ function AdaHero({ projectId, disabled }: { projectId: string | null; disabled: 
           {disabled ? (
             <>
               <div style={{ fontSize: 19, fontWeight: 800, color: "white", lineHeight: 1.35, marginBottom: 10, letterSpacing: -.3 }}>
-                Select a project above to begin.
+                No verified interviews yet for this project.
               </div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,.42)", lineHeight: 1.65, marginBottom: 20, maxWidth: 480 }}>
-                Once you choose a project, I'll brief you on your verified interviews and what analysis I can run — including Question Intelligence, Signal Fidelity, and Demographic breakdowns.
+                Once submissions pass quality checks and sync to InsightScore, I'll brief you on what analysis I can run — including Question Intelligence, Signal Fidelity, and Demographic breakdowns.
               </div>
             </>
           ) : (
