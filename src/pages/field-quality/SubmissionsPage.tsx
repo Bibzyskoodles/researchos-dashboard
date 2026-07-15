@@ -290,7 +290,7 @@ export default function SubmissionsPage(){
   // DISPLAYED as the working verdict, but never the algorithm's own Verdict
   // column, which stays intact in the data underneath at all times.
   const effectiveVerdict = (s: typeof subs[0]) =>
-    (s.verdict_override || s.verdict || trustMap[s.submission_id]?.verdict || "FLAG") as "PASS"|"FLAG"|"REJECT";
+    (s.verdict_override || trustMap[s.submission_id]?.verdict || s.verdict || "FLAG") as "PASS"|"FLAG"|"REJECT";
 
   const filtered=subs.filter(s=>{
     const adjVerdict = effectiveVerdict(s);
