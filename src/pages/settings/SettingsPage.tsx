@@ -2276,12 +2276,9 @@ export default function SettingsPage() {
 
         <SettingsHeader title={meta.title} description={meta.description} />
 
-        <AnimatePresence mode="wait">
-          <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}
-            data-settings-section={active}>
-            {SectionComponent ? <SectionComponent /> : null}
-          </motion.div>
-        </AnimatePresence>
+        <div key={active} data-settings-section={active}>
+          {SectionComponent ? <SectionComponent /> : null}
+        </div>
       </div>
     </div>
   );
