@@ -1779,9 +1779,11 @@ function EngineSection() {
         zone_lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
         zone_radius_m: zoneRadius,
         zone_label: zoneLabel.trim(),
-      }).then(() =>
-        dashboardApi.rescoreProject(activeProject.id, 'recompute')
-      ).catch(() => setBackendSaveError(
+      }).then(() => {
+        // Best-effort rescore — if it fails, the config is already saved and
+        // will apply to future submissions. Don't surface this as a save error.
+        dashboardApi.rescoreProject(activeProject.id, 'recompute').catch(() => {});
+      }).catch(() => setBackendSaveError(
         "Saved locally, but couldn't save to the server — the AI checks won't see this context until it's retried."
       ));
     } else {
