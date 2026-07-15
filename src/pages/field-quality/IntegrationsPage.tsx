@@ -268,7 +268,7 @@ function autoMap(headers: string[]): Record<string, string> {
   return mapping;
 }
 
-function CsvUploadCard() {
+function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: string; insightscoreProjectId?: string }) {
   const [stage, setStage] = useState<'idle' | 'mapping' | 'uploading' | 'done' | 'error'>('idle');
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState('');
@@ -330,7 +330,9 @@ function CsvUploadCard() {
     setStage('uploading');
     setError('');
     const submissions = rows.map(row => {
-      const s: Record<string, any> = {};
+      const s: Record<string, any> = { _raw: row };
+      if (projectId) s.project_id = projectId;
+      if (insightscoreProjectId) s.insightscore_project_id = insightscoreProjectId;
       FIELD_MAP.forEach(f => {
         if (mapping[f.key] && row[mapping[f.key]] !== undefined) {
           if (f.key === 'gps_lat' || f.key === 'gps_lon') {
@@ -348,7 +350,7 @@ function CsvUploadCard() {
     });
     try {
       const res = await dashboardApi.uploadSubmissions(submissions);
-      setResult(`✓ ${res.data?.imported ?? submissions.length} submissions imported and queued for scoring.`);
+      setResult(`✓ ${res.data?.imported ?? submissions.length} submissions scored and imported.`);
       setStage('done');
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || 'Upload failed';
@@ -792,7 +794,7 @@ export default function IntegrationsPage() {
         )}
       </div>
 
-      <CsvUploadCard />
+      <CsvUploadCard projectId={activeProject?.id} insightscoreProjectId={activeProject?.insightscore_project_id} />
 
       <div>
         <div style={{ fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:0.7,marginBottom:14 }}>Platforms</div>
