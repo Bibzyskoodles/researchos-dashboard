@@ -707,7 +707,6 @@ function BrandingSection() {
                   </div>
                 )}
                 <input type="file" accept="image/png,image/svg+xml,image/jpeg"
-                  onClick={() => console.log('[upload] input clicked directly')}
                   onChange={handleLogoChange}
                   style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.001, cursor: "pointer", fontSize: 0 }} />
               </div>
