@@ -467,7 +467,8 @@ export default function InsightProjectPage() {
                 const d = r.data;
                 const pushed = d.pushed ?? 0;
                 const skipped = d.skipped ?? 0;
-                setSyncResult(`Synced ${pushed} submission${pushed !== 1 ? "s" : ""} (${skipped} skipped)`);
+                const sample = d.skip_sample?.length ? ` — first skip: ${d.skip_sample[0]}` : "";
+                setSyncResult(`Synced ${pushed} submission${pushed !== 1 ? "s" : ""} (${skipped} skipped${sample})`);
                 insightScoreApi.getProject(id).then(res => setProject(res.data)).catch(() => {});
               } catch (err: any) {
                 const msg = err?.response?.data?.error || err?.message || "unknown";
