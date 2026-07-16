@@ -528,21 +528,28 @@ function BridgeStatusPanel({
         </span>
       </div>
       {hasFailed && (
-        <button
-          onClick={handleRetry}
-          disabled={retrying}
-          style={{
-            padding: "5px 14px", borderRadius: 7,
-            background: retrying ? "#E5E7EB" : "#DC2626",
-            color: retrying ? "#9CA3AF" : "white",
-            border: "none", fontSize: 12, fontWeight: 700,
-            cursor: retrying ? "not-allowed" : "pointer",
-            fontFamily: "Inter,sans-serif",
-            transition: "background .15s",
-          }}
-        >
-          {retrying ? "Retrying…" : "Retry Failed"}
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <button
+            onClick={handleRetry}
+            disabled={retrying}
+            style={{
+              padding: "5px 14px", borderRadius: 7,
+              background: retrying ? "#E5E7EB" : "#DC2626",
+              color: retrying ? "#9CA3AF" : "white",
+              border: "none", fontSize: 12, fontWeight: 700,
+              cursor: retrying ? "not-allowed" : "pointer",
+              fontFamily: "Inter,sans-serif",
+              transition: "background .15s",
+            }}
+          >
+            {retrying ? "Retrying…" : "Retry Failed"}
+          </button>
+          {status?.failed_detail?.[0]?.last_error && (
+            <span style={{ fontSize: 10.5, color: "#DC2626", maxWidth: 320, textAlign: "right", wordBreak: "break-word" }}>
+              {status.failed_detail[0].last_error}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
