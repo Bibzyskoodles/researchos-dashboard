@@ -420,6 +420,182 @@ function ProjectCard({ project, onSelect }: { project: InsightProject; onSelect:
   );
 }
 
+// ── AI Upload Card ─────────────────────────────────────────────────────────
+function AiUploadCard({
+  projectId,
+  projectName,
+  onLinked,
+  prefillContext,
+}: {
+  projectId: string;
+  projectName: string;
+  onLinked: () => void;
+  prefillContext?: string;
+}) {
+  const [researchContext, setResearchContext] = useState(prefillContext || "");
+  const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const ACCEPT = ".xlsx,.csv,.txt,.pdf,.docx";
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) setFile(dropped);
+  };
+
+  const handleUpload = async () => {
+    if (!file) { setUploadError("Please select a file first."); return; }
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      if (researchContext.trim()) fd.append("research_context", researchContext.trim());
+      const apiBase = (window as any).__FS_API_BASE__ || "";
+      const token = localStorage.getItem("fs_token") || sessionStorage.getItem("fs_token") || "";
+      const res = await fetch(`${apiBase}/api/projects/${projectId}/ai-upload`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+        body: fd,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setUploadError(json.error || `Upload failed (HTTP ${res.status})`);
+        return;
+      }
+      onLinked();
+    } catch (err: any) {
+      setUploadError(err?.message || "Upload failed — please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      background: "white",
+      border: "1px solid #E8EDF5",
+      borderRadius: 14,
+      padding: "24px 28px",
+      fontFamily: "Inter,sans-serif",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: "#EFF6FF", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Sparkles size={18} color={BLUE} />
+        </div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#080D1A", letterSpacing: -0.3 }}>Connect to AI Analysis</div>
+          <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>Upload your data file to run Question Intelligence, Signal Fidelity, and theme analysis.</div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Research context textarea */}
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: 0.7, display: "block", marginBottom: 6 }}>Research Context</label>
+          <textarea
+            value={researchContext}
+            onChange={e => setResearchContext(e.target.value)}
+            placeholder="What is this research about? What questions are you trying to answer?"
+            rows={3}
+            style={{
+              width: "100%", boxSizing: "border-box",
+              border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px",
+              fontSize: 13, color: "#111827", fontFamily: "Inter,sans-serif",
+              resize: "vertical", outline: "none",
+              lineHeight: 1.6,
+            }}
+            onFocus={e => { e.currentTarget.style.borderColor = BLUE; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }}
+          />
+        </div>
+
+        {/* File drop zone */}
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: 0.7, display: "block", marginBottom: 6 }}>Data File</label>
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            style={{
+              border: `2px dashed ${dragOver ? BLUE : "#BAE6FD"}`,
+              borderRadius: 10,
+              background: dragOver ? "#EFF6FF" : "#F0F9FF",
+              padding: "24px 20px",
+              textAlign: "center",
+              cursor: "pointer",
+              transition: "all .15s",
+            }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPT}
+              style={{ display: "none" }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f); }}
+            />
+            <div style={{ fontSize: 22, marginBottom: 8 }}>📂</div>
+            {file ? (
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0369A1" }}>{file.name}</div>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#0369A1" }}>Drop your file here or click to browse</div>
+                <div style={{ fontSize: 11.5, color: "#7CB9E8", marginTop: 4 }}>Supports .xlsx, .csv, .txt, .pdf, .docx</div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Error message */}
+        {uploadError && (
+          <div style={{ fontSize: 12.5, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "8px 12px" }}>
+            {uploadError}
+          </div>
+        )}
+
+        {/* Upload button */}
+        <button
+          onClick={handleUpload}
+          disabled={uploading || !file}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            padding: "11px 24px", borderRadius: 10, border: "none",
+            background: uploading || !file ? "#93C5FD" : BLUE,
+            color: "white", fontSize: 13.5, fontWeight: 700,
+            cursor: uploading || !file ? "not-allowed" : "pointer",
+            fontFamily: "Inter,sans-serif",
+            transition: "background .15s",
+            alignSelf: "flex-start",
+          }}
+        >
+          {uploading ? (
+            <>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }}
+                style={{ width: 14, height: 14, borderRadius: "50%", border: "2.5px solid rgba(255,255,255,.4)", borderTopColor: "white" }}
+              />
+              Uploading…
+            </>
+          ) : (
+            <>
+              <Zap size={14} />
+              Upload &amp; Analyse
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type InsightsTab = "analysis" | "outcome";
 
 interface BridgeStatus {
@@ -672,7 +848,19 @@ export default function InsightsPage() {
             />
           )}
 
-          {/* Bridge sync status — show when a topbar project is active but not yet linked to InsightScore */}
+          {/* Upload card — show when a topbar project is active but not yet linked to InsightScore */}
+          {activeProject && !selectedProjectId && (
+            <AiUploadCard
+              projectId={(activeProject as any).id}
+              projectName={(activeProject as any).name || ""}
+              prefillContext={(activeProject as any).framework_indicators || ""}
+              onLinked={() => {
+                if (refreshActiveProject) refreshActiveProject();
+              }}
+            />
+          )}
+
+          {/* Bridge sync status — secondary panel below upload card */}
           {activeProject && !selectedProjectId && (
             <BridgeStatusPanel
               projectId={(activeProject as any).id}
