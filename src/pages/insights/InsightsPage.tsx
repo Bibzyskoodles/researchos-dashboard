@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi, adaApi, bridgeApi } from "../../services/api";
+import { insightScoreApi, adaApi, bridgeApi, API_BASE_URL } from "../../services/api";
 import { useProject } from "../../context/ProjectContext";
 import { InsightProject } from "../../types";
 import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download, Sparkles, Target, ChevronDown } from "lucide-react";
@@ -456,15 +456,15 @@ function AiUploadCard({
       const fd = new FormData();
       fd.append("file", file);
       if (researchContext.trim()) fd.append("research_context", researchContext.trim());
-      const apiBase = (window as any).__FS_API_BASE__ || "";
-      const token = localStorage.getItem("fs_token") || sessionStorage.getItem("fs_token") || "";
-      const res = await fetch(`${apiBase}/api/projects/${projectId}/ai-upload`, {
+      const token = localStorage.getItem("fs_token") || "";
+      const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/ai-upload`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: "include",
         body: fd,
       });
-      const json = await res.json();
+      let json: any = {};
+      try { json = await res.json(); } catch { /* empty body */ }
       if (!res.ok) {
         setUploadError(json.error || `Upload failed (HTTP ${res.status})`);
         return;
