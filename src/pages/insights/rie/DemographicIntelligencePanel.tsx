@@ -184,30 +184,31 @@ export default function DemographicIntelligencePanel({ projectId }: { projectId:
   const loadCrossField = useCallback((key: string) => {
     if (crossField === key) { setCrossField(null); return; }
     setCrossField(key);
-    if (!data || data.breakdowns[`${activeField}__${key}`]) return;
-    setLoadingField(true);
-    insightScoreApi.getDemographics(projectId, `${activeField},${key}`)
-      .then((r: any) => {
-        const crossKey = `${activeField}__${key}`;
-        if (r.data?.breakdown) {
-          setData(prev => prev ? { ...prev, breakdowns: { ...prev.breakdowns, [crossKey]: r.data.breakdown } } : prev);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingField(false));
-  }, [data, projectId, activeField, crossField]);
+    if (!data) return;
+    // Fetch the cross field's own breakdown if not already cached
+    if (!data.breakdowns[key]) {
+      setLoadingField(true);
+      insightScoreApi.getDemographics(projectId, key)
+        .then((r: any) => {
+          if (r.data?.breakdown) {
+            setData(prev => prev ? { ...prev, breakdowns: { ...prev.breakdowns, [key]: r.data.breakdown } } : prev);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoadingField(false));
+    }
+  }, [data, projectId, crossField]);
 
   if (loading) return <div style={{ padding: "40px 0", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>Loading demographics...</div>;
   if (error) return <div style={{ padding: "20px", background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA", fontSize: 13, color: "#7F1D1D" }}>Could not load Demographics — the analysis service may be unavailable. Please try again shortly.</div>;
   if (!data) return <PendingState />;
 
-  const crossKey = activeField && crossField ? `${activeField}__${crossField}` : null;
-  const activeBreakdown = crossKey && data.breakdowns[crossKey]
-    ? data.breakdowns[crossKey]
-    : activeField ? data.breakdowns[activeField] : null;
+  const primaryBreakdown = activeField ? data.breakdowns[activeField] : null;
+  const crossBreakdown = crossField ? data.breakdowns[crossField] : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Primary dimension picker */}
       <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8EDF5", padding: "16px 18px" }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 10 }}>Demographic Dimensions</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -220,15 +221,52 @@ export default function DemographicIntelligencePanel({ projectId }: { projectId:
         </div>
       </div>
 
+      {/* Compare With picker */}
+      {activeField && data.available_fields.length > 1 && (
+        <div style={{ background: "linear-gradient(135deg, #F0F4FF, #F8FAFF)", borderRadius: 12, border: "1px solid #E0E7FF", padding: "14px 18px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 6 }}>Compare With</div>
+          <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 10 }}>Select a second dimension to view side-by-side.</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {data.available_fields.filter(f => f.key !== activeField).map(f => {
+              const active = crossField === f.key;
+              return (
+                <button key={f.key} onClick={() => loadCrossField(f.key)}
+                  style={{ padding: "5px 12px", borderRadius: 7, background: active ? PURPLE : "white", border: `1px solid ${active ? PURPLE : "#E0E7FF"}`, color: active ? "white" : "#4B5563", fontSize: 11.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" }}>
+                  {active ? "✕ " : "+ "}{f.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Breakdown display */}
       <AnimatePresence mode="wait">
         {loadingField ? (
           <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             style={{ textAlign: "center", padding: "30px 0", color: "#9CA3AF", fontSize: 13 }}>
             Loading breakdown...
           </motion.div>
-        ) : activeBreakdown ? (
-          <motion.div key={activeField} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <FieldBreakdown breakdown={activeBreakdown} />
+        ) : primaryBreakdown ? (
+          <motion.div key={`${activeField}-${crossField}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            {crossBreakdown ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ background: "white", borderRadius: 12, border: `2px solid ${BLUE}33`, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 10 }}>
+                    {data.available_fields.find(f => f.key === activeField)?.label}
+                  </div>
+                  <FieldBreakdown breakdown={primaryBreakdown} />
+                </div>
+                <div style={{ background: "white", borderRadius: 12, border: `2px solid ${PURPLE}33`, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: PURPLE, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 10 }}>
+                    {data.available_fields.find(f => f.key === crossField)?.label}
+                  </div>
+                  <FieldBreakdown breakdown={crossBreakdown} />
+                </div>
+              </div>
+            ) : (
+              <FieldBreakdown breakdown={primaryBreakdown} />
+            )}
           </motion.div>
         ) : (
           <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -237,31 +275,6 @@ export default function DemographicIntelligencePanel({ projectId }: { projectId:
           </motion.div>
         )}
       </AnimatePresence>
-
-      {activeField && data.available_fields.length > 1 && (
-        <div style={{ background: "linear-gradient(135deg, #F0F4FF, #F8FAFF)", borderRadius: 12, border: "1px solid #E0E7FF", padding: "14px 18px" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>Cross-Analysis</div>
-          <div style={{ fontSize: 12.5, color: "#374151", lineHeight: 1.6, marginBottom: 10 }}>
-            Select a second dimension to compare how responses differ across intersecting groups — e.g. women aged 18–24 in Lagos.
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {data.available_fields.filter(f => f.key !== activeField).map(f => {
-              const active = crossField === f.key;
-              return (
-                <button key={f.key} onClick={() => loadCrossField(f.key)}
-                  style={{ padding: "5px 12px", borderRadius: 7, background: active ? BLUE : "white", border: `1px solid ${active ? BLUE : "#E0E7FF"}`, color: active ? "white" : "#4B5563", fontSize: 11.5, fontWeight: 500, cursor: "pointer", transition: "all .15s" }}>
-                  {active ? "✕ " : "+ "}{f.label}
-                </button>
-              );
-            })}
-          </div>
-          {crossField && crossKey && data.breakdowns[crossKey] && (
-            <div style={{ marginTop: 8, fontSize: 11.5, color: "#6B7280" }}>
-              Showing: <strong style={{ color: BLUE }}>{data.available_fields.find(f => f.key === activeField)?.label}</strong> × <strong style={{ color: PURPLE }}>{data.available_fields.find(f => f.key === crossField)?.label}</strong>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
