@@ -12,10 +12,30 @@ const BLUE = "#2463EB", GREEN = "#059669", PURPLE = "#7C3AED";
 
 function getReportTypes(t: (key: string, fallback: string) => string) {
   return [
-    { id: "executive",  title: "Executive Summary",        desc: "High-level overview for senior stakeholders — key findings, pass rate, trust score, recommendations.", icon: "📊", time: "~30 seconds", format: "pptx" as const },
-    { id: "technical",  title: "Technical Quality Report", desc: `Full verification engine breakdown — GPS, audio, image, duration, duplicate checks per ${t('enumerator','enumerator')}.`, icon: "🔬", time: "~45 seconds", format: "xlsx" as const },
-    { id: "enumerator", title: `${t('enumerator','Enumerator')} Performance`, desc: `Individual scorecards and comparative rankings — who to retain, retrain, or remove.`, icon: "👤", time: "~20 seconds", format: "docx" as const },
-    { id: "client",     title: "Client Delivery Report",   desc: "Branded, client-ready report with methodology, findings, and data confidence statement.", icon: "📋", time: "~60 seconds", format: "docx" as const },
+    {
+      id: "executive",  title: "Executive Summary", icon: "📊", time: "~30 seconds", format: "pptx" as const,
+      desc: "High-level overview for senior stakeholders and boards.",
+      contents: ["Pass rate & Trust Index KPIs", "Ada AI analysis summary", "IFI signal quality score", "Data-driven recommendations", "Verification statement"],
+      audience: "Board / Senior Management",
+    },
+    {
+      id: "technical",  title: "Technical Quality Report", icon: "🔬", time: "~45 seconds", format: "xlsx" as const,
+      desc: `Per-engine verification breakdown for QA and data teams.`,
+      contents: ["GPS, audio, image, duration scores", `${t('enumerator','Enumerator')} performance table`, "Engine weight configuration", "Flag-by-flag breakdown", "Rescore audit trail"],
+      audience: "QA / Data Team",
+    },
+    {
+      id: "enumerator", title: `${t('enumerator','Enumerator')} Performance`, icon: "👤", time: "~20 seconds", format: "docx" as const,
+      desc: `Individual scorecards and tier rankings for field supervision.`,
+      contents: ["Ranked performance table", "Tier badges (Excellent → At Risk)", "Top/bottom performer spotlight", "Pass-rate stacked bar charts", "Retraining recommendations"],
+      audience: "Field Supervisor",
+    },
+    {
+      id: "client",     title: "Client Delivery Report", icon: "📋", time: "~60 seconds", format: "docx" as const,
+      desc: "Branded, client-ready deliverable with full methodology.",
+      contents: ["Branded cover page", "Respondent voice quotes", "Methodology & verification statement", "Data confidence certificate", "Recommendations for action"],
+      audience: "Client / Donor",
+    },
   ];
 }
 
@@ -118,6 +138,7 @@ export default function ReportsPage() {
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
   const [generated, setGenerated] = useState<Record<string, { format: string }>>({});
+  const [lastGenerated, setLastGenerated] = useState<Record<string, number>>({});
   const [toast, setToast] = useState("");
   const { recordEvent } = useGamify();
   const { user, org } = useAuth();
@@ -146,8 +167,20 @@ export default function ReportsPage() {
     loadProjects();
   }, []);
 
-  // Keep ref in sync for the Ada event handler (avoids stale closure)
-  useEffect(() => { selectedProjectRef.current = selectedProject; ctxCache.current = null; }, [selectedProject]);
+  // Load last-generated timestamps from localStorage when project changes
+  useEffect(() => {
+    selectedProjectRef.current = selectedProject;
+    ctxCache.current = null;
+    if (!selectedProject) return;
+    const stored: Record<string, number> = {};
+    REPORT_TYPES.forEach(r => {
+      const key = `report_last_gen_${r.id}_${selectedProject.id}`;
+      const val = localStorage.getItem(key);
+      if (val) stored[r.id] = Number(val);
+    });
+    setLastGenerated(stored);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject]);
 
   // Ada can trigger report generation via ada:generate_report from any page
   useEffect(() => {
@@ -193,7 +226,10 @@ export default function ReportsPage() {
       // Build rich context while we wait (real data fetch)
       ctxCache.current = await buildReportContext(proj, org?.name || "Research Organisation", user?.name || "FieldScore");
     } catch { /* non-fatal */ } finally {
+      const now = Date.now();
       setGenerated(prev => ({ ...prev, [r.id]: { format: r.format } }));
+      setLastGenerated(prev => ({ ...prev, [r.id]: now }));
+      if (selectedProject) localStorage.setItem(`report_last_gen_${r.id}_${selectedProject.id}`, String(now));
       recordEvent('report_generated');
       showToast(`${r.title} ready — click Download`);
       setGenerating(null);
@@ -285,20 +321,59 @@ export default function ReportsPage() {
         {REPORT_TYPES.map(r => {
           const isDone = !!generated[r.id];
           const isGenerating = generating === r.id;
+          const lastTs = lastGenerated[r.id];
+          const lastLabel = lastTs ? (() => {
+            const mins = Math.round((Date.now() - lastTs) / 60000);
+            if (mins < 1) return "Generated just now";
+            if (mins < 60) return `Generated ${mins}m ago`;
+            const hrs = Math.round(mins / 60);
+            if (hrs < 24) return `Generated ${hrs}h ago`;
+            return `Generated ${Math.round(hrs / 24)}d ago`;
+          })() : null;
           return (
             <motion.div key={r.id} whileHover={{ y: -2 }}
-              style={{ background: "white", borderRadius: 16, padding: "22px 24px", border: `1px solid ${isDone ? "#BBDEFB" : "#E8EDF5"}`, boxShadow: "0 2px 12px rgba(10,15,28,.06)", position: "relative", overflow: "hidden" }}>
+              style={{ background: "white", borderRadius: 16, padding: "22px 24px", border: `1px solid ${isDone ? "#BBDEFB" : "#E8EDF5"}`, boxShadow: "0 2px 12px rgba(10,15,28,.06)", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column" }}>
               {isDone && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(to right,${BLUE},${PURPLE})` }} />}
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
-                <div style={{ fontSize: 28 }}>{r.icon}</div>
-                {isDone && <CheckCircle size={18} color={GREEN} />}
+
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ fontSize: 26 }}>{r.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#080D1A", letterSpacing: -.2 }}>{r.title}</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "#9CA3AF", marginTop: 1 }}>For: {r.audience}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                  {isDone && <CheckCircle size={16} color={GREEN} />}
+                  <span style={{ padding: "2px 7px", borderRadius: 5, background: "#F1F5F9", fontSize: 10, fontWeight: 700, color: "#6B7280", textTransform: "uppercase" as const }}>.{r.format}</span>
+                </div>
               </div>
-              <div style={{ fontSize: 14.5, fontWeight: 700, color: "#080D1A", marginBottom: 4 }}>{r.title}</div>
-              <div style={{ fontSize: 12.5, color: "#9CA3AF", marginBottom: 16, lineHeight: 1.5 }}>{r.desc}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 11.5, color: "#9CA3AF" }}>
-                <Clock size={11} /> {r.time}
-                <span style={{ marginLeft: 6, padding: "2px 7px", borderRadius: 5, background: "#F1F5F9", fontSize: 10.5, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" as const }}>.{r.format}</span>
+
+              <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 14, lineHeight: 1.55 }}>{r.desc}</div>
+
+              {/* What's inside */}
+              <div style={{ background: "#F8FAFF", borderRadius: 10, padding: "10px 12px", marginBottom: 14, flex: 1 }}>
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .8, marginBottom: 7 }}>What's inside</div>
+                {r.contents.map((c, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: i < r.contents.length - 1 ? 5 : 0 }}>
+                    <div style={{ width: 4, height: 4, borderRadius: "50%", background: BLUE, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11.5, color: "#374151" }}>{c}</span>
+                  </div>
+                ))}
               </div>
+
+              {/* Meta row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 11, color: "#9CA3AF" }}>
+                <Clock size={10} /> {r.time}
+                {lastLabel && (
+                  <span style={{ marginLeft: "auto", fontSize: 10.5, color: isDone ? GREEN : "#9CA3AF", fontWeight: 600 }}>
+                    {isDone ? "✓ " : ""}{lastLabel}
+                  </span>
+                )}
+              </div>
+
+              {/* Action buttons */}
               <div style={{ display: "flex", gap: 8 }}>
                 {isDone ? (
                   <>

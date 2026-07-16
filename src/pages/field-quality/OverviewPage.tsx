@@ -13,6 +13,7 @@ import { useProject } from "../../context/ProjectContext";
 import { loadEngineConfig } from "../../services/engineConfig";
 import { computeTrustIndex } from "../../services/trustEngine";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
+import { useAdaSettings, AdaDailyBrief, AdaCelebrationLayer, AdaGuidanceLayer } from "../../ada/AdaProactive";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -120,6 +121,7 @@ export default function OverviewPage() {
   const nav = useNavigate();
   const isMobile = useIsMobile();
   useAdaGreeting({ page: "overview" });
+  const adaSettings = useAdaSettings();
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   const firstName = user?.name?.split(" ")[0] || "there";
@@ -156,6 +158,8 @@ export default function OverviewPage() {
     </div>
   );
 
+  const stats = data?.stats ?? null;
+
   if (!data) return <div style={{ padding: 24, color: RED }}>Could not load data</div>;
 
   // Defensive: older backend versions omit fields entirely when a project
@@ -174,6 +178,15 @@ export default function OverviewPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* Ada proactive layers — celebrations + element guidance tooltips */}
+      <AdaCelebrationLayer stats={stats} enabled={adaSettings.celebrations} />
+      <AdaGuidanceLayer enabled={adaSettings.element_guidance} />
+
+      {/* Ada Daily Brief — shown above the hero when enabled */}
+      {adaSettings.daily_brief && stats && (
+        <AdaDailyBrief stats={stats} orgName={org?.name} firstName={firstName} />
+      )}
 
       {/* Ada Hero */}
       <motion.div
