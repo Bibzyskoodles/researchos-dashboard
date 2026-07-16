@@ -433,47 +433,36 @@ function AiUploadCard({
   prefillContext?: string;
 }) {
   const [researchContext, setResearchContext] = useState(prefillContext || "");
-  const [file, setFile] = useState<File | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
-  const ACCEPT = ".xlsx,.csv,.txt,.pdf,.docx";
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragOver(false);
-    const dropped = e.dataTransfer.files[0];
-    if (dropped) setFile(dropped);
-  };
-
-  const handleUpload = async () => {
-    if (!file) { setUploadError("Please select a file first."); return; }
-    setUploading(true);
-    setUploadError(null);
+  const handleConnect = async () => {
+    setConnecting(true);
+    setConnectError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      if (researchContext.trim()) fd.append("research_context", researchContext.trim());
       const token = localStorage.getItem("fs_token") || "";
       const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/ai-upload`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
-        body: fd,
+        body: JSON.stringify({
+          research_context: researchContext.trim() || undefined,
+        }),
       });
       let json: any = {};
       try { json = await res.json(); } catch { /* empty body */ }
       if (!res.ok) {
-        setUploadError(json.error || `Upload failed (HTTP ${res.status})`);
+        setConnectError(json.error || `Connection failed (HTTP ${res.status})`);
         return;
       }
       onLinked();
     } catch (err: any) {
-      setUploadError(err?.message || "Upload failed — please try again.");
+      setConnectError(err?.message || "Connection failed — please try again.");
     } finally {
-      setUploading(false);
+      setConnecting(false);
     }
   };
 
@@ -491,14 +480,18 @@ function AiUploadCard({
         </div>
         <div>
           <div style={{ fontSize: 15, fontWeight: 800, color: "#080D1A", letterSpacing: -0.3 }}>Connect to AI Analysis</div>
-          <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>Upload your data file to run Question Intelligence, Signal Fidelity, and theme analysis.</div>
+          <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+            Sync your passed submissions to InsightScore to run Question Intelligence, Signal Fidelity, and theme analysis.
+          </div>
         </div>
       </div>
 
       <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 14 }}>
         {/* Research context textarea */}
         <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: 0.7, display: "block", marginBottom: 6 }}>Research Context</label>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: 0.7, display: "block", marginBottom: 6 }}>
+            Research Context <span style={{ fontWeight: 400, textTransform: "none", color: "#9CA3AF" }}>(optional)</span>
+          </label>
           <textarea
             value={researchContext}
             onChange={e => setResearchContext(e.target.value)}
@@ -516,78 +509,41 @@ function AiUploadCard({
           />
         </div>
 
-        {/* File drop zone */}
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: 0.7, display: "block", marginBottom: 6 }}>Data File</label>
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            style={{
-              border: `2px dashed ${dragOver ? BLUE : "#BAE6FD"}`,
-              borderRadius: 10,
-              background: dragOver ? "#EFF6FF" : "#F0F9FF",
-              padding: "24px 20px",
-              textAlign: "center",
-              cursor: "pointer",
-              transition: "all .15s",
-            }}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPT}
-              style={{ display: "none" }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f); }}
-            />
-            <div style={{ fontSize: 22, marginBottom: 8 }}>📂</div>
-            {file ? (
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#0369A1" }}>{file.name}</div>
-            ) : (
-              <>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#0369A1" }}>Drop your file here or click to browse</div>
-                <div style={{ fontSize: 11.5, color: "#7CB9E8", marginTop: 4 }}>Supports .xlsx, .csv, .txt, .pdf, .docx</div>
-              </>
-            )}
-          </div>
-        </div>
-
         {/* Error message */}
-        {uploadError && (
+        {connectError && (
           <div style={{ fontSize: 12.5, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "8px 12px" }}>
-            {uploadError}
+            {connectError}
           </div>
         )}
 
-        {/* Upload button */}
+        {/* Connect button */}
         <button
-          onClick={handleUpload}
-          disabled={uploading || !file}
+          onClick={handleConnect}
+          disabled={connecting}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             padding: "11px 24px", borderRadius: 10, border: "none",
-            background: uploading || !file ? "#93C5FD" : BLUE,
+            background: connecting ? "#93C5FD" : BLUE,
             color: "white", fontSize: 13.5, fontWeight: 700,
-            cursor: uploading || !file ? "not-allowed" : "pointer",
+            cursor: connecting ? "not-allowed" : "pointer",
             fontFamily: "Inter,sans-serif",
             transition: "background .15s",
             alignSelf: "flex-start",
           }}
         >
-          {uploading ? (
+          {connecting ? (
             <>
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }}
                 style={{ width: 14, height: 14, borderRadius: "50%", border: "2.5px solid rgba(255,255,255,.4)", borderTopColor: "white" }}
               />
-              Uploading…
+              Connecting…
             </>
           ) : (
             <>
               <Zap size={14} />
-              Upload &amp; Analyse
+              Connect &amp; Sync
             </>
           )}
         </button>
