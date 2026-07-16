@@ -37,6 +37,10 @@ export interface ReportContext {
   engineRows?: EngineRow[];
   // Org branding
   primaryColor?: string;
+  accentColor?: string;
+  brandFont?: string;
+  brandFooter?: string;
+  logoDataUrl?: string;
 }
 
 export function generateLocalReport(
@@ -118,6 +122,11 @@ function generateHtml(reportId: string, ctx: ReportContext, date: string): strin
   const flagP = pct(flagN, total);
   const rejectP = pct(rejectN, total);
   const accent = ctx.primaryColor || '#2463EB';
+  const accent2 = ctx.accentColor || '#7C3AED';
+  const fontStack = ctx.brandFont
+    ? `'${ctx.brandFont}', Inter, 'Helvetica Neue', Arial, sans-serif`
+    : "Inter, 'Helvetica Neue', Arial, sans-serif";
+  const footerText = ctx.brandFooter || 'Confidential · ResearchOS · FieldScore';
 
   const titles: Record<string, string> = {
     executive: 'Executive Summary',
@@ -130,10 +139,10 @@ function generateHtml(reportId: string, ctx: ReportContext, date: string): strin
   const css = `
     @page { size: A4; margin: 18mm 20mm; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Inter, 'Helvetica Neue', Arial, sans-serif; background: white; color: #111827; font-size: 13px; line-height: 1.65; }
+    body { font-family: ${fontStack}; background: white; color: #111827; font-size: 13px; line-height: 1.65; }
     .wrap { max-width: 860px; margin: 0 auto; padding: 36px 40px; }
     /* Header */
-    .page-header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 22px; border-bottom: 2.5px solid ${accent}; margin-bottom: 32px; }
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 22px; border-bottom: 3px solid; border-image: linear-gradient(to right, ${accent}, ${accent2}) 1; margin-bottom: 32px; }
     .brand-name { font-size: 12px; font-weight: 800; letter-spacing: 3px; color: #0A1230; }
     .brand-name em { color: ${accent}; font-style: normal; }
     .brand-tag { font-size: 10px; color: #9CA3AF; letter-spacing: 1px; margin-top: 3px; }
@@ -199,11 +208,15 @@ function generateHtml(reportId: string, ctx: ReportContext, date: string): strin
     @media print { .print-bar { display: none !important; } .wrap { padding-top: 0; } }
   `;
 
+  const logoHtml = ctx.logoDataUrl
+    ? `<img src="${ctx.logoDataUrl}" alt="${ctx.orgName}" style="height:40px;max-width:160px;object-fit:contain;display:block;margin-bottom:6px">`
+    : `<div class="brand-name">FIELDSC<em>◉</em>RE <span style="color:#9CA3AF;font-weight:400;letter-spacing:1px;font-size:10px">· ResearchOS</span></div>`;
+
   const header = `
     <div class="page-header">
       <div>
-        <div class="brand-name">FIELDSC<em>◉</em>RE <span style="color:#9CA3AF;font-weight:400;letter-spacing:1px;font-size:10px">· ResearchOS</span></div>
-        <div class="brand-tag">VERIFY · ANALYZE · DECIDE</div>
+        ${logoHtml}
+        <div class="brand-tag">${ctx.orgName.toUpperCase()} · VERIFY · ANALYZE · DECIDE</div>
       </div>
       <div class="header-meta">
         <strong>${title}</strong>
@@ -328,9 +341,9 @@ function generateHtml(reportId: string, ctx: ReportContext, date: string): strin
     <div class="footer">
       <div class="footer-left">
         Verified by <strong>${ctx.generatedBy}</strong> · ${ctx.orgName}<br>
-        Generated ${date} via ResearchOS · FieldScore Intelligence Engine
+        ${footerText}
       </div>
-      <div class="cert-badge">◉ FieldScore Verified · ${passN.toLocaleString()}/${ctx.submissionCount.toLocaleString()} submissions</div>
+      <div class="cert-badge" style="background:${accent}11;border-color:${accent}44;color:${accent}">◉ FieldScore Verified · ${passN.toLocaleString()}/${ctx.submissionCount.toLocaleString()} submissions</div>
     </div>`;
 
   // ── Per-report body ─────────────────────────────────────────────────────────

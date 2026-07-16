@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Download, Sparkles, Clock, CheckCircle, ChevronDown } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi, projectsApi, dashboardApi } from "../../services/api";
+import { insightScoreApi, projectsApi, dashboardApi, orgSettingsApi } from "../../services/api";
 import { usePlatform } from "../../platform/PlatformProvider";
 import { useGamify } from "../../gamify/GamifyContext";
 import { generateLocalReport, ReportContext, EnumeratorRow, EngineRow } from "../../gamify/reportGenerator";
@@ -81,7 +81,20 @@ async function buildReportContext(
     }
   } catch { /* non-fatal */ }
 
-  // 3. AI insights from InsightScore
+  // 3. Org branding
+  try {
+    const r = await orgSettingsApi.getSettings();
+    const d = r.data || {};
+    if (d.brand_primary_color) base.primaryColor = d.brand_primary_color;
+    if (d.brand_accent_color)  base.accentColor  = d.brand_accent_color;
+    if (d.brand_font)          base.brandFont    = d.brand_font;
+    if (d.brand_footer)        base.brandFooter  = d.brand_footer;
+    // Logo lives in localStorage (uploaded client-side as a data URL)
+    const logo = localStorage.getItem('org_logo');
+    if (logo) base.logoDataUrl = logo;
+  } catch { /* non-fatal */ }
+
+  // 4. AI insights from InsightScore
   const iscId = project.insightscore_project_id || project.id;
   try {
     const r = await insightScoreApi.getReport(iscId);
