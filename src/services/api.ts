@@ -195,6 +195,13 @@ export const insightScoreApi = {
   },
 };
 
+export const bridgeApi = {
+  getStatus: (projectId: string) =>
+    api.get(`/api/projects/${projectId}/bridge-status`),
+  retry: (projectId: string) =>
+    api.post(`/api/projects/${projectId}/bridge-retry`),
+};
+
 export const insightSyncApi = {
   bulkSync: (projectId: string, limit = 200) =>
     api.post('/api/insightscore/sync', { project_id: projectId, limit }),

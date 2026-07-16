@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi, adaApi } from "../../services/api";
+import { insightScoreApi, adaApi, bridgeApi } from "../../services/api";
 import { useProject } from "../../context/ProjectContext";
 import { InsightProject } from "../../types";
 import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download, Sparkles, Target, ChevronDown } from "lucide-react";
@@ -422,6 +422,132 @@ function ProjectCard({ project, onSelect }: { project: InsightProject; onSelect:
 
 type InsightsTab = "analysis" | "outcome";
 
+interface BridgeStatus {
+  fieldscore: { total: number; passed: number };
+  outbox: { sent: number; pending: number; failed: number; skipped: number };
+  insightscore: { project_id: string; linked: boolean };
+  failed_detail: { submission_id: string; attempts: number; last_error: string }[];
+}
+
+function BridgeStatusPanel({
+  projectId,
+  onLinked,
+}: {
+  projectId: string;
+  onLinked: () => void;
+}) {
+  const [status, setStatus] = useState<BridgeStatus | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await bridgeApi.getStatus(projectId);
+      const data: BridgeStatus = res.data;
+      setStatus(data);
+      setError(null);
+      if (data.insightscore.linked) {
+        onLinked();
+      }
+    } catch {
+      setError("Could not fetch sync status");
+    }
+  }, [projectId, onLinked]);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  // Auto-refresh every 10 seconds while there are pending rows
+  useEffect(() => {
+    if (!status) return;
+    if (status.outbox.pending === 0) return;
+    const interval = setInterval(fetchStatus, 10000);
+    return () => clearInterval(interval);
+  }, [status, fetchStatus]);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      await bridgeApi.retry(projectId);
+      await fetchStatus();
+    } catch {
+      // ignore, next poll will reflect state
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  if (error) return null;
+  if (!status) return null;
+
+  const { fieldscore, outbox } = status;
+  const hasPending = outbox.pending > 0;
+  const hasFailed = outbox.failed > 0;
+
+  return (
+    <div style={{
+      background: "#F0F9FF",
+      border: "1px solid #BAE6FD",
+      borderRadius: 10,
+      padding: "12px 16px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      flexWrap: "wrap",
+      gap: 10,
+      fontSize: 12.5,
+      color: "#0369A1",
+      fontFamily: "Inter,sans-serif",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        {hasPending && (
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+              style={{ width: 10, height: 10, borderRadius: "50%", border: "2px solid #0EA5E9", borderTopColor: "transparent" }}
+            />
+            Syncing…
+          </span>
+        )}
+        <span>
+          <strong>{fieldscore.passed}</strong> passed
+        </span>
+        <span style={{ color: "#9CA3AF" }}>·</span>
+        <span>
+          <strong>{outbox.sent}</strong> synced
+        </span>
+        <span style={{ color: "#9CA3AF" }}>·</span>
+        <span style={{ color: hasPending ? AMBER : "inherit" }}>
+          <strong>{outbox.pending}</strong> pending
+        </span>
+        <span style={{ color: "#9CA3AF" }}>·</span>
+        <span style={{ color: hasFailed ? "#DC2626" : "inherit" }}>
+          <strong>{outbox.failed}</strong> failed
+        </span>
+      </div>
+      {hasFailed && (
+        <button
+          onClick={handleRetry}
+          disabled={retrying}
+          style={{
+            padding: "5px 14px", borderRadius: 7,
+            background: retrying ? "#E5E7EB" : "#DC2626",
+            color: retrying ? "#9CA3AF" : "white",
+            border: "none", fontSize: 12, fontWeight: 700,
+            cursor: retrying ? "not-allowed" : "pointer",
+            fontFamily: "Inter,sans-serif",
+            transition: "background .15s",
+          }}
+        >
+          {retrying ? "Retrying…" : "Retry Failed"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function InsightsPage() {
   const { activeProject, refreshActiveProject } = useProject();
   const [projects, setProjects] = useState<InsightProject[]>([]);
@@ -536,6 +662,16 @@ export default function InsightsPage() {
               projects={projects}
               selectedId={selectedProjectId}
               onSelect={setSelectedProjectId}
+            />
+          )}
+
+          {/* Bridge sync status — show when a topbar project is active but not yet linked to InsightScore */}
+          {activeProject && !selectedProjectId && (
+            <BridgeStatusPanel
+              projectId={(activeProject as any).id}
+              onLinked={() => {
+                if (refreshActiveProject) refreshActiveProject();
+              }}
             />
           )}
 
