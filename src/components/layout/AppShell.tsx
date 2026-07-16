@@ -68,9 +68,29 @@ export default function AppShell() {
         break;
 
       case 'CHANGE_SETTING':
-        window.dispatchEvent(new CustomEvent('ada:change_setting', { detail: { key: cmd.key, value: cmd.value } }));
+        window.dispatchEvent(new CustomEvent('ada:change_setting', {
+          detail: { key: cmd.key, value: cmd.value, scope: cmd.scope, project_id: cmd.project_id }
+        }));
         showToast(cmd.label);
         break;
+
+      case 'RESCORE_PROJECT': {
+        const rescoreId = cmd.project_id;
+        showToast('Rescoring project…');
+        import('../../services/api').then(({ default: api }) => {
+          api.post(`/api/projects/${rescoreId}/rescore-all`).catch(() => {});
+        });
+        break;
+      }
+
+      case 'BRIDGE_SYNC': {
+        const syncId = cmd.project_id;
+        showToast('Syncing to AI analysis…');
+        import('../../services/api').then(({ default: api }) => {
+          api.post(`/api/projects/${syncId}/ai-upload`, {}).catch(() => {});
+        });
+        break;
+      }
 
       case 'SWITCH_PROJECT':
         navigate(`/projects/${cmd.id}`);

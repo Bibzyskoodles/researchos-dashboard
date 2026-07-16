@@ -160,11 +160,11 @@ const ALLOWED_SETTING_KEYS = new Set([
   'notifyInApp', 'sessionTimeout', 'twoFa',
 ]);
 
-const ALLOWED_PATHS = new Set([
+const ALLOWED_PATH_PREFIXES = [
   '/overview', '/submissions', '/enumerators', '/map', '/insights', '/reports',
   '/questionnaire', '/settings', '/integrations', '/data-cleaning', '/scorecard',
-  '/outcome', '/meeting-ada',
-]);
+  '/outcome', '/meeting-ada', '/projects',
+];
 
 const ALLOWED_VERDICTS = new Set(['PASS', 'FLAG', 'REJECT', 'ALL']);
 
@@ -184,25 +184,43 @@ export function validateCommand(cmd: unknown): cmd is AdaCommand {
       return typeof c.id === 'string' && /^[A-Z0-9_-]{1,20}$/i.test(c.id as string);
 
     case 'NAVIGATE_TO':
-      return typeof c.path === 'string' && ALLOWED_PATHS.has(c.path as string);
+      return typeof c.path === 'string' &&
+        ALLOWED_PATH_PREFIXES.some(p => (c.path as string) === p || (c.path as string).startsWith(p + '/') || (c.path as string).startsWith(p + '?'));
 
     case 'SWITCH_PROJECT':
       return typeof c.id === 'string' && c.id.length < 64;
 
     case 'CHANGE_SETTING': {
-      if (!ALLOWED_SETTING_KEYS.has(c.key as string)) return false;
+      const allSettingKeys = new Set([
+        ...Array.from(ALLOWED_SETTING_KEYS),
+        'passScoreThreshold','flagScoreThreshold','minDurationMins','maxDurationMins',
+        'gpsToleranceMeters','weight_gps','weight_duration','weight_image','weight_audio','weight_duplicate',
+      ]);
+      if (!allSettingKeys.has(c.key as string)) return false;
       const v = c.value;
-      // Personality must be one of three known strings
       if (c.key === 'adaPersonality') return ['professional', 'friendly', 'concise'].includes(v as string);
-      // Boolean settings
       const boolKeys = ['adaProactive','adaGuidance','adaBrief','adaCelebrations','notifyEmail','notifySlack','notifyInApp','twoFa'];
       if (boolKeys.includes(c.key as string)) return typeof v === 'boolean';
-      // Numeric settings
-      const numKeys = ['gpsAccuracy','dupThreshold','passThreshold','minDuration','maxDuration'];
-      if (numKeys.includes(c.key as string)) return typeof v === 'number' && isFinite(v);
-      // String settings (language, timezone, mediaRetention, sessionTimeout)
+      const numKeys = ['gpsAccuracy','dupThreshold','passThreshold','minDuration','maxDuration',
+        'passScoreThreshold','flagScoreThreshold','minDurationMins','maxDurationMins',
+        'gpsToleranceMeters','weight_gps','weight_duration','weight_image','weight_audio','weight_duplicate'];
+      if (numKeys.includes(c.key as string)) return typeof v === 'number' && isFinite(v as number);
       return typeof v === 'string' && (v as string).length < 64;
     }
+
+    case 'RESCORE_PROJECT':
+      return typeof c.project_id === 'string' && c.project_id.length > 0;
+
+    case 'BRIDGE_SYNC':
+      return typeof c.project_id === 'string' && c.project_id.length > 0;
+
+    case 'GENERATE_REPORT':
+      return typeof c.project_id === 'string' && ['docx','pptx','xlsx'].includes(c.format as string);
+
+    case 'OPEN_SETTINGS_SECTION':
+    case 'CREATE_PROJECT':
+    case 'SHOW_TOAST':
+      return true;
 
     default:
       return false;

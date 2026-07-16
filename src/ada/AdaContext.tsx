@@ -18,8 +18,10 @@ export type AdaCommand =
   | { type: 'SWITCH_PROJECT'; id: string }
   | { type: 'CREATE_PROJECT' }
   | { type: 'SHOW_TOAST'; message: string }
-  | { type: 'CHANGE_SETTING'; key: string; value: any; label: string }
-  | { type: 'GENERATE_REPORT'; project_id: string; format: 'docx' | 'pptx' | 'xlsx' };
+  | { type: 'CHANGE_SETTING'; key: string; value: any; label: string; scope?: string; project_id?: string }
+  | { type: 'GENERATE_REPORT'; project_id: string; format: 'docx' | 'pptx' | 'xlsx' }
+  | { type: 'RESCORE_PROJECT'; project_id: string }
+  | { type: 'BRIDGE_SYNC'; project_id: string };
 
 // Map a natural-language message to a command intent, or null if none.
 export function parseAdaCommand(text: string): AdaCommand | null {

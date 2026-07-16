@@ -2259,6 +2259,36 @@ export default function SettingsPage() {
     setActive(cmd.section);
   }, [adaStore.command]);
 
+  // Respond to Ada ada:change_setting events — write key into engine config
+  useEffect(() => {
+    const ENGINE_KEYS: Record<string, string[]> = {
+      passScoreThreshold: ['passThreshold'],
+      flagScoreThreshold: ['flagThreshold'],
+      minDurationMins: ['minDurationMins'],
+      maxDurationMins: ['maxDurationMins'],
+      gpsToleranceMeters: ['gpsToleranceMeters'],
+      weight_gps: ['weights', 'gps'],
+      weight_duration: ['weights', 'duration'],
+      weight_image: ['weights', 'image'],
+      weight_audio: ['weights', 'audio'],
+      weight_duplicate: ['weights', 'duplicate'],
+    };
+    const handler = (e: Event) => {
+      const { key, value } = (e as CustomEvent).detail;
+      const path = ENGINE_KEYS[key];
+      if (!path) return;
+      const current = loadEngineConfig();
+      if (path.length === 1) {
+        (current as any)[path[0]] = value;
+      } else if (path.length === 2) {
+        (current as any)[path[0]] = { ...(current as any)[path[0]], [path[1]]: value };
+      }
+      saveEngineConfig(current);
+    };
+    window.addEventListener('ada:change_setting', handler);
+    return () => window.removeEventListener('ada:change_setting', handler);
+  }, []);
+
   const seenGroups = new Set<string>();
   const sectionGroups: string[] = [];
   SECTIONS.forEach(s => { if (!seenGroups.has(s.group)) { seenGroups.add(s.group); sectionGroups.push(s.group); } });

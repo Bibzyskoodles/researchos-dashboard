@@ -286,6 +286,12 @@ export default function SubmissionsPage(){
     return ()=>window.removeEventListener("researchos:refresh",handler);
   },[load,setState,addMessage]);
 
+  useEffect(()=>{
+    const handler=(e:Event)=>{ const {verdict}=(e as CustomEvent).detail; setFilter(verdict||"ALL"); };
+    window.addEventListener("ada:filter_submissions",handler);
+    return ()=>window.removeEventListener("ada:filter_submissions",handler);
+  },[]);
+
   // A supervisor override is a distinct, attributed layer — it changes what's
   // DISPLAYED as the working verdict, but never the algorithm's own Verdict
   // column, which stays intact in the data underneath at all times.

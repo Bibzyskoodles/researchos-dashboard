@@ -63,12 +63,19 @@ export default function EnumeratorsPage(){
   const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState<Enumerator|null>(null);
   const [activeTab,setActiveTab]=useState<Tab>("team");
+  const [highlightedId,setHighlightedId]=useState<string|null>(null);
   const { t }=usePlatform();
   const { activeProject } = useProject();
   const termPlural=t("enumerators","enumerators");
   const Term=termPlural.replace(/\b\w/g,c=>c.toUpperCase());
   useAdaGreeting({ page: "enumerators" });
   useAdaAttention({ x: 0.85, y: 0.45 }, { delay: 2000, returnAfterMs: 5000 });
+
+  useEffect(()=>{
+    const handler=(e:Event)=>{ const {id}=(e as CustomEvent).detail; setHighlightedId(id||null); };
+    window.addEventListener("ada:highlight_enumerator",handler);
+    return ()=>window.removeEventListener("ada:highlight_enumerator",handler);
+  },[]);
 
   useEffect(()=>{
     // Active project scopes the list; none = explicit "All projects" view.
@@ -124,7 +131,7 @@ export default function EnumeratorsPage(){
               const rep = quickReputation(e);
               return(
                 <motion.div key={e.enumerator_id} whileHover={{y:-4, boxShadow: "0 8px 24px rgba(0,61,165,0.12)"}}
-                  style={{background:"white",borderRadius:16,padding:"20px",border:"1px solid #E8EDF5",boxShadow:"0 2px 12px rgba(10,15,28,.06)",cursor:"pointer",position:"relative",overflow:"hidden"}}
+                  style={{background:"white",borderRadius:16,padding:"20px",border:highlightedId===e.enumerator_id?"2px solid #2463EB":"1px solid #E8EDF5",boxShadow:highlightedId===e.enumerator_id?"0 0 0 3px #2463EB33, 0 2px 12px rgba(10,15,28,.06)":"0 2px 12px rgba(10,15,28,.06)",cursor:"pointer",position:"relative",overflow:"hidden"}}
                   onClick={()=>setSelected(selected?.enumerator_id===e.enumerator_id?null:e)}>
                   <div style={{position:"absolute",top:0,right:0,width:80,height:80,borderRadius:"0 0 0 80px",background:col+"12"}}/>
                   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12}}>
