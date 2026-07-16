@@ -219,7 +219,8 @@ function EnumRow({ p, rank, onTierChange, expanded, onToggle }: {
 
   return (
     <motion.div layout style={{ borderBottom: '1px solid #F8FAFF', overflow: 'hidden' }}>
-      <button onClick={onToggle} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: expanded ? '#FAFBFF' : 'white', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+      <div role="button" tabIndex={0} onClick={onToggle} onKeyDown={e => e.key === 'Enter' && onToggle()}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: expanded ? '#FAFBFF' : 'white', cursor: 'pointer', textAlign: 'left' }}>
         {/* Rank */}
         <div style={{ width: 22, fontSize: 11, fontWeight: 700, color: rank <= 3 ? AMBER : '#CBD5E1', textAlign: 'center', flexShrink: 0 }}>
           {rank <= 3 ? '★' : rank}
@@ -270,7 +271,7 @@ function EnumRow({ p, rank, onTierChange, expanded, onToggle }: {
         <div onClick={e => e.stopPropagation()}>
           <TierPicker tier={p.privacyTier} onChange={t => onTierChange(p.id, t)} />
         </div>
-      </button>
+      </div>
 
       <AnimatePresence>
         {expanded && (
