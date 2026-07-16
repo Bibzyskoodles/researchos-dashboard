@@ -80,6 +80,7 @@ export interface EngineConfig {
   minDurationMins: number;
   maxDurationMins: number;
   passScoreThreshold: number;
+  flagScoreThreshold: number;
 
   // Engine weights (raw values, will be normalised)
   weights: EngineWeights;
@@ -108,6 +109,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   minDurationMins: 8,
   maxDurationMins: 120,
   passScoreThreshold: 70,
+  flagScoreThreshold: 50,
 
   weights: { gps: 0.25, duration: 0.22, image: 0.20, audio: 0.13, duplicate: 0.10, text_ai: 0.10 },
   enabled: { gps: true, duration: true, image: true, audio: true, duplicate: true, text_ai: true },
@@ -399,9 +401,9 @@ export function computeAdjustedScore(
   const hasMediumFlag = flags.length > 0;
 
   let verdict: "PASS" | "FLAG" | "REJECT";
-  if (overall < config.passScoreThreshold || hasHighSeverityFlag) {
+  if (hasHighSeverityFlag || overall < config.flagScoreThreshold) {
     verdict = "REJECT";
-  } else if (hasMediumFlag) {
+  } else if (hasMediumFlag || overall < config.passScoreThreshold) {
     verdict = "FLAG";
   } else {
     verdict = "PASS";

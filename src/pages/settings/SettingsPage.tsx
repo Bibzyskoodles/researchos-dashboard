@@ -1691,6 +1691,7 @@ function EngineSection() {
   const [newZoneRadius, setNewZoneRadius] = useState(250);
   const [newZoneLabel, setNewZoneLabel] = useState("");
   const [passScoreThreshold, setPassScoreThreshold] = useState(_cfg.passScoreThreshold);
+  const [flagScoreThreshold, setFlagScoreThreshold] = useState<number>((_cfg as any).flagScoreThreshold ?? 50);
   const [researchPurpose, setResearchPurpose] = useState("");
   const [imageContentHint, setImageContentHint] = useState(_cfg.imageContentHint || "");
   const [audioContentHint, setAudioContentHint] = useState(_cfg.audioContentHint || "");
@@ -1716,6 +1717,7 @@ function EngineSection() {
         if (c.image_context) setImageContentHint(c.image_context);
         if (c.audio_context) setAudioContentHint(c.audio_context);
         if (c.pass_threshold) setPassScoreThreshold(Number(c.pass_threshold));
+        if (c.flag_threshold) setFlagScoreThreshold(Number(c.flag_threshold));
         // Project-level zone (fallback gate — an enumerator's own assigned
         // zone below always wins over this when set). Same staleness bug as
         // image_context: this used to only ever reach localStorage.
@@ -1745,6 +1747,7 @@ function EngineSection() {
       weights: { ...weights } as EngineConfig["weights"],
       requirements: { ...requirements },
       passScoreThreshold,
+      flagScoreThreshold,
       imageContentHint: imageContentHint.trim(),
       audioContentHint: audioContentHint.trim(),
       assignedZone: {
@@ -1775,6 +1778,7 @@ function EngineSection() {
         image_context: imageContentHint.trim(),
         audio_context: audioContentHint.trim(),
         pass_threshold: passScoreThreshold,
+        flag_threshold: flagScoreThreshold,
         zone_lat: zoneLat.trim() !== "" && !isNaN(Number(zoneLat)) ? Number(zoneLat) : null,
         zone_lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
         zone_radius_m: zoneRadius,
@@ -1848,6 +1852,34 @@ function EngineSection() {
               {p.label}
             </button>
           ))}
+        </div>
+      </SettingsCard>
+
+      {/* Flag Verdict Threshold */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.7 }}>What counts as a FLAG?</div>
+          <div style={{ flex: 1, height: 1, background: "#F1F5F9" }} />
+        </div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18, padding: "10px 14px", background: "#FFFBEB", borderRadius: 8, border: "1px solid #FDE68A", lineHeight: 1.6 }}>
+          A submission scoring <strong>between this threshold and the PASS threshold</strong> is automatically sent for <span style={{ color: AMBER, fontWeight: 700 }}>manual review (FLAG)</span>. Set it lower to let more borderline submissions through; higher to catch more for review.
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <div style={{ flex: 1 }}>
+            <input type="range" min={20} max={Math.max(passScoreThreshold - 5, 25)} value={Math.min(flagScoreThreshold, passScoreThreshold - 5)}
+              onChange={e => setFlagScoreThreshold(Number(e.target.value))}
+              style={{ width: "100%", accentColor: AMBER }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "#9CA3AF", marginTop: 4 }}>
+              <span>Narrow (20)</span><span>Wide ({Math.max(passScoreThreshold - 5, 25)})</span>
+            </div>
+          </div>
+          <div style={{ width: 64, textAlign: "center" }}>
+            <div style={{ fontSize: 28, fontWeight: 900, color: AMBER, lineHeight: 1 }}>{Math.min(flagScoreThreshold, passScoreThreshold - 5)}</div>
+            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600, marginTop: 2 }}>/ 100</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 10, fontSize: 11.5, color: "#6B7280", background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
+          Current bands: <span style={{ color: RED, fontWeight: 700 }}>REJECT</span> &lt; {Math.min(flagScoreThreshold, passScoreThreshold - 5)} · <span style={{ color: AMBER, fontWeight: 700 }}>FLAG</span> {Math.min(flagScoreThreshold, passScoreThreshold - 5)}–{passScoreThreshold - 1} · <span style={{ color: GREEN, fontWeight: 700 }}>PASS</span> ≥ {passScoreThreshold}
         </div>
       </SettingsCard>
 
