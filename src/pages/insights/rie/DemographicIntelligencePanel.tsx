@@ -166,38 +166,50 @@ export default function DemographicIntelligencePanel({ projectId }: { projectId:
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  const loadField = useCallback((key: string) => {
-    setCrossField(null);
-    if (!data || data.breakdowns[key]) { setActiveField(key); return; }
+  // Extract a DemographicBreakdown from whatever shape the per-field API returns
+  const _extractBreakdown = (responseData: any, key: string): DemographicBreakdown | null => {
+    console.debug("[Demographics] per-field response for", key, responseData);
+    if (!responseData) return null;
+    // Shape A: { breakdown: { field, label, total, segments } }
+    if (responseData.breakdown?.segments) return responseData.breakdown;
+    // Shape B: response IS the breakdown { field, label, total, segments }
+    if (responseData.segments) return responseData as DemographicBreakdown;
+    // Shape C: { breakdowns: { [key]: { ... } } }
+    if (responseData.breakdowns?.[key]?.segments) return responseData.breakdowns[key];
+    // Shape D: initial full response reused — pick from breakdowns map
+    if (responseData.breakdowns) {
+      const first = Object.values(responseData.breakdowns)[0] as any;
+      if (first?.segments) return first;
+    }
+    return null;
+  };
+
+  const _fetchField = useCallback((key: string, onDone?: () => void) => {
+    if (data?.breakdowns[key]) { onDone?.(); return; }
     setLoadingField(true);
-    setActiveField(key);
     insightScoreApi.getDemographics(projectId, key)
       .then((r: any) => {
-        if (r.data?.breakdown) {
-          setData(prev => prev ? { ...prev, breakdowns: { ...prev.breakdowns, [key]: r.data.breakdown } } : prev);
+        const bd = _extractBreakdown(r.data, key);
+        if (bd) {
+          setData(prev => prev ? { ...prev, breakdowns: { ...prev.breakdowns, [key]: bd } } : prev);
         }
       })
       .catch(() => {})
-      .finally(() => setLoadingField(false));
+      .finally(() => { setLoadingField(false); onDone?.(); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, projectId]);
+
+  const loadField = useCallback((key: string) => {
+    setCrossField(null);
+    setActiveField(key);
+    _fetchField(key);
+  }, [_fetchField]);
 
   const loadCrossField = useCallback((key: string) => {
     if (crossField === key) { setCrossField(null); return; }
     setCrossField(key);
-    if (!data) return;
-    // Fetch the cross field's own breakdown if not already cached
-    if (!data.breakdowns[key]) {
-      setLoadingField(true);
-      insightScoreApi.getDemographics(projectId, key)
-        .then((r: any) => {
-          if (r.data?.breakdown) {
-            setData(prev => prev ? { ...prev, breakdowns: { ...prev.breakdowns, [key]: r.data.breakdown } } : prev);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setLoadingField(false));
-    }
-  }, [data, projectId, crossField]);
+    _fetchField(key);
+  }, [_fetchField, crossField]);
 
   if (loading) return <div style={{ padding: "40px 0", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>Loading demographics...</div>;
   if (error) return <div style={{ padding: "20px", background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA", fontSize: 13, color: "#7F1D1D" }}>Could not load Demographics — the analysis service may be unavailable. Please try again shortly.</div>;
