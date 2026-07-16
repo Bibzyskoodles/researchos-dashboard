@@ -4,7 +4,7 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi, insightSyncApi } from "../../services/api";
+import { insightScoreApi, insightSyncApi, API_BASE_URL } from "../../services/api";
 import { useProject } from "../../context/ProjectContext";
 import { InsightProject, InsightReport, InsightSubmission } from "../../types";
 import { ChevronLeft, Download, AlertCircle, RefreshCw } from "lucide-react";
@@ -348,6 +348,8 @@ export default function InsightProjectPage() {
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [cleanSyncing, setCleanSyncing] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -386,17 +388,57 @@ export default function InsightProjectPage() {
   const setTab = (tab: Tab) => setSearchParams({ tab });
   if (!id) return null;
 
+  const handleConnect = async () => {
+    const fsProjectId = (activeProject as any)?.id;
+    if (!fsProjectId) { setConnectError("No active project — select a project from the top bar first."); return; }
+    setConnecting(true);
+    setConnectError(null);
+    try {
+      const token = localStorage.getItem("fs_token") || "";
+      const res = await fetch(`${API_BASE_URL}/api/projects/${fsProjectId}/ai-upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify({}),
+      });
+      let json: any = {};
+      try { json = await res.json(); } catch {}
+      if (!res.ok) { setConnectError(json.error || `Failed (HTTP ${res.status})`); return; }
+      // Navigate to the newly assigned ISC project ID
+      const newIscId = json.insightscore_project_id;
+      if (newIscId) navigate(`/insights/${newIscId}`);
+      else navigate("/insights");
+    } catch (err: any) {
+      setConnectError(err?.message || "Connection failed — please try again.");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   if (!loading && notFound) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "80px 24px", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "80px 24px", gap: 16, maxWidth: 480, margin: "0 auto" }}>
         <div style={{ fontSize: 40 }}>🔬</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: "#080D1A" }}>Project not in InsightScore yet</div>
         <div style={{ fontSize: 13, color: "#9CA3AF", maxWidth: 420, textAlign: "center", lineHeight: 1.7 }}>
-          This project hasn't been set up for qualitative analysis. To enable it, make sure the InsightScore bridge is active and submissions are flowing from FieldScore.
+          Connect this project to InsightScore to run AI Analysis. Your passed submissions will sync automatically.
         </div>
-        <AdaBriefing message="This project hasn't been set up for qualitative analysis yet. Run a Sync from the project page to connect your field data and begin analysis." />
+        {connectError && (
+          <div style={{ fontSize: 12.5, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "8px 14px", width: "100%", boxSizing: "border-box" }}>
+            {connectError}
+          </div>
+        )}
+        <button
+          onClick={handleConnect}
+          disabled={connecting}
+          style={{ padding: "11px 28px", borderRadius: 10, background: connecting ? "#93C5FD" : BLUE, border: "none", color: "white", fontSize: 13.5, fontWeight: 700, cursor: connecting ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+          {connecting ? "Connecting…" : "Connect & Sync to AI Analysis"}
+        </button>
         <button onClick={() => navigate("/insights")}
-          style={{ padding: "10px 20px", borderRadius: 10, background: BLUE, border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          style={{ padding: "8px 18px", borderRadius: 10, background: "transparent", border: "1px solid #E2E8F0", color: "#6B7280", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
           ← Back to Projects
         </button>
       </div>
