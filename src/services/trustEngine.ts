@@ -123,6 +123,7 @@ export const HARD_GATE_FLAGS = new Set([
   "GPS_OUTSIDE_NIGERIA", "OUTSIDE_ASSIGNED_ZONE",
   "DURATION_NEGATIVE", "BACK_TO_BACK", "AUDIO_EMPTY",
   "AI_GENERATED_IMAGE", "DOWNLOADED_IMAGE",
+  "SINGLE_VOICE_DETECTED", "ROAMING_PAIR_DETECTED",
 ]);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

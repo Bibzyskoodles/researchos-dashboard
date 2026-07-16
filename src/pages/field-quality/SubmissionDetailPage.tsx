@@ -154,6 +154,9 @@ const FLAG_LABELS:Record<string,{label:string,severity:"high"|"medium"|"low"}> =
   AI_GENERATED_RESPONSE: {label:"AI-Generated Response — one or more open-ended answers show signs of being written by an AI tool",severity:"high"},
   IMAGE_PARSE_ERROR: {label:"Image Check Failed — the AI image review response could not be parsed",severity:"low"},
   AUDIO_PARSE_ERROR: {label:"Audio Check Failed — the AI audio review response could not be parsed",severity:"low"},
+  SINGLE_VOICE_DETECTED: {label:"Voice Impersonation — acoustic and linguistic analysis indicates a single person performing both interviewer and respondent roles",severity:"high"},
+  ROAMING_PAIR_DETECTED: {label:"Roaming Pair Fraud — the same voice signature has appeared in multiple interviews submitted by different enumerators in this project",severity:"high"},
+  ROAMING_PAIR_SUSPECTED: {label:"Suspected Roaming Pair — this recording's voice matches another submission from a different enumerator; review both",severity:"medium"},
 };
 
 // ScoreRing and EngineBar now live in src/components/ui (shared).
@@ -1123,6 +1126,129 @@ export default function SubmissionDetailPage(){
               </div>
             )}
           </div>
+
+          {/* Voice Fraud Analysis */}
+          {(()=>{
+            const vd = sub.checks?.voice_diversity;
+            const rp = sub.checks?.roaming_pair;
+            const hasVoiceData = (vd && vd.status !== "NOT_AVAILABLE" && vd.status !== "DISABLED")
+                              || (rp && rp.status !== "NOT_AVAILABLE" && rp.status !== "DISABLED");
+            if (!hasVoiceData) return null;
+
+            const flagArr:string[] = Array.isArray(sub.flags) ? sub.flags : String(sub.flags||"").split(",").filter(Boolean);
+            const hasVoiceFlag = flagArr.some((f:string) => ["SINGLE_VOICE_DETECTED","ROAMING_PAIR_DETECTED","ROAMING_PAIR_SUSPECTED"].includes(f));
+            const borderColor = hasVoiceFlag ? "#FECACA" : "#E8EDF5";
+
+            const CheckRow = ({label, passed, detail, confidence}:{label:string,passed:boolean|null,detail:string,confidence?:number})=>(
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 12px",background:passed===false?"#FEF2F2":passed===true?"#F0FDF4":"#F8FAFF",borderRadius:9,border:`1px solid ${passed===false?"#FECACA":passed===true?"#BBF7D0":"#E8EDF5"}`}}>
+                <div style={{width:18,height:18,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1,fontSize:10,fontWeight:700,
+                  background:passed===false?RED:passed===true?GREEN:"#E8EDF5",color:"white"}}>
+                  {passed===false?"✗":passed===true?"✓":"—"}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"#0A1230"}}>{label}</span>
+                    {confidence!=null&&(
+                      <span style={{fontSize:10,fontWeight:600,padding:"1px 7px",borderRadius:10,
+                        background:confidence>0.8?RED+"18":confidence>0.5?AMBER+"18":"#F0FDF4",
+                        color:confidence>0.8?RED:confidence>0.5?AMBER:GREEN}}>
+                        {Math.round(confidence*100)}% confidence
+                      </span>
+                    )}
+                  </div>
+                  <div style={{fontSize:11.5,color:"#6B7280",lineHeight:1.5}}>{detail}</div>
+                </div>
+              </div>
+            );
+
+            return (
+              <div style={{background:"white",borderRadius:16,padding:20,border:`1px solid ${borderColor}`,boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+                  <Mic size={14} color={hasVoiceFlag?RED:"#6B7280"}/>
+                  <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7}}>Voice Fraud Analysis</div>
+                  {hasVoiceFlag&&(
+                    <span style={{marginLeft:"auto",fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:10,background:RED+"15",color:RED}}>FRAUD DETECTED</span>
+                  )}
+                </div>
+
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {/* Voice Diversity — single-person impersonation */}
+                  {vd && vd.status !== "NOT_AVAILABLE" && vd.status !== "DISABLED" && (()=>{
+                    const tc = vd.transcript_check;
+                    const ac = vd.acoustic_check;
+                    const singleVoiceFlag = vd.status === "REJECT" || vd.status === "FLAG";
+                    return (
+                      <>
+                        <div style={{fontSize:10,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:1,marginTop:4,marginBottom:2}}>Single-Voice Impersonation Check</div>
+                        {tc && (
+                          <CheckRow
+                            label="Linguistic Analysis"
+                            passed={tc.status==="PASS"}
+                            detail={tc.finding || "GPT-4o analyzed the transcript for single-speaker patterns."}
+                            confidence={tc.single_voice_confidence}
+                          />
+                        )}
+                        {ac && (
+                          <CheckRow
+                            label="Acoustic Voice Separation"
+                            passed={ac.status==="PASS"}
+                            detail={ac.finding || "Audio segmented and clustered to detect speaker count."}
+                            confidence={ac.single_voice_confidence}
+                          />
+                        )}
+                        {!tc && !ac && (
+                          <CheckRow label="Voice Diversity" passed={vd.status==="PASS"} detail={vd.finding||""} confidence={vd.single_voice_confidence}/>
+                        )}
+                        {singleVoiceFlag && (
+                          <div style={{padding:"10px 12px",background:RED+"08",borderRadius:9,border:`1px solid ${RED}20`,fontSize:12,color:RED,fontWeight:600,marginTop:2}}>
+                            ⚠ This interview shows evidence of voice impersonation. Reject and do not include in analysis.
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {/* Roaming Pair */}
+                  {rp && rp.status !== "NOT_AVAILABLE" && rp.status !== "DISABLED" && (()=>{
+                    const matches = rp.matches || [];
+                    const isClean = rp.status === "PASS";
+                    const isRejected = rp.status === "REJECT";
+                    return (
+                      <>
+                        <div style={{fontSize:10,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:1,marginTop:8,marginBottom:2}}>Roaming Pair Detection</div>
+                        <CheckRow
+                          label={isClean ? "No Recurring Voice Pattern" : isRejected ? "Roaming Pair Confirmed" : "Voice Match Detected"}
+                          passed={isClean}
+                          detail={rp.finding || ""}
+                          confidence={isClean ? undefined : undefined}
+                        />
+                        {matches.length > 0 && (
+                          <div style={{marginTop:4}}>
+                            <div style={{fontSize:10,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:6}}>Matched Submissions</div>
+                            {matches.map((m:any,i:number)=>(
+                              <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#FEF2F2",borderRadius:8,border:"1px solid #FECACA",marginBottom:4}}>
+                                <AlertTriangle size={12} color={RED} style={{flexShrink:0}}/>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontSize:12,fontWeight:600,color:"#0A1230",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.submission_id}</div>
+                                  <div style={{fontSize:11,color:"#9CA3AF"}}>Enumerator: {m.enumerator_id} · Similarity: {(m.similarity*100).toFixed(0)}%</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {rp.embedding_stored && (
+                          <div style={{fontSize:10,color:"#9CA3AF",padding:"4px 0",display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{width:6,height:6,borderRadius:"50%",background:GREEN}}/>
+                            Voice fingerprint stored — future submissions in this project will be compared against this recording.
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Flags */}
           {sub.flags&&sub.flags.length>0&&(
