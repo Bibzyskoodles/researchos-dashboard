@@ -1,15 +1,42 @@
-// Local report generator — produces a real downloadable file when the backend
-// API is unavailable. Opens an HTML report in a new tab (print → Save as PDF
-// works in every browser). For .xlsx we generate a proper CSV Blob.
+// Local report generator — produces a real downloadable HTML file when the
+// backend API is unavailable. Print → Save as PDF works in every browser.
+// For .xlsx we produce a proper CSV Blob.
 
-interface ReportContext {
+export interface EnumeratorRow {
+  name: string;
+  submissions: number;
+  pass: number;
+  flag: number;
+  reject: number;
+}
+
+export interface EngineRow {
+  name: string;
+  pass: number;
+  flag: number;
+  reject: number;
+  total: number;
+}
+
+export interface ReportContext {
   projectName: string;
   orgName: string;
   submissionCount: number;
+  passCount: number;
+  flagCount: number;
+  rejectCount: number;
   generatedBy: string;
-  passRate?: number;
-  rejectionRate?: number;
-  enumerators?: number;
+  // AI insights from InsightScore
+  aiSummary?: string;
+  aiThemes?: string[];
+  aiQuotes?: string[];
+  ifScore?: number;
+  // Real per-enumerator data
+  enumeratorRows?: EnumeratorRow[];
+  // Real per-engine data
+  engineRows?: EngineRow[];
+  // Org branding
+  primaryColor?: string;
 }
 
 export function generateLocalReport(
@@ -18,11 +45,7 @@ export function generateLocalReport(
   ctx: ReportContext
 ): { blob: Blob; filename: string } | null {
   const d = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-
-  if (format === 'xlsx') {
-    return generateCsv(reportId, ctx, d);
-  }
-  // docx + pptx → rich HTML → user prints / saves as PDF
+  if (format === 'xlsx') return generateCsv(reportId, ctx, d);
   const html = generateHtml(reportId, ctx, d);
   const blob = new Blob([html], { type: 'text/html' });
   return { blob, filename: `${slug(ctx.projectName)}-${reportId}-report.html` };
@@ -32,29 +55,38 @@ function slug(s: string) {
   return s.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
 }
 
+function pct(n: number, total: number) {
+  return total > 0 ? Math.round((n / total) * 100) : 0;
+}
+
+// ── CSV / Excel ───────────────────────────────────────────────────────────────
+
 function generateCsv(reportId: string, ctx: ReportContext, date: string): { blob: Blob; filename: string } {
-  const pass = ctx.passRate ?? 82;
-  const rej = ctx.rejectionRate ?? 11;
-  const flag = 100 - pass - rej;
-  const enums = ctx.enumerators ?? 12;
+  const total = ctx.submissionCount || 1;
+  const pass = pct(ctx.passCount, total);
+  const flag = pct(ctx.flagCount, total);
+  const rej = pct(ctx.rejectCount, total);
 
   let rows: string[][] = [];
+
   if (reportId === 'technical') {
-    rows = [
-      ['Engine Check', 'Pass', 'Flag', 'Reject', 'Coverage'],
-      ['GPS Accuracy', String(Math.round(pass * 0.95)), String(Math.round(flag * 0.9)), String(Math.round(rej * 0.8)), '100%'],
-      ['Audio Quality', String(Math.round(pass * 0.88)), String(Math.round(flag * 1.1)), String(Math.round(rej * 1.2)), '100%'],
-      ['Image Clarity', String(Math.round(pass * 0.90)), String(Math.round(flag)), String(Math.round(rej)), '100%'],
-      ['Duration', String(Math.round(pass * 0.97)), String(Math.round(flag * 0.8)), String(Math.round(rej * 0.7)), '100%'],
-      ['Duplicate Check', String(Math.round(pass)), '0', String(Math.round(rej * 0.5)), '100%'],
-    ];
+    rows = [['Engine Check', 'Pass', 'Flag', 'Reject', 'Total']];
+    if (ctx.engineRows?.length) {
+      ctx.engineRows.forEach(e => rows.push([e.name, String(e.pass), String(e.flag), String(e.reject), String(e.total)]));
+    } else {
+      [['GPS Accuracy', pass, flag, rej], ['Audio Quality', pass, flag, rej], ['Image Clarity', pass, flag, rej],
+       ['Duration', pass, flag, rej], ['Duplicate Check', pass, 0, rej]].forEach(([n, p, f, r]) =>
+        rows.push([String(n), String(p) + '%', String(f) + '%', String(r) + '%', String(total)]));
+    }
   } else if (reportId === 'enumerator') {
-    rows = [['Enumerator', 'Submissions', 'Pass Rate', 'Flag Rate', 'Reject Rate', 'Score']];
-    for (let i = 1; i <= enums; i++) {
-      const p = Math.max(60, Math.min(99, pass + Math.round((Math.random() * 20) - 10)));
-      const r2 = Math.max(0, Math.min(20, rej + Math.round((Math.random() * 8) - 4)));
-      const f2 = 100 - p - r2;
-      rows.push([`Enumerator ${i}`, String(Math.round(ctx.submissionCount / enums)), `${p}%`, `${Math.max(0,f2)}%`, `${r2}%`, String(p)]);
+    rows = [['Enumerator', 'Submissions', 'Pass', 'Flag', 'Reject', 'Pass Rate']];
+    if (ctx.enumeratorRows?.length) {
+      ctx.enumeratorRows.forEach(e => {
+        const t = e.submissions || 1;
+        rows.push([e.name, String(e.submissions), String(e.pass), String(e.flag), String(e.reject), pct(e.pass, t) + '%']);
+      });
+    } else {
+      rows.push([ctx.generatedBy, String(ctx.submissionCount), String(ctx.passCount), String(ctx.flagCount), String(ctx.rejectCount), pass + '%']);
     }
   } else {
     rows = [
@@ -63,185 +95,308 @@ function generateCsv(reportId: string, ctx: ReportContext, date: string): { blob
       ['Organisation', ctx.orgName],
       ['Generated', date],
       ['Total Submissions', String(ctx.submissionCount)],
-      ['Pass Rate', `${pass}%`],
-      ['Rejection Rate', `${rej}%`],
-      ['Flag Rate', `${flag}%`],
-      ['Enumerators', String(enums)],
-      ['Verified By', ctx.generatedBy],
+      ['Pass', String(ctx.passCount) + ' (' + pass + '%)'],
+      ['Flagged', String(ctx.flagCount) + ' (' + flag + '%)'],
+      ['Rejected', String(ctx.rejectCount) + ' (' + rej + '%)'],
+      ['Generated By', ctx.generatedBy],
     ];
+    if (ctx.ifScore !== undefined) rows.push(['Intent Fidelity Index', String(ctx.ifScore) + '/100']);
   }
 
-  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-  return {
-    blob: new Blob([csv], { type: 'text/csv' }),
-    filename: `${slug(ctx.projectName)}-${reportId}.csv`,
-  };
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  return { blob: new Blob([csv], { type: 'text/csv' }), filename: `${slug(ctx.projectName)}-${reportId}.csv` };
 }
 
+// ── HTML report ───────────────────────────────────────────────────────────────
+
 function generateHtml(reportId: string, ctx: ReportContext, date: string): string {
-  const pass = ctx.passRate ?? 82;
-  const rej = ctx.rejectionRate ?? 11;
-  const flag = 100 - pass - rej;
-  const enums = ctx.enumerators ?? 12;
-  const score = Math.round(pass * 0.7 + (100 - rej) * 0.3);
+  const total = ctx.submissionCount || 1;
+  const passN = ctx.passCount;
+  const flagN = ctx.flagCount;
+  const rejectN = ctx.rejectCount;
+  const passP = pct(passN, total);
+  const flagP = pct(flagN, total);
+  const rejectP = pct(rejectN, total);
+  const accent = ctx.primaryColor || '#2463EB';
 
-  const isExecutive = reportId === 'executive';
-  const isClient = reportId === 'client';
-  const isEnumerator = reportId === 'enumerator';
-  const isTechnical = reportId === 'technical';
+  const titles: Record<string, string> = {
+    executive: 'Executive Summary',
+    client: 'Client Delivery Report',
+    enumerator: 'Enumerator Performance Report',
+    technical: 'Technical Quality Report',
+  };
+  const title = titles[reportId] || 'Field Research Report';
 
-  const title = isExecutive ? 'Executive Summary' : isClient ? 'Client Delivery Report' : isEnumerator ? 'Enumerator Performance Report' : 'Technical Quality Report';
+  const css = `
+    @page { size: A4; margin: 18mm 20mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Inter, 'Helvetica Neue', Arial, sans-serif; background: white; color: #111827; font-size: 13px; line-height: 1.65; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 36px 40px; }
+    /* Header */
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 22px; border-bottom: 2.5px solid ${accent}; margin-bottom: 32px; }
+    .brand-name { font-size: 12px; font-weight: 800; letter-spacing: 3px; color: #0A1230; }
+    .brand-name em { color: ${accent}; font-style: normal; }
+    .brand-tag { font-size: 10px; color: #9CA3AF; letter-spacing: 1px; margin-top: 3px; }
+    .header-meta { text-align: right; font-size: 11px; color: #6B7280; line-height: 1.7; }
+    .header-meta strong { color: #0A1230; font-size: 13px; display: block; margin-bottom: 2px; }
+    /* Title block */
+    .title-block { margin-bottom: 32px; }
+    .report-label { font-size: 10.5px; font-weight: 700; color: ${accent}; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 8px; }
+    h1 { font-size: 28px; font-weight: 800; color: #0A1230; letter-spacing: -.5px; line-height: 1.2; margin-bottom: 8px; }
+    .subtitle { font-size: 13.5px; color: #6B7280; }
+    /* Stat grid */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 28px 0; }
+    .stat { border: 1px solid #E8EDF5; border-radius: 12px; padding: 16px 14px; text-align: center; }
+    .stat-value { font-size: 28px; font-weight: 800; line-height: 1; margin-bottom: 5px; }
+    .stat-label { font-size: 10px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .7px; }
+    /* Section */
+    .section { margin-bottom: 32px; }
+    .section-title { font-size: 10.5px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E8EDF5; padding-bottom: 8px; margin-bottom: 16px; }
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th { background: #F8FAFF; padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid #E8EDF5; }
+    td { padding: 10px 12px; border-bottom: 1px solid #F4F6FA; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    /* Bar */
+    .bar-wrap { background: #F1F5F9; border-radius: 4px; height: 7px; overflow: hidden; width: 80px; display: inline-block; vertical-align: middle; }
+    .bar-fill { height: 100%; border-radius: 4px; }
+    /* Verdict chips */
+    .chip { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10.5px; font-weight: 700; }
+    .chip-pass { background: #DCFCE7; color: #166534; }
+    .chip-flag { background: #FEF9C3; color: #854D0E; }
+    .chip-reject { background: #FEE2E2; color: #991B1B; }
+    /* AI section */
+    .ai-box { background: linear-gradient(135deg, #EFF6FF, #F5F3FF); border: 1px solid #BFDBFE; border-radius: 12px; padding: 18px 20px; margin-bottom: 24px; }
+    .ai-label { font-size: 10px; font-weight: 700; color: ${accent}; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .ai-text { font-size: 13px; color: #1E3A8A; line-height: 1.7; }
+    .theme-pill { display: inline-block; background: white; border: 1px solid #BFDBFE; border-radius: 20px; padding: 3px 10px; font-size: 11px; color: #1E40AF; font-weight: 500; margin: 3px 3px 3px 0; }
+    .quote-block { border-left: 3px solid ${accent}; background: #F8FAFF; border-radius: 0 8px 8px 0; padding: 10px 14px; margin-bottom: 8px; font-size: 12.5px; color: #374151; font-style: italic; line-height: 1.6; }
+    /* IFI score */
+    .ifi-row { display: flex; align-items: center; gap: 16px; }
+    .ifi-score { font-size: 52px; font-weight: 800; color: ${accent}; line-height: 1; }
+    .ifi-denom { font-size: 18px; color: #CBD5E1; }
+    .ifi-desc { font-size: 12.5px; color: #6B7280; max-width: 360px; line-height: 1.6; }
+    /* Verification statement */
+    .verify-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #F4F6FA; }
+    .verify-row:last-child { border-bottom: none; }
+    .verify-check { width: 22px; height: 22px; border-radius: 50%; background: #DCFCE7; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; }
+    .verify-text { font-size: 13px; color: #374151; }
+    /* Progress bar sections */
+    .progress-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .progress-label { font-size: 12px; color: #374151; width: 150px; flex-shrink: 0; }
+    .progress-track { flex: 1; background: #F1F5F9; border-radius: 5px; height: 8px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 5px; }
+    .progress-pct { font-size: 11.5px; font-weight: 700; width: 36px; text-align: right; flex-shrink: 0; }
+    /* Cert badge */
+    .cert-badge { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #BFDBFE; border-radius: 8px; padding: 7px 14px; font-size: 11.5px; font-weight: 700; color: ${accent}; background: #EFF6FF; }
+    /* Footer */
+    .footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid #E8EDF5; display: flex; align-items: center; justify-content: space-between; }
+    .footer-left { font-size: 11px; color: #9CA3AF; line-height: 1.6; }
+    /* Print controls */
+    .print-bar { position: fixed; top: 0; left: 0; right: 0; background: #0A1230; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; z-index: 100; }
+    .print-bar span { font-size: 12px; font-weight: 600; color: rgba(255,255,255,.7); }
+    .print-btn { background: ${accent}; color: white; border: none; border-radius: 7px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: Inter, Arial, sans-serif; }
+    @media print { .print-bar { display: none !important; } .wrap { padding-top: 0; } }
+  `;
 
-  const enumRows = Array.from({ length: enums }, (_, i) => {
-    const p = Math.max(60, Math.min(99, pass + Math.round(Math.sin(i * 3.7) * 12)));
-    const r2 = Math.max(0, Math.min(20, rej + Math.round(Math.cos(i * 2.1) * 5)));
-    const score2 = p;
-    const tier = score2 >= 90 ? 'Excellent' : score2 >= 75 ? 'Good' : 'Needs improvement';
-    const color = score2 >= 90 ? '#059669' : score2 >= 75 ? '#2463EB' : '#D97706';
-    return `<tr>
-      <td>Enumerator ${i + 1}</td>
-      <td>${Math.round(ctx.submissionCount / enums)}</td>
-      <td style="color:#059669;font-weight:700">${p}%</td>
-      <td style="color:#D97706">${Math.max(0, 100 - p - r2)}%</td>
-      <td style="color:#DC2626">${r2}%</td>
-      <td style="color:${color};font-weight:700">${tier}</td>
-    </tr>`;
-  }).join('');
+  const header = `
+    <div class="page-header">
+      <div>
+        <div class="brand-name">FIELDSC<em>◉</em>RE <span style="color:#9CA3AF;font-weight:400;letter-spacing:1px;font-size:10px">· ResearchOS</span></div>
+        <div class="brand-tag">VERIFY · ANALYZE · DECIDE</div>
+      </div>
+      <div class="header-meta">
+        <strong>${title}</strong>
+        <span>${ctx.projectName}</span><br>
+        <span>${ctx.orgName}</span><br>
+        <span>Generated ${date}</span>
+      </div>
+    </div>`;
 
-  const engines = ['GPS Accuracy', 'Audio Quality', 'Image Clarity', 'Duration Check', 'Duplicate Detection'].map((e, i) => {
-    const p2 = Math.max(70, Math.min(99, pass + Math.round(Math.sin(i * 1.4) * 8)));
-    return `<tr><td>${e}</td><td style="color:#059669">${p2}%</td><td style="color:#D97706">${Math.max(0, 100 - p2 - 3)}%</td><td style="color:#DC2626">3%</td></tr>`;
-  }).join('');
+  const statBlock = `
+    <div class="stats">
+      <div class="stat"><div class="stat-value">${ctx.submissionCount.toLocaleString()}</div><div class="stat-label">Total Submissions</div></div>
+      <div class="stat"><div class="stat-value" style="color:#059669">${passP}%</div><div class="stat-label">Pass Rate</div></div>
+      <div class="stat"><div class="stat-value" style="color:#D97706">${flagP}%</div><div class="stat-label">Flagged</div></div>
+      <div class="stat"><div class="stat-value" style="color:#DC2626">${rejectP}%</div><div class="stat-label">Rejected</div></div>
+    </div>`;
+
+  const aiBlock = () => {
+    if (!ctx.aiSummary && !ctx.aiThemes?.length && !ctx.aiQuotes?.length) return '';
+    return `
+      <div class="ai-box">
+        <div class="ai-label">◉ Ada AI Analysis</div>
+        ${ctx.aiSummary ? `<div class="ai-text">${ctx.aiSummary}</div>` : ''}
+        ${ctx.aiThemes?.length ? `<div style="margin-top:12px">${ctx.aiThemes.map(t => `<span class="theme-pill">${t}</span>`).join('')}</div>` : ''}
+      </div>
+      ${ctx.aiQuotes?.length ? `
+        <div class="section">
+          <div class="section-title">Voice of Respondent</div>
+          ${ctx.aiQuotes.slice(0, 3).map(q => `<div class="quote-block">"${q}"</div>`).join('')}
+        </div>` : ''}`;
+  };
+
+  const ifiBlock = () => {
+    if (ctx.ifScore === undefined) return '';
+    const color = ctx.ifScore >= 75 ? '#059669' : ctx.ifScore >= 55 ? '#D97706' : '#DC2626';
+    const label = ctx.ifScore >= 75 ? 'Strong signal fidelity' : ctx.ifScore >= 55 ? 'Moderate fidelity — review flagged items' : 'Low fidelity — further QC recommended';
+    return `
+      <div class="section">
+        <div class="section-title">Intent Fidelity Index (IFI)</div>
+        <div class="ifi-row">
+          <div><span class="ifi-score" style="color:${color}">${ctx.ifScore}</span><span class="ifi-denom">/100</span></div>
+          <div class="ifi-desc">${label}. The IFI measures how well the collected responses reflect the research intent — signal quality, thematic consistency, and respondent engagement.</div>
+        </div>
+      </div>`;
+  };
+
+  const verificationStatement = `
+    <div class="section">
+      <div class="section-title">Verification Statement</div>
+      ${[
+        'GPS coordinates validated against approved survey boundaries',
+        'Interview duration verified within acceptable range',
+        'Audio recordings screened for two-voice conversation',
+        'Photographs fingerprinted and duplicate-checked',
+        'Duplicate submission detection applied across all submissions',
+        'AI-generated content detection active',
+      ].map(t => `<div class="verify-row"><div class="verify-check">✓</div><div class="verify-text">${t}</div></div>`).join('')}
+    </div>`;
+
+  const enumeratorTable = () => {
+    const rows = ctx.enumeratorRows;
+    if (!rows?.length) return '';
+    const tableRows = rows.map(e => {
+      const t = e.submissions || 1;
+      const p = pct(e.pass, t);
+      const tier = p >= 85 ? 'Excellent' : p >= 70 ? 'Good' : p >= 55 ? 'Needs coaching' : 'At risk';
+      const tierColor = p >= 85 ? '#059669' : p >= 70 ? '#2463EB' : p >= 55 ? '#D97706' : '#DC2626';
+      return `<tr>
+        <td style="font-weight:600;color:#0A1230">${e.name}</td>
+        <td>${e.submissions}</td>
+        <td><span class="chip chip-pass">${e.pass}</span></td>
+        <td><span class="chip chip-flag">${e.flag}</span></td>
+        <td><span class="chip chip-reject">${e.reject}</span></td>
+        <td>
+          <div class="bar-wrap"><div class="bar-fill" style="width:${p}%;background:${tierColor}"></div></div>
+          <span style="margin-left:8px;font-size:11.5px;font-weight:700;color:${tierColor}">${p}%</span>
+        </td>
+        <td style="color:${tierColor};font-weight:700;font-size:11.5px">${tier}</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="section">
+        <div class="section-title">Enumerator Scorecards</div>
+        <table>
+          <thead><tr><th>Enumerator</th><th>Submissions</th><th>Pass</th><th>Flag</th><th>Reject</th><th>Pass Rate</th><th>Verdict</th></tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>`;
+  };
+
+  const engineTable = () => {
+    const rows = ctx.engineRows;
+    if (!rows?.length) return '';
+    const tableRows = rows.map(e => {
+      const t = e.total || 1;
+      const p = pct(e.pass, t);
+      return `<tr>
+        <td style="font-weight:600">${e.name}</td>
+        <td><div class="progress-track" style="width:100%"><div class="progress-fill" style="width:${p}%;background:#059669"></div></div></td>
+        <td style="color:#059669;font-weight:700">${p}%</td>
+        <td style="color:#D97706">${pct(e.flag, t)}%</td>
+        <td style="color:#DC2626">${pct(e.reject, t)}%</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="section">
+        <div class="section-title">Engine Verification Breakdown</div>
+        <table>
+          <thead><tr><th>Verification Engine</th><th>Distribution</th><th>Pass</th><th>Flag</th><th>Reject</th></tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>`;
+  };
+
+  const qualityStatement = passP >= 80
+    ? `<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:#166534;font-weight:600">✓ This dataset meets standard research quality thresholds and is suitable for analysis, reporting, and client delivery.</div>`
+    : flagP > 20
+    ? `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:#854D0E;font-weight:600">⚠ A significant proportion of submissions were flagged for review. Resolve open flags before final analysis.</div>`
+    : `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:#991B1B;font-weight:600">⚠ Rejection rate is above threshold. A targeted re-collection exercise is recommended for affected areas.</div>`;
+
+  const footer = `
+    <div class="footer">
+      <div class="footer-left">
+        Verified by <strong>${ctx.generatedBy}</strong> · ${ctx.orgName}<br>
+        Generated ${date} via ResearchOS · FieldScore Intelligence Engine
+      </div>
+      <div class="cert-badge">◉ FieldScore Verified · ${passN.toLocaleString()}/${ctx.submissionCount.toLocaleString()} submissions</div>
+    </div>`;
+
+  // ── Per-report body ─────────────────────────────────────────────────────────
+
+  let body = '';
+
+  if (reportId === 'executive' || reportId === 'client') {
+    body = `
+      <div class="title-block">
+        <div class="report-label">${title}</div>
+        <h1>${ctx.projectName}</h1>
+        <div class="subtitle">Prepared by ${ctx.orgName} · FieldScore verified · ${date}</div>
+      </div>
+      ${qualityStatement}
+      ${statBlock}
+      ${aiBlock()}
+      ${ifiBlock()}
+      <div class="section">
+        <div class="section-title">Key Findings</div>
+        <p style="margin-bottom:10px;font-size:13px;color:#374151">
+          This dataset passed FieldScore's multi-engine QC process with a <strong>${passP}% pass rate</strong> across
+          <strong>${ctx.submissionCount.toLocaleString()} submissions</strong>${ctx.enumeratorRows?.length ? ` collected by <strong>${ctx.enumeratorRows.length} enumerators</strong>` : ''}.
+          ${rejectP > 0 ? `${rejectP}% of submissions were rejected and excluded from the clean dataset.` : 'No submissions were rejected.'}
+        </p>
+        ${flagP > 0 ? `<p style="font-size:13px;color:#374151">${flagP}% of submissions were flagged for manual review and resolved by field supervisors before inclusion in the final dataset.</p>` : ''}
+      </div>
+      ${verificationStatement}
+      ${enumeratorTable()}`;
+  } else if (reportId === 'technical') {
+    body = `
+      <div class="title-block">
+        <div class="report-label">${title}</div>
+        <h1>${ctx.projectName}</h1>
+        <div class="subtitle">${ctx.orgName} · ${date}</div>
+      </div>
+      ${statBlock}
+      ${engineTable()}
+      ${enumeratorTable()}
+      ${ifiBlock()}
+      ${verificationStatement}`;
+  } else if (reportId === 'enumerator') {
+    body = `
+      <div class="title-block">
+        <div class="report-label">${title}</div>
+        <h1>${ctx.projectName}</h1>
+        <div class="subtitle">${ctx.orgName} · ${date}</div>
+      </div>
+      ${statBlock}
+      ${enumeratorTable()}
+      ${aiBlock()}`;
+  }
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>${title} — ${ctx.projectName}</title>
-<style>
-  @page { size: A4; margin: 20mm; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Inter, Arial, sans-serif; background: white; color: #111827; font-size: 13px; line-height: 1.6; padding: 32px; max-width: 900px; margin: 0 auto; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 24px; border-bottom: 2px solid #E2E8F0; margin-bottom: 28px; }
-  .brand { font-size: 11px; font-weight: 800; letter-spacing: 3px; color: #0A1230; }
-  .brand span { color: #2463EB; }
-  .meta { text-align: right; font-size: 11px; color: #9CA3AF; }
-  h1 { font-size: 26px; font-weight: 800; color: #0A1230; margin-bottom: 6px; }
-  .subtitle { font-size: 13px; color: #6B7280; margin-bottom: 28px; }
-  .section { margin-bottom: 28px; }
-  .section h2 { font-size: 14px; font-weight: 700; color: #0A1230; text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid #E2E8F0; padding-bottom: 8px; margin-bottom: 16px; }
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
-  .stat { background: #F8FAFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px; text-align: center; }
-  .stat .v { font-size: 26px; font-weight: 800; color: #0A1230; }
-  .stat .v.green { color: #059669; }
-  .stat .v.red { color: #DC2626; }
-  .stat .l { font-size: 10px; color: #9CA3AF; text-transform: uppercase; letter-spacing: .7px; margin-top: 4px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  th { background: #F8FAFF; padding: 9px 12px; text-align: left; font-size: 10.5px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: .5px; }
-  td { padding: 9px 12px; border-bottom: 1px solid #F1F5F9; }
-  .verdict-pass { color: #059669; font-weight: 700; }
-  .footer { margin-top: 36px; padding-top: 18px; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; font-size: 11px; color: #9CA3AF; }
-  .cert-chip { display: inline-flex; align-items: center; gap: 6px; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; color: #2463EB; }
-  .print-btn { background: #2463EB; color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: Inter, Arial, sans-serif; }
-  @media print { .no-print { display: none; } }
-</style></head>
-<body>
-<div class="no-print" style="background:#0A1230;color:white;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;margin:-32px -32px 32px;border-radius:0;">
-  <span style="font-size:12px;font-weight:600">${title} — ${ctx.projectName}</span>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>${title} — ${ctx.projectName}</title>
+<style>${css}</style>
+</head><body>
+<div class="print-bar">
+  <span>${title} — ${ctx.projectName}</span>
   <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
 </div>
-
-<div class="header">
-  <div>
-    <div class="brand">FIELDSC<span>◉</span>RE <span style="color:#9CA3AF;font-weight:400;letter-spacing:1px;font-size:10px">· ResearchOS</span></div>
-    <div style="margin-top:4px;font-size:11px;color:#9CA3AF">Verify · Analyze · Decide</div>
-  </div>
-  <div class="meta">
-    <div style="font-weight:700;color:#0A1230">${title}</div>
-    <div>${ctx.projectName}</div>
-    <div>${ctx.orgName}</div>
-    <div>Generated ${date}</div>
-  </div>
-</div>
-
-${isClient || isExecutive ? `
-<h1>${ctx.projectName}</h1>
-<div class="subtitle">Prepared by ${ctx.orgName} · FieldScore verified · ${date}</div>
-
-<div class="stats">
-  <div class="stat"><div class="v">${ctx.submissionCount.toLocaleString()}</div><div class="l">Submissions</div></div>
-  <div class="stat"><div class="v green">${pass}%</div><div class="l">Pass Rate</div></div>
-  <div class="stat"><div class="v" style="color:#D97706">${flag}%</div><div class="l">Flagged &amp; Resolved</div></div>
-  <div class="stat"><div class="v red">${rej}%</div><div class="l">Rejected</div></div>
-</div>
-
-<div class="section">
-  <h2>Trust Score</h2>
-  <div style="font-size:48px;font-weight:800;color:#2463EB;margin-bottom:4px">${score}<span style="font-size:18px;color:#9CA3AF">/100</span></div>
-  <div style="font-size:12.5px;color:#6B7280">FieldScore verified — every submission was screened for GPS accuracy, audio quality, interviewer duration, image clarity, and duplicate detection.</div>
-</div>
-
-<div class="section">
-  <h2>Key Findings</h2>
-  <p style="margin-bottom:8px">This dataset passed FieldScore's multi-engine QC process with a <strong>${pass}% pass rate</strong> across <strong>${ctx.submissionCount.toLocaleString()} submissions</strong>. ${rej}% of submissions were rejected and excluded from the clean dataset.</p>
-  <p style="margin-bottom:8px">Data collection was carried out by <strong>${enums} field enumerators</strong>, verified and supervised throughout the fieldwork period.</p>
-  ${pass >= 80 ? '<p style="color:#059669;font-weight:600">✓ This dataset meets standard research quality thresholds and is suitable for analysis and reporting.</p>' : '<p style="color:#D97706;font-weight:600">⚠ Review flagged submissions before final analysis.</p>'}
-</div>
-
-<div class="section">
-  <h2>Verification Statement</h2>
-  <table>
-    <tr><th>Check</th><th>Status</th></tr>
-    <tr><td>GPS coordinates validated</td><td class="verdict-pass">✓ Pass</td></tr>
-    <tr><td>Interview duration within range</td><td class="verdict-pass">✓ Pass</td></tr>
-    <tr><td>Audio quality screened</td><td class="verdict-pass">✓ Pass</td></tr>
-    <tr><td>Duplicates removed</td><td class="verdict-pass">✓ Pass</td></tr>
-    <tr><td>Enumeration area boundaries</td><td class="verdict-pass">✓ Pass</td></tr>
-  </table>
-</div>
-` : ''}
-
-${isTechnical ? `
-<h1>Technical Quality Report</h1>
-<div class="subtitle">${ctx.projectName} · ${date}</div>
-
-<div class="stats">
-  <div class="stat"><div class="v">${ctx.submissionCount.toLocaleString()}</div><div class="l">Screened</div></div>
-  <div class="stat"><div class="v green">${pass}%</div><div class="l">Pass</div></div>
-  <div class="stat"><div class="v" style="color:#D97706">${flag}%</div><div class="l">Flagged</div></div>
-  <div class="stat"><div class="v red">${rej}%</div><div class="l">Rejected</div></div>
-</div>
-
-<div class="section">
-  <h2>Engine Breakdown</h2>
-  <table>
-    <tr><th>Verification Engine</th><th>Pass Rate</th><th>Flag Rate</th><th>Reject Rate</th></tr>
-    ${engines}
-  </table>
-</div>
-
-<div class="section">
-  <h2>Enumerator Summary</h2>
-  <table>
-    <tr><th>Enumerator</th><th>Submissions</th><th>Pass</th><th>Flag</th><th>Reject</th><th>Verdict</th></tr>
-    ${enumRows}
-  </table>
-</div>
-` : ''}
-
-${isEnumerator ? `
-<h1>Enumerator Performance Report</h1>
-<div class="subtitle">${ctx.projectName} · ${date}</div>
-
-<div class="section">
-  <h2>Individual Scorecards</h2>
-  <table>
-    <tr><th>Enumerator</th><th>Submissions</th><th>Pass Rate</th><th>Flag Rate</th><th>Reject Rate</th><th>Verdict</th></tr>
-    ${enumRows}
-  </table>
-</div>
-` : ''}
-
-<div class="footer">
-  <div>Verified by ${ctx.generatedBy} · ${ctx.orgName}</div>
-  <div class="cert-chip">✓ FieldScore Verified</div>
+<div class="wrap">
+  ${header}
+  ${body}
+  ${footer}
 </div>
 </body></html>`;
 }
