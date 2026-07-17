@@ -13,7 +13,7 @@ import { useProject } from "../../context/ProjectContext";
 import { loadEngineConfig } from "../../services/engineConfig";
 import { computeTrustIndex } from "../../services/trustEngine";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
-import { useAdaSettings, AdaDailyBrief, AdaCelebrationLayer, AdaGuidanceLayer } from "../../ada/AdaProactive";
+import { useAdaSettings, AdaCelebrationLayer, AdaGuidanceLayer } from "../../ada/AdaProactive";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -182,11 +182,6 @@ export default function OverviewPage() {
       {/* Ada proactive layers — celebrations + element guidance tooltips */}
       <AdaCelebrationLayer stats={stats} enabled={adaSettings.celebrations} />
       <AdaGuidanceLayer enabled={adaSettings.element_guidance} />
-
-      {/* Ada Daily Brief — shown above the hero when enabled */}
-      {adaSettings.daily_brief && stats && (
-        <AdaDailyBrief stats={stats} orgName={org?.name} firstName={firstName} />
-      )}
 
       {/* Ada Hero */}
       <motion.div
