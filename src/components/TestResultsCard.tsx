@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle, AlertCircle, Activity } from "lucide-react";
+import { CheckCircle, AlertCircle } from "lucide-react";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -21,7 +21,6 @@ interface TestResults {
 export default function TestResultsCard() {
   const [results, setResults] = useState<TestResults | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadResults = async () => {
