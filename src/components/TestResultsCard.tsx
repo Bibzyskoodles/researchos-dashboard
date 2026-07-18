@@ -24,19 +24,27 @@ export default function TestResultsCard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Try to load test results from the backend API or JSON files
     const loadResults = async () => {
       try {
-        // Try fetching from API first
-        const res = await fetch("/api/test-results");
-        if (res.ok) {
-          const data = await res.json();
-          setResults(data);
-          setLoading(false);
-          return;
+        // Load test results from public JSON files
+        const [integrationRes, perfRes] = await Promise.all([
+          fetch("/integration_test_results.json"),
+          fetch("/test_results.json"),
+        ]);
+
+        if (integrationRes.ok && perfRes.ok) {
+          const integration = await integrationRes.json();
+          const performance = await perfRes.json();
+
+          setResults({
+            timestamp: integration.timestamp,
+            tests: integration.tests,
+            totals: performance.totals,
+            phases: performance.phases,
+          });
         }
       } catch (e) {
-        // Fallback: Results not available yet
+        // Results not available yet
       }
       setLoading(false);
     };

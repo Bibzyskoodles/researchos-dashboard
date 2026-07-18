@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-07-18T21:14:49.015536",
+  "tests": {
+    "imports": {
+      "status": "\u2705 PASS",
+      "duration_sec": 0.756,
+      "message": "All models and extensions imported successfully"
+    },
+    "database_connection": {
+      "status": "\u23ed\ufe0f  SKIP",
+      "message": "Skipped (requires live PostgreSQL database)"
+    },
+    "auth_module": {
+      "status": "\u2705 PASS",
+      "duration_sec": 0.001,
+      "message": "Auth utilities loaded successfully"
+    },
+    "kobo_client": {
+      "status": "\u2705 PASS",
+      "duration_sec": 0.161,
+      "message": "KoboToolbox client instantiated successfully"
+    },
+    "insightscore_client": {
+      "status": "\u2705 PASS",
+      "duration_sec": 0.001,
+      "message": "InsightScore client instantiated successfully"
+    },
+    "analytics_engine": {
+      "status": "\u2705 PASS",
+      "duration_sec": 0.001,
+      "message": "Analytics engine instantiated successfully"
+    },
+    "sync_orchestrator": {
+      "status": "\u2705 PASS",
+      "duration_sec": 0.005,
+      "message": "Kobo sync orchestrator instantiated successfully"
+    },
+    "api_routes": {
+      "status": "\u26a0\ufe0f  PARTIAL",
+      "duration_sec": 0.052,
+      "error": "(psycopg2.OperationalError) connection to server at \"localhost\" (127.0.0.1), port 5432 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\n\n(Background on this error at: https://sqlalche.me/e/20/e3q8)",
+      "message": "API routes test skipped (database required for full app context)"
+    }
+  }
+}

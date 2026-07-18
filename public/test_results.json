@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-07-18T21:14:50.146838",
+  "phases": {
+    "Data Generation": {
+      "status": "success",
+      "duration_seconds": 0.24,
+      "timestamp": "2026-07-18T21:14:50.382672"
+    },
+    "Duplicate Detection": {
+      "status": "success",
+      "duration_seconds": 0.02,
+      "timestamp": "2026-07-18T21:14:50.400779"
+    },
+    "Analytics Calculation": {
+      "status": "success",
+      "duration_seconds": 0.0,
+      "timestamp": "2026-07-18T21:14:50.403820"
+    },
+    "Database Write (simulated)": {
+      "status": "success",
+      "duration_seconds": 0.1,
+      "timestamp": "2026-07-18T21:14:50.504253"
+    }
+  },
+  "totals": {
+    "total_time_seconds": 0.36,
+    "submissions_processed": 20000,
+    "duplicates_detected": 18036,
+    "throughput_per_second": 55555.56,
+    "avg_time_per_submission_ms": 0.02
+  }
+}
