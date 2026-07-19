@@ -590,7 +590,10 @@ export default function ReportsPage() {
               )}
 
               {/* Existing schedules for this report type on this project */}
-              {schedules.filter(s => s.report_type === r.id).length > 0 && (
+              {loadingSchedules && (
+                <div style={{ marginTop: 10, fontSize: 11, color: "#9CA3AF" }}>Loading schedules…</div>
+              )}
+              {!loadingSchedules && schedules.filter(s => s.report_type === r.id).length > 0 && (
                 <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
                   {schedules.filter(s => s.report_type === r.id).map(s => (
                     <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 8, background: s.enabled ? "#F0FDF4" : "#F8FAFC", border: `1px solid ${s.enabled ? "#BBF7D0" : "#E2E8F0"}` }}>

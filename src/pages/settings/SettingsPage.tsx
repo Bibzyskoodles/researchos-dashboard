@@ -5,7 +5,7 @@ import {
   FlaskConical, Database, Lock, Bell, CreditCard, Code2,
   ClipboardList, ChevronRight, Check, RefreshCw,
   Upload, Plus, Trash2, Zap,
-  ExternalLink, X, ShieldAlert, Cpu, Send, Key, Copy,
+  X, ShieldAlert, Cpu, Send, Key, Copy,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useGamify } from "../../gamify/GamifyContext";
