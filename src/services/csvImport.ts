@@ -4,6 +4,18 @@
 // of re-implementing (and inevitably drifting from) the same logic.
 import * as XLSX from "xlsx";
 
+// CSV/Excel formula-injection guard for any export built from data that
+// ultimately traces back to submission payloads (free-text fields like a
+// reverse-geocoded GPS address, an override reason typed by field staff,
+// or in principle any enumerator-supplied string). A cell value starting
+// with =, +, -, or @ is interpreted as a formula by Excel/Sheets when the
+// file is reopened — prefixing a leading apostrophe is the standard
+// mitigation (OWASP's recommended fix for this class of bug), forcing the
+// cell to be read as literal text instead of executed.
+export function sanitizeCsvCell(value: string): string {
+  return /^[=+\-@]/.test(value) ? `'${value}` : value;
+}
+
 export function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
   if (lines.length < 2) return { headers: [], rows: [] };

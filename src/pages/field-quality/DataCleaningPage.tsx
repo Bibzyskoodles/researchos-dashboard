@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { dashboardApi } from '../../services/api';
+import { sanitizeCsvCell } from '../../services/csvImport';
 import { Submission } from '../../types';
 import {
   Shield, Clock, Zap, Users, MapPin, ChevronDown,
@@ -660,7 +661,10 @@ export default function DataCleaningPage() {
       ...(anonymizeGps ? ['gps_lat', 'gps_lon'] : [])];
     const rows = analysis.kept.map(s => {
       const fixedAddr = s.gps?.address ? applyTextFix(s.gps.address) : '';
-      const base = [s.submission_id, s.enumerator_id, s.verdict, trustOf(s), s.duration_mins ?? '', s.scored_at ?? '', `"${fixedAddr}"`];
+      const base = [
+        sanitizeCsvCell(s.submission_id), sanitizeCsvCell(s.enumerator_id), s.verdict, trustOf(s),
+        s.duration_mins ?? '', s.scored_at ?? '', `"${sanitizeCsvCell(fixedAddr)}"`,
+      ];
       if (anonymizeGps && s.gps?.lat && s.gps?.lon) {
         base.push(s.gps.lat.toFixed(3), s.gps.lon.toFixed(3));
       } else if (anonymizeGps) {

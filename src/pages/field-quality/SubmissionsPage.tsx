@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { dashboardApi } from "../../services/api";
+import { sanitizeCsvCell } from "../../services/csvImport";
 import { Submission } from "../../types";
 import { Search, Download, ChevronRight, X, MapPin, Clock, Camera, Mic, RefreshCw, AlertTriangle, ExternalLink, Shield, Cpu, Zap, TrendingDown, ChevronDown, ChevronUp } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
@@ -111,14 +112,14 @@ function exportCsv(subs: Submission[], trustMap: Record<string, TrustResult>, fi
       t ? t.trustIndex : "",
       t ? t.verdict : s.verdict ?? "",
       s.verdict_override || "",
-      `"${(s.override_reason || "").replace(/"/g,'""')}"`,
+      `"${sanitizeCsvCell(s.override_reason || "").replace(/"/g,'""')}"`,
       t ? t.risk : "",
       t ? t.completeness.toFixed(3) : "",
       t ? t.confidence.toFixed(3) : "",
       flags,
       s.gps?.lat ?? "", s.gps?.lon ?? "", s.gps?.accuracy_m ?? "",
-      `"${(s.gps?.address || "").replace(/"/g,'""')}"`,
-    ].map(v => String(v ?? ""));
+      `"${sanitizeCsvCell(s.gps?.address || "").replace(/"/g,'""')}"`,
+    ].map(v => sanitizeCsvCell(String(v ?? "")));
   });
   const csv = [header, ...rows].map(r => r.join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
