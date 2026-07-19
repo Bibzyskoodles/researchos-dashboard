@@ -335,11 +335,18 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
     setStage('uploading');
     setError('');
     try {
-      // Always create a new project for this upload so submissions are
-      // grouped and visible in the Projects list, not lost in "All projects".
-      const projRes = await projectsApi.create({ name: projectName.trim(), platform: 'excel_import' });
-      const newProjectId: string = projRes.data?.id || projRes.data?.project?.id || '';
-      setCreatedProjectId(newProjectId);
+      // Reuse the project from an earlier attempt in this same upload
+      // session instead of creating a new one on every retry — "Try again"
+      // after a failed/partial upload (network timeout, a bad row) used to
+      // call this function fresh each time, and it always created a brand
+      // new project, leaving a pile of empty/duplicate "batch N" projects
+      // behind from every retry.
+      let newProjectId = createdProjectId;
+      if (!newProjectId) {
+        const projRes = await projectsApi.create({ name: projectName.trim(), platform: 'excel_import' });
+        newProjectId = projRes.data?.id || projRes.data?.project?.id || '';
+        setCreatedProjectId(newProjectId);
+      }
 
       const submissions = rows.map(row => {
         const s: Record<string, any> = { _raw: row, project_id: newProjectId };
