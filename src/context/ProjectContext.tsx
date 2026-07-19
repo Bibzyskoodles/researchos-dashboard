@@ -18,6 +18,10 @@ export interface Project {
   insightscore_project_id?: string;
   created_at?: string;
   updated_at?: string;
+  // Real count from the submissions table — null if the backend couldn't
+  // reach it, 0 for a genuinely empty project (safe to delete), undefined
+  // on older cached responses that predate this field.
+  submission_count?: number | null;
 }
 
 // Per-project KoboToolbox form UID stored in localStorage (key = ros_kobo_uid_<projectId>)

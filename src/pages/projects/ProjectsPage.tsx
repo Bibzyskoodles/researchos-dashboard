@@ -115,7 +115,9 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
         <span style={{ fontSize: 11, color: '#9CA3AF' }}>
-          {project.target_submissions ? `Target: ${project.target_submissions}` : 'No target set'}
+          {typeof project.submission_count === 'number'
+            ? `${project.submission_count} submission${project.submission_count === 1 ? '' : 's'}`
+            : project.target_submissions ? `Target: ${project.target_submissions}` : 'No target set'}
         </span>
         <span style={{ fontSize: 12, color: BLUE, fontWeight: 600 }}>Open →</span>
       </div>
@@ -298,12 +300,78 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
   );
 }
 
+function CleanupModal({ emptyProjects, onClose, onDone }: { emptyProjects: Project[]; onClose: () => void; onDone: () => void }) {
+  const [checked, setChecked] = useState<Set<string>>(() => new Set(emptyProjects.map(p => p.id)));
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState('');
+
+  const toggle = (id: string) => setChecked(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const confirm = async () => {
+    setDeleting(true);
+    setError('');
+    try {
+      const ids = Array.from(checked);
+      const results = await Promise.allSettled(ids.map(id => projectsApi.delete(id)));
+      const failed = results.filter(r => r.status === 'rejected').length;
+      if (failed > 0) setError(`${failed} project${failed === 1 ? '' : 's'} could not be deleted — please retry.`);
+      onDone();
+      if (failed === 0) onClose();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,13,26,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ ...CARD_STYLE, width: 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid #E8EDF5' }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#080D1A' }}>Clean up empty projects</div>
+          <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 4 }}>
+            These {emptyProjects.length} project{emptyProjects.length === 1 ? '' : 's'} have 0 submissions — most are
+            leftovers from a retried upload that created a duplicate. Review the list, uncheck anything you want to
+            keep, then delete. Projects with real data are never shown here.
+          </div>
+        </div>
+        <div style={{ overflowY: 'auto', padding: '8px 24px', flex: 1 }}>
+          {emptyProjects.map(p => (
+            <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #F1F5F9', cursor: 'pointer' }}>
+              <input type="checkbox" checked={checked.has(p.id)} onChange={() => toggle(p.id)} style={{ width: 16, height: 16, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: '#080D1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>{p.platform || 'kobo'} · created {p.created_at ? new Date(p.created_at).toLocaleDateString() : 'unknown'}</div>
+              </div>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 20 }}>0 submissions</span>
+            </label>
+          ))}
+        </div>
+        {error && (
+          <div style={{ margin: '0 24px', padding: '10px 12px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, fontSize: 12.5, color: '#DC2626' }}>{error}</div>
+        )}
+        <div style={{ padding: '16px 24px', borderTop: '1px solid #E8EDF5', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button onClick={onClose} disabled={deleting} style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: deleting ? 'default' : 'pointer', fontFamily: 'Inter, sans-serif' }}>
+            Cancel
+          </button>
+          <button onClick={confirm} disabled={deleting || checked.size === 0} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: '#DC2626', color: 'white', fontSize: 13, fontWeight: 600, cursor: deleting || checked.size === 0 ? 'default' : 'pointer', opacity: deleting || checked.size === 0 ? 0.6 : 1, fontFamily: 'Inter, sans-serif' }}>
+            {deleting ? 'Deleting…' : `Delete ${checked.size} project${checked.size === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [showCleanup, setShowCleanup] = useState(false);
 
   const loadProjects = () => {
     projectsApi.list()
@@ -327,6 +395,7 @@ export default function ProjectsPage() {
   const projectCount = projects.length;
   const collectingCount = projects.filter(p => p.status === 'collect').length;
   const attentionCount = projects.filter(p => p.status === 'verify').length;
+  const emptyProjects = projects.filter(p => p.submission_count === 0);
 
   let adaMessage = `Welcome back, ${user?.name?.split(' ')[0] || 'there'}.`;
   if (projectCount === 0) {
@@ -342,6 +411,13 @@ export default function ProjectsPage() {
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
       {showImport && <ImportModal onClose={() => setShowImport(false)} onImported={() => { setLoading(true); loadProjects(); }} />}
+      {showCleanup && (
+        <CleanupModal
+          emptyProjects={emptyProjects}
+          onClose={() => setShowCleanup(false)}
+          onDone={loadProjects}
+        />
+      )}
       {/* Ada hero card */}
       <div style={{
         background: 'linear-gradient(135deg, #080D1A 0%, #0F1729 100%)',
@@ -380,6 +456,20 @@ export default function ProjectsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#080D1A', margin: 0 }}>My Projects</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          {emptyProjects.length > 0 && (
+            <button
+              onClick={() => setShowCleanup(true)}
+              title={`${emptyProjects.length} project(s) with 0 submissions`}
+              style={{
+                background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
+                borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              🧹 Clean up ({emptyProjects.length})
+            </button>
+          )}
           <button
             onClick={() => setShowImport(true)}
             style={{
