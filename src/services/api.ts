@@ -137,41 +137,40 @@ export const analyticsApi = {
     api.get('/analytics/health'),
 };
 
-// ✅ SECURITY: Use environment variable for InsightScore URL
-const INSIGHT_API_URL = process.env.REACT_APP_INSIGHTSCORE_API_URL || 'https://insightscore-production.up.railway.app';
-
-// InsightScore is a separate service with no cookie-based auth (its
-// endpoints aren't gated by the FieldScore session) — withCredentials here
-// makes the browser require a non-wildcard Access-Control-Allow-Origin,
-// which InsightScore's CORSMiddleware (allow_origins=["*"]) doesn't send,
-// so every request was silently blocked by CORS with no visible error
-// beyond the console.
-const insightApi = axios.create({
-  baseURL: INSIGHT_API_URL,
-});
-
-// ✅ SECURITY: Don't manually add token - it's in httpOnly cookie
-// Removed interceptor that read from localStorage
-
+// ✅ SECURITY: InsightScore is no longer called directly from the browser.
+// InsightScore's own routes now require a server-to-server X-Bridge-Key
+// secret on every /projects* endpoint (it has no user auth of its own) —
+// a secret that must never be shipped to client JS. Calling it straight
+// from here with no auth header at all (the previous state) let any
+// anonymous visitor enumerate and read every organisation's projects,
+// themes, quotes, and transcripts.
+//
+// Instead, these calls go through FieldScore's `api` instance (same one
+// used everywhere else in this file), which already carries the logged-in
+// user's session via the httpOnly fs_token cookie / Authorization header.
+// FieldScore's /api/insights/* proxy (fieldscore-backend/insightscore_proxy.py)
+// verifies that session, confirms the caller's org actually owns the
+// requested InsightScore project, and only then forwards the request to
+// InsightScore server-to-server with X-Bridge-Key attached.
 export const insightScoreApi = {
-  getProjects: () => insightApi.get('/projects'),
-  createProject: (data: object) => insightApi.post('/projects', data),
-  getProject: (id: string) => insightApi.get(`/projects/${id}`),
-  analyseProject: (id: string) => insightApi.post(`/projects/${id}/analyse`),
-  getStatus: (id: string) => insightApi.get(`/projects/${id}/status`),
-  getReport: (id: string) => insightApi.get(`/projects/${id}/report`),
+  getProjects: () => api.get('/api/insights/projects'),
+  createProject: (data: object) => api.post('/api/insights/projects', data),
+  getProject: (id: string) => api.get(`/api/insights/projects/${id}`),
+  analyseProject: (id: string) => api.post(`/api/insights/projects/${id}/analyse`),
+  getStatus: (id: string) => api.get(`/api/insights/projects/${id}/status`),
+  getReport: (id: string) => api.get(`/api/insights/projects/${id}/report`),
   downloadReport: (id: string, format: 'docx' | 'pptx' | 'xlsx') =>
-    insightApi.get(`/projects/${id}/report`, { params: { format }, responseType: 'blob' }),
-  getSubmissions: (id: string) => insightApi.get(`/projects/${id}/submissions`),
-  getSignalFidelity: (id: string) => insightApi.get(`/projects/${id}/signal-fidelity`),
-  getIFI: (id: string) => insightApi.get(`/projects/${id}/intent-fidelity`),
-  getQuestionIntelligence: (id: string) => insightApi.get(`/projects/${id}/question-intelligence`),
+    api.get(`/api/insights/projects/${id}/report`, { params: { format }, responseType: 'blob' }),
+  getSubmissions: (id: string) => api.get(`/api/insights/projects/${id}/submissions`),
+  getSignalFidelity: (id: string) => api.get(`/api/insights/projects/${id}/signal-fidelity`),
+  getIFI: (id: string) => api.get(`/api/insights/projects/${id}/intent-fidelity`),
+  getQuestionIntelligence: (id: string) => api.get(`/api/insights/projects/${id}/question-intelligence`),
   getDemographics: (id: string, field?: string) =>
-    insightApi.get(`/projects/${id}/demographics`, { params: field ? { field } : {} }),
+    api.get(`/api/insights/projects/${id}/demographics`, { params: field ? { field } : {} }),
   askResearch: (id: string, question: string, context?: object) =>
-    insightApi.post(`/projects/${id}/ask`, { question, ...context }),
+    api.post(`/api/insights/projects/${id}/ask`, { question, ...context }),
   exportWorkbook: (id: string, type: string) =>
-    insightApi.get(`/projects/${id}/export/${type}`, { responseType: "blob" }),
+    api.get(`/api/insights/projects/${id}/export/${type}`, { responseType: "blob" }),
   waitForAnalysis: async (id: string, timeout = 300000) => {
     const startTime = Date.now();
     const pollInterval = 2000;
