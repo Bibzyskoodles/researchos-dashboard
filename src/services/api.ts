@@ -154,6 +154,12 @@ export const adaApi = {
   getMemory: () => api.get('/ada/memory'),
   // Server holds the ElevenLabs key — never sent to the browser.
   speak: (text: string) => api.post('/ada/speak', { text }, { responseType: 'blob' }),
+  // Rule-based, non-AI proactive observations (see fieldscore-backend's
+  // ada/proactive.py) — never mutates anything, just describes what was
+  // found. Omit projectId to scan every project the caller's org (and
+  // role) permits.
+  getProactiveInsights: (projectId?: string) =>
+    api.get('/ada/proactive-insights', { params: projectId ? { project_id: projectId } : {} }),
 };
 
 export const analyticsApi = {

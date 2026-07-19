@@ -1,14 +1,34 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAda, parseAdaCommand } from "../../ada/AdaContext";
+import { useAda, parseAdaCommand, AdaCommand } from "../../ada/AdaContext";
 import { useProject } from "../../context/ProjectContext";
 import { adaApi, orgSettingsApi, projectsApi, dashboardApi } from "../../services/api";
 import { isSpreadsheetFile, loadSpreadsheetFile, autoMap, buildSubmissionsPayload, FIELD_MAP } from "../../services/csvImport";
-import { X, Send, Paperclip, Trash2, Upload } from "lucide-react";
+import { ProactiveInsight } from "../../types";
+import { X, Send, Paperclip, Trash2, Upload, Sparkles } from "lucide-react";
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 const MAX_SPREADSHEET_BYTES = 10 * 1024 * 1024;
+
+// Insight ids already surfaced this session, so the same finding doesn't
+// repeat every time the dock reopens. sessionStorage (not localStorage) is
+// deliberate — "this session" per the design brief, so a closed tab starts
+// clean rather than permanently suppressing a still-true observation.
+const SHOWN_INSIGHTS_KEY = "ros_ada_shown_insight_ids";
+// Don't re-check the same project scope more often than this even if the
+// dock is closed and reopened repeatedly — the checks are cheap DB reads,
+// not an LLM call, but there's no reason to hit the endpoint on every click.
+const INSIGHT_RECHECK_MS = 3 * 60 * 1000;
+
+function loadShownInsightIds(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(SHOWN_INSIGHTS_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
 
 // Sanitise Ada message content — strip all HTML tags, then apply safe bold only.
 // This prevents XSS from backend-injected markup.
@@ -72,6 +92,69 @@ export default function AdaDock() {
     navigatePage(location.pathname.replace("/", "") || "overview");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
+
+  // ── Proactive insights ────────────────────────────────────────────────
+  // Ada never polls in the background for this — it's a rule-based (non-AI)
+  // read that only runs at two moments: the dock opening, and the active
+  // project changing while the dock is already open (a "project page load"
+  // in effect, since ProjectContext re-fetches on project switch/mount).
+  // Neither of those can fire more than once per INSIGHT_RECHECK_MS for the
+  // same project scope, and any insight already shown this session (tracked
+  // by its server-computed, content-derived id — not a timestamp — in
+  // sessionStorage) is never re-added as a new message.
+  const shownInsightIdsRef = useRef<Set<string>>(loadShownInsightIds());
+  const lastInsightCheckRef = useRef<{ scope: string; at: number }>({ scope: "", at: 0 });
+
+  const describeInsightAction = (command: Record<string, unknown>): string => {
+    switch (command.type) {
+      case "HIGHLIGHT_ENUMERATOR": return `Show ${command.id}'s submissions`;
+      case "FILTER_SUBMISSIONS": return "Open filtered submissions";
+      case "NAVIGATE_TO": return "Take me there";
+      default: return "Show me";
+    }
+  };
+
+  const checkProactiveInsights = useCallback(async () => {
+    const scope = activeProject?.id || "__org__";
+    const now = Date.now();
+    const last = lastInsightCheckRef.current;
+    if (last.scope === scope && now - last.at < INSIGHT_RECHECK_MS) return;
+    lastInsightCheckRef.current = { scope, at: now };
+    try {
+      const res = await adaApi.getProactiveInsights(activeProject?.id);
+      const insights: ProactiveInsight[] = res.data?.insights || [];
+      const fresh = insights.filter(i => !shownInsightIdsRef.current.has(i.id));
+      if (fresh.length === 0) return;
+      const ts = new Date().toISOString();
+      fresh.forEach(insight => {
+        shownInsightIdsRef.current.add(insight.id);
+        addMessage({
+          id: `insight-${insight.id}`,
+          role: "assistant",
+          content: insight.message,
+          timestamp: ts,
+          insightAction: insight.suggested_action
+            ? { label: describeInsightAction(insight.suggested_action), command: insight.suggested_action }
+            : undefined,
+        });
+      });
+      try {
+        sessionStorage.setItem(SHOWN_INSIGHTS_KEY, JSON.stringify(Array.from(shownInsightIdsRef.current)));
+      } catch { /* non-fatal — worst case an insight repeats next session-load */ }
+      setState("warning");
+      setTimeout(() => setState("idle"), 3000);
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch {
+      // Proactive insights are a nicety, never a blocker — fail silently
+      // and just try again next natural trigger.
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject?.id, addMessage, setState]);
+
+  useEffect(() => {
+    if (store.isOpen) checkProactiveInsights();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.isOpen, activeProject?.id]);
 
   useEffect(() => {
     if (store.isOpen) {
@@ -427,6 +510,16 @@ export default function AdaDock() {
                             style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #E2E8F0", background: "white", color: "#6B7280", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
                           >
                             Cancel
+                          </button>
+                        </div>
+                      )}
+                      {msg.insightAction && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                          <button
+                            onClick={() => dispatchCommand(msg.insightAction!.command as unknown as AdaCommand)}
+                            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#2463EB", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            <Sparkles size={11} /> {msg.insightAction.label}
                           </button>
                         </div>
                       )}

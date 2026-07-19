@@ -31,6 +31,19 @@ export type AdaConfirmAction =
       mappedFieldLabels: string[];
     };
 
+// A read-only follow-up offered alongside a proactive insight message (e.g.
+// "highlight this enumerator", "filter to flagged submissions"). Unlike
+// AdaConfirmAction this never mutates anything, so it dispatches straight
+// through the existing AdaCommand mechanism on click — no confirm/cancel
+// step, same as any other navigation/filter/highlight command Ada's chat
+// tool-calls already produce. `command` is intentionally typed loosely
+// here (not importing AdaCommand, which lives in ada/AdaContext.tsx and
+// would create a circular import) — AdaDock casts it when dispatching.
+export interface AdaInsightAction {
+  label: string;
+  command: Record<string, unknown>;
+}
+
 export interface AdaMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -38,6 +51,23 @@ export interface AdaMessage {
   timestamp: string;
   page?: string;
   confirmAction?: AdaConfirmAction;
+  insightAction?: AdaInsightAction;
+}
+
+// One rule-based, non-AI observation from GET /ada/proactive-insights —
+// see fieldscore-backend/ada/proactive.py. `message` is a templated
+// sentence built from real numbers (never LLM-generated), and
+// `suggested_action`, when present, is an AdaCommand-shaped object safe to
+// pass straight to dispatchCommand (read-only: navigate/filter/highlight).
+export interface ProactiveInsight {
+  id: string;
+  type: 'enumerator_burst' | 'flag_rate_spike' | 'stale_certificate';
+  severity: 'warning' | 'info';
+  project_id: string;
+  project_name: string;
+  message: string;
+  detail: Record<string, unknown>;
+  suggested_action: Record<string, unknown> | null;
 }
 
 export type Platform = 'field-quality' | 'insights' | 'reports' | 'research';
