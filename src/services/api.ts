@@ -134,6 +134,8 @@ export const adaApi = {
   learn: (scope: 'user' | 'org', key: string, value: unknown) =>
     api.post('/ada/learn', { scope, key, value }),
   getMemory: () => api.get('/ada/memory'),
+  // Server holds the ElevenLabs key — never sent to the browser.
+  speak: (text: string) => api.post('/ada/speak', { text }, { responseType: 'blob' }),
 };
 
 export const analyticsApi = {

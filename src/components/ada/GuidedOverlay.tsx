@@ -4,74 +4,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { X, ChevronLeft, ChevronRight, Send, Radio } from 'lucide-react';
 import { useGuidedExperience, HighlightRect } from '../../ada/GuidedExperienceContext';
 import { adaApi } from '../../services/api';
+import { speakText } from '../../services/tts';
 
 const BLUE = '#2463EB';
 const DARK = '#0C1128';
 const PURPLE = '#7C3AED';
-
-const XI_KEY = process.env.REACT_APP_ELEVENLABS_KEY || '';
-const XI_VOICE_ID = process.env.REACT_APP_ELEVENLABS_VOICE_ID || 'jBpfuIE2acCO8z3wKNLl';
-
-// ─── TTS ───────────────────────────────────────────────────────────────────
-
-async function speakText(
-  text: string,
-  audioRef: React.MutableRefObject<HTMLAudioElement | null>,
-  onStart?: () => void,
-  onEnd?: () => void,
-): Promise<void> {
-  const clean = text.replace(/\n/g, ' ').trim();
-  if (!clean) { onEnd?.(); return; }
-
-  onStart?.();
-
-  const stopPrev = () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } };
-
-  const playBlob = (blob: Blob): Promise<boolean> =>
-    new Promise(resolve => {
-      try {
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; onEnd?.(); resolve(true); };
-        audio.onerror = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve(false); };
-        audio.play().catch(() => resolve(false));
-      } catch { resolve(false); }
-    });
-
-  if (XI_KEY) {
-    try {
-      stopPrev();
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${XI_VOICE_ID}`, {
-        method: 'POST',
-        headers: { 'xi-api-key': XI_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: clean,
-          model_id: 'eleven_turbo_v2_5',
-          voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.3, use_speaker_boost: true },
-        }),
-      });
-      if (res.ok && await playBlob(await res.blob())) return;
-    } catch { /* fall through */ }
-  }
-
-  const synth = window.speechSynthesis;
-  if (!synth) { onEnd?.(); return; }
-  synth.cancel();
-  const utt = new SpeechSynthesisUtterance(clean);
-  utt.rate = 1.0;
-  const voices = synth.getVoices();
-  const preferred = voices.find(v => /google.*female/i.test(v.name) && /en/i.test(v.lang))
-    || voices.find(v => /en/i.test(v.lang));
-  if (preferred) utt.voice = preferred;
-  utt.onend = () => onEnd?.();
-  utt.onerror = () => onEnd?.();
-  if (synth.getVoices().length === 0) {
-    synth.onvoiceschanged = () => { synth.onvoiceschanged = null; synth.speak(utt); };
-  } else {
-    synth.speak(utt);
-  }
-}
 
 function stopAudio(audioRef: React.MutableRefObject<HTMLAudioElement | null>) {
   if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
