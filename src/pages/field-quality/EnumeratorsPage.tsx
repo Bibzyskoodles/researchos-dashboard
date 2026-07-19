@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { dashboardApi } from "../../services/api";
-import { Enumerator } from "../../types";
+import { Enumerator, Submission } from "../../types";
 import { AlertTriangle, Users, Award, TrendingUp, TrendingDown, Minus, Trophy } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
@@ -10,6 +10,8 @@ import ScorecardPage from "./ScorecardPage";
 import OrgLeaderboardTab from "./OrgLeaderboardTab";
 import { useProject } from "../../context/ProjectContext";
 import { useAuth } from "../../store/AuthContext";
+import { loadEngineConfig } from "../../services/engineConfig";
+import { computeTrustIndex } from "../../services/trustEngine";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const COLORS=[BLUE,PURPLE,GREEN,AMBER,RED];
@@ -62,6 +64,15 @@ type Tab = "team" | "scorecard" | "leaderboard";
 
 export default function EnumeratorsPage(){
   const [enums,setEnums]=useState<Enumerator[]>([]);
+  // Capped, per-engine detail rows from /api/enumerators (see api.py's
+  // enumerators() route comment) — used below to recompute each
+  // enumerator's pass/flag/reject counts live from the *current* engine
+  // config, the same way every individual submission row already does
+  // (SubmissionsPage.tsx's effectiveVerdict / OverviewPage.tsx's liveStats).
+  // Without this, `enums` alone carries only the backend's raw, frozen
+  // Verdict tally, which can silently disagree with what clicking into an
+  // enumerator's own submissions shows.
+  const [enumSubs,setEnumSubs]=useState<Submission[]>([]);
   const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState<Enumerator|null>(null);
   const [activeTab,setActiveTab]=useState<Tab>("team");
@@ -87,10 +98,53 @@ export default function EnumeratorsPage(){
   useEffect(()=>{
     // Active project scopes the list; none = explicit "All projects" view.
     dashboardApi.getEnumerators(activeProject?.id ? { project_id: activeProject.id } : undefined)
-      .then(r=>{ setEnums(r.data.enumerators||[]); })
-      .catch(()=>setEnums([]))
+      .then(r=>{ setEnums(r.data.enumerators||[]); setEnumSubs(r.data.enumerator_submissions||[]); })
+      .catch(()=>{ setEnums([]); setEnumSubs([]); })
       .finally(()=>setLoading(false));
   },[activeProject?.id]);
+
+  // Per-enumerator live pass/flag/reject counts, grouped from the capped
+  // detail rows above. `pendingFlagged` additionally excludes anything
+  // already reviewed (review_status APPROVED/REJECTED via
+  // /api/submissions/<sid>/action), mirroring OverviewPage.tsx's
+  // liveStats/pendingFlagged so a "needs review" style number here clears
+  // once a supervisor has actually acted on it.
+  const liveEnumStats = useMemo(() => {
+    const map: Record<string, { pass:number; flag:number; reject:number; pendingFlagged:number; total:number }> = {};
+    if (!enumSubs.length) return map;
+    const cfg = loadEngineConfig();
+    const isResolved = (sub: any) => sub.review_status === "APPROVED" || sub.review_status === "REJECTED";
+    for (const sub of enumSubs) {
+      const eid = sub.enumerator_id;
+      if (!eid) continue;
+      const bucket = map[eid] || (map[eid] = { pass:0, flag:0, reject:0, pendingFlagged:0, total:0 });
+      const v = ((sub as any).verdict_override || computeTrustIndex(sub as any, cfg).verdict || sub.verdict || "FLAG") as "PASS"|"FLAG"|"REJECT";
+      bucket.total++;
+      if (v === "PASS") bucket.pass++;
+      else if (v === "REJECT") bucket.reject++;
+      else bucket.flag++;
+      if (v === "FLAG" && !isResolved(sub)) bucket.pendingFlagged++;
+    }
+    return map;
+  }, [enumSubs]);
+
+  // Live-recomputed view of one enumerator — falls back to the raw
+  // pass_count/flag_count/pass_rate this enumerator's submissions weren't
+  // covered by the capped detail set (or before it's loaded), same
+  // graceful-degrade pattern as OverviewPage.tsx's liveStats fallback.
+  const withLiveCounts = (e: Enumerator): Enumerator & { pendingFlagged?: number } => {
+    const live = liveEnumStats[e.enumerator_id];
+    if (!live) return e;
+    return {
+      ...e,
+      total_submissions: live.total,
+      pass_count: live.pass,
+      flag_count: live.flag,
+      flags: live.flag,
+      pass_rate: live.total ? Math.round((live.pass / live.total) * 1000) / 10 : e.pass_rate,
+      pendingFlagged: live.pendingFlagged,
+    };
+  };
 
   if(loading) return <div style={{padding:40,textAlign:"center",color:"#9CA3AF"}}>Loading {termPlural}...</div>;
 
@@ -133,12 +187,13 @@ export default function EnumeratorsPage(){
             {enums.slice(0,3).map((e,i)=>{
               const medals=["🥇","🥈","🥉"];
               const col=COLORS[i];
+              const eff = withLiveCounts(e);
               const displayName = e.name || e.enumerator_id;
-              const totalSubs = e.total_submissions ?? e.total_subs ?? 0;
-              const flagCount = e.flags ?? e.flag_count ?? 0;
-              const passCount = e.pass_count ?? Math.round((e.pass_rate ?? 0) * totalSubs / 100);
+              const totalSubs = eff.total_submissions ?? eff.total_subs ?? 0;
+              const flagCount = eff.flags ?? eff.flag_count ?? 0;
+              const passCount = eff.pass_count ?? Math.round((eff.pass_rate ?? 0) * totalSubs / 100);
               const initials = displayName.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase();
-              const rep = quickReputation(e);
+              const rep = quickReputation(eff);
               return(
                 <motion.div key={e.enumerator_id} whileHover={{y:-4, boxShadow: "0 8px 24px rgba(0,61,165,0.12)"}}
                   style={{background:"white",borderRadius:16,padding:"20px",border:highlightedId===e.enumerator_id?"2px solid #2463EB":"1px solid #E8EDF5",boxShadow:highlightedId===e.enumerator_id?"0 0 0 3px #2463EB33, 0 2px 12px rgba(10,15,28,.06)":"0 2px 12px rgba(10,15,28,.06)",cursor:"pointer",position:"relative",overflow:"hidden"}}
@@ -186,12 +241,13 @@ export default function EnumeratorsPage(){
               </div>
               {enums.map((e,i)=>{
                 const col=COLORS[i%COLORS.length];
+                const eff = withLiveCounts(e);
                 const dName = e.name || e.enumerator_id;
-                const tSubs = e.total_submissions ?? e.total_subs ?? 0;
-                const fCnt  = e.flags ?? e.flag_count ?? 0;
-                const pCnt  = e.pass_count ?? Math.round((e.pass_rate ?? 0) * tSubs / 100);
+                const tSubs = eff.total_submissions ?? eff.total_subs ?? 0;
+                const fCnt  = eff.flags ?? eff.flag_count ?? 0;
+                const pCnt  = eff.pass_count ?? Math.round((eff.pass_rate ?? 0) * tSubs / 100);
                 const ini   = dName.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase();
-                const rep   = quickReputation(e);
+                const rep   = quickReputation(eff);
                 return(
                   <motion.div key={e.enumerator_id} whileHover={{background:"#F8FAFF"}}
                     onClick={()=>setSelected(selected?.enumerator_id===e.enumerator_id?null:e)}
@@ -230,9 +286,17 @@ export default function EnumeratorsPage(){
             </div>
 
             {selected&&(()=>{
-              const rep = quickReputation(selected);
+              const selEff = withLiveCounts(selected);
+              const rep = quickReputation(selEff);
               const TrendIcon = rep.score >= 70 ? TrendingUp : rep.score >= 50 ? Minus : TrendingDown;
               const trendColor = rep.score >= 70 ? GREEN : rep.score >= 50 ? AMBER : RED;
+              // "Flagged for review" banner is a "needs attention" style
+              // number — gate it on the unreviewed count (review_status not
+              // APPROVED/REJECTED) so it clears once a supervisor has
+              // actually acted, same as OverviewPage.tsx's pendingFlagged.
+              // Falls back to the total flagged count when the live detail
+              // set doesn't cover this enumerator (pendingFlagged undefined).
+              const pendingFlagged = selEff.pendingFlagged ?? (selected.flags??selected.flag_count??0);
               return (
               <motion.div initial={{opacity:0,x:20}} animate={{opacity:1,x:0}}
                 style={{background:"white",borderRadius:16,overflow:"hidden",border:"1px solid #E8EDF5",boxShadow:"0 4px 24px rgba(10,15,28,.1)",position:"sticky",top:16}}>
@@ -241,7 +305,7 @@ export default function EnumeratorsPage(){
                     <div style={{width:48,height:48,borderRadius:"50%",background:BLUE,display:"grid",placeItems:"center",fontSize:14,fontWeight:800,color:"white"}}>{(selected.name||selected.enumerator_id).split(' ').map((w:string)=>w[0]).join('').slice(0,2).toUpperCase()}</div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:15,fontWeight:700,color:"#080D1A"}}>{selected.name||selected.enumerator_id}</div>
-                      <div style={{fontSize:11,color:"#9CA3AF"}}>{selected.total_submissions??selected.total_subs??0} interviews · Grade {selected.grade}</div>
+                      <div style={{fontSize:11,color:"#9CA3AF"}}>{selEff.total_submissions??selEff.total_subs??0} interviews · Grade {selected.grade}</div>
                     </div>
                     <div style={{textAlign:"right"}}>
                       <div style={{fontSize:28,fontWeight:800,color:clr(selected.avg_score),letterSpacing:-1,lineHeight:1}}>{selected.avg_score}</div>
@@ -275,10 +339,10 @@ export default function EnumeratorsPage(){
 
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                     {[
-                      ["Submissions", selected.total_submissions??selected.total_subs??0],
+                      ["Submissions", selEff.total_submissions??selEff.total_subs??0],
                       ["Avg Score",   selected.avg_score+"/100"],
-                      ["Passed",      selected.pass_count??Math.round((selected.pass_rate??0)*(selected.total_submissions??selected.total_subs??1)/100)],
-                      ["Flagged",     selected.flags??selected.flag_count??0],
+                      ["Passed",      selEff.pass_count??Math.round((selEff.pass_rate??0)*(selEff.total_submissions??selEff.total_subs??1)/100)],
+                      ["Flagged",     selEff.flags??selEff.flag_count??0],
                     ].map(([k,v])=>(
                       <div key={k} style={{padding:"12px",background:"#F8FAFF",borderRadius:10,textAlign:"center"}}>
                         <div style={{fontSize:18,fontWeight:800,color:"#080D1A",letterSpacing:-1}}>{v}</div>
@@ -286,10 +350,10 @@ export default function EnumeratorsPage(){
                       </div>
                     ))}
                   </div>
-                  {((selected.flags??selected.flag_count??0)>0)&&(
+                  {pendingFlagged>0&&(
                     <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",background:"#FFFBEB",borderRadius:10,border:"1px solid #FDE68A"}}>
                       <AlertTriangle size={14} color={AMBER} style={{flexShrink:0,marginTop:1}}/>
-                      <div style={{fontSize:12,color:"#92400E"}}>{selected.flags??selected.flag_count??0} submission{((selected.flags??selected.flag_count??0)>1)?"s":""} flagged for review.</div>
+                      <div style={{fontSize:12,color:"#92400E"}}>{pendingFlagged} submission{pendingFlagged>1?"s":""} flagged for review.</div>
                     </div>
                   )}
                   <div style={{padding:"10px 12px",background:"#F0F9FF",borderRadius:10,border:"1px solid #BAE6FD"}}>

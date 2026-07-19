@@ -7,6 +7,8 @@ import { usePlatform } from "../../platform/PlatformProvider";
 import { useGamify } from "../../gamify/GamifyContext";
 import { generateLocalReport, ReportContext, EnumeratorRow, EngineRow } from "../../gamify/reportGenerator";
 import { useAuth } from "../../store/AuthContext";
+import { loadEngineConfig } from "../../services/engineConfig";
+import { computeTrustIndex } from "../../services/trustEngine";
 
 const BLUE = "#2463EB", GREEN = "#059669", PURPLE = "#7C3AED";
 
@@ -57,15 +59,26 @@ async function buildReportContext(
     rejectCount: 0,
   };
 
-  // 1. Real submission stats — per-verdict counts and per-engine breakdown
+  // 1. Real submission stats — per-verdict counts and per-engine breakdown.
+  // /api/submissions already returns detail=True rows (per-engine `checks`
+  // for every row — see fieldscore-backend's submissions() route), so the
+  // pass/flag/reject counts here are recomputed live from the *current*
+  // engine config, the same way every individual row on SubmissionsPage.tsx
+  // already is — not the raw backend Verdict, which is frozen at scoring
+  // time and can legitimately drift from it (see OverviewPage.tsx's
+  // liveStats for the same fix on the dashboard).
+  let subs: any[] = [];
   try {
     const r = await dashboardApi.getSubmissions({ project_id: project.id, limit: 2000 });
-    const subs: any[] = r.data?.submissions || r.data || [];
+    subs = r.data?.submissions || r.data || [];
     if (subs.length) {
+      const engineCfg = loadEngineConfig();
+      const effectiveVerdict = (s: any) =>
+        (s.verdict_override || computeTrustIndex(s, engineCfg).verdict || s.verdict || s.Verdict || 'FLAG') as 'PASS' | 'FLAG' | 'REJECT';
       base.submissionCount = subs.length;
-      base.passCount   = subs.filter(s => (s.verdict || s.Verdict) === 'PASS').length;
-      base.flagCount   = subs.filter(s => (s.verdict || s.Verdict) === 'FLAG').length;
-      base.rejectCount = subs.filter(s => (s.verdict || s.Verdict) === 'REJECT').length;
+      base.passCount   = subs.filter(s => effectiveVerdict(s) === 'PASS').length;
+      base.flagCount   = subs.filter(s => effectiveVerdict(s) === 'FLAG').length;
+      base.rejectCount = subs.filter(s => effectiveVerdict(s) === 'REJECT').length;
 
       // Per-engine breakdown — aggregate from individual engine scores when present
       const engineNames: Record<string, string> = {
@@ -86,17 +99,32 @@ async function buildReportContext(
     }
   } catch { /* non-fatal */ }
 
-  // 2. Real enumerator data
+  // 2. Real enumerator data — grouped live from the same detail-carrying
+  // submission rows fetched in step 1, instead of a second /api/enumerators
+  // call whose pass_count/flag_count are the same raw, frozen Verdict tally
+  // this fix is replacing everywhere else. Reusing `subs` also avoids a
+  // second (potentially large) payload for the same project.
   try {
-    const r = await dashboardApi.getEnumerators({ project_id: project.id });
-    const enums: any[] = r.data?.enumerators || r.data || [];
-    if (enums.length) {
-      base.enumeratorRows = enums.map(e => ({
-        name: e.name || e.enumerator_id || 'Unknown',
-        submissions: e.submission_count ?? e.total_submissions ?? 0,
-        pass:   e.pass_count   ?? e.pass   ?? 0,
-        flag:   e.flag_count   ?? e.flag   ?? 0,
-        reject: e.reject_count ?? e.reject  ?? 0,
+    if (subs.length) {
+      const engineCfg = loadEngineConfig();
+      const effectiveVerdict = (s: any) =>
+        (s.verdict_override || computeTrustIndex(s, engineCfg).verdict || s.verdict || s.Verdict || 'FLAG') as 'PASS' | 'FLAG' | 'REJECT';
+      const byEnum: Record<string, { pass: number; flag: number; reject: number; total: number }> = {};
+      subs.forEach(s => {
+        const eid = s.enumerator_id || s.Enumerator_ID || 'Unknown';
+        const bucket = byEnum[eid] || (byEnum[eid] = { pass: 0, flag: 0, reject: 0, total: 0 });
+        const v = effectiveVerdict(s);
+        bucket.total++;
+        if (v === 'PASS') bucket.pass++;
+        else if (v === 'REJECT') bucket.reject++;
+        else bucket.flag++;
+      });
+      base.enumeratorRows = Object.entries(byEnum).map(([eid, c]) => ({
+        name: eid,
+        submissions: c.total,
+        pass:   c.pass,
+        flag:   c.flag,
+        reject: c.reject,
       } as EnumeratorRow));
     }
   } catch { /* non-fatal */ }

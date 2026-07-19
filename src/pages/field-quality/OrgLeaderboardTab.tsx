@@ -1,24 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Trophy, TrendingUp, TrendingDown, Minus, Award, Sparkles } from "lucide-react";
 import { dashboardApi } from "../../services/api";
 import { usePlatform } from "../../platform/PlatformProvider";
 import { useProject } from "../../context/ProjectContext";
+import { LeaderboardEntry, Submission } from "../../types";
+import { loadEngineConfig } from "../../services/engineConfig";
+import { computeTrustIndex } from "../../services/trustEngine";
 
 const BLUE = "#2463EB", GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", GOLD = "#D97706";
-
-interface LeaderboardEntry {
-  rank: number;
-  enumerator_id: string;
-  total_submissions: number;
-  pass_count: number;
-  flag_count: number;
-  reject_count: number;
-  pass_rate: number;
-  avg_score: number;
-  trend: number;
-  badges: string[];
-}
 
 const BADGE_META: Record<string, { label: string; color: string }> = {
   top_performer: { label: "Top performer", color: GOLD },
@@ -37,6 +27,11 @@ export default function OrgLeaderboardTab() {
   const [scope, setScope] = useState<"org" | "project">("org");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [topPerformers, setTopPerformers] = useState<LeaderboardEntry[]>([]);
+  // Capped, per-engine detail rows from /api/enumerators/leaderboard (see
+  // api.py's enumerators_leaderboard() route comment) — regrouped below to
+  // recompute each enumerator's pass/flag/reject/pass_rate live from the
+  // *current* engine config, instead of the backend's frozen Verdict tally.
+  const [leaderboardSubs, setLeaderboardSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +45,7 @@ export default function OrgLeaderboardTab() {
       .then(r => {
         setEntries(r.data.leaderboard || []);
         setTopPerformers(r.data.top_performers || []);
+        setLeaderboardSubs(r.data.leaderboard_submissions || []);
       })
       .catch((e) => {
         // A client-role account gets a 403 here by design (see api.py's
@@ -59,9 +55,48 @@ export default function OrgLeaderboardTab() {
         else setError("Could not load the leaderboard right now.");
         setEntries([]);
         setTopPerformers([]);
+        setLeaderboardSubs([]);
       })
       .finally(() => setLoading(false));
   }, [scope, activeProject?.id]);
+
+  // Live pass/flag/reject/pass_rate per enumerator, grouped from the capped
+  // detail rows above — mirrors OverviewPage.tsx's liveStats and
+  // EnumeratorsPage.tsx's liveEnumStats so the same enumerator's "flagged"
+  // count doesn't disagree across screens. rank/trend/badges intentionally
+  // stay as the backend computed them (see api.py's route comment).
+  const liveByEnum = useMemo(() => {
+    const map: Record<string, { pass: number; flag: number; reject: number; total: number }> = {};
+    if (!leaderboardSubs.length) return map;
+    const cfg = loadEngineConfig();
+    for (const sub of leaderboardSubs) {
+      const eid = sub.enumerator_id;
+      if (!eid) continue;
+      const bucket = map[eid] || (map[eid] = { pass: 0, flag: 0, reject: 0, total: 0 });
+      const v = ((sub as any).verdict_override || computeTrustIndex(sub as any, cfg).verdict || sub.verdict || "FLAG") as "PASS" | "FLAG" | "REJECT";
+      bucket.total++;
+      if (v === "PASS") bucket.pass++;
+      else if (v === "REJECT") bucket.reject++;
+      else bucket.flag++;
+    }
+    return map;
+  }, [leaderboardSubs]);
+
+  // Falls back to the backend's raw counts when this enumerator's
+  // submissions weren't covered by the capped detail set (or before it's
+  // loaded) — same graceful-degrade pattern used elsewhere in this fix.
+  const withLiveCounts = (e: LeaderboardEntry): LeaderboardEntry => {
+    const live = liveByEnum[e.enumerator_id];
+    if (!live) return e;
+    return {
+      ...e,
+      total_submissions: live.total,
+      pass_count: live.pass,
+      flag_count: live.flag,
+      reject_count: live.reject,
+      pass_rate: live.total ? Math.round((live.pass / live.total) * 1000) / 10 : e.pass_rate,
+    };
+  };
 
   const medals = ["🥇", "🥈", "🥉"];
 
@@ -108,7 +143,9 @@ export default function OrgLeaderboardTab() {
             <span style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .7 }}>Top Performers</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(3, topPerformers.length)}, 1fr)`, gap: 12 }}>
-            {topPerformers.slice(0, 3).map((e, i) => (
+            {topPerformers.slice(0, 3).map((raw, i) => {
+              const e = withLiveCounts(raw);
+              return (
               <motion.div key={e.enumerator_id} whileHover={{ y: -3 }}
                 style={{ background: "white", borderRadius: 14, padding: 16, border: "1px solid #E8EDF5", boxShadow: "0 2px 12px rgba(10,15,28,.06)" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
@@ -128,7 +165,8 @@ export default function OrgLeaderboardTab() {
                   })}
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -139,7 +177,8 @@ export default function OrgLeaderboardTab() {
             <Award size={13} color="#9CA3AF" />
             <div style={{ fontSize: 12.5, fontWeight: 700, color: "#080D1A" }}>Full Leaderboard</div>
           </div>
-          {entries.map((e) => {
+          {entries.map((raw) => {
+            const e = withLiveCounts(raw);
             const TrendIcon = e.trend > 2 ? TrendingUp : e.trend < -2 ? TrendingDown : Minus;
             const trendColor = e.trend > 2 ? GREEN : e.trend < -2 ? RED : "#9CA3AF";
             return (

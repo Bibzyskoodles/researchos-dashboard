@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { GetEnumeratorsResponse, GetLeaderboardResponse } from '../types';
 
 const BASE_URL = process.env.REACT_APP_API_URL || 'https://web-production-f5bab.up.railway.app';
 
@@ -54,13 +55,14 @@ export const dashboardApi = {
     api.post(`/api/submissions/${id}/action`, { action: 'clear_override' }),
   getSubmissions: (params?: { verdict?: string; limit?: number; offset?: number; project_id?: string }) =>
     api.get('/api/submissions', { params }),
-  getEnumerators: (params?: { project_id?: string }) => api.get('/api/enumerators', { params }),
+  getEnumerators: (params?: { project_id?: string }) =>
+    api.get<GetEnumeratorsResponse>('/api/enumerators', { params }),
   // Org-wide leaderboard — aggregates server-side across every project the
   // caller's org owns (bypassing the pagination limits a client-side
   // getSubmissions()/getEnumerators() fetch would otherwise hit). Blocked
   // for the client role (enumerator-identifying data — see CLAUDE.md).
   getEnumeratorLeaderboard: (params?: { project_id?: string }) =>
-    api.get('/api/enumerators/leaderboard', { params }),
+    api.get<GetLeaderboardResponse>('/api/enumerators/leaderboard', { params }),
   getStats: () => api.get('/api/stats'),
   koboPing: () => api.get('/kobo/ping'),
   koboImport: (asset_uid: string, limit = 30, project_id?: string) =>

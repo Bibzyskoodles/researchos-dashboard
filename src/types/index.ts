@@ -116,11 +116,54 @@ export interface Enumerator {
   avg_score: number;
   grade?: Grade;
   trend?: 'up' | 'down' | 'neutral';
+  // Raw backend Verdict tally, frozen at scoring time — can legitimately
+  // drift from the live Trust Index recompute (see GetEnumeratorsResponse's
+  // enumerator_submissions below). Kept as a fallback for when that capped
+  // detail set doesn't cover this enumerator.
   pass_count?: number;
   pass_rate?: number;
   flag_count?: number;
   flags?: number;
   last_submission?: string;
+}
+
+// GET /api/enumerators — see fieldscore-backend's api.py `enumerators()`
+// route comment (mirrors /api/dashboard's stats_submissions pattern).
+export interface GetEnumeratorsResponse {
+  enumerators: Enumerator[];
+  // Capped (ENUM_DETAIL_CAP, most-recent rows), per-engine detail rows for
+  // the frontend to regroup by enumerator_id and recompute live pass/flag/
+  // reject counts — same reason /api/dashboard ships stats_submissions.
+  enumerator_submissions?: Submission[];
+  detail_capped?: boolean;
+  detail_row_count?: number;
+}
+
+// GET /api/enumerators/leaderboard
+export interface LeaderboardEntry {
+  rank: number;
+  enumerator_id: string;
+  total_submissions: number;
+  pass_count: number;
+  flag_count: number;
+  reject_count: number;
+  pass_rate: number;
+  avg_score: number;
+  trend: number;
+  badges: string[];
+}
+
+export interface GetLeaderboardResponse {
+  leaderboard: LeaderboardEntry[];
+  top_performers: LeaderboardEntry[];
+  total_enumerators: number;
+  project_id: string | null;
+  generated_at: string;
+  // Same capped-detail-rows pattern as GetEnumeratorsResponse — see
+  // fieldscore-backend's api.py `enumerators_leaderboard()` route comment.
+  leaderboard_submissions?: Submission[];
+  detail_capped?: boolean;
+  detail_row_count?: number;
 }
 
 export interface DashboardStats {
