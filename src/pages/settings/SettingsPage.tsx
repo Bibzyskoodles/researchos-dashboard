@@ -650,6 +650,12 @@ function BrandingSection() {
         if (d.brand_accent_color) setAccentColor(d.brand_accent_color);
         if (d.brand_font) setFont(d.brand_font);
         if (d.brand_footer) setFooter(d.brand_footer);
+        // The logo used to live only in this browser's localStorage, so it
+        // never reached the backend and could never appear in a generated
+        // report (or on a second device). It's now persisted server-side —
+        // prefer that copy, falling back to the old local one so an
+        // unsaved-but-previewed logo doesn't vanish on reload.
+        if (d.brand_logo) { setLogoUrl(d.brand_logo); localStorage.setItem("org_logo", d.brand_logo); }
       })
       .catch(() => {});
   }, []);
@@ -677,6 +683,11 @@ function BrandingSection() {
         brand_accent_color: accentColor,
         brand_font: font,
         brand_footer: footer,
+        // Previously never sent — the logo only ever reached localStorage,
+        // so it could never show up on a generated report (a different
+        // service, InsightScore, renders reports and has no access to this
+        // browser's storage).
+        brand_logo: logoUrl,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
