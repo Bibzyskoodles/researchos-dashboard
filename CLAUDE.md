@@ -42,6 +42,20 @@ file only covers what's specific to the frontend.
   CSV — a leading `=`/`+`/`-`/`@` is interpreted as a formula by
   Excel/Sheets when the file is reopened.
 
+## Verifying a change before pushing
+
+**`npx tsc --noEmit -p .` is necessary but not sufficient — it does not
+run ESLint.** Vercel builds this repo with `CI=true`, which makes CRA's
+`react-scripts build` treat every ESLint warning (unused vars/imports,
+`react-hooks/exhaustive-deps`, etc.) as a hard build failure. This
+already happened for real: commit `245b8c2` shipped with tsc passing but
+an unused `ExternalLink` import, and every deploy for the next 2+ hours
+and 6 commits failed in production before anyone noticed (fixed in
+`75d41c0`). Before pushing anything touching `.tsx`/`.ts` files, run the
+actual build Vercel runs — `CI=true npm run build` — not just tsc. It's
+slower (needs `npm ci` if `node_modules` isn't already installed) but
+it's the only thing that reproduces what Vercel will actually do.
+
 ## Where things live
 
 - `services/api.ts` — every backend call. `certificateApi`, `insightScoreApi`
