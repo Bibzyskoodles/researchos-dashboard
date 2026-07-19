@@ -158,6 +158,7 @@ const ALLOWED_SETTING_KEYS = new Set([
   'adaBrief', 'adaCelebrations', 'gpsAccuracy', 'dupThreshold', 'passThreshold',
   'minDuration', 'maxDuration', 'mediaRetention', 'notifyEmail', 'notifySlack',
   'notifyInApp', 'sessionTimeout', 'twoFa',
+  'brandPrimaryColor', 'brandAccentColor', 'brandFooter',
 ]);
 
 const ALLOWED_PATH_PREFIXES = [
