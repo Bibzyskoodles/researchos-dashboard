@@ -65,12 +65,12 @@ const buildSteps = (webhookUrl: string): Record<string, string[]> => ({
     "Click Save",
   ],
   odk: [
-    "In ODK Central → open your Project",
-    "Click the App Users tab",
-    "Go to Form Access → select your form",
-    "In Project Settings → find Webhooks",
-    `Add URL: ${webhookUrl}`,
-    "Click Save",
+    "ODK Central has no built-in webhook — FieldScore pulls from it instead",
+    'Scroll down to "Pull submissions from ODK Central" below',
+    "Enter your Central server URL (e.g. https://your-org.central.getodk.org)",
+    "Enter the email + password of a Central account with access to your project",
+    "Click Save, then Test Connection to confirm FieldScore can reach your server",
+    "Pick a project and form, then click Import & Score",
   ],
   commcare: [
     "Log in to CommCare HQ",
@@ -102,10 +102,10 @@ function buildPlatforms(webhookUrl: string, koboStats: { count: number; last: st
   return [
     // Kobo status reflects REAL submissions for the active project — never a canned count.
     { id:"kobo",name:"KoboToolbox",icon:"🗂",status:koboStats && koboStats.count > 0 ? "active" : "available",category:"Data Collection",description:"The most widely used ODK-based platform for NGO fieldwork.",lastReceived:koboStats?.last || undefined,submissionCount:koboStats?.count,setupSteps:steps.kobo },
-    { id:"surveycto",name:"SurveyCTO",icon:"📋",status:"available",category:"Data Collection",description:"Enterprise-grade mobile data collection used by research firms.",setupSteps:steps.surveycto },
-    { id:"odk",name:"ODK Collect",icon:"📱",status:"available",category:"Data Collection",description:"Open Data Kit — the open-source standard for mobile surveys.",setupSteps:steps.odk },
-    { id:"commcare",name:"CommCare",icon:"🏥",status:"available",category:"Data Collection",description:"Mobile data collection platform popular in health programmes.",setupSteps:steps.commcare },
-    { id:"cspro",name:"CSPro",icon:"📊",status:"available",category:"Data Collection",description:"Census and Survey Processing System by the US Census Bureau.",setupSteps:steps.cspro },
+    { id:"surveycto",name:"SurveyCTO",icon:"📋",status:"coming-soon",category:"Data Collection",description:"Enterprise-grade mobile data collection used by research firms. Not connected yet — talk to us if you need this now.",setupSteps:steps.surveycto },
+    { id:"odk",name:"ODK Central",icon:"📡",status:"available",category:"Data Collection",description:"Pull submissions directly from your ODK Central server for scoring.",setupSteps:steps.odk },
+    { id:"commcare",name:"CommCare",icon:"🏥",status:"coming-soon",category:"Data Collection",description:"Mobile data collection platform popular in health programmes. Not connected yet — talk to us if you need this now.",setupSteps:steps.commcare },
+    { id:"cspro",name:"CSPro",icon:"📊",status:"coming-soon",category:"Data Collection",description:"Census and Survey Processing System by the US Census Bureau. Not connected yet — talk to us if you need this now.",setupSteps:steps.cspro },
     { id:"generic",name:"Generic JSON Webhook",icon:"⚡",status:"available",category:"Custom",description:"Connect any platform that supports HTTP POST webhooks.",setupSteps:steps.generic },
     { id:"gsheets",name:"Google Sheets Export",icon:"📗",status:"coming-soon",category:"Export",description:"Auto-export scored submissions to a Google Sheet.",setupSteps:[] },
     { id:"powerbi",name:"Power BI",icon:"📊",status:"coming-soon",category:"Analytics",description:"Push scored data directly into Power BI dashboards.",setupSteps:[] },
@@ -215,6 +215,165 @@ function PlatformCard({ platform, webhookUrl, onSetupOpen, isExpanded, onCopyUrl
       <AnimatePresence>
         {isExpanded && isAvailable && <SetupInstructions platform={platform} webhookUrl={webhookUrl} onCopyUrl={onCopyUrl} />}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function OdkCentralCard({ projectId }: { projectId?: string }) {
+  const [serverUrl, setServerUrl] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [configured, setConfigured] = useState(false);
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configMsg, setConfigMsg] = useState('');
+
+  const [odkBusy, setOdkBusy] = useState('');
+  const [odkError, setOdkError] = useState('');
+  const [odkProjects, setOdkProjects] = useState<any[] | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedFormId, setSelectedFormId] = useState('');
+  const [selectedFormName, setSelectedFormName] = useState('');
+  const [odkResult, setOdkResult] = useState<any>(null);
+
+  React.useEffect(() => {
+    dashboardApi.odkGetConfig()
+      .then(r => {
+        setServerUrl(r.data?.server_url || '');
+        setEmail(r.data?.email || '');
+        setConfigured(!!r.data?.configured);
+      })
+      .catch(() => {})
+      .finally(() => setConfigLoaded(true));
+  }, []);
+
+  const saveConfig = async () => {
+    if (!serverUrl.trim() || !email.trim() || configSaving) return;
+    setConfigSaving(true); setConfigMsg('');
+    try {
+      await dashboardApi.odkSaveConfig(serverUrl.trim(), email.trim(), password.trim() || undefined);
+      setConfigured(true);
+      setPassword('');
+      setConfigMsg('✓ Saved. Click Test Connection to verify FieldScore can reach your server.');
+    } catch (e: any) {
+      setConfigMsg(e?.response?.data?.error || 'Could not save — check your connection and try again.');
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
+  const testOdk = async () => {
+    setOdkBusy('ping'); setOdkError(''); setOdkProjects(null); setOdkResult(null);
+    try {
+      const r = await dashboardApi.odkPing();
+      setOdkProjects(r.data.projects || []);
+    } catch (e: any) {
+      setOdkError(e?.response?.data?.error || 'Connection failed — check your server URL, email, and password.');
+    } finally {
+      setOdkBusy('');
+    }
+  };
+
+  const importOdk = async () => {
+    if (!selectedProjectId || !selectedFormId) return;
+    setOdkBusy('import'); setOdkError(''); setOdkResult(null);
+    try {
+      const r = await dashboardApi.odkImport(selectedProjectId, selectedFormId, 30, projectId);
+      setOdkResult(r.data);
+    } catch (e: any) {
+      setOdkError(e?.response?.data?.error || 'Import failed');
+    } finally {
+      setOdkBusy('');
+    }
+  };
+
+  return (
+    <div style={{ ...CARD, padding: '20px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <Zap size={15} color={BLUE} /><div style={{ fontSize: 13.5, fontWeight: 700, color: '#080D1A' }}>Pull submissions from ODK Central</div>
+      </div>
+      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
+        ODK Central doesn't push webhooks, so FieldScore pulls from it instead — same idea as KoboToolbox above, with your own server's URL and login.
+      </div>
+
+      {configLoaded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14, padding: '12px 14px', background: '#F8FAFF', border: '1px solid #EEF2F8', borderRadius: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: '#6B7280', marginBottom: 3 }}>SERVER URL</label>
+              <input value={serverUrl} onChange={e => setServerUrl(e.target.value)} placeholder="https://your-org.central.getodk.org"
+                style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E2E8F0', borderRadius: 7, padding: '7px 10px', fontSize: 12, fontFamily: 'monospace', outline: 'none' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: '#6B7280', marginBottom: 3 }}>EMAIL</label>
+              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.org" type="email"
+                style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E2E8F0', borderRadius: 7, padding: '7px 10px', fontSize: 12, outline: 'none' }} />
+            </div>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: '#6B7280', marginBottom: 3 }}>PASSWORD</label>
+            <input value={password} onChange={e => setPassword(e.target.value)} type="password"
+              placeholder={configured ? 'Saved — leave blank to keep it' : 'Central account password'}
+              style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E2E8F0', borderRadius: 7, padding: '7px 10px', fontSize: 12, outline: 'none' }} />
+            <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 3 }}>
+              Stored server-side only, never sent to your browser again after saving.
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={saveConfig} disabled={!serverUrl.trim() || !email.trim() || configSaving}
+              style={{ padding: '7px 14px', borderRadius: 7, background: BLUE, border: 'none', color: 'white', fontSize: 11.5, fontWeight: 600, cursor: configSaving ? 'wait' : 'pointer', fontFamily: 'Inter, sans-serif', opacity: !serverUrl.trim() || !email.trim() || configSaving ? 0.6 : 1 }}>
+              {configSaving ? 'Saving…' : 'Save'}
+            </button>
+            {configured && <span style={{ fontSize: 11, color: GREEN, fontWeight: 600 }}>✓ Configured</span>}
+            {configMsg && <span style={{ fontSize: 11, color: configMsg.startsWith('✓') ? GREEN : '#DC2626' }}>{configMsg}</span>}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+        <button onClick={testOdk} disabled={odkBusy !== '' || !configured} style={{ padding: '9px 16px', borderRadius: 8, background: 'white', border: '1px solid #E2E8F0', color: '#374151', fontSize: 12.5, fontWeight: 600, cursor: odkBusy ? 'wait' : configured ? 'pointer' : 'not-allowed', fontFamily: 'Inter, sans-serif', opacity: configured ? 1 : 0.6 }}>
+          {odkBusy === 'ping' ? 'Testing…' : 'Test Connection'}
+        </button>
+        {selectedFormId && (
+          <button onClick={importOdk} disabled={odkBusy !== ''} style={{ padding: '9px 16px', borderRadius: 8, background: BLUE, border: 'none', color: 'white', fontSize: 12.5, fontWeight: 600, cursor: odkBusy ? 'wait' : 'pointer', fontFamily: 'Inter, sans-serif', opacity: odkBusy ? 0.6 : 1 }}>
+            {odkBusy === 'import' ? 'Importing…' : `Import & Score "${selectedFormName || selectedFormId}"`}
+          </button>
+        )}
+      </div>
+
+      {odkError && <div style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>{odkError}</div>}
+
+      {odkProjects && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: .6, marginBottom: 6 }}>
+            Projects &amp; forms — click a form to select it
+          </div>
+          {odkProjects.length === 0 && <div style={{ fontSize: 12, color: '#9CA3AF' }}>No projects found on this account.</div>}
+          {odkProjects.map((p: any) => (
+            <div key={p.id} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', marginBottom: 4 }}>{p.name}</div>
+              {(p.forms || []).length === 0 && <div style={{ fontSize: 11.5, color: '#9CA3AF', paddingLeft: 8 }}>No forms in this project.</div>}
+              {(p.forms || []).map((f: any) => {
+                const isSelected = selectedProjectId === String(p.id) && selectedFormId === f.xmlFormId;
+                return (
+                  <div key={f.xmlFormId}
+                    onClick={() => { setSelectedProjectId(String(p.id)); setSelectedFormId(f.xmlFormId); setSelectedFormName(f.name); }}
+                    style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 10px', borderRadius: 8, background: isSelected ? '#EFF6FF' : '#F8FAFF', border: `1px solid ${isSelected ? BLUE : '#EEF2F8'}`, marginBottom: 5, cursor: 'pointer', fontSize: 12 }}>
+                    <span style={{ fontWeight: 600, color: '#080D1A' }}>{f.name}</span>
+                    <span style={{ color: '#9CA3AF', fontFamily: 'monospace' }}>{f.xmlFormId} · {f.submissions ?? 0} subs</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {odkResult && (
+        <div style={{ fontSize: 12.5, color: GREEN, background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '10px 12px' }}>
+          ✓ Imported and scored {odkResult.scored} of {odkResult.fetched} submissions{odkResult.errors ? ` (${odkResult.errors} errors)` : ''}. They now appear on your dashboard.
+        </div>
+      )}
     </div>
   );
 }
@@ -739,6 +898,8 @@ export default function IntegrationsPage() {
           </div>
         )}
       </div>
+
+      <OdkCentralCard projectId={activeProject?.id} />
 
       <CsvUploadCard projectId={activeProject?.id} insightscoreProjectId={activeProject?.insightscore_project_id} />
 
