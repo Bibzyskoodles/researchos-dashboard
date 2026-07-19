@@ -14,12 +14,30 @@ export interface AdaContext {
   lastMessage: string | null;
 }
 
+// Attached to an assistant message that proposes an action significant
+// enough to need explicit confirmation before it runs — rendered as a
+// confirm/cancel card instead of (or alongside) plain text. Nothing the
+// action describes has happened yet; only the user's click triggers it.
+export type AdaConfirmAction =
+  | { type: 'delete_project'; project_id: string; project_name: string }
+  | {
+      type: 'upload_submissions';
+      fileName: string;
+      suggestedProjectName: string;
+      rowCount: number;
+      headers: string[];
+      rows: Record<string, string>[];
+      mapping: Record<string, string>;
+      mappedFieldLabels: string[];
+    };
+
 export interface AdaMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
   page?: string;
+  confirmAction?: AdaConfirmAction;
 }
 
 export type Platform = 'field-quality' | 'insights' | 'reports' | 'research';

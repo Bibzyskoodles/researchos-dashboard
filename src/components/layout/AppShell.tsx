@@ -118,7 +118,7 @@ async function applyAdaSetting(key: string, value: unknown): Promise<{ ok: boole
 export default function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { store, setOpen } = useAda();
+  const { store, setOpen, addMessage } = useAda();
   const lastCmdSeq = useRef<number | null>(null);
   const [adaToast, setAdaToast] = useState<string | null>(null);
   const isMobile = useIsMobile(820);
@@ -203,6 +203,20 @@ export default function AppShell() {
         });
         break;
       }
+
+      case 'CONFIRM_DELETE_PROJECT':
+        // Never deletes anything here — just surfaces a confirmation card
+        // in the chat. AdaDock renders the card and makes the actual
+        // DELETE call (with the server re-verifying the project is empty)
+        // only when the user clicks it.
+        addMessage({
+          id: `confirm-${cmd.project_id}-${cmd.seq}`,
+          role: 'assistant',
+          content: `I'd like to delete "${cmd.project_name}" — it looks like an empty duplicate. Confirm?`,
+          timestamp: new Date().toISOString(),
+          confirmAction: { type: 'delete_project', project_id: cmd.project_id, project_name: cmd.project_name },
+        });
+        break;
 
       case 'SWITCH_PROJECT':
         navigate(`/projects/${cmd.id}`);

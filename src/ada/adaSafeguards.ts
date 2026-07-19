@@ -218,6 +218,12 @@ export function validateCommand(cmd: unknown): cmd is AdaCommand {
     case 'GENERATE_REPORT':
       return typeof c.project_id === 'string' && ['docx','pptx','xlsx'].includes(c.format as string);
 
+    case 'CONFIRM_DELETE_PROJECT':
+      // Only ever surfaces a confirmation card — see AppShell/AdaDock. Still
+      // validated like every other command since it's still AI-returned input.
+      return typeof c.project_id === 'string' && c.project_id.length > 0
+        && typeof c.project_name === 'string' && c.project_name.length > 0 && c.project_name.length < 200;
+
     case 'OPEN_SETTINGS_SECTION':
     case 'CREATE_PROJECT':
     case 'SHOW_TOAST':

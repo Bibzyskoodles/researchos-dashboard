@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useRef, DragEvent } from "react";
-import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, AlertCircle } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
@@ -8,6 +7,7 @@ import { dashboardApi, projectsApi, API_BASE_URL } from "../../services/api";
 import { loadEngineConfig } from "../../services/engineConfig";
 import { computeTrustIndex } from "../../services/trustEngine";
 import { useProject } from "../../context/ProjectContext";
+import { FIELD_MAP, autoMap, loadSpreadsheetFile, buildSubmissionsPayload } from "../../services/csvImport";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -219,55 +219,6 @@ function PlatformCard({ platform, webhookUrl, onSetupOpen, isExpanded, onCopyUrl
   );
 }
 
-// ─── CSV parser ────────────────────────────────────────────────────────────
-function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
-  if (lines.length < 2) return { headers: [], rows: [] };
-  const splitLine = (line: string) => {
-    const cells: string[] = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === ',' && !inQ) { cells.push(cur.trim()); cur = ''; }
-      else { cur += ch; }
-    }
-    cells.push(cur.trim());
-    return cells;
-  };
-  const headers = splitLine(lines[0]);
-  const rows = lines.slice(1).map(l => {
-    const vals = splitLine(l);
-    const obj: Record<string, string> = {};
-    headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
-    return obj;
-  });
-  return { headers, rows };
-}
-
-const FIELD_MAP: { key: string; label: string; hints: string[] }[] = [
-  { key: 'enumerator_id', label: 'Enumerator ID', hints: ['enumerator', 'interviewer', 'agent', 'collector', 'field_agent'] },
-  { key: 'respondent_id', label: 'Respondent ID', hints: ['respondent', 'household', 'hh_id', 'case_id', 'subject'] },
-  { key: 'gps_lat',       label: 'GPS Latitude',  hints: ['lat', 'latitude', 'gps_lat', '_gps_latitude'] },
-  { key: 'gps_lon',       label: 'GPS Longitude', hints: ['lon', 'lng', 'longitude', 'gps_lon', '_gps_longitude'] },
-  { key: 'submitted_at',  label: 'Submission Date', hints: ['date', 'submitted', 'start', 'end', 'timestamp', 'submission_time'] },
-  { key: 'overall_score', label: 'Trust Score (0-100)', hints: ['score', 'trust', 'quality', 'overall_score'] },
-  { key: 'verdict',       label: 'Verdict (PASS/FLAG/REJECT)', hints: ['verdict', 'status', 'result', 'outcome'] },
-  { key: 'duration',      label: 'Duration (minutes)', hints: ['duration', 'interview_duration', 'minutes', 'elapsed'] },
-  { key: 'location',      label: 'Location / Address', hints: ['location', 'address', 'lga', 'state', 'region', 'area'] },
-];
-
-function autoMap(headers: string[]): Record<string, string> {
-  const mapping: Record<string, string> = {};
-  FIELD_MAP.forEach(f => {
-    const match = headers.find(h =>
-      f.hints.some(hint => h.toLowerCase().replace(/[\s-]/g, '_').includes(hint))
-    );
-    if (match) mapping[f.key] = match;
-  });
-  return mapping;
-}
-
 function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: string; insightscoreProjectId?: string }) {
   const [stage, setStage] = useState<'idle' | 'mapping' | 'uploading' | 'done' | 'error'>('idle');
   const [dragging, setDragging] = useState(false);
@@ -282,46 +233,22 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadFile = (file: File) => {
-    const isExcel = file.name.match(/\.(xlsx|xls)$/i);
-    const isCsv   = file.name.match(/\.(csv|tsv|txt)$/i);
-    if (!isExcel && !isCsv) {
+    if (!/\.(csv|tsv|txt|xlsx|xls)$/i.test(file.name)) {
       setError('Please upload a CSV or Excel (.xlsx) file.');
       return;
     }
     setFileName(file.name);
     setError('');
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        let h: string[], r: Record<string, string>[];
-        if (isExcel) {
-          const data = new Uint8Array(e.target?.result as ArrayBuffer);
-          const wb = XLSX.read(data, { type: 'array' });
-          const ws = wb.Sheets[wb.SheetNames[0]];
-          const json: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-          if (!json.length) { setError('Excel sheet appears to be empty.'); return; }
-          h = (json[0] as any[]).map(String);
-          r = json.slice(1).map(row =>
-            Object.fromEntries(h.map((k, i) => [k, String((row as any[])[i] ?? '')]))
-          );
-        } else {
-          const text = e.target?.result as string;
-          const parsed = parseCsv(text);
-          h = parsed.headers; r = parsed.rows;
-        }
-        if (!h.length) { setError('Could not read column headers from the file.'); return; }
+    loadSpreadsheetFile(file)
+      .then(({ headers: h, rows: r }) => {
         setHeaders(h);
         setRows(r);
         setMapping(autoMap(h));
         // Pre-fill project name from filename (strip extension)
         setProjectName(file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim());
         setStage('mapping');
-      } catch (err: any) {
-        setError('Failed to parse file: ' + (err?.message || 'unknown error'));
-      }
-    };
-    if (isExcel) reader.readAsArrayBuffer(file);
-    else reader.readAsText(file);
+      })
+      .catch((err: Error) => setError(err.message));
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -348,24 +275,7 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
         setCreatedProjectId(newProjectId);
       }
 
-      const submissions = rows.map(row => {
-        const s: Record<string, any> = { _raw: row, project_id: newProjectId };
-        FIELD_MAP.forEach(f => {
-          if (mapping[f.key] && row[mapping[f.key]] !== undefined) {
-            if (f.key === 'gps_lat' || f.key === 'gps_lon') {
-              if (!s.gps) s.gps = {};
-              if (f.key === 'gps_lat') s.gps.lat = parseFloat(row[mapping[f.key]]) || null;
-              if (f.key === 'gps_lon') s.gps.lon = parseFloat(row[mapping[f.key]]) || null;
-            } else if (f.key === 'overall_score') {
-              s.overall_score = parseFloat(row[mapping[f.key]]) || null;
-            } else {
-              s[f.key] = row[mapping[f.key]];
-            }
-          }
-        });
-        return s;
-      });
-
+      const submissions = buildSubmissionsPayload(rows, mapping, newProjectId);
       const res = await dashboardApi.uploadSubmissions(submissions);
       setResult(`✓ ${res.data?.imported ?? submissions.length} submissions scored and imported into "${projectName.trim()}".`);
       setStage('done');

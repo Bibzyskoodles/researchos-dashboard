@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAda, parseAdaCommand } from "../../ada/AdaContext";
 import { useProject } from "../../context/ProjectContext";
-import { adaApi, orgSettingsApi } from "../../services/api";
-import { X, Send, Paperclip } from "lucide-react";
+import { adaApi, orgSettingsApi, projectsApi, dashboardApi } from "../../services/api";
+import { isSpreadsheetFile, loadSpreadsheetFile, autoMap, buildSubmissionsPayload, FIELD_MAP } from "../../services/csvImport";
+import { X, Send, Paperclip, Trash2, Upload } from "lucide-react";
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const MAX_SPREADSHEET_BYTES = 10 * 1024 * 1024;
 
 // Sanitise Ada message content — strip all HTML tags, then apply safe bold only.
 // This prevents XSS from backend-injected markup.
@@ -37,7 +39,13 @@ export default function AdaDock() {
   const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage, dispatchCommand } = useAda();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [processingAttachment, setProcessingAttachment] = useState(false);
+  // Confirmation cards (currently just project deletion) resolve locally —
+  // once acted on, the card's buttons disable and a follow-up message
+  // states the outcome. Keyed by message id, not project id, so two
+  // separate proposals for the same project each get their own state.
+  const [resolvedConfirms, setResolvedConfirms] = useState<Set<string>>(new Set());
+  const [confirmBusy, setConfirmBusy] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const location = useLocation();
@@ -133,34 +141,25 @@ export default function AdaDock() {
     }
   };
 
-  // Logo goes straight to the org-settings save, not through the chat LLM —
-  // routing a multi-hundred-KB base64 image through a chat completion as
-  // tool-call text would be slow, expensive, and pointless, since Ada never
-  // needs to "see" the pixels to do her job (place it on report covers).
-  // Reuses the exact same endpoint Settings > Branding uses, so it shows up
-  // identically wherever branding is read.
-  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-
+  // A logo is low-risk and single-purpose, so it still saves immediately —
+  // there's nothing ambiguous to confirm. Everything else Ada can act on
+  // (spreadsheets of submissions) is data-changing, so it stops at a
+  // confirmation card instead of importing on drop. Anything she doesn't
+  // have a defined action for, she says so honestly rather than guessing.
+  const saveLogoFile = (file: File) => {
     const now = () => new Date().toISOString();
-    if (!file.type.startsWith("image/")) {
-      addMessage({ id: Date.now().toString(), role: "assistant", content: "That doesn't look like an image — I can save a PNG, JPG, or SVG as your logo.", timestamp: now() });
-      return;
-    }
     if (file.size > MAX_LOGO_BYTES) {
       addMessage({ id: Date.now().toString(), role: "assistant", content: "That's over 2MB — please send a smaller file. (Settings > Branding has the same 2MB limit.)", timestamp: now() });
       return;
     }
-
-    addMessage({ id: Date.now().toString(), role: "user", content: `📎 ${file.name}`, timestamp: now() });
-    setUploadingLogo(true);
+    setProcessingAttachment(true);
     setState("thinking");
 
     const reader = new FileReader();
     reader.onload = async () => {
       try {
+        // Reuses the exact same endpoint Settings > Branding uses, so it
+        // shows up identically wherever branding is read.
         await orgSettingsApi.updateSettings({ brand_logo: reader.result as string });
         addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: "Got it — saved as your organisation logo. It'll appear on every report generated from now on.", timestamp: now() });
         setState("speaking");
@@ -170,15 +169,136 @@ export default function AdaDock() {
         setState("warning");
         setTimeout(() => setState("idle"), 3000);
       } finally {
-        setUploadingLogo(false);
+        setProcessingAttachment(false);
         setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
       }
     };
     reader.onerror = () => {
-      setUploadingLogo(false);
+      setProcessingAttachment(false);
       addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: "I couldn't read that file — please try again.", timestamp: now() });
     };
     reader.readAsDataURL(file);
+  };
+
+  const proposeSpreadsheetImport = async (file: File) => {
+    const now = () => new Date().toISOString();
+    if (file.size > MAX_SPREADSHEET_BYTES) {
+      addMessage({ id: Date.now().toString(), role: "assistant", content: "That file's over 10MB — please split it up or trim it down and try again.", timestamp: now() });
+      return;
+    }
+    setProcessingAttachment(true);
+    setState("thinking");
+    try {
+      const { headers, rows } = await loadSpreadsheetFile(file);
+      const mapping = autoMap(headers);
+      const mappedFieldLabels = FIELD_MAP.filter(f => mapping[f.key]).map(f => f.label);
+      const suggestedProjectName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+      const summary = mappedFieldLabels.length
+        ? `I found ${rows.length} row${rows.length === 1 ? '' : 's'} in **${file.name}** and matched: ${mappedFieldLabels.join(', ')}. I'd import this as a new project called "${suggestedProjectName}" — confirm?`
+        : `I found ${rows.length} row${rows.length === 1 ? '' : 's'} in **${file.name}** but couldn't confidently match any columns to submission fields. I'd still import it into a new project called "${suggestedProjectName}" using best-guess columns — confirm, or upload it directly in Integrations for manual mapping.`;
+      addMessage({
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: summary,
+        timestamp: now(),
+        confirmAction: {
+          type: 'upload_submissions',
+          fileName: file.name,
+          suggestedProjectName: suggestedProjectName || 'Imported data',
+          rowCount: rows.length,
+          headers,
+          rows,
+          mapping,
+          mappedFieldLabels,
+        },
+      });
+      setState("speaking");
+      setTimeout(() => setState("idle"), 3000);
+    } catch (err: any) {
+      addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: err?.message || "I couldn't read that file — please check it's a valid CSV or Excel file and try again.", timestamp: now() });
+      setState("warning");
+      setTimeout(() => setState("idle"), 3000);
+    } finally {
+      setProcessingAttachment(false);
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  };
+
+  const handleAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    addMessage({ id: Date.now().toString(), role: "user", content: `📎 ${file.name}`, timestamp: new Date().toISOString() });
+
+    if (file.type.startsWith("image/")) {
+      saveLogoFile(file);
+    } else if (isSpreadsheetFile(file)) {
+      proposeSpreadsheetImport(file);
+    } else {
+      addMessage({
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: `I'm not sure what to do with a ${file.name.split('.').pop()?.toUpperCase() || 'this'} file yet — right now I can save an image as your logo, or import submissions from a CSV or Excel file. You may need to handle that one elsewhere in the dashboard.`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  };
+
+  // The only action Ada never finalizes herself. AppShell's
+  // CONFIRM_DELETE_PROJECT handler already added the card message this
+  // responds to — nothing is deleted until this actually runs, and the
+  // server independently re-verifies the project is still empty before
+  // honoring it, regardless of what Ada believed when she proposed it.
+  const handleConfirmDelete = async (messageId: string, projectId: string, projectName: string, confirmed: boolean) => {
+    setResolvedConfirms(prev => new Set(prev).add(messageId));
+    if (!confirmed) {
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Okay, I'll leave "${projectName}" alone.`, timestamp: new Date().toISOString() });
+      return;
+    }
+    setConfirmBusy(messageId);
+    try {
+      await projectsApi.delete(projectId, true);
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Done — "${projectName}" is deleted.`, timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      const msg = err?.response?.status === 409
+        ? `I couldn't delete "${projectName}" — it turns out to have real submissions, so I'm leaving it alone.`
+        : `I couldn't delete "${projectName}" — please try again, or use the Clean Up flow on the Projects page.`;
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: msg, timestamp: new Date().toISOString() });
+    } finally {
+      setConfirmBusy(null);
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  };
+
+  // Mirrors IntegrationsPage's own import flow (same create-project +
+  // upload-submissions calls) so a spreadsheet dropped in chat behaves
+  // identically to one uploaded through Integrations — nothing is imported
+  // until the user clicks Confirm on the card this responds to.
+  const handleConfirmUpload = async (
+    messageId: string,
+    action: { fileName: string; suggestedProjectName: string; rowCount: number; rows: Record<string, string>[]; mapping: Record<string, string> },
+    confirmed: boolean
+  ) => {
+    setResolvedConfirms(prev => new Set(prev).add(messageId));
+    if (!confirmed) {
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Okay, I won't import "${action.fileName}".`, timestamp: new Date().toISOString() });
+      return;
+    }
+    setConfirmBusy(messageId);
+    try {
+      const projRes = await projectsApi.create({ name: action.suggestedProjectName, platform: 'excel_import' });
+      const projectId = projRes.data?.id || projRes.data?.project?.id || '';
+      const submissions = buildSubmissionsPayload(action.rows, action.mapping, projectId);
+      const res = await dashboardApi.uploadSubmissions(submissions);
+      const imported = res.data?.imported ?? submissions.length;
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Done — imported ${imported} submission${imported === 1 ? '' : 's'} into "${action.suggestedProjectName}".`, timestamp: new Date().toISOString() });
+    } catch {
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `I couldn't import "${action.fileName}" — please try again, or upload it directly on the Integrations page.`, timestamp: new Date().toISOString() });
+    } finally {
+      setConfirmBusy(null);
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
   };
 
   const avatarSize = store.isOpen ? 48 : 60;
@@ -259,18 +379,61 @@ export default function AdaDock() {
                   </div>
                 </div>
               )}
-              {store.messages.map(msg => (
-                <div key={msg.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
-                  {msg.role === "assistant" && (
-                    <div style={{ width: 24, height: 24, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
-                      <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+              {store.messages.map(msg => {
+                const pendingDelete = msg.confirmAction?.type === 'delete_project' && !resolvedConfirms.has(msg.id)
+                  ? msg.confirmAction : null;
+                const pendingUpload = msg.confirmAction?.type === 'upload_submissions' && !resolvedConfirms.has(msg.id)
+                  ? msg.confirmAction : null;
+                const busy = confirmBusy === msg.id;
+                return (
+                  <div key={msg.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
+                    {msg.role === "assistant" && (
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
+                        <img src="/ada-avatar.jpg" alt="Ada" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 15%" }} />
+                      </div>
+                    )}
+                    <div style={{ background: msg.role === "user" ? "#2463EB" : "#F8FAFF", border: msg.role === "user" ? "none" : "1px solid #E2E8F0", borderRadius: msg.role === "user" ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "10px 12px", fontSize: 12.5, color: msg.role === "user" ? "white" : "#374151", lineHeight: 1.6, maxWidth: 260 }}>
+                      {renderMessageParts(sanitiseMessage(msg.content))}
+                      {pendingDelete && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                          <button
+                            onClick={() => handleConfirmDelete(msg.id, pendingDelete.project_id, pendingDelete.project_name, true)}
+                            disabled={busy}
+                            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: "none", background: "#DC2626", color: "white", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
+                          >
+                            <Trash2 size={11} /> Delete
+                          </button>
+                          <button
+                            onClick={() => handleConfirmDelete(msg.id, pendingDelete.project_id, pendingDelete.project_name, false)}
+                            disabled={busy}
+                            style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #E2E8F0", background: "white", color: "#6B7280", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                      {pendingUpload && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                          <button
+                            onClick={() => handleConfirmUpload(msg.id, pendingUpload, true)}
+                            disabled={busy}
+                            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: "none", background: "#2463EB", color: "white", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
+                          >
+                            <Upload size={11} /> Import
+                          </button>
+                          <button
+                            onClick={() => handleConfirmUpload(msg.id, pendingUpload, false)}
+                            disabled={busy}
+                            style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #E2E8F0", background: "white", color: "#6B7280", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <div style={{ background: msg.role === "user" ? "#2463EB" : "#F8FAFF", border: msg.role === "user" ? "none" : "1px solid #E2E8F0", borderRadius: msg.role === "user" ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "10px 12px", fontSize: 12.5, color: msg.role === "user" ? "white" : "#374151", lineHeight: 1.6, maxWidth: 260 }}>
-                    {renderMessageParts(sanitiseMessage(msg.content))}
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {sending && (
                 <div style={{ display: "flex", gap: 8 }}>
                   <div style={{ width: 24, height: 24, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
@@ -291,15 +454,15 @@ export default function AdaDock() {
               <input
                 ref={logoInputRef}
                 type="file"
-                accept="image/*"
-                onChange={handleLogoFile}
+                accept="image/*,.csv,.tsv,.txt,.xlsx,.xls"
+                onChange={handleAttachment}
                 style={{ display: "none" }}
               />
               <button
                 onClick={() => logoInputRef.current?.click()}
-                disabled={uploadingLogo}
-                title="Attach your organisation logo"
-                style={{ width: 36, height: 36, borderRadius: 8, background: "white", border: "1.5px solid #E2E8F0", cursor: uploadingLogo ? "not-allowed" : "pointer", display: "grid", placeItems: "center", opacity: uploadingLogo ? 0.5 : 1, flexShrink: 0 }}
+                disabled={processingAttachment}
+                title="Attach a logo image, or a CSV/Excel file of submissions"
+                style={{ width: 36, height: 36, borderRadius: 8, background: "white", border: "1.5px solid #E2E8F0", cursor: processingAttachment ? "not-allowed" : "pointer", display: "grid", placeItems: "center", opacity: processingAttachment ? 0.5 : 1, flexShrink: 0 }}
               >
                 <Paperclip size={14} color="#6B7280" />
               </button>

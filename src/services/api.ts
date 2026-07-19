@@ -93,7 +93,8 @@ export const projectsApi = {
   create: (data: object) => api.post('/api/projects', data),
   get: (id: string) => api.get(`/api/projects/${id}`),
   update: (id: string, data: object) => api.patch(`/api/projects/${id}`, data),
-  delete: (id: string) => api.delete(`/api/projects/${id}`),
+  delete: (id: string, verifyEmpty = false) =>
+    api.delete(`/api/projects/${id}`, verifyEmpty ? { params: { verify_empty: 'true' } } : undefined),
   lifecycle: (id: string) => api.get(`/api/projects/${id}/lifecycle`),
   framework: (id: string, data: object) => api.post(`/api/projects/${id}/framework`, data),
 };

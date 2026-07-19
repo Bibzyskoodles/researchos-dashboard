@@ -9,7 +9,11 @@ interface GuideTarget {
 }
 
 // Commands Ada can issue to adjust the UI when the user asks. She can filter,
-// highlight, navigate, switch project, and change settings — never delete or submit.
+// highlight, navigate, switch project, change settings, and submit — deletion
+// is the one exception: CONFIRM_DELETE_PROJECT never deletes anything by
+// itself, it only surfaces a confirmation card in chat (see AdaDock). Only
+// the user's click on that card, followed by the server independently
+// re-verifying the project is actually empty, results in an actual delete.
 export type AdaCommand =
   | { type: 'FILTER_SUBMISSIONS'; verdict: 'PASS' | 'FLAG' | 'REJECT' | 'ALL' }
   | { type: 'HIGHLIGHT_ENUMERATOR'; id: string }
@@ -21,7 +25,8 @@ export type AdaCommand =
   | { type: 'CHANGE_SETTING'; key: string; value: any; label: string; scope?: string; project_id?: string }
   | { type: 'GENERATE_REPORT'; project_id: string; format: 'docx' | 'pptx' | 'xlsx' }
   | { type: 'RESCORE_PROJECT'; project_id: string }
-  | { type: 'BRIDGE_SYNC'; project_id: string };
+  | { type: 'BRIDGE_SYNC'; project_id: string }
+  | { type: 'CONFIRM_DELETE_PROJECT'; project_id: string; project_name: string };
 
 // Map a natural-language message to a command intent, or null if none.
 export function parseAdaCommand(text: string): AdaCommand | null {

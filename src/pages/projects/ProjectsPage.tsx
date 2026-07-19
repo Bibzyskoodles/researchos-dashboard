@@ -316,7 +316,7 @@ function CleanupModal({ emptyProjects, onClose, onDone }: { emptyProjects: Proje
     setError('');
     try {
       const ids = Array.from(checked);
-      const results = await Promise.allSettled(ids.map(id => projectsApi.delete(id)));
+      const results = await Promise.allSettled(ids.map(id => projectsApi.delete(id, true)));
       const failed = results.filter(r => r.status === 'rejected').length;
       if (failed > 0) setError(`${failed} project${failed === 1 ? '' : 's'} could not be deleted — please retry.`);
       onDone();
