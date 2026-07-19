@@ -255,4 +255,21 @@ export const orgSettingsApi = {
   revokeInvite: (id: string) => api.post(`/api/org/invites/${id}/revoke`),
 };
 
+// Developer surface — API keys (pull: GET /v1/* using a bearer key) and
+// outbound webhooks (push: fieldscore-backend POSTs a signed event to a URL
+// you control). Both are admin-only on the backend (org_settings_routes.py's
+// _require_admin pattern) — these calls will 403 for non-admin roles.
+export const apiKeysApi = {
+  list: () => api.get('/api/org/api-keys'),
+  create: (name: string) => api.post('/api/org/api-keys', { name }),
+  revoke: (id: string) => api.delete(`/api/org/api-keys/${id}`),
+};
+
+export const webhooksApi = {
+  list: () => api.get('/api/org/webhooks'),
+  create: (url: string, events: string[]) => api.post('/api/org/webhooks', { url, events }),
+  update: (id: string, data: { enabled?: boolean }) => api.patch(`/api/org/webhooks/${id}`, data),
+  revoke: (id: string) => api.delete(`/api/org/webhooks/${id}`),
+};
+
 export default api;

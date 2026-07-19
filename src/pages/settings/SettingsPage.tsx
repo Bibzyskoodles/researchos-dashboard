@@ -5,7 +5,7 @@ import {
   FlaskConical, Database, Lock, Bell, CreditCard, Code2,
   ClipboardList, ChevronRight, Check, RefreshCw,
   Upload, Plus, Trash2, Zap,
-  ExternalLink, X, ShieldAlert, Cpu, Send,
+  ExternalLink, X, ShieldAlert, Cpu, Send, Key, Copy,
 } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useGamify } from "../../gamify/GamifyContext";
@@ -15,7 +15,7 @@ import { useNavigate as useNav, useLocation } from "react-router-dom";
 import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
 import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
 import { useProject } from "../../context/ProjectContext";
-import { dashboardApi, orgSettingsApi, projectsApi } from "../../services/api";
+import { dashboardApi, orgSettingsApi, projectsApi, apiKeysApi, webhooksApi, API_BASE_URL } from "../../services/api";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -1569,27 +1569,319 @@ function BillingSection() {
   );
 }
 
+// event_type -> real value. Kept in sync with org_webhooks.SUPPORTED_EVENTS
+// in fieldscore-backend — these are the only event types that will ever
+// actually fire (see app.py's _score_and_write() and api.py's
+// submission_action() for the real dispatch_event() call sites).
+const WEBHOOK_EVENT_LABELS: Record<string, string> = {
+  "submission.flagged": "Submission flagged",
+  "submission.rejected": "Submission rejected",
+  "verdict.overridden": "Verdict overridden",
+};
+
+interface ApiKeyRow {
+  id: string; name: string; key_prefix: string; created_at: string;
+  last_used_at?: string | null; revoked_at?: string | null;
+}
+interface WebhookRow {
+  id: string; url: string; events: string[]; enabled: boolean; created_at: string;
+  last_delivery_at?: string | null; last_delivery_status?: string | null;
+}
+
+function DeliveryBadge({ status }: { status?: string | null }) {
+  if (!status) return <Badge label="No deliveries yet" color="#9CA3AF" bg="#F3F4F6" />;
+  if (status === "delivered") return <Badge label="Delivering OK" color={GREEN} />;
+  if (status === "failing") return <Badge label="Retrying" color={AMBER} />;
+  if (status === "failed") return <Badge label="Failing" color={RED} />;
+  if (status === "blocked") return <Badge label="Blocked (unsafe URL)" color={RED} />;
+  return <Badge label={status} color="#6B7280" bg="#F3F4F6" />;
+}
+
+// Standard "show the secret once at creation, never again" panel — same UX
+// principle for both the API key and the webhook signing secret below, since
+// the backend never persists either in a form it can hand back later
+// (api_keys.py / org_webhooks.py only ever store a hash / return the secret
+// once, at creation).
+function OneTimeSecretReveal({
+  title, hint, secret, onDismiss,
+}: { title: string; hint?: React.ReactNode; secret: string; onDismiss: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(secret).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+  return (
+    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+      style={{ padding: 16, borderRadius: 10, border: "1px solid #FDE68A", background: "#FFFBEB", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <Key size={14} color="#92400E" />
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#92400E" }}>{title}</div>
+      </div>
+      {hint && <div style={{ fontSize: 11.5, color: "#92400E", marginBottom: 8, lineHeight: 1.5 }}>{hint}</div>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <code style={{ flex: 1, fontSize: 12, fontFamily: "monospace", padding: "8px 12px", background: "white", borderRadius: 8, border: "1px solid #FDE68A", wordBreak: "break-all" as const }}>{secret}</code>
+        <button onClick={copy} style={{ ...BTN_GHOST, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" as const }}>
+          <Copy size={13} />{copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+      <button onClick={onDismiss} style={{ background: "none", border: "none", color: "#92400E", fontSize: 11.5, cursor: "pointer", padding: 0, marginTop: 10, textDecoration: "underline" }}>
+        I've saved it — dismiss
+      </button>
+    </motion.div>
+  );
+}
+
 function ApiSection() {
+  // ── API keys (pull) ──────────────────────────────────────────────────
+  const [keys, setKeys] = useState<ApiKeyRow[]>([]);
+  const [keysError, setKeysError] = useState("");
+  const [showCreateKey, setShowCreateKey] = useState(false);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+
+  // ── Webhooks (push) ─────────────────────────────────────────────────
+  const [hooks, setHooks] = useState<WebhookRow[]>([]);
+  const [hooksError, setHooksError] = useState("");
+  const [showCreateHook, setShowCreateHook] = useState(false);
+  const [newHookUrl, setNewHookUrl] = useState("");
+  const [newHookEvents, setNewHookEvents] = useState<string[]>([]);
+  const [hookFormError, setHookFormError] = useState("");
+  const [creatingHook, setCreatingHook] = useState(false);
+  const [revealedSecret, setRevealedSecret] = useState<{ url: string; secret: string } | null>(null);
+
+  const loadKeys = () => {
+    apiKeysApi.list().then(r => setKeys(r.data?.api_keys || [])).catch(() => setKeysError("Could not load API keys."));
+  };
+  const loadHooks = () => {
+    webhooksApi.list().then(r => setHooks(r.data?.webhooks || [])).catch(() => setHooksError("Could not load webhooks."));
+  };
+  useEffect(() => { loadKeys(); loadHooks(); }, []);
+
+  const createKey = async () => {
+    if (!newKeyName.trim() || creatingKey) return;
+    setCreatingKey(true);
+    setKeysError("");
+    try {
+      const r = await apiKeysApi.create(newKeyName.trim());
+      setRevealedKey(r.data?.api_key?.key || "");
+      setNewKeyName("");
+      setShowCreateKey(false);
+      loadKeys();
+    } catch (e: any) {
+      setKeysError(e?.response?.data?.error || "Could not create API key.");
+    } finally {
+      setCreatingKey(false);
+    }
+  };
+
+  const revokeKey = async (id: string) => {
+    if (!window.confirm("Revoke this API key? Any integration using it will stop working immediately.")) return;
+    try { await apiKeysApi.revoke(id); loadKeys(); } catch { setKeysError("Could not revoke key — please try again."); }
+  };
+
+  const toggleEvent = (ev: string) => {
+    setNewHookEvents(prev => prev.includes(ev) ? prev.filter(e => e !== ev) : [...prev, ev]);
+    setHookFormError("");
+  };
+
+  const createHook = async () => {
+    if (!newHookUrl.trim() || creatingHook) return;
+    if (newHookEvents.length === 0) { setHookFormError("Pick at least one event to subscribe to."); return; }
+    setCreatingHook(true);
+    setHookFormError("");
+    try {
+      const r = await webhooksApi.create(newHookUrl.trim(), newHookEvents);
+      setRevealedSecret({ url: newHookUrl.trim(), secret: r.data?.webhook?.secret || "" });
+      setNewHookUrl("");
+      setNewHookEvents([]);
+      setShowCreateHook(false);
+      loadHooks();
+    } catch (e: any) {
+      setHookFormError(e?.response?.data?.error || "Could not create webhook — check the URL is reachable and try again.");
+    } finally {
+      setCreatingHook(false);
+    }
+  };
+
+  const toggleHookEnabled = async (hook: WebhookRow) => {
+    try { await webhooksApi.update(hook.id, { enabled: !hook.enabled }); loadHooks(); } catch { setHooksError("Could not update webhook — please try again."); }
+  };
+
+  const revokeHook = async (id: string) => {
+    if (!window.confirm("Revoke this webhook? It will stop receiving events immediately.")) return;
+    try { await webhooksApi.revoke(id); loadHooks(); } catch { setHooksError("Could not revoke webhook — please try again."); }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* ── API Keys ───────────────────────────────────────────────────── */}
       <SettingsCard style={{ padding: 24 }}>
-        <SettingsGroup label="API Keys">
-          <div style={{ padding: "14px 16px", background: "#FFF7ED", borderRadius: 10, border: "1px solid #FED7AA", fontSize: 12.5, color: "#92400E", lineHeight: 1.6 }}>
-            API key management is not yet available in-app. Contact <a href="mailto:bibilade@intelligencyai.com.ng" style={{ color: "#2463EB" }}>bibilade@intelligencyai.com.ng</a> to request an API key for your organisation.
-          </div>
-        </SettingsGroup>
-        <SectionDivider label="Webhooks" />
-        <SettingsGroup>
+        <SettingsHeader
+          title="API Keys"
+          description="Pull your org's scored submissions and projects from your own systems (Zapier, Power BI, a data warehouse) via the read-only v1 API."
+          action={
+            <button onClick={() => setShowCreateKey(p => !p)} style={{ ...BTN_PRIMARY, display: "flex", alignItems: "center", gap: 6 }}>
+              <Plus size={13} /> New Key
+            </button>
+          }
+        />
+
+        <AnimatePresence>
+          {showCreateKey && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+              style={{ padding: 16, borderRadius: 10, border: "1px solid #E8EDF5", background: "#F8FAFF", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-end" }}>
+              <div style={{ flex: 1 }}>
+                <label style={LABEL}>Key name</label>
+                <input value={newKeyName} onChange={e => setNewKeyName(e.target.value)} placeholder="e.g. Zapier, Power BI, Warehouse sync"
+                  style={INPUT} onKeyDown={e => e.key === "Enter" && createKey()} />
+              </div>
+              <button onClick={createKey} disabled={creatingKey || !newKeyName.trim()} style={{ ...BTN_PRIMARY, opacity: creatingKey || !newKeyName.trim() ? 0.6 : 1 }}>
+                {creatingKey ? "Creating…" : "Create"}
+              </button>
+              <button onClick={() => { setShowCreateKey(false); setNewKeyName(""); }} style={BTN_GHOST}>Cancel</button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {revealedKey && (
+            <OneTimeSecretReveal
+              title="Copy your API key now — it won't be shown again"
+              hint={<>Use it as <code>Authorization: Bearer {"<key>"}</code> against <code>{API_BASE_URL}/v1/...</code>. Only the prefix stays visible below for identification.</>}
+              secret={revealedKey}
+              onDismiss={() => setRevealedKey(null)}
+            />
+          )}
+        </AnimatePresence>
+
+        {keysError && <div style={{ fontSize: 12, color: RED, marginBottom: 10 }}>{keysError}</div>}
+
+        {keys.length === 0 ? (
           <div style={{ padding: "14px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8", fontSize: 12.5, color: "#6B7280" }}>
-            No webhooks configured. Webhooks will let you receive real-time events (submission scored, report ready) at a URL you control.
+            No API keys yet. Create one to pull your org's data from an external system.
           </div>
-          <button style={{ ...BTN_GHOST, display: "flex", alignItems: "center", gap: 6, width: "fit-content" }}><Plus size={13} /> Add Webhook</button>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {keys.map(k => (
+              <div key={k.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 10, background: k.revoked_at ? "#F9FAFB" : "#F8FAFF", border: "1px solid #EEF2F8", opacity: k.revoked_at ? 0.6 : 1 }}>
+                <Key size={15} color={k.revoked_at ? "#9CA3AF" : BLUE} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{k.name}</div>
+                  <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2, fontFamily: "monospace" }}>{k.key_prefix}…</div>
+                </div>
+                <div style={{ fontSize: 11, color: "#9CA3AF", textAlign: "right" as const, flexShrink: 0 }}>
+                  {k.revoked_at ? <Badge label="Revoked" color={RED} /> : (k.last_used_at ? `Used ${new Date(k.last_used_at).toLocaleDateString()}` : "Never used")}
+                </div>
+                {!k.revoked_at && (
+                  <button title="Revoke key" onClick={() => revokeKey(k.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#E2E8F0", padding: 4, flexShrink: 0 }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = RED)} onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#E2E8F0")}>
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingsCard>
+
+      {/* ── Webhooks ───────────────────────────────────────────────────── */}
+      <SettingsCard style={{ padding: 24 }}>
+        <SettingsHeader
+          title="Webhooks"
+          description="Get notified the moment a submission is flagged, rejected, or its verdict is overridden — FieldScore POSTs a signed JSON event to a URL you control."
+          action={
+            <button onClick={() => setShowCreateHook(p => !p)} style={{ ...BTN_PRIMARY, display: "flex", alignItems: "center", gap: 6 }}>
+              <Plus size={13} /> Add Webhook
+            </button>
+          }
+        />
+
+        <AnimatePresence>
+          {showCreateHook && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+              style={{ padding: 16, borderRadius: 10, border: "1px solid #E8EDF5", background: "#F8FAFF", marginBottom: 16 }}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={LABEL}>Destination URL</label>
+                <input value={newHookUrl} onChange={e => setNewHookUrl(e.target.value)} placeholder="https://hooks.zapier.com/hooks/catch/…" style={INPUT} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={LABEL}>Events</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {Object.entries(WEBHOOK_EVENT_LABELS).map(([ev, label]) => (
+                    <label key={ev} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#374151", cursor: "pointer" }}>
+                      <input type="checkbox" checked={newHookEvents.includes(ev)} onChange={() => toggleEvent(ev)} />
+                      {label} <code style={{ fontSize: 10.5, color: "#9CA3AF" }}>{ev}</code>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {hookFormError && <div style={{ fontSize: 12, color: RED, marginBottom: 10 }}>{hookFormError}</div>}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={createHook} disabled={creatingHook || !newHookUrl.trim()} style={{ ...BTN_PRIMARY, opacity: creatingHook || !newHookUrl.trim() ? 0.6 : 1 }}>
+                  {creatingHook ? "Creating…" : "Create"}
+                </button>
+                <button onClick={() => { setShowCreateHook(false); setHookFormError(""); setNewHookUrl(""); setNewHookEvents([]); }} style={BTN_GHOST}>Cancel</button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {revealedSecret && (
+            <OneTimeSecretReveal
+              title="Copy your signing secret now — it won't be shown again"
+              hint={<>Verify the <code>X-FieldScore-Signature</code> header on every delivery to <strong>{revealedSecret.url}</strong>: <code>hmac_sha256(secret, raw_request_body)</code>.</>}
+              secret={revealedSecret.secret}
+              onDismiss={() => setRevealedSecret(null)}
+            />
+          )}
+        </AnimatePresence>
+
+        {hooksError && <div style={{ fontSize: 12, color: RED, marginBottom: 10 }}>{hooksError}</div>}
+
+        {hooks.length === 0 ? (
+          <div style={{ padding: "14px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8", fontSize: 12.5, color: "#6B7280" }}>
+            No webhooks configured yet.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {hooks.map(h => (
+              <div key={h.id} style={{ padding: "12px 16px", borderRadius: 10, background: "#F8FAFF", border: "1px solid #EEF2F8", opacity: h.enabled ? 1 : 0.6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "#111827", wordBreak: "break-all" as const }}>{h.url}</div>
+                    <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+                      {h.events.map(ev => (
+                        <span key={ev} style={{ padding: "1px 6px", borderRadius: 4, background: "#EFF6FF", color: BLUE, fontSize: 10, fontWeight: 600 }}>{WEBHOOK_EVENT_LABELS[ev] || ev}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <DeliveryBadge status={h.last_delivery_status} />
+                  <button title={h.enabled ? "Disable" : "Re-enable"} onClick={() => toggleHookEnabled(h)} style={{ ...BTN_GHOST, fontSize: 11, padding: "6px 10px", flexShrink: 0 }}>
+                    {h.enabled ? "Disable" : "Enable"}
+                  </button>
+                  <button title="Revoke webhook" onClick={() => revokeHook(h.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#E2E8F0", padding: 4, flexShrink: 0 }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = RED)} onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#E2E8F0")}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                {h.last_delivery_at && (
+                  <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 8 }}>Last delivery attempt: {new Date(h.last_delivery_at).toLocaleString()}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingsCard>
+
+      {/* ── Docs ───────────────────────────────────────────────────────── */}
+      <SettingsCard style={{ padding: 24 }}>
+        <SettingsGroup label="Documentation">
+          <div style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.8 }}>
+            <div><strong>Pull (API):</strong> <code>GET {API_BASE_URL}/v1/submissions</code> and <code>GET {API_BASE_URL}/v1/projects</code>, authenticated with <code>Authorization: Bearer &lt;your key&gt;</code>. Paginated via <code>?limit=&offset=</code>, rate-limited per key.</div>
+            <div style={{ marginTop: 4 }}><strong>Push (Webhooks):</strong> every delivery carries an <code>X-FieldScore-Signature</code> header — <code>hmac_sha256(your secret, raw request body)</code> — verify it before trusting the payload.</div>
+          </div>
         </SettingsGroup>
-        <SectionDivider label="Documentation" />
-        <div style={{ display: "flex", gap: 10 }}>
-          <button style={{ ...BTN_GHOST, display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}><ExternalLink size={12} /> API Reference</button>
-          <button style={{ ...BTN_GHOST, display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}><ExternalLink size={12} /> Webhook Guide</button>
-        </div>
       </SettingsCard>
     </div>
   );
