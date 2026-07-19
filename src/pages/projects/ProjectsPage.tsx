@@ -96,7 +96,7 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <StatusBadge status={status} />
-          <HealthRing projectId={project.id} status={status} size={32} />
+          <HealthRing avgScore={project.avg_score} size={32} />
         </div>
       </div>
 

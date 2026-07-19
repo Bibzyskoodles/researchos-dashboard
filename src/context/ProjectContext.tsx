@@ -18,10 +18,13 @@ export interface Project {
   insightscore_project_id?: string;
   created_at?: string;
   updated_at?: string;
-  // Real count from the submissions table — null if the backend couldn't
-  // reach it, 0 for a genuinely empty project (safe to delete), undefined
-  // on older cached responses that predate this field.
+  // Real stats from the submissions table — null if the backend couldn't
+  // reach it or the project has no scored submissions yet, 0 count for a
+  // genuinely empty project (safe to delete), undefined on older cached
+  // responses that predate these fields.
   submission_count?: number | null;
+  avg_score?: number | null;
+  pass_rate?: number | null;
 }
 
 // Per-project KoboToolbox form UID stored in localStorage (key = ros_kobo_uid_<projectId>)
