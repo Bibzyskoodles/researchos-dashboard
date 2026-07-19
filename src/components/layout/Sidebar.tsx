@@ -29,6 +29,15 @@ const BROWSE_NAV = [
   ]},
 ];
 
+// A client (an agency's external, read-only guest, scoped server-side to
+// specific projects — see project_access in fieldscore-backend) never even
+// gets a link to raw submissions, enumerators, the map, integrations,
+// settings, or billing. Every one of those is also 403'd server-side if
+// hit directly, so this is a UX nicety on top of the real enforcement, not
+// the enforcement itself.
+const CLIENT_WORKSPACE_ITEMS = new Set(['Overview', 'Projects']);
+const CLIENT_HIDDEN_SECTIONS = new Set(['ACCOUNT']);
+
 export default function Sidebar({ onClose }: SidebarProps) {
   const { user, org, logout } = useAuth();
   const { navigatePage } = useAda();
@@ -55,6 +64,15 @@ export default function Sidebar({ onClose }: SidebarProps) {
   };
 
   const flaggedCount = lifecycle?.stages?.verify?.flagged || 0;
+  const isClient = user?.role === 'client';
+  const visibleNav = BROWSE_NAV
+    .filter(section => !isClient || !CLIENT_HIDDEN_SECTIONS.has(section.label))
+    .map(section => ({
+      ...section,
+      items: isClient && section.label === 'WORKSPACE'
+        ? section.items.filter(item => CLIENT_WORKSPACE_ITEMS.has(item.label))
+        : section.items,
+    }));
 
   return (
     <aside style={{
@@ -146,22 +164,24 @@ export default function Sidebar({ onClose }: SidebarProps) {
               Project Overview
               <span style={{ fontSize: 14 }}>↗</span>
             </button>
-            <button
-              onClick={() => navigate('/settings')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'rgba(255,255,255,.35)', fontSize: 12, fontFamily: 'Inter, sans-serif',
-                padding: '6px 10px', borderRadius: 6, textAlign: 'left',
-              }}
-            >
-              Project Settings
-            </button>
+            {!isClient && (
+              <button
+                onClick={() => navigate('/settings')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'rgba(255,255,255,.35)', fontSize: 12, fontFamily: 'Inter, sans-serif',
+                  padding: '6px 10px', borderRadius: 6, textAlign: 'left',
+                }}
+              >
+                Project Settings
+              </button>
+            )}
           </>
         ) : (
           /* ── BROWSING MODE ── */
           <>
-            {BROWSE_NAV.map(section => (
+            {visibleNav.map(section => (
               <div key={section.label} style={{ marginBottom: 8 }}>
                 <div style={{
                   fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,.2)',
@@ -186,7 +206,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
                     {item.label}
                   </NavLink>
                 ))}
-                {section.label === 'ACCOUNT' && (
+                {section.label === 'ACCOUNT' && !isClient && (
                   <button
                     onClick={() => navigate('/settings', { state: { section: 'billing' } })}
                     style={{

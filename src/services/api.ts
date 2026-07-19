@@ -99,6 +99,24 @@ export const projectsApi = {
   framework: (id: string, data: object) => api.post(`/api/projects/${id}/framework`, data),
 };
 
+// Certificate routes live at the backend root (/certificate/*, /verify/*),
+// not under /api — but they're on the same host, so the `api` axios
+// instance's baseURL still resolves them correctly.
+export const certificateApi = {
+  issue: (projectId: string) =>
+    api.post<{ ok: boolean; cert_id: string; issued_at: string; verify_url: string }>(`/certificate/${projectId}/issue`),
+  // Certificate HTML/PDF need the same Bearer auth as everything else, so a
+  // plain <a href> or window.open(url) won't work (no cookie session is set
+  // by this backend — auth is header-only). Fetch through axios instead and
+  // hand the browser the result directly.
+  fetchHtml: (projectId: string) =>
+    api.get<string>(`/certificate/${projectId}`, { responseType: 'text', transformResponse: (data) => data }),
+  fetchPdf: (projectId: string) =>
+    api.get(`/certificate/${projectId}`, { params: { format: 'pdf' }, responseType: 'blob' }),
+  // /verify/<cert_id> is intentionally public (no auth) — safe to link directly.
+  verifyUrl: (certId: string) => `${API_BASE_URL}/verify/${certId}`,
+};
+
 export const orgAdminApi = {
   resetData: () => api.post('/api/admin/reset-data'),
 };
@@ -230,7 +248,8 @@ export const orgSettingsApi = {
   updateSecurity: (data: object) => api.put('/api/org/security', data),
   getBilling: () => api.get('/api/org/billing'),
   listInvites: () => api.get('/api/org/invites'),
-  createInvite: (email: string, role: string) => api.post('/api/org/invites', { email, role }),
+  createInvite: (email: string, role: string, projectIds?: string[]) =>
+    api.post('/api/org/invites', { email, role, ...(projectIds ? { project_ids: projectIds } : {}) }),
   revokeInvite: (id: string) => api.post(`/api/org/invites/${id}/revoke`),
 };
 

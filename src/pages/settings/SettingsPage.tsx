@@ -307,21 +307,23 @@ function WorkspaceSection() {
 }
 
 // ─── Collaboration & Team ─────────────────────────────────────────────────────
-// Real roles are admin/manager/viewer (see auth.py's ROLE_PERMISSIONS) — the
-// richer 7-role model this UI previously implied (Project Manager, Field
-// Supervisor, Analyst, Auditor, Client, Observer) was never actually backed
-// by distinct permissions, so it's collapsed to what's real rather than kept
-// as a misleading facade.
+// Real roles are admin/manager/viewer/client (see auth.py's ROLE_PERMISSIONS)
+// — the richer 7-role model this UI previously implied (Project Manager,
+// Field Supervisor, Analyst, Auditor, Observer) was never actually backed by
+// distinct permissions, so it's collapsed to what's real. client is the one
+// addition that IS fully real: a project_access grant table restricts it to
+// specific projects, enforced server-side on every project-scoped route.
 
 const ROLE_META: Record<string, { color: string; bg: string; desc: string; icon: string }> = {
   admin:   { color: "#7C3AED", bg: "#F5F3FF", desc: "Full org control — billing, settings, users, all projects and data.", icon: "👑" },
   manager: { color: "#2463EB", bg: "#EFF6FF", desc: "Creates and manages projects, views and exports data. Can't manage users or billing.", icon: "🗂" },
   viewer:  { color: "#6B7280", bg: "#F9FAFB", desc: "Read-only access to projects and reports.", icon: "👁" },
+  client:  { color: "#0891B2", bg: "#ECFEFF", desc: "External, read-only access to specific assigned projects only — no Settings, Team, Billing, Integrations, or other projects.", icon: "🔗" },
 };
-const ROLE_LABELS: Record<string, string> = { admin: "Admin", manager: "Manager", viewer: "Viewer" };
+const ROLE_LABELS: Record<string, string> = { admin: "Admin", manager: "Manager", viewer: "Viewer", client: "Client" };
 
-interface OrgUser { id: string; name: string; email: string; role: string; created_at: string; last_login?: string | null; }
-interface OrgInvite { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; }
+interface OrgUser { id: string; name: string; email: string; role: string; created_at: string; last_login?: string | null; project_ids?: string[]; }
+interface OrgInvite { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; project_ids?: string[]; }
 
 function RolePill({ role }: { role: string }) {
   const m = ROLE_META[role] || { color: "#6B7280", bg: "#F3F4F6", icon: "•" };
@@ -350,13 +352,16 @@ function UsersSection() {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("manager");
+  const [inviteProjectIds, setInviteProjectIds] = useState<string[]>([]);
   const [inviteSending, setInviteSending] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteError, setInviteError] = useState("");
   const [inviteAcceptUrl, setInviteAcceptUrl] = useState<string | null>(null);
+  const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
 
   const load = () => {
     orgSettingsApi.listInvites().then(r => setInvites(r.data?.invites || [])).catch(() => {});
+    projectsApi.list().then(r => setAllProjects((r.data?.projects || []).map((p: any) => ({ id: p.id, name: p.name })))).catch(() => {});
     (async () => {
       try {
         const r = await (await import("../../services/api")).default.get("/api/org/users");
@@ -369,17 +374,27 @@ function UsersSection() {
 
   useEffect(() => { load(); }, []);
 
+  const projectName = (id: string) => allProjects.find(p => p.id === id)?.name || id;
+
+  const toggleInviteProject = (id: string) => {
+    setInviteProjectIds(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+  };
+
   const sendInvite = async () => {
     if (!inviteEmail.trim() || inviteSending) return;
+    if (inviteRole === "client" && inviteProjectIds.length === 0) {
+      setInviteError("Pick at least one project this client should be able to see.");
+      return;
+    }
     setInviteSending(true);
     setInviteError("");
     setInviteAcceptUrl(null);
     try {
-      const r = await orgSettingsApi.createInvite(inviteEmail.trim(), inviteRole);
+      const r = await orgSettingsApi.createInvite(inviteEmail.trim(), inviteRole, inviteRole === "client" ? inviteProjectIds : undefined);
       setInviteSent(true);
       if (!r.data?.email_sent && r.data?.accept_url) setInviteAcceptUrl(r.data.accept_url);
       load();
-      setTimeout(() => { setInviteSent(false); if (r.data?.email_sent) { setShowInvite(false); setInviteEmail(""); } }, 2500);
+      setTimeout(() => { setInviteSent(false); if (r.data?.email_sent) { setShowInvite(false); setInviteEmail(""); setInviteProjectIds([]); } }, 2500);
     } catch (e: any) {
       setInviteError(e?.response?.data?.error || "Could not send invite — please try again.");
     } finally {
@@ -468,6 +483,25 @@ function UsersSection() {
               </div>
             )}
 
+            {inviteRole === "client" && (
+              <div style={{ marginBottom:14 }}>
+                <label style={LABEL}>Projects this client can see</label>
+                {allProjects.length === 0 ? (
+                  <div style={{ fontSize:12, color:"#9CA3AF", padding:"8px 0" }}>No projects yet — create one first.</div>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:160, overflowY:"auto", border:"1px solid #E2E8F0", borderRadius:8, padding:8 }}>
+                    {allProjects.map(p => (
+                      <label key={p.id} style={{ display:"flex", alignItems:"center", gap:8, fontSize:12.5, color:"#374151", cursor:"pointer", padding:"4px 6px", borderRadius:6 }}>
+                        <input type="checkbox" checked={inviteProjectIds.includes(p.id)} onChange={()=>toggleInviteProject(p.id)} />
+                        {p.name}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:4 }}>They'll only ever see Overview, AI Analysis, Reports, and Certificates for the project(s) checked above — nothing else in your workspace.</div>
+              </div>
+            )}
+
             {inviteError && <div style={{ fontSize:12, color:RED, marginBottom:10 }}>{inviteError}</div>}
             {inviteAcceptUrl && (
               <div style={{ marginBottom:14, padding:"10px 14px", borderRadius:8, background:"#FFFBEB", border:"1px solid #FDE68A", fontSize:12 }}>
@@ -533,13 +567,60 @@ function UsersSection() {
         </SettingsCard>
       )}
 
-      {tab === "clients" && (
-        <div style={{ padding:"32px 24px", background:"white", borderRadius:14, border:"1px solid #E8EDF5", textAlign:"center" as const }}>
-          <div style={{ fontSize:32, marginBottom:12 }}>🔐</div>
-          <div style={{ fontSize:14, fontWeight:700, color:"#111827", marginBottom:6 }}>Client & Observer Access</div>
-          <div style={{ fontSize:13, color:"#6B7280", maxWidth:380, margin:"0 auto", lineHeight:1.6 }}>External, read-only, project-scoped access is available on the Enterprise plan. Contact your account manager to enable it for this organisation.</div>
-        </div>
-      )}
+      {tab === "clients" && (() => {
+        const clientUsers = users.filter(u => u.role === "client");
+        const clientInvites = pendingInvites.filter(i => i.role === "client");
+        if (clientUsers.length === 0 && clientInvites.length === 0) {
+          return (
+            <div style={{ padding:"32px 24px", background:"white", borderRadius:14, border:"1px solid #E8EDF5", textAlign:"center" as const }}>
+              <div style={{ fontSize:32, marginBottom:12 }}>🔗</div>
+              <div style={{ fontSize:14, fontWeight:700, color:"#111827", marginBottom:6 }}>No clients invited yet</div>
+              <div style={{ fontSize:13, color:"#6B7280", maxWidth:380, margin:"0 auto", lineHeight:1.6 }}>
+                Invite an external client for read-only, project-scoped access — they'll only ever see the project(s) you pick, and only Overview, AI Analysis, Reports, and Certificates within them.
+              </div>
+            </div>
+          );
+        }
+        return (
+          <SettingsCard style={{ padding:0, overflow:"hidden" }}>
+            <div style={{ padding:"14px 20px", borderBottom:"1px solid #F1F5F9" }}>
+              <span style={{ fontSize:13, fontWeight:700, color:"#111827" }}>External clients</span>
+            </div>
+            <div>
+              {clientUsers.map((u, idx) => (
+                <div key={u.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 20px", borderBottom: (idx<clientUsers.length-1 || clientInvites.length>0) ? "1px solid #F8FAFF" : "none" }}>
+                  <MemberAvatar name={u.name || u.email} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{u.name || u.email}</div>
+                    <div style={{ fontSize:11.5, color:"#9CA3AF", marginTop:1 }}>
+                      Can see: {(u.project_ids && u.project_ids.length > 0) ? u.project_ids.map(projectName).join(", ") : "no projects granted"}
+                    </div>
+                  </div>
+                  <RolePill role="client" />
+                </div>
+              ))}
+              {clientInvites.map((inv, idx) => (
+                <div key={inv.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 20px", borderBottom: idx<clientInvites.length-1 ? "1px solid #F8FAFF" : "none", background:"#FFFBEB" }}>
+                  <MemberAvatar name={inv.email} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{inv.email}</span>
+                      <Badge label="Pending" color={AMBER} />
+                    </div>
+                    <div style={{ fontSize:11.5, color:"#9CA3AF", marginTop:1 }}>
+                      Will see: {(inv.project_ids && inv.project_ids.length > 0) ? inv.project_ids.map(projectName).join(", ") : "—"}
+                    </div>
+                  </div>
+                  <button title="Revoke invite" onClick={()=>revokeInvite(inv.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#E2E8F0", padding:4 }}
+                    onMouseEnter={e=>((e.currentTarget as HTMLButtonElement).style.color=RED)} onMouseLeave={e=>((e.currentTarget as HTMLButtonElement).style.color="#E2E8F0")}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </SettingsCard>
+        );
+      })()}
 
       {tab === "links" && (
         <div style={{ padding:"32px 24px", background:"white", borderRadius:14, border:"1px solid #E8EDF5", textAlign:"center" as const }}>
@@ -555,10 +636,12 @@ function UsersSection() {
 function RolesSection() {
   // Real, enforced permission model — mirrors auth.py's ROLE_PERMISSIONS
   // exactly. The previous version of this page showed a 7-role, 28-permission
-  // matrix (Field Supervisor, Auditor, Client, Observer, granular actions
-  // like "Suspend Enumerators") that was pure decoration — none of it was
-  // ever checked by the backend. Only 3 roles actually exist and are enforced.
-  const roles = ["admin", "manager", "viewer"];
+  // matrix (Field Supervisor, Auditor, Observer, granular actions like
+  // "Suspend Enumerators") that was pure decoration — none of it was ever
+  // checked by the backend. 4 roles actually exist and are enforced; client
+  // additionally gets project-level scoping on top of this table (see the
+  // footnote below the matrix).
+  const roles = ["admin", "manager", "viewer", "client"];
   const PERMISSION_LABELS: Record<string, string> = {
     view: "View projects, submissions & reports",
     export: "Export data (CSV/reports)",
@@ -571,6 +654,7 @@ function RolesSection() {
     admin: ["view", "export", "create_project", "manage_integrations", "manage_users", "billing"],
     manager: ["view", "export", "create_project"],
     viewer: ["view"],
+    client: ["view"],
   };
   const roleColor = (r: string) => ROLE_META[r]?.color || "#6B7280";
 
@@ -625,7 +709,7 @@ function RolesSection() {
           </table>
         </div>
         <div style={{ marginTop:14, padding:"10px 14px", background:"#F0F7FF", borderRadius:8, fontSize:12, color:BLUE }}>
-          These 3 roles are fixed — custom roles and per-project permission overrides aren't supported yet.
+          These 4 roles are fixed — custom roles aren't supported yet. Client is additionally restricted to only their explicitly assigned project(s) — this table shows org-level permissions only, not that per-project scoping.
         </div>
       </SettingsCard>
     </div>

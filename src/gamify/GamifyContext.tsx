@@ -16,18 +16,14 @@ export interface CreditTransaction {
   kind: 'earned' | 'applied';
 }
 
+// Real stats/signature/QR live on the backend-issued certificate record
+// (see fieldscore-backend/certificate.py) — this local copy is just enough
+// to power the milestone/credits celebration and the "issued" list; it is
+// NOT the source of truth for a certificate's content.
 export interface Certificate {
-  id: string;              // FS-2026-XXXX-XXXX
+  id: string;               // real backend cert_id, e.g. FS-3F9A21-20260719-001
   projectId: string;
-  projectName: string;
-  orgName: string;
   issuedAt: string;
-  issuedBy: string;
-  sampleSize: number;
-  passRate: number;        // 0–100
-  rejectionRate: number;   // 0–100
-  flagsResolved: number;
-  enumerators: number;
 }
 
 export interface Milestone {
@@ -77,7 +73,7 @@ interface GamifyContextValue extends GamifyState {
   creditsEarned: number;
   tier: typeof TIERS[number];
   recordEvent: (event: GamifyEvent, count?: number) => void;
-  issueCertificate: (input: Omit<Certificate, 'id' | 'issuedAt'>) => Certificate;
+  recordCertificateIssued: (cert: Certificate) => void;
   certificatesForProject: (projectId: string) => Certificate[];
 }
 
@@ -93,10 +89,6 @@ function load(): GamifyState {
   return EMPTY;
 }
 
-function certId(): string {
-  const block = () => Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `FS-${new Date().getFullYear()}-${block()}-${block()}`;
-}
 
 const GamifyContext = createContext<GamifyContextValue | null>(null);
 
@@ -135,13 +127,14 @@ export function GamifyProvider({ children }: { children: React.ReactNode }) {
     setState(prev => applyEvent(prev, event, count));
   };
 
-  const issueCertificate = (input: Omit<Certificate, 'id' | 'issuedAt'>): Certificate => {
-    const cert: Certificate = { ...input, id: certId(), issuedAt: new Date().toISOString() };
+  // Records a certificate the backend already issued (see certificateApi.issue
+  // in services/api.ts) — this never generates a certificate itself, only
+  // tracks the milestone/credits side effect and keeps a local "issued" list.
+  const recordCertificateIssued = (cert: Certificate) => {
     setState(prev => {
       const withCert = { ...prev, certificates: [cert, ...prev.certificates] };
       return applyEvent(withCert, 'certificate_issued', 1);
     });
-    return cert;
   };
 
   const certificatesForProject = (projectId: string) =>
@@ -164,7 +157,7 @@ export function GamifyProvider({ children }: { children: React.ReactNode }) {
   void user;
 
   return (
-    <GamifyContext.Provider value={{ ...state, creditsBalance, creditsEarned, tier, recordEvent, issueCertificate, certificatesForProject }}>
+    <GamifyContext.Provider value={{ ...state, creditsBalance, creditsEarned, tier, recordEvent, recordCertificateIssued, certificatesForProject }}>
       {children}
     </GamifyContext.Provider>
   );
