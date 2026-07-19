@@ -15,6 +15,25 @@ const GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", BLUE = "#2463EB";
 const clr = (s: number) => s >= 70 ? GREEN : s >= 45 ? AMBER : RED;
 const vbg = (v: string) => v === "PASS" ? "#ECFDF5" : v === "FLAG" ? "#FFFBEB" : "#FEF2F2";
 
+// Page through every submission in the project — a hardcoded single-page
+// limit here silently truncated coverage to the first 100 rows on any
+// project larger than that, undercounting "Mapped" against the real total.
+const MAP_PAGE_SIZE = 500;
+const MAP_MAX_ROWS = 20_000;
+
+async function fetchAllSubmissionsForMap(projectId?: string): Promise<Submission[]> {
+  const all: Submission[] = [];
+  let offset = 0;
+  for (;;) {
+    const r = await dashboardApi.getSubmissions({ limit: MAP_PAGE_SIZE, offset, ...(projectId ? { project_id: projectId } : {}) });
+    const page: Submission[] = r.data.submissions || r.data || [];
+    all.push(...page);
+    if (page.length < MAP_PAGE_SIZE || all.length >= MAP_MAX_ROWS) break;
+    offset += MAP_PAGE_SIZE;
+  }
+  return all;
+}
+
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
@@ -36,7 +55,9 @@ export default function MapPage() {
 
   useEffect(() => {
     // Active project scopes the map; none = explicit "All projects" view.
-    dashboardApi.getSubmissions({ limit: 100, ...(activeProject?.id ? { project_id: activeProject.id } : {}) }).then(r => setSubs(r.data.submissions || []));
+    let cancelled = false;
+    fetchAllSubmissionsForMap(activeProject?.id).then(all => { if (!cancelled) setSubs(all); });
+    return () => { cancelled = true; };
   }, [activeProject?.id]);
 
   // The Trust Index is the one number on every surface — never the raw
