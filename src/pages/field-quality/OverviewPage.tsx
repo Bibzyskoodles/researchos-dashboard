@@ -14,7 +14,6 @@ import { loadEngineConfig } from "../../services/engineConfig";
 import { computeTrustIndex } from "../../services/trustEngine";
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Activity, ArrowRight } from "lucide-react";
 import { useAdaSettings, AdaCelebrationLayer, AdaGuidanceLayer } from "../../ada/AdaProactive";
-import TestResultsCard from "../../components/TestResultsCard";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -280,9 +279,6 @@ export default function OverviewPage() {
         <KpiCard label="Pass Rate" value={(s.total_submissions ?? 0) > 0 ? `${s.pass_rate}%` : "—"} sub={(s.total_submissions ?? 0) === 0 ? "No data yet" : `${s.pass_count} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />
         <KpiCard label={`Active ${cap(vocab.enumerators)}`} value={s.active_enumerators} sub={(s.active_enumerators ?? 0) === 0 ? "None active yet" : `Across ${s.total_submissions} submission${s.total_submissions === 1 ? "" : "s"}`} color={PURPLE} sparkData={(data.enumerators || []).slice(0, 7).map(e => e.avg_score)} />
       </div>
-
-      {/* System Test Results */}
-      <TestResultsCard />
 
       {/* Main content */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 16 }}>
