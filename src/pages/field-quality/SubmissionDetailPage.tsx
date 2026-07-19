@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { dashboardApi } from "../../services/api";
+import { dashboardApi, mediaApi } from "../../services/api";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { ScoreRing } from "../../components/ui/ScoreRing";
 import { EngineBar } from "../../components/ui/EngineBar";
@@ -172,6 +172,13 @@ export default function SubmissionDetailPage(){
   const [showRaw,setShowRaw]=useState(false);
   const [aiScan,setAiScan]=useState<AiScan>({status:"idle"});
   const [imageError,setImageError]=useState(false);
+  // Object URLs for the authenticated blobs fetched below — never point an
+  // <img>/<audio> tag straight at sub.image_url/audio_url, since that's the
+  // backend's Bearer-token-protected proxy route and a plain tag has no way
+  // to attach the token (see CLAUDE.md's Bearer-not-cookie non-negotiable).
+  const [imageBlobUrl,setImageBlobUrl]=useState<string|null>(null);
+  const [imageBlob,setImageBlob]=useState<Blob|null>(null);
+  const [audioBlobUrl,setAudioBlobUrl]=useState<string|null>(null);
   const [engineCfgVersion,setEngineCfgVersion]=useState(0);
   const [rescoreOpen,setRescoreOpen]=useState(false);
   const [rescoreLevel,setRescoreLevel]=useState<"recompute"|"full">("recompute");
@@ -218,6 +225,51 @@ export default function SubmissionDetailPage(){
       .catch(()=>setError("Submission not found"))
       .finally(()=>setLoading(false));
   },[id]);
+
+  // Fetch the image/audio bytes through the authenticated api client and
+  // turn them into local object URLs, instead of pointing <img>/<audio> at
+  // the backend's protected proxy route directly (see mediaApi's comment
+  // in services/api.ts). Re-runs whenever the submission changes.
+  const fetchMedia=useCallback(()=>{
+    if(!sub?.submission_id)return;
+    setImageError(false);
+    if(sub.image_url){
+      mediaApi.fetchImage(sub.submission_id)
+        .then(r=>{
+          setImageBlob(r.data);
+          setImageBlobUrl(url=>{ if(url)URL.revokeObjectURL(url); return URL.createObjectURL(r.data); });
+        })
+        .catch(()=>setImageError(true));
+    }
+    if(sub.audio_url){
+      mediaApi.fetchAudio(sub.submission_id)
+        .then(r=>{
+          setAudioBlobUrl(url=>{ if(url)URL.revokeObjectURL(url); return URL.createObjectURL(r.data); });
+        })
+        .catch(()=>{});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[sub?.submission_id,sub?.image_url,sub?.audio_url]);
+
+  useEffect(()=>{
+    fetchMedia();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[sub?.submission_id]);
+
+  // Revoke object URLs on unmount so we don't leak blob memory. Tracked via
+  // refs (not the state values directly) so this cleanup — which only runs
+  // once, on unmount — revokes whatever URL is current at that point rather
+  // than whatever it was on the render this effect was registered in.
+  const imageBlobUrlRef=useRef<string|null>(null);
+  const audioBlobUrlRef=useRef<string|null>(null);
+  useEffect(()=>{ imageBlobUrlRef.current=imageBlobUrl; },[imageBlobUrl]);
+  useEffect(()=>{ audioBlobUrlRef.current=audioBlobUrl; },[audioBlobUrl]);
+  useEffect(()=>{
+    return ()=>{
+      if(imageBlobUrlRef.current)URL.revokeObjectURL(imageBlobUrlRef.current);
+      if(audioBlobUrlRef.current)URL.revokeObjectURL(audioBlobUrlRef.current);
+    };
+  },[]);
 
   // Re-compute when engine config changes (e.g. user saves new weights in Settings)
   useEffect(()=>{
@@ -333,11 +385,17 @@ export default function SubmissionDetailPage(){
       // (includes the filename check, metadata scan, and GPT-4o vision call).
       const imgCheck = sub.checks?.image;
 
-      let imageBlob: Blob | null = null;
-      try {
-        const imgResp = await fetch(sub.image_url, { mode: "cors" });
-        if (imgResp.ok) imageBlob = await imgResp.blob();
-      } catch { /* CORS blocked — fall back to URL-based metadata scan */ }
+      // Prefer the blob fetchMedia() already pulled through the authenticated
+      // api client (sub.image_url itself 401s for a plain fetch — this
+      // backend has no session cookie, see mediaApi's comment). Fall back to
+      // fetching it ourselves in case this runs before fetchMedia resolves.
+      let scanImageBlob: Blob | null = imageBlob;
+      if (!scanImageBlob) {
+        try {
+          const imgResp = await mediaApi.fetchImage(sub.submission_id);
+          scanImageBlob = imgResp.data;
+        } catch { /* auth/network failure — fall back to URL-based metadata scan */ }
+      }
 
       const [metaResult, dimResult] = await Promise.all([
         // METADATA: prefer the backend's server-side EXIF/XMP/C2PA scan (it
@@ -359,9 +417,9 @@ export default function SubmissionDetailPage(){
               }
               return { score: 90, finding: "No AI tool signatures or missing-camera-metadata patterns found.", status: "PASS" as const };
             })()
-          : imageBlob
+          : scanImageBlob
           ? (async () => {
-              const arr = await imageBlob!.arrayBuffer();
+              const arr = await scanImageBlob!.arrayBuffer();
               const bytes = new Uint8Array(arr);
               const text = new TextDecoder("latin1").decode(bytes.slice(0, Math.min(65536, bytes.length)));
               const found: string[] = [];
@@ -376,8 +434,8 @@ export default function SubmissionDetailPage(){
           : scanImageMetadata(sub.image_url),
 
         // DIMENSIONS: detect standard web/social/stock image sizes (no API key)
-        imageBlob
-          ? checkImageDimensions(imageBlob)
+        scanImageBlob
+          ? checkImageDimensions(scanImageBlob)
           : Promise.resolve({ flag: false, note: "" }),
       ]);
 
@@ -442,7 +500,7 @@ export default function SubmissionDetailPage(){
     }
 
     setAiScan({ status: "done", ...results });
-  }, [sub, analyzeTranscriptHeuristic]);
+  }, [sub, analyzeTranscriptHeuristic, imageBlob]);
 
   const adaBriefing=(s:any, verdict:"PASS"|"FLAG"|"REJECT", trustResult?: TrustResult)=>{
     if(!s)return"";
@@ -534,10 +592,10 @@ export default function SubmissionDetailPage(){
       )}
 
       {/* Lightbox */}
-      {lightbox&&sub.image_url&&(
+      {lightbox&&imageBlobUrl&&(
         <div onClick={()=>setLightbox(false)}
           style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}}>
-          <img src={sub.image_url} alt="submission" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:12,objectFit:"contain"}}/>
+          <img src={imageBlobUrl} alt="submission" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:12,objectFit:"contain"}}/>
         </div>
       )}
 
@@ -773,10 +831,10 @@ export default function SubmissionDetailPage(){
             <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",gap:8}}>
               <Camera size={15} color={PURPLE}/><span style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>Image Evidence</span>
             </div>
-            {sub.image_url&&!imageError?(
+            {sub.image_url&&imageBlobUrl&&!imageError?(
               <div style={{position:"relative",cursor:"zoom-in"}} onClick={()=>setLightbox(true)}>
                 <img
-                  src={sub.image_url}
+                  src={imageBlobUrl}
                   alt="submission"
                   style={{width:"100%",maxHeight:280,objectFit:"cover",display:"block"}}
                   onError={()=>setImageError(true)}
@@ -790,12 +848,16 @@ export default function SubmissionDetailPage(){
                 <Camera size={24} color={RED} style={{opacity:.5}}/>
                 <div style={{fontSize:13,fontWeight:600,color:RED}}>Image could not be loaded</div>
                 <div style={{fontSize:12,color:"#9CA3AF",lineHeight:1.6,maxWidth:300}}>
-                  The image URL requires authentication or is no longer accessible. This is common with KoboToolbox attachments that need a valid session cookie to serve.
+                  The server couldn't fetch this image — it may no longer exist at its original source, or the request failed. Retrying re-tries the fetch through your authenticated session.
                 </div>
-                <a href={sub.image_url} target="_blank" rel="noopener noreferrer"
-                  style={{fontSize:11,color:BLUE,textDecoration:"underline",wordBreak:"break-all",maxWidth:300}}>
-                  Try opening directly ↗
-                </a>
+                <button onClick={fetchMedia}
+                  style={{fontSize:11,color:BLUE,background:"none",border:"none",textDecoration:"underline",cursor:"pointer",padding:0}}>
+                  Retry
+                </button>
+              </div>
+            ):sub.image_url?(
+              <div style={{height:140,display:"grid",placeItems:"center",background:"#F8FAFF",color:"#9CA3AF",fontSize:13}}>
+                Loading image…
               </div>
             ):(
               <div style={{height:140,display:"grid",placeItems:"center",background:"#F8FAFF",color:"#9CA3AF",fontSize:13}}>
@@ -835,14 +897,18 @@ export default function SubmissionDetailPage(){
               <Mic size={15} color={GREEN}/><span style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>Audio Evidence</span>
             </div>
             <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
-              {sub.audio_url?(
+              {sub.audio_url&&audioBlobUrl?(
                 <div style={{background:"#F8FAFF",borderRadius:10,padding:14,border:"1px solid #E8EDF5"}}>
-                  <audio controls src={sub.audio_url} style={{width:"100%",height:36}}/>
+                  <audio controls src={audioBlobUrl} style={{width:"100%",height:36}}/>
                   <div style={{display:"flex",gap:4,alignItems:"flex-end",height:28,marginTop:10}}>
                     {[4,7,5,9,6,8,4,7,5,6,8,5,7,4,9,6,5,8,7,4].map((h,i)=>(
                       <div key={i} style={{flex:1,background:GREEN,borderRadius:2,height:`${h*3}px`,opacity:0.6}}/>
                     ))}
                   </div>
+                </div>
+              ):sub.audio_url?(
+                <div style={{background:"#F8FAFF",borderRadius:10,padding:14,border:"1px solid #E8EDF5",fontSize:12,color:"#9CA3AF"}}>
+                  Loading audio…
                 </div>
               ):(
                 <div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"14px 16px"}}>

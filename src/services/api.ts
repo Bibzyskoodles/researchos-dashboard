@@ -43,6 +43,19 @@ export const authApi = {
     api.post('/auth/change-password', { current_password, new_password }),
 };
 
+// fieldscore-backend's /api/media/<sid>/<kind> proxy requires a Bearer
+// token — an <img>/<audio> tag pointed straight at it will always 401
+// (this backend has no fs_token cookie; see CLAUDE.md). Fetch the bytes
+// through the authenticated `api` instance instead and hand the caller a
+// Blob to turn into an object URL (same pattern as certificatePrint.ts's
+// openCertificate/downloadCertificatePdf).
+export const mediaApi = {
+  fetchImage: (submissionId: string) =>
+    api.get(`/api/media/${submissionId}/image`, { responseType: 'blob' }),
+  fetchAudio: (submissionId: string) =>
+    api.get(`/api/media/${submissionId}/audio`, { responseType: 'blob' }),
+};
+
 export const dashboardApi = {
   getVersion: () => api.get('/api/version'),
   getDashboard: (params?: { project_id?: string }) => api.get('/api/dashboard', { params }),

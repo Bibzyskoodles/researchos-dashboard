@@ -11,6 +11,7 @@ import { MapContainer, TileLayer, CircleMarker, Circle, Polyline } from "react-l
 import "leaflet/dist/leaflet.css";
 import { computeTrustIndex, HARD_GATE_FLAGS, ENGINE_LABELS, TrustResult } from "../services/trustEngine";
 import { loadEngineConfig } from "../services/engineConfig";
+import { mediaApi, API_BASE_URL } from "../services/api";
 
 const BLUE = "#2463EB", GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", GREY = "#9CA3AF";
 const MONO = "'SF Mono','Roboto Mono',Consolas,monospace";
@@ -144,6 +145,28 @@ export default function InvestigationPlayer(props: InvestigationProps) {
   const flags: string[] = useMemo(() => Array.isArray(sub.flags) ? sub.flags : String(sub.flags || "").split(",").map((f: string) => f.trim()).filter(Boolean), [sub.flags]);
   const hardGate = flags.find(f => HARD_GATE_FLAGS.has(f)) || null;
   const subLabel = vocabulary?.submission || "Submission";
+
+  // sub.image_url from a real submission is fieldscore-backend's
+  // Bearer-protected /api/media proxy (see mediaApi's comment in
+  // services/api.ts) — a plain <img src> to it always 401s. Demo mode
+  // (DemoPage.tsx) passes a self-contained data: URI instead, which needs
+  // no fetching at all — only resolve through mediaApi when it's actually
+  // our backend's proxy URL.
+  const [resolvedImageUrl, setResolvedImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    setResolvedImageUrl(null);
+    const url = sub?.image_url;
+    if (!url) return;
+    if (!url.startsWith(API_BASE_URL) || !sub?.submission_id) {
+      setResolvedImageUrl(url);
+      return;
+    }
+    mediaApi.fetchImage(sub.submission_id)
+      .then(r => { objectUrl = URL.createObjectURL(r.data); setResolvedImageUrl(objectUrl); })
+      .catch(() => setResolvedImageUrl(null));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [sub?.submission_id, sub?.image_url]);
 
   // Build the step list from what ACTUALLY ran — disabled/absent engines are
   // skipped entirely (never shown greyed for 8 seconds), per the brief.
@@ -314,11 +337,14 @@ export default function InvestigationPlayer(props: InvestigationProps) {
           Scanning fingerprints — image hash · GPS signature · audio hash…
         </div>
         {!isHit && <div style={{ marginBottom: 16 }}><ScanBar /></div>}
-        {isHit && isDupImage && sub.image_url ? (
+        {isHit && isDupImage && resolvedImageUrl ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .8 }}
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-            {[{ url: sub.image_url, tag: `This ${subLabel.toLowerCase()}`, id: String(sub.submission_id || "").slice(0, 8) },
-              { url: duplicateOriginalImageUrl || sub.image_url, tag: "Original", id: String(original).slice(0, 8) || "earlier submission" }].map((p, i) => (
+            {[{ url: resolvedImageUrl, tag: `This ${subLabel.toLowerCase()}`, id: String(sub.submission_id || "").slice(0, 8) },
+              // duplicateOriginalImageUrl is demo-only today (see DemoPage.tsx) — a
+              // self-contained data: URI, never fieldscore-backend's media proxy, so
+              // it needs no auth-blob resolution of its own.
+              { url: duplicateOriginalImageUrl || resolvedImageUrl, tag: "Original", id: String(original).slice(0, 8) || "earlier submission" }].map((p, i) => (
               <motion.div key={i} initial={{ x: i === 0 ? -32 : 32, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: .9 + i * .25, duration: .5 }}
                 style={{ borderRadius: 12, overflow: "hidden", border: `2px solid ${RED}88`, position: "relative" }}>
                 <img src={p.url} alt={p.tag} style={{ width: "100%", height: 160, objectFit: "cover", display: "block", filter: "saturate(.9)" }} />
@@ -359,7 +385,13 @@ export default function InvestigationPlayer(props: InvestigationProps) {
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,300px) 1fr", gap: 18, alignItems: "start" }}>
           <motion.div initial={{ scale: .9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: .6 }}
             style={{ borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,.15)", position: "relative" }}>
-            <img src={sub.image_url} alt="evidence" style={{ width: "100%", maxHeight: 240, objectFit: "cover", display: "block" }} />
+            {resolvedImageUrl ? (
+              <img src={resolvedImageUrl} alt="evidence" style={{ width: "100%", maxHeight: 240, objectFit: "cover", display: "block" }} />
+            ) : (
+              <div style={{ width: "100%", height: 240, display: "grid", placeItems: "center", background: "rgba(255,255,255,.04)", color: "rgba(255,255,255,.4)", fontSize: 12 }}>
+                Loading image…
+              </div>
+            )}
             <motion.div animate={{ y: ["0%", "100%", "0%"] }} transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
               style={{ position: "absolute", left: 0, right: 0, top: 0, height: 2, background: "linear-gradient(90deg, transparent, rgba(96,165,250,.8), transparent)" }} />
           </motion.div>
