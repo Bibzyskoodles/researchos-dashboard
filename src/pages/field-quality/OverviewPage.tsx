@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
@@ -149,6 +149,33 @@ export default function OverviewPage() {
     return () => { cancelled = true; clearInterval(id); };
   }, [setState, guideToElement, activeProject?.id]);
 
+  // Headline pass/flag/reject counts, recomputed live the same way every
+  // individual submission row on this page (and SubmissionsPage.tsx) already
+  // is — see SubmissionsPage.tsx's effectiveVerdict. Without this, the
+  // banner/breakdown used the backend's raw, frozen Verdict tally while the
+  // rows rendered right below it on this same page showed a different,
+  // live-recomputed verdict — two numbers for the same thing on one screen.
+  // "Pending" additionally excludes anything already reviewed (approved/
+  // rejected via the submission detail page) so the "needs attention"
+  // banner clears once a human has actually acted on it, not just once —
+  // it re-appears if new flagged submissions come in later.
+  const liveStats = useMemo(() => {
+    const rows = data?.stats_submissions;
+    if (!rows || rows.length === 0) return null;
+    const cfg = loadEngineConfig();
+    const isResolved = (sub: any) => sub.review_status === "APPROVED" || sub.review_status === "REJECTED";
+    let pass = 0, flag = 0, reject = 0, pendingFlagged = 0;
+    for (const sub of rows) {
+      const v = (sub.verdict_override || computeTrustIndex(sub, cfg).verdict || sub.verdict || "FLAG") as "PASS" | "FLAG" | "REJECT";
+      if (v === "PASS") pass++;
+      else if (v === "REJECT") reject++;
+      else flag++;
+      if (v === "FLAG" && !isResolved(sub)) pendingFlagged++;
+    }
+    const total = pass + flag + reject;
+    return { pass, flag, reject, pendingFlagged, passRate: total > 0 ? Math.round((pass / total) * 1000) / 10 : 0 };
+  }, [data?.stats_submissions]);
+
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
       <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.5, repeat: Infinity }}
@@ -167,7 +194,22 @@ export default function OverviewPage() {
   const s = data.stats || ({} as DashboardData["stats"]);
   const chartScores = (data.score_chart || []).map(c => c.score);
   const recentSubs = data.recent_submissions || [];
-  const alerts = data.alerts || [];
+  // Backend-provided alerts (raw Verdict FLAG/REJECT), narrowed to ones no
+  // one has actually reviewed yet — see liveStats' comment above. Falls
+  // back to the unfiltered list if review_status isn't present (older
+  // backend), same graceful-degrade approach as passCount/flagCount below.
+  const alerts = (data.alerts || []).filter(
+    (a: any) => a.review_status === undefined || (a.review_status !== "APPROVED" && a.review_status !== "REJECTED")
+  );
+
+  // liveStats is null until stats_submissions has loaded (or on an older
+  // backend that doesn't send it yet) — fall back to the backend's raw
+  // tally rather than showing nothing.
+  const passCount = liveStats?.pass ?? s.pass_count ?? 0;
+  const flagCount = liveStats?.flag ?? s.flag_count ?? 0;
+  const rejectCount = liveStats?.reject ?? s.reject_count ?? 0;
+  const pendingFlagCount = liveStats?.pendingFlagged ?? s.flag_count ?? 0;
+  const passRate = liveStats?.passRate ?? s.pass_rate ?? 0;
 
   // The Trust Index is the one number on every surface (Bible §0, principle 5)
   // — never the raw backend score, which can legitimately differ once local/
@@ -240,8 +282,8 @@ export default function OverviewPage() {
               ] : [
                 { icon: <CheckCircle size={13} color="#34D399" />, text: <><strong style={{ color: "white" }}>{s.total_submissions} submission{s.total_submissions === 1 ? "" : "s"} processed</strong> <span style={{ color: "rgba(255,255,255,.5)" }}>— average trust score {s.avg_score}/100</span></> },
                 s.score_trend !== 0 ? { icon: s.score_trend >= 0 ? <TrendingUp size={13} color="#34D399" /> : <TrendingDown size={13} color="#F87171" />, text: <><span style={{ color: "rgba(255,255,255,.5)" }}>Trust score </span><strong style={{ color: s.score_trend >= 0 ? "#34D399" : "#F87171" }}>{s.score_trend >= 0 ? "↑" : "↓"} {Math.abs(s.score_trend)}pts this week</strong></> } : null,
-                { icon: <Activity size={13} color={s.pass_rate >= 70 ? "#34D399" : "#FBBF24"} />, text: <><strong style={{ color: "white" }}>{s.pass_rate}% pass rate</strong><span style={{ color: "rgba(255,255,255,.5)" }}> — {s.pass_count} passed, {s.flag_count} flagged, {s.reject_count} rejected</span></> },
-                s.flag_count > 0 ? { icon: <AlertTriangle size={13} color="#FBBF24" />, text: <><strong style={{ color: "#FBBF24" }}>{s.flag_count} submission{s.flag_count > 1 ? "s" : ""} require attention</strong><span style={{ color: "rgba(255,255,255,.5)" }}> — review before approving</span></> } : null,
+                { icon: <Activity size={13} color={passRate >= 70 ? "#34D399" : "#FBBF24"} />, text: <><strong style={{ color: "white" }}>{passRate}% pass rate</strong><span style={{ color: "rgba(255,255,255,.5)" }}> — {passCount} passed, {flagCount} flagged, {rejectCount} rejected</span></> },
+                pendingFlagCount > 0 ? { icon: <AlertTriangle size={13} color="#FBBF24" />, text: <><strong style={{ color: "#FBBF24" }}>{pendingFlagCount} submission{pendingFlagCount > 1 ? "s" : ""} require attention</strong><span style={{ color: "rgba(255,255,255,.5)" }}> — review before approving</span></> } : null,
               ]).filter(Boolean).map((item: any, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13 }}>
                   <div style={{ flexShrink: 0, marginTop: 1 }}>{item.icon}</div>
@@ -257,8 +299,8 @@ export default function OverviewPage() {
               { label: "Connect your data source", to: "/integrations" },
               { label: "Review engine settings", to: "/settings" },
             ] : [
-              s.flag_count > 0 ? { label: `Review ${s.flag_count} flagged submission${s.flag_count > 1 ? "s" : ""}`, to: "/submissions" } : null,
-              s.pass_count > 0 ? { label: `Analyse ${s.pass_count} verified response${s.pass_count === 1 ? "" : "s"}`, to: "/insights" } : null,
+              pendingFlagCount > 0 ? { label: `Review ${pendingFlagCount} flagged submission${pendingFlagCount > 1 ? "s" : ""}`, to: "/submissions" } : null,
+              passCount > 0 ? { label: `Analyse ${passCount} verified response${passCount === 1 ? "" : "s"}`, to: "/insights" } : null,
               { label: "Generate interim report", to: "/reports" },
             ]).filter(Boolean).map((action: any, i) => (
               <motion.div key={i} whileHover={{ x: 3 }} onClick={() => nav(action.to)}
@@ -276,7 +318,7 @@ export default function OverviewPage() {
       <div data-ada-target="overview-stats" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 14 }}>
         <KpiCard label="Total Submissions" value={s.total_submissions} sub={org?.name || "Current project"} trend={(s.total_submissions ?? 0) > 0 ? s.score_trend : undefined} color="#080D1A" sparkData={chartScores} />
         <KpiCard label="Avg Trust Score" value={(s.total_submissions ?? 0) > 0 ? `${s.avg_score}` : "—"} sub={(s.total_submissions ?? 0) === 0 ? "No data yet" : s.avg_score >= 80 ? "Excellent quality" : s.avg_score >= 60 ? "Good quality" : "Needs attention"} color={GREEN} sparkData={chartScores} />
-        <KpiCard label="Pass Rate" value={(s.total_submissions ?? 0) > 0 ? `${s.pass_rate}%` : "—"} sub={(s.total_submissions ?? 0) === 0 ? "No data yet" : `${s.pass_count} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />
+        <KpiCard label="Pass Rate" value={(s.total_submissions ?? 0) > 0 ? `${passRate}%` : "—"} sub={(s.total_submissions ?? 0) === 0 ? "No data yet" : `${passCount} of ${s.total_submissions} passed`} color={BLUE} sparkData={chartScores.map(v => v > 70 ? 1 : 0)} />
         <KpiCard label={`Active ${cap(vocab.enumerators)}`} value={s.active_enumerators} sub={(s.active_enumerators ?? 0) === 0 ? "None active yet" : `Across ${s.total_submissions} submission${s.total_submissions === 1 ? "" : "s"}`} color={PURPLE} sparkData={(data.enumerators || []).slice(0, 7).map(e => e.avg_score)} />
       </div>
 
@@ -381,8 +423,8 @@ export default function OverviewPage() {
             })}
           </div>
 
-          {/* Alerts */}
-          {s.flag_count > 0 && (
+          {/* Alerts — already narrowed to unresolved items above */}
+          {alerts.length > 0 && (
             <div style={{ background: "white", borderRadius: 16, overflow: "hidden", border: "1px solid #FED7AA", boxShadow: "0 2px 12px rgba(217,119,6,.08)" }}>
               <div style={{ padding: "14px 20px 10px", borderBottom: "1px solid #FEF3C7", display: "flex", justifyContent: "space-between" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>⚠ Requires Attention</div>

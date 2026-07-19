@@ -127,17 +127,30 @@ export interface DashboardStats {
   total_submissions: number;
   avg_score: number;
   pass_rate: number;
+  // Raw backend Verdict tally, frozen at scoring time — can legitimately
+  // drift from the live Trust Index recompute (see stats_submissions
+  // below). Kept as a fallback for when stats_submissions is capped/empty.
   pass_count: number;
   flag_count: number;
   reject_count: number;
   active_enumerators: number;
   score_trend: number;
   gps_compliance?: number;
+  // True when the org has more submissions than stats_submissions covers
+  // (see fieldscore-backend's STATS_DETAIL_CAP) — the live recompute below
+  // is then based on a subset, not the full org.
+  stats_capped?: boolean;
+  stats_row_count?: number;
 }
 
 export interface DashboardData {
   stats: DashboardStats;
   recent_submissions: Submission[];
+  // Full (capped) row set with per-engine `checks`, for recomputing the
+  // headline pass/flag/reject counts with the same live Trust Index logic
+  // SubmissionsPage.tsx and this page's own per-row badges already use —
+  // see OverviewPage.tsx's liveStats computation.
+  stats_submissions?: Submission[];
   enumerators: Enumerator[];
   score_chart: { score: number; date: string }[];
   alerts: Submission[];
