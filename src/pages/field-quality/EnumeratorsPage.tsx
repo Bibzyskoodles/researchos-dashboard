@@ -2,12 +2,14 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { dashboardApi } from "../../services/api";
 import { Enumerator } from "../../types";
-import { AlertTriangle, Users, Award, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { AlertTriangle, Users, Award, TrendingUp, TrendingDown, Minus, Trophy } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { useAdaAttention } from "../../hooks/useAdaAttention";
 import { usePlatform } from "../../platform/PlatformProvider";
 import ScorecardPage from "./ScorecardPage";
+import OrgLeaderboardTab from "./OrgLeaderboardTab";
 import { useProject } from "../../context/ProjectContext";
+import { useAuth } from "../../store/AuthContext";
 
 const BLUE="#2463EB",GREEN="#059669",AMBER="#D97706",RED="#DC2626",PURPLE="#7C3AED";
 const COLORS=[BLUE,PURPLE,GREEN,AMBER,RED];
@@ -56,7 +58,7 @@ function quickReputation(e: Enumerator): QuickReputation {
   return { score, riskBand, riskColor, riskLabel };
 }
 
-type Tab = "team" | "scorecard";
+type Tab = "team" | "scorecard" | "leaderboard";
 
 export default function EnumeratorsPage(){
   const [enums,setEnums]=useState<Enumerator[]>([]);
@@ -66,6 +68,11 @@ export default function EnumeratorsPage(){
   const [highlightedId,setHighlightedId]=useState<string|null>(null);
   const { t }=usePlatform();
   const { activeProject } = useProject();
+  const { user } = useAuth();
+  // Org-wide leaderboard is enumerator-identifying data, blocked server-side
+  // for the client role (api.py's _reject_client_role) — hide the tab
+  // entirely for that role rather than showing a tab that always 403s.
+  const canSeeLeaderboard = user?.role !== "client";
   const termPlural=t("enumerators","enumerators");
   const Term=termPlural.replace(/\b\w/g,c=>c.toUpperCase());
   useAdaGreeting({ page: "enumerators" });
@@ -90,6 +97,7 @@ export default function EnumeratorsPage(){
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "team", label: `${Term} Overview`, icon: Users },
     { id: "scorecard", label: "Scorecard & Profiles", icon: Award },
+    ...(canSeeLeaderboard ? [{ id: "leaderboard" as Tab, label: "Leaderboard", icon: Trophy }] : []),
   ];
 
   return(
@@ -116,6 +124,8 @@ export default function EnumeratorsPage(){
       </div>
 
       {activeTab==="scorecard" && <ScorecardPage />}
+
+      {activeTab==="leaderboard" && canSeeLeaderboard && <OrgLeaderboardTab />}
 
       {activeTab==="team" && (
         <>

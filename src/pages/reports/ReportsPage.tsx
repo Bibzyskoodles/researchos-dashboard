@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Download, Sparkles, Clock, CheckCircle, ChevronDown } from "lucide-react";
+import { Download, Sparkles, Clock, CheckCircle, ChevronDown, Share2, Copy, Check } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi, projectsApi, dashboardApi, orgSettingsApi } from "../../services/api";
+import { insightScoreApi, projectsApi, dashboardApi, orgSettingsApi, reportShareApi } from "../../services/api";
 import { usePlatform } from "../../platform/PlatformProvider";
 import { useGamify } from "../../gamify/GamifyContext";
 import { generateLocalReport, ReportContext, EnumeratorRow, EngineRow } from "../../gamify/reportGenerator";
@@ -140,8 +140,16 @@ export default function ReportsPage() {
   const [generated, setGenerated] = useState<Record<string, { format: string }>>({});
   const [lastGenerated, setLastGenerated] = useState<Record<string, number>>({});
   const [toast, setToast] = useState("");
+  const [sharing, setSharing] = useState<string | null>(null);
+  const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
+  const [copiedShare, setCopiedShare] = useState<string | null>(null);
   const { recordEvent } = useGamify();
   const { user, org } = useAuth();
+  // Creating a share link is admin/manager only server-side (see
+  // project_routes.py's create_report_share, gated by can(role, "export"))
+  // — this UI check is only so viewer/client accounts never see a button
+  // that would 403; the backend is the real enforcement (see CLAUDE.md).
+  const canShare = user?.role === "admin" || user?.role === "manager";
   const ctxCache = useRef<ReportContext | null>(null);
   const selectedProjectRef = useRef<Project | null>(null);
   useAdaGreeting({ page: "reports" });
@@ -259,6 +267,41 @@ export default function ReportsPage() {
     const result = generateLocalReport(r.id, r.format, ctx);
     if (!result) { showToast("Could not generate report. Please try again."); return; }
     triggerBlobDownload(result.blob, result.filename);
+  };
+
+  // Create-then-copy a public link, same UX pattern as DataIntegrityCard.tsx's
+  // copyLink()/certificateApi.verifyUrl(). The share URL points at THIS app's
+  // own /shared-report/:token route (not the backend host directly) so the
+  // link a stakeholder receives looks like a normal ResearchOS link and
+  // renders through SharedReportPage.tsx rather than a bare API response.
+  const doShare = async (r: typeof REPORT_TYPES[0]) => {
+    if (!selectedProject) return;
+    const cacheKey = `${r.id}_${selectedProject.id}`;
+    const existing = shareLinks[cacheKey];
+    // Already have a live link for this report — just re-copy it instead of
+    // minting a fresh token (and a fresh 14-day clock) on every click.
+    if (existing) {
+      await navigator.clipboard?.writeText(existing).catch(() => {});
+      setCopiedShare(r.id);
+      setTimeout(() => setCopiedShare(null), 2000);
+      showToast("Share link copied");
+      return;
+    }
+    setSharing(r.id);
+    try {
+      const res = await reportShareApi.create(selectedProject.id, r.id);
+      const token = res.data.token;
+      const shareUrl = `${window.location.origin}/shared-report/${token}`;
+      setShareLinks(prev => ({ ...prev, [cacheKey]: shareUrl }));
+      await navigator.clipboard?.writeText(shareUrl).catch(() => {});
+      setCopiedShare(r.id);
+      setTimeout(() => setCopiedShare(null), 2000);
+      showToast("Share link created and copied — expires in 14 days");
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || "Could not create a share link. Please try again.");
+    } finally {
+      setSharing(null);
+    }
   };
 
   const projectLabel = selectedProject?.name || "Select a project";
@@ -416,13 +459,24 @@ export default function ReportsPage() {
           {Object.entries(generated).map(([id, meta]) => {
             const r = REPORT_TYPES.find(t => t.id === id);
             if (!r) return null;
+            const cacheKey = `${r.id}_${selectedProject?.id}`;
+            const hasShareLink = !!shareLinks[cacheKey];
+            const isSharing = sharing === r.id;
+            const justCopied = copiedShare === r.id;
             return (
               <div key={id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: "1px solid #F8FAFF" }}>
                 <div style={{ width: 36, height: 36, borderRadius: 9, background: "#EFF6FF", display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>{r.icon}</div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#080D1A" }}>{r.title}</div>
                   <div style={{ fontSize: 11, color: "#9CA3AF" }}>Generated just now · {selectedProject?.name} · .{meta.format}</div>
                 </div>
+                {canShare && (
+                  <button onClick={() => doShare(r)} disabled={isSharing}
+                    title={hasShareLink ? "Copy the public link again" : "Create a public, read-only link — no login required, expires in 14 days"}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 7, background: justCopied ? "#ECFDF5" : "#F8FAFF", border: `1px solid ${justCopied ? "#A7F3D0" : "#E2E8F0"}`, cursor: isSharing ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, color: justCopied ? "#059669" : "#374151", fontFamily: "Inter,sans-serif" }}>
+                    {isSharing ? "Creating…" : justCopied ? (<><Check size={12} /> Copied</>) : hasShareLink ? (<><Copy size={12} /> Copy link</>) : (<><Share2 size={12} /> Share</>)}
+                  </button>
+                )}
                 <button onClick={() => download(r)}
                   style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 7, background: "#EFF6FF", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, color: BLUE, fontFamily: "Inter,sans-serif" }}>
                   <Download size={12} /> Download

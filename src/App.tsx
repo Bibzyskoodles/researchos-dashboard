@@ -31,6 +31,7 @@ import SubmissionDetailPage from './pages/field-quality/SubmissionDetailPage';
 import ScorecardPage from './pages/field-quality/ScorecardPage';
 import DataCleaningPage from './pages/field-quality/DataCleaningPage';
 import LiveInvestigationPage from './pages/field-quality/LiveInvestigationPage';
+import SharedReportPage from './pages/reports/SharedReportPage';
 
 // The public FieldScore demo is lazy-loaded so its scripted dataset and
 // tour machinery never weigh down the main app bundle.
@@ -72,6 +73,11 @@ function AppRoutes() {
           <DemoPage />
         </React.Suspense>
       } />
+
+      {/* Public shared report view — no auth, no Sidebar/AppShell. Deliberately
+          outside ProtectedRoute: opened by someone outside the org who has no
+          FieldScore account (see fieldscore-backend's GET /shared-report/<token>). */}
+      <Route path="/shared-report/:token" element={<SharedReportPage />} />
 
       <Route path="/" element={
         <ProtectedRoute>

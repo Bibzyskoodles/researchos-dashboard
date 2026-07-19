@@ -55,6 +55,12 @@ export const dashboardApi = {
   getSubmissions: (params?: { verdict?: string; limit?: number; offset?: number; project_id?: string }) =>
     api.get('/api/submissions', { params }),
   getEnumerators: (params?: { project_id?: string }) => api.get('/api/enumerators', { params }),
+  // Org-wide leaderboard — aggregates server-side across every project the
+  // caller's org owns (bypassing the pagination limits a client-side
+  // getSubmissions()/getEnumerators() fetch would otherwise hit). Blocked
+  // for the client role (enumerator-identifying data — see CLAUDE.md).
+  getEnumeratorLeaderboard: (params?: { project_id?: string }) =>
+    api.get('/api/enumerators/leaderboard', { params }),
   getStats: () => api.get('/api/stats'),
   koboPing: () => api.get('/kobo/ping'),
   koboImport: (asset_uid: string, limit = 30, project_id?: string) =>
@@ -97,6 +103,18 @@ export const projectsApi = {
     api.delete(`/api/projects/${id}`, verifyEmpty ? { params: { verify_empty: 'true' } } : undefined),
   lifecycle: (id: string) => api.get(`/api/projects/${id}/lifecycle`),
   framework: (id: string, data: object) => api.post(`/api/projects/${id}/framework`, data),
+};
+
+// Shareable read-only report links — admin/manager create a token-scoped
+// link (auth required); the resulting /shared-report/<token> URL is public
+// (no auth) so it can be handed to someone outside the org, same precedent
+// as certificateApi.verifyUrl below.
+export const reportShareApi = {
+  create: (projectId: string, reportType: string, expiryDays?: number) =>
+    api.post<{ ok: boolean; token: string; share_url: string; report_type: string; expires_at: string }>(
+      `/api/projects/${projectId}/reports/share`,
+      { report_type: reportType, ...(expiryDays ? { expiry_days: expiryDays } : {}) }
+    ),
 };
 
 // Certificate routes live at the backend root (/certificate/*, /verify/*),
