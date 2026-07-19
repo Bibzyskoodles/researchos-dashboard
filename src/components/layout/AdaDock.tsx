@@ -3,8 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAda, parseAdaCommand } from "../../ada/AdaContext";
 import { useProject } from "../../context/ProjectContext";
-import { adaApi } from "../../services/api";
-import { X, Send } from "lucide-react";
+import { adaApi, orgSettingsApi } from "../../services/api";
+import { X, Send, Paperclip } from "lucide-react";
+
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 // Sanitise Ada message content — strip all HTML tags, then apply safe bold only.
 // This prevents XSS from backend-injected markup.
@@ -35,7 +37,9 @@ export default function AdaDock() {
   const { store, setState, addMessage, setMessages, setOpen, markMemoryLoaded, navigatePage, dispatchCommand } = useAda();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { activeProject } = useProject();
@@ -127,6 +131,54 @@ export default function AdaDock() {
       setSending(false);
       setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     }
+  };
+
+  // Logo goes straight to the org-settings save, not through the chat LLM —
+  // routing a multi-hundred-KB base64 image through a chat completion as
+  // tool-call text would be slow, expensive, and pointless, since Ada never
+  // needs to "see" the pixels to do her job (place it on report covers).
+  // Reuses the exact same endpoint Settings > Branding uses, so it shows up
+  // identically wherever branding is read.
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    const now = () => new Date().toISOString();
+    if (!file.type.startsWith("image/")) {
+      addMessage({ id: Date.now().toString(), role: "assistant", content: "That doesn't look like an image — I can save a PNG, JPG, or SVG as your logo.", timestamp: now() });
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      addMessage({ id: Date.now().toString(), role: "assistant", content: "That's over 2MB — please send a smaller file. (Settings > Branding has the same 2MB limit.)", timestamp: now() });
+      return;
+    }
+
+    addMessage({ id: Date.now().toString(), role: "user", content: `📎 ${file.name}`, timestamp: now() });
+    setUploadingLogo(true);
+    setState("thinking");
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await orgSettingsApi.updateSettings({ brand_logo: reader.result as string });
+        addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: "Got it — saved as your organisation logo. It'll appear on every report generated from now on.", timestamp: now() });
+        setState("speaking");
+        setTimeout(() => setState("idle"), 3000);
+      } catch {
+        addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: "I couldn't save that just now — please try again, or upload it directly in Settings > Branding.", timestamp: now() });
+        setState("warning");
+        setTimeout(() => setState("idle"), 3000);
+      } finally {
+        setUploadingLogo(false);
+        setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      }
+    };
+    reader.onerror = () => {
+      setUploadingLogo(false);
+      addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: "I couldn't read that file — please try again.", timestamp: now() });
+    };
+    reader.readAsDataURL(file);
   };
 
   const avatarSize = store.isOpen ? 48 : 60;
@@ -237,6 +289,21 @@ export default function AdaDock() {
 
             <div style={{ padding: "10px 14px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 8 }}>
               <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleLogoFile}
+                style={{ display: "none" }}
+              />
+              <button
+                onClick={() => logoInputRef.current?.click()}
+                disabled={uploadingLogo}
+                title="Attach your organisation logo"
+                style={{ width: 36, height: 36, borderRadius: 8, background: "white", border: "1.5px solid #E2E8F0", cursor: uploadingLogo ? "not-allowed" : "pointer", display: "grid", placeItems: "center", opacity: uploadingLogo ? 0.5 : 1, flexShrink: 0 }}
+              >
+                <Paperclip size={14} color="#6B7280" />
+              </button>
+              <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && !sending && send()}
@@ -247,7 +314,7 @@ export default function AdaDock() {
               <button
                 onClick={send}
                 disabled={sending || !input.trim()}
-                style={{ width: 36, height: 36, borderRadius: 8, background: "#2463EB", border: "none", cursor: sending || !input.trim() ? "not-allowed" : "pointer", display: "grid", placeItems: "center", opacity: sending || !input.trim() ? 0.5 : 1 }}
+                style={{ width: 36, height: 36, borderRadius: 8, background: "#2463EB", border: "none", cursor: sending || !input.trim() ? "not-allowed" : "pointer", display: "grid", placeItems: "center", opacity: sending || !input.trim() ? 0.5 : 1, flexShrink: 0 }}
               >
                 <Send size={14} color="white" />
               </button>
