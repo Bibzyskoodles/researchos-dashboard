@@ -65,6 +65,12 @@ export const dashboardApi = {
   koboPing: () => api.get('/kobo/ping'),
   koboImport: (asset_uid: string, limit = 30, project_id?: string) =>
     api.post('/kobo/import', { asset_uid, limit, ...(project_id ? { project_id } : {}) }),
+  odkGetConfig: () => api.get('/odk/config'),
+  odkSaveConfig: (server_url: string, email: string, password?: string) =>
+    api.put('/odk/config', { server_url, email, ...(password ? { password } : {}) }),
+  odkPing: () => api.get('/odk/ping'),
+  odkImport: (project_id: string, form_id: string, limit = 30, fieldscore_project_id?: string) =>
+    api.post('/odk/import', { project_id, form_id, limit, ...(fieldscore_project_id ? { fieldscore_project_id } : {}) }),
   uploadSubmissions: (submissions: object[]) =>
     api.post('/api/submissions/upload', { submissions }),
   deleteSubmission: (id: string) =>
@@ -115,6 +121,39 @@ export const reportShareApi = {
       `/api/projects/${projectId}/reports/share`,
       { report_type: reportType, ...(expiryDays ? { expiry_days: expiryDays } : {}) }
     ),
+};
+
+export interface ReportSchedule {
+  id: string;
+  org_id: string;
+  project_id: string;
+  report_type: string;
+  frequency: 'weekly' | 'monthly';
+  recipient_emails: string[];
+  created_by?: string;
+  created_at: string;
+  next_run_at: string;
+  last_run_at: string | null;
+  last_run_status: string | null;
+  enabled: boolean;
+}
+
+// Recurring report delivery — admin/manager create a schedule (server-side
+// gated at can(role, "export"), see fieldscore-backend/report_schedule_routes.py)
+// that a background poller (report_scheduler.py) picks up and emails out on
+// a weekly/monthly cadence. Same project-scoped shape as reportShareApi above.
+export const reportScheduleApi = {
+  create: (projectId: string, reportType: string, frequency: 'weekly' | 'monthly', recipientEmails: string[]) =>
+    api.post<{ ok: boolean; schedule: ReportSchedule }>(
+      `/api/projects/${projectId}/report-schedules`,
+      { report_type: reportType, frequency, recipient_emails: recipientEmails }
+    ),
+  list: (projectId: string) =>
+    api.get<{ schedules: ReportSchedule[] }>(`/api/projects/${projectId}/report-schedules`),
+  setEnabled: (projectId: string, scheduleId: string, enabled: boolean) =>
+    api.patch<{ ok: boolean }>(`/api/projects/${projectId}/report-schedules/${scheduleId}`, { enabled }),
+  remove: (projectId: string, scheduleId: string) =>
+    api.delete<{ ok: boolean }>(`/api/projects/${projectId}/report-schedules/${scheduleId}`),
 };
 
 // Certificate routes live at the backend root (/certificate/*, /verify/*),

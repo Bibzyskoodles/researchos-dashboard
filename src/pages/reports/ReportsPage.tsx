@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Download, Sparkles, Clock, CheckCircle, ChevronDown, Share2, Copy, Check } from "lucide-react";
+import { Download, Sparkles, Clock, CheckCircle, ChevronDown, Share2, Copy, Check, CalendarClock, Power, Trash2, X } from "lucide-react";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi, projectsApi, dashboardApi, orgSettingsApi, reportShareApi } from "../../services/api";
+import { insightScoreApi, projectsApi, dashboardApi, orgSettingsApi, reportShareApi, reportScheduleApi, ReportSchedule } from "../../services/api";
 import { usePlatform } from "../../platform/PlatformProvider";
 import { useGamify } from "../../gamify/GamifyContext";
 import { generateLocalReport, ReportContext, EnumeratorRow, EngineRow } from "../../gamify/reportGenerator";
@@ -143,6 +143,14 @@ export default function ReportsPage() {
   const [sharing, setSharing] = useState<string | null>(null);
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
   const [copiedShare, setCopiedShare] = useState<string | null>(null);
+  // Scheduled report delivery — the inline "Schedule" form + the list of
+  // schedules already created for the currently selected project.
+  const [schedulingFormFor, setSchedulingFormFor] = useState<string | null>(null);
+  const [scheduleFrequency, setScheduleFrequency] = useState<'weekly' | 'monthly'>('weekly');
+  const [scheduleEmails, setScheduleEmails] = useState("");
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [schedules, setSchedules] = useState<ReportSchedule[]>([]);
+  const [loadingSchedules, setLoadingSchedules] = useState(false);
   const { recordEvent } = useGamify();
   const { user, org } = useAuth();
   // Creating a share link is admin/manager only server-side (see
@@ -187,6 +195,29 @@ export default function ReportsPage() {
       if (val) stored[r.id] = Number(val);
     });
     setLastGenerated(stored);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject]);
+
+  // Load existing schedules for the selected project. Server-side this is
+  // still gated at can(role, "export") regardless of what the UI does (see
+  // CLAUDE.md) — canShare here is purely so a viewer/client account never
+  // sees a list that would 403 on fetch.
+  const loadSchedules = async () => {
+    if (!selectedProject || !canShare) { setSchedules([]); return; }
+    setLoadingSchedules(true);
+    try {
+      const r = await reportScheduleApi.list(selectedProject.id);
+      setSchedules(r.data.schedules || []);
+    } catch {
+      setSchedules([]);
+    } finally {
+      setLoadingSchedules(false);
+    }
+  };
+
+  useEffect(() => {
+    setSchedulingFormFor(null);
+    loadSchedules();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject]);
 
@@ -301,6 +332,53 @@ export default function ReportsPage() {
       showToast(e?.response?.data?.error || "Could not create a share link. Please try again.");
     } finally {
       setSharing(null);
+    }
+  };
+
+  const openScheduleForm = (r: typeof REPORT_TYPES[0]) => {
+    setScheduleFrequency('weekly');
+    setScheduleEmails("");
+    setSchedulingFormFor(prev => (prev === r.id ? null : r.id));
+  };
+
+  const submitSchedule = async (r: typeof REPORT_TYPES[0]) => {
+    if (!selectedProject) return;
+    const emails = scheduleEmails.split(',').map(e => e.trim()).filter(Boolean);
+    if (emails.length === 0) { showToast("Enter at least one recipient email"); return; }
+    const invalid = emails.filter(e => !e.includes('@') || e.includes(' '));
+    if (invalid.length > 0) { showToast(`Invalid email: ${invalid[0]}`); return; }
+    setSavingSchedule(true);
+    try {
+      await reportScheduleApi.create(selectedProject.id, r.id, scheduleFrequency, emails);
+      showToast(`${r.title} scheduled — sends ${scheduleFrequency} to ${emails.length} recipient${emails.length === 1 ? '' : 's'}`);
+      setSchedulingFormFor(null);
+      setScheduleEmails("");
+      await loadSchedules();
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || "Could not create schedule. Please try again.");
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const toggleScheduleEnabled = async (s: ReportSchedule) => {
+    if (!selectedProject) return;
+    try {
+      await reportScheduleApi.setEnabled(selectedProject.id, s.id, !s.enabled);
+      setSchedules(prev => prev.map(x => x.id === s.id ? { ...x, enabled: !s.enabled } : x));
+    } catch {
+      showToast("Could not update schedule. Please try again.");
+    }
+  };
+
+  const deleteScheduleRow = async (s: ReportSchedule) => {
+    if (!selectedProject) return;
+    try {
+      await reportScheduleApi.remove(selectedProject.id, s.id);
+      setSchedules(prev => prev.filter(x => x.id !== s.id));
+      showToast("Schedule deleted");
+    } catch {
+      showToast("Could not delete schedule. Please try again.");
     }
   };
 
@@ -443,7 +521,73 @@ export default function ReportsPage() {
                     )}
                   </button>
                 )}
+                {canShare && (
+                  <button onClick={() => openScheduleForm(r)} disabled={!selectedProject}
+                    title="Auto-generate and email this report on a recurring schedule"
+                    style={{ padding: "9px 10px", borderRadius: 8, background: schedulingFormFor === r.id ? "#EFF6FF" : "white", border: `1px solid ${schedulingFormFor === r.id ? BLUE : "#E2E8F0"}`, cursor: selectedProject ? "pointer" : "not-allowed", color: schedulingFormFor === r.id ? BLUE : "#374151", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <CalendarClock size={14} />
+                  </button>
+                )}
               </div>
+
+              {/* Inline "Schedule" form — frequency + comma-separated recipient emails */}
+              {schedulingFormFor === r.id && (
+                <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: "#F8FAFF", border: "1px solid #E2E8F0" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#374151" }}>Schedule this report</div>
+                    <button onClick={() => setSchedulingFormFor(null)}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#9CA3AF", display: "flex" }}>
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+                    <label style={{ fontSize: 10.5, fontWeight: 600, color: "#6B7280" }}>Frequency</label>
+                    <select value={scheduleFrequency} onChange={e => setScheduleFrequency(e.target.value as 'weekly' | 'monthly')}
+                      style={{ padding: "7px 10px", borderRadius: 7, border: "1px solid #E2E8F0", fontSize: 12, color: "#374151", background: "white", fontFamily: "Inter, sans-serif", outline: "none" }}>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                    <label style={{ fontSize: 10.5, fontWeight: 600, color: "#6B7280" }}>Recipient emails (comma-separated)</label>
+                    <input value={scheduleEmails} onChange={e => setScheduleEmails(e.target.value)}
+                      placeholder="ops@client.com, pm@client.com"
+                      style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12.5, fontFamily: "Inter,sans-serif", outline: "none" }} />
+                  </div>
+                  <button onClick={() => submitSchedule(r)} disabled={savingSchedule}
+                    style={{ width: "100%", padding: "8px", borderRadius: 7, background: savingSchedule ? "#EFF6FF" : BLUE, border: "none", cursor: savingSchedule ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, color: savingSchedule ? BLUE : "white", fontFamily: "Inter,sans-serif" }}>
+                    {savingSchedule ? "Saving..." : "Save schedule"}
+                  </button>
+                </div>
+              )}
+
+              {/* Existing schedules for this report type on this project */}
+              {schedules.filter(s => s.report_type === r.id).length > 0 && (
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {schedules.filter(s => s.report_type === r.id).map(s => (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 8, background: s.enabled ? "#F0FDF4" : "#F8FAFC", border: `1px solid ${s.enabled ? "#BBF7D0" : "#E2E8F0"}` }}>
+                      <CalendarClock size={12} color={s.enabled ? GREEN : "#9CA3AF"} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "#374151", textTransform: "capitalize" as const }}>
+                          {s.frequency} · {s.recipient_emails.length} recipient{s.recipient_emails.length === 1 ? "" : "s"}
+                        </div>
+                        <div style={{ fontSize: 10, color: "#9CA3AF" }}>
+                          {s.enabled ? `Next: ${new Date(s.next_run_at).toLocaleDateString()}` : "Paused"}
+                          {s.last_run_status && ` · Last run: ${s.last_run_status}`}
+                        </div>
+                      </div>
+                      <button onClick={() => toggleScheduleEnabled(s)} title={s.enabled ? "Pause" : "Resume"}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 3, color: s.enabled ? GREEN : "#9CA3AF", display: "flex" }}>
+                        <Power size={12} />
+                      </button>
+                      <button onClick={() => deleteScheduleRow(s)} title="Delete schedule"
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 3, color: "#DC2626", display: "flex" }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           );
         })}
