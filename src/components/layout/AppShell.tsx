@@ -97,16 +97,17 @@ async function applyAdaSetting(key: string, value: unknown): Promise<{ ok: boole
     return { ok: true, message: `${channel} notifications ${value ? 'enabled' : 'disabled'}` };
   }
 
-  // Security — same whole-blob-replace concern as notifications.
-  if (key === 'twoFa' || key === 'sessionTimeout') {
+  // Security — same whole-blob-replace concern as notifications. 'twoFa' is
+  // deliberately not handled here — 2FA isn't enforced at login in this
+  // deployment, so there's no real setting for Ada to change (see
+  // adaSafeguards.ts's ALLOWED_SETTING_KEYS, which already rejects the key
+  // before a command carrying it could ever reach this function).
+  if (key === 'sessionTimeout') {
     const current = (await orgSettingsApi.getSecurity()).data || {};
     const merged = {
-      two_factor_enabled: current.two_factor_enabled ?? false,
       sso_enabled: current.sso_enabled ?? false,
-      session_timeout_mins: current.session_timeout_mins ?? 1440,
+      session_timeout_mins: Number(value),
       ip_allowlist: current.ip_allowlist ?? [],
-      ...(key === 'twoFa' ? { two_factor_enabled: Boolean(value) } : {}),
-      ...(key === 'sessionTimeout' ? { session_timeout_mins: Number(value) } : {}),
     };
     await orgSettingsApi.updateSecurity(merged);
     return { ok: true, message: `${key} updated` };

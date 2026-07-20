@@ -273,13 +273,10 @@ export function parseAdaCommand(text: string): AdaCommand | null {
     }
   }
 
-  // 2FA
-  if (/(turn on|enable|activate).*(2fa|two.factor|two factor)/.test(t)) {
-    return { type: 'CHANGE_SETTING', key: 'twoFa', value: true, label: 'Two-factor authentication enabled' };
-  }
-  if (/(turn off|disable).*(2fa|two.factor|two factor)/.test(t)) {
-    return { type: 'CHANGE_SETTING', key: 'twoFa', value: false, label: 'Two-factor authentication disabled' };
-  }
+  // 2FA is intentionally NOT wired up here — this deployment doesn't enforce
+  // it at login, so Ada must never claim to have turned it on or off (see
+  // fieldscore-backend's org_settings_routes.py and SettingsPage.tsx's
+  // SecuritySection, which shows it as "coming soon" instead of a toggle).
 
   return null;
 }

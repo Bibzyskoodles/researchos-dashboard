@@ -1135,7 +1135,6 @@ function StorageSection() {
 }
 
 function SecuritySection() {
-  const [twoFa, setTwoFa] = useState(false);
   const [sso, setSso] = useState(false);
   const [sessionTimeout, setSessionTimeout] = useState("24h");
   const [ipRestrict, setIpRestrict] = useState(false);
@@ -1151,7 +1150,6 @@ function SecuritySection() {
     orgSettingsApi.getSecurity()
       .then(r => {
         const d = r.data || {};
-        setTwoFa(!!d.two_factor_enabled);
         setSso(!!d.sso_enabled);
         if (d.session_timeout_mins) setSessionTimeout(_mapMinsToCode(d.session_timeout_mins));
         setIpRestrict(!!(d.ip_allowlist && d.ip_allowlist.length > 0));
@@ -1164,7 +1162,7 @@ function SecuritySection() {
     setError("");
     try {
       const r = await orgSettingsApi.updateSecurity({
-        two_factor_enabled: twoFa, sso_enabled: sso,
+        sso_enabled: sso,
         session_timeout_mins: _mapCodeToMins(sessionTimeout),
         ip_restrict_enabled: ipRestrict,
         ip_allowlist: [],
@@ -1183,7 +1181,20 @@ function SecuritySection() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsCard style={{ padding: 24 }}>
         <SettingsGroup label="Authentication">
-          <Toggle value={twoFa} onChange={setTwoFa} label="Two-Factor Authentication" description="Require a second verification step at login for all users in this organisation." />
+          {/* Two-factor authentication isn't enforced at login yet (no TOTP
+              verification in this deployment) — a toggle here would let an
+              admin believe it was protecting the org when it silently did
+              nothing. Honest "coming soon" copy instead, matching
+              IntegrationsPage's treatment of not-yet-built platforms. */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8", opacity: 0.65 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Two-Factor Authentication</div>
+                <Badge label="Coming Soon" color="#9CA3AF" />
+              </div>
+              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Not enforced at login yet — talk to us if you need this now.</div>
+            </div>
+          </div>
           <Toggle value={sso} onChange={setSso} label="Single Sign-On (SSO)" description="Allow team members to sign in with your organisation's identity provider (SAML/OIDC)." />
         </SettingsGroup>
         <SectionDivider label="Session Management" />

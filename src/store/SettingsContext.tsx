@@ -18,7 +18,6 @@ export interface AdaChangeableSettings {
   notifySlack: boolean;
   notifyInApp: boolean;
   sessionTimeout: string;
-  twoFa: boolean;
 }
 
 const DEFAULTS: AdaChangeableSettings = {
@@ -39,7 +38,6 @@ const DEFAULTS: AdaChangeableSettings = {
   notifySlack: false,
   notifyInApp: true,
   sessionTimeout: '8h',
-  twoFa: false,
 };
 
 interface SettingsContextValue {

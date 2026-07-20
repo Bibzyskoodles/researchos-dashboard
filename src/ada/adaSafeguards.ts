@@ -153,11 +153,14 @@ export function guardInput(text: string): GuardResult {
 // ── Command validation ───────────────────────────────────────────────────────
 
 // Allowed setting keys Ada may change — anything not in this list is rejected
+// 'twoFa' is deliberately absent — 2FA isn't enforced at login in this
+// deployment (see fieldscore-backend's org_settings_routes.py), so Ada must
+// never be able to claim she turned it on or off.
 const ALLOWED_SETTING_KEYS = new Set([
   'language', 'timezone', 'adaPersonality', 'adaProactive', 'adaGuidance',
   'adaBrief', 'adaCelebrations', 'gpsAccuracy', 'dupThreshold', 'passThreshold',
   'minDuration', 'maxDuration', 'mediaRetention', 'notifyEmail', 'notifySlack',
-  'notifyInApp', 'sessionTimeout', 'twoFa',
+  'notifyInApp', 'sessionTimeout',
   'brandPrimaryColor', 'brandAccentColor', 'brandFooter',
 ]);
 
@@ -200,7 +203,7 @@ export function validateCommand(cmd: unknown): cmd is AdaCommand {
       if (!allSettingKeys.has(c.key as string)) return false;
       const v = c.value;
       if (c.key === 'adaPersonality') return ['professional', 'friendly', 'concise'].includes(v as string);
-      const boolKeys = ['adaProactive','adaGuidance','adaBrief','adaCelebrations','notifyEmail','notifySlack','notifyInApp','twoFa'];
+      const boolKeys = ['adaProactive','adaGuidance','adaBrief','adaCelebrations','notifyEmail','notifySlack','notifyInApp'];
       if (boolKeys.includes(c.key as string)) return typeof v === 'boolean';
       const numKeys = ['gpsAccuracy','dupThreshold','passThreshold','minDuration','maxDuration',
         'passScoreThreshold','flagScoreThreshold','minDurationMins','maxDurationMins',
