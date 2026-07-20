@@ -45,8 +45,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await authApi.login(email, password);
-    const { token: newToken, user: newUser, org: newOrg } = res.data;
+    const { token: newToken, refresh_token: newRefreshToken, user: newUser, org: newOrg } = res.data;
     localStorage.setItem('fs_token', newToken);
+    // Older backends (or the Supabase auth path, which doesn't issue one —
+    // see fieldscore-backend auth.py) may omit this; the response
+    // interceptor's refreshAccessToken() already no-ops gracefully when
+    // there's nothing stored under this key.
+    if (newRefreshToken) localStorage.setItem('fs_refresh_token', newRefreshToken);
     localStorage.setItem('fs_user', JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
@@ -55,7 +60,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Best-effort, not awaited — revokes the session server-side (see
+    // authApi.logout's docstring) so the refresh token can't mint new
+    // access tokens after this, but the client-side logout/redirect below
+    // must not block on network round-trip, same UX as before this existed.
+    authApi.logout().catch(() => { /* already logging out regardless */ });
     localStorage.removeItem('fs_token');
+    localStorage.removeItem('fs_refresh_token');
     localStorage.removeItem('fs_user');
     document.cookie = 'fs_token=;path=/;max-age=0';
     setToken(null);

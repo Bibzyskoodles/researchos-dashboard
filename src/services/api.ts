@@ -20,14 +20,73 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+function clearAuthStorage() {
+  localStorage.removeItem('fs_token');
+  localStorage.removeItem('fs_refresh_token');
+  localStorage.removeItem('fs_user');
+  document.cookie = 'fs_token=;path=/;max-age=0';
+}
+
+// Access tokens are now short-lived (30 min — see fieldscore-backend's
+// auth.py) instead of the old 24h token, so a 401 mid-session is now a
+// routine, expected event, not just "the user's been idle for a day."
+// This exchanges the stored refresh token for a new pair and retries the
+// request that 401'd, instead of immediately booting the user to /login.
+//
+// Single-flight: if several requests 401 at nearly the same moment (e.g.
+// a page that fires 4 API calls on mount), they must NOT each independently
+// call /auth/refresh — the backend's refresh token is single-use with
+// rotation (see auth.py's reuse-detection), so a second concurrent refresh
+// call would present an already-rotated-away token and get treated as
+// theft, revoking the whole session and logging the user out for entirely
+// normal concurrent usage. All callers share the same in-flight promise.
+let refreshPromise: Promise<string | null> | null = null;
+
+function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+  const refreshToken = localStorage.getItem('fs_refresh_token');
+  if (!refreshToken) return Promise.resolve(null);
+  // Plain axios, not the `api` instance — calling through `api` would run
+  // this request back through the same response interceptor we're inside
+  // of, which is exactly the recursive edge case a refresh call must avoid.
+  refreshPromise = axios.post(`${BASE_URL}/auth/refresh`, { refresh_token: refreshToken })
+    .then(res => {
+      const { token, refresh_token } = res.data;
+      localStorage.setItem('fs_token', token);
+      if (refresh_token) localStorage.setItem('fs_refresh_token', refresh_token);
+      return token as string;
+    })
+    .catch(() => null)
+    .finally(() => { refreshPromise = null; });
+  return refreshPromise;
+}
+
+// A 401 from these specific routes is never "your session expired, let's
+// refresh it" — /auth/login's 401 means wrong credentials, /auth/refresh's
+// own 401 means the refresh token itself is dead (retrying would just loop).
+const NO_REFRESH_RETRY_PATHS = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/accept-invite'];
+
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
+    const original = err.config;
+    const url: string = original?.url || '';
+    const isAuthRoute = NO_REFRESH_RETRY_PATHS.some(p => url.includes(p));
+
+    if (err.response?.status === 401 && !isAuthRoute && !original._retriedAfterRefresh) {
+      original._retriedAfterRefresh = true;
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        original.headers.Authorization = `Bearer ${newToken}`;
+        return api(original);
+      }
+    }
+
     if (err.response?.status === 401) {
-      // Clear all auth state — never leave a partial session
-      localStorage.removeItem('fs_token');
-      localStorage.removeItem('fs_user');
-      document.cookie = 'fs_token=;path=/;max-age=0';
+      // Either refresh wasn't attempted (auth route), had nothing to refresh
+      // with, or the refresh itself failed (expired/revoked) — no session
+      // to recover. Clear everything and never leave a partial session.
+      clearAuthStorage();
       window.location.href = '/login';
     }
     return Promise.reject(err);
@@ -38,7 +97,17 @@ export const authApi = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
   me: () => api.get('/auth/me'),
-  logout: () => api.post('/auth/logout'),
+  // Sends the refresh token so the backend can revoke it server-side —
+  // without this, "logout" only ever cleared the browser's copy while the
+  // token (and any copy an attacker had) stayed valid for its full
+  // lifetime. See auth_routes.py's /auth/logout docstring.
+  logout: () => {
+    const refresh_token = localStorage.getItem('fs_refresh_token') || undefined;
+    return api.post('/auth/logout', { refresh_token });
+  },
+  logoutAll: () => api.post('/auth/logout-all'),
+  listSessions: () => api.get('/auth/sessions'),
+  revokeSession: (sessionId: string) => api.delete(`/auth/sessions/${sessionId}`),
   changePassword: (current_password: string, new_password: string) =>
     api.post('/auth/change-password', { current_password, new_password }),
 };
