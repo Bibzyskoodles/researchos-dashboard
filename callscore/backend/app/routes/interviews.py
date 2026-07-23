@@ -1,12 +1,8 @@
 """
-Interview session lifecycle.
-
-Matches docs/ARCHITECTURE_BIBLE.md Part 2.3 (Interview Session Lifecycle)
-and Part 5.3 (Sync Queue Design).
-
-interview_session_id is CLIENT-GENERATED (UUID) so that offline-created
-sessions can sync later without server round-trips, and retried uploads
-are idempotent — never insert a duplicate for the same id.
+Interview session lifecycle — reconciled onto FieldScore's `submissions`
+table (docs/RECONCILIATION.md §2): a Call interview IS a submission row
+with collection_mode='call'. Matches Bible Part 2.3 (lifecycle) and 5.3
+(idempotent client-generated ids for offline sync).
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,7 +10,6 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
-from uuid import UUID
 
 from app import models
 from app.db import get_db
@@ -24,13 +19,13 @@ router = APIRouter()
 
 
 class InterviewSessionCreate(BaseModel):
-    id: UUID  # client-generated
-    project_id: UUID
-    enumerator_id: UUID
-    respondent_id: UUID
+    id: str  # client-generated submission id
+    org_id: str
+    project_id: str
+    enumerator_id: str  # free-text ref, matches enumerators.enumerator_ref
+    respondent_id: str
     started_at: datetime
     consent_captured: bool
-    integration_mode: str = "standalone"
 
 
 class InterviewSessionStop(BaseModel):
@@ -50,28 +45,30 @@ def create_interview_session(payload: InterviewSessionCreate, db: Session = Depe
             status_code=422,
             detail="Consent must be captured before an interview session can start.",
         )
-    existing = db.get(models.InterviewSession, payload.id)
+    existing = db.get(models.Submission, payload.id)
     if existing is not None:
         # Idempotent retry: same client-generated id, return existing state.
-        return {"id": str(existing.id), "status": "started", "idempotent": True}
+        return {"id": existing.submission_id, "status": "started", "idempotent": True}
 
-    session = models.InterviewSession(
-        id=payload.id,
+    submission = models.Submission(
+        submission_id=payload.id,
+        org_id=payload.org_id,
         project_id=payload.project_id,
         enumerator_id=payload.enumerator_id,
         respondent_id=payload.respondent_id,
+        collection_mode="call",
         started_at=payload.started_at,
         consent_captured=payload.consent_captured,
-        integration_mode=payload.integration_mode,
+        sync_status="pending",
     )
-    db.add(session)
+    db.add(submission)
     db.commit()
-    return {"id": str(session.id), "status": "started"}
+    return {"id": submission.submission_id, "status": "started"}
 
 
-@router.post("/{session_id}/stop")
+@router.post("/{submission_id}/stop")
 def stop_interview_session(
-    session_id: UUID, payload: InterviewSessionStop, db: Session = Depends(get_db)
+    submission_id: str, payload: InterviewSessionStop, db: Session = Depends(get_db)
 ):
     """
     Stop Interview. Runs the late-start/early-stop discrepancy check against
@@ -79,43 +76,52 @@ def stop_interview_session(
     also recomputed at scoring time; surfacing them here lets the app show
     the enumerator immediately that the session will carry a timing flag.
     """
-    session = db.get(models.InterviewSession, session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="Unknown interview session.")
+    submission = db.get(models.Submission, submission_id)
+    if submission is None or submission.collection_mode != "call":
+        raise HTTPException(status_code=404, detail="Unknown call-mode interview session.")
 
-    session.stopped_at = payload.stopped_at
-    session.device1_call_started_at = payload.device1_call_started_at
-    session.device1_call_ended_at = payload.device1_call_ended_at
+    submission.stopped_at = payload.stopped_at
+    submission.device1_call_started_at = payload.device1_call_started_at
+    submission.device1_call_ended_at = payload.device1_call_ended_at
     db.commit()
 
     late_start, early_stop = scoring.detect_timing_flags(
-        session.started_at,
-        session.stopped_at,
-        session.device1_call_started_at,
-        session.device1_call_ended_at,
+        submission.started_at,
+        submission.stopped_at,
+        submission.device1_call_started_at,
+        submission.device1_call_ended_at,
     )
     return {
-        "id": str(session.id),
+        "id": submission.submission_id,
         "status": "stopped",
         "late_start_flag": late_start,
         "early_stop_flag": early_stop,
     }
 
 
-@router.get("/{session_id}")
-def get_interview_session(session_id: UUID, db: Session = Depends(get_db)):
-    session = db.get(models.InterviewSession, session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="Unknown interview session.")
+@router.get("/{submission_id}")
+def get_interview_session(submission_id: str, db: Session = Depends(get_db)):
+    submission = db.get(models.Submission, submission_id)
+    if submission is None or submission.collection_mode != "call":
+        raise HTTPException(status_code=404, detail="Unknown call-mode interview session.")
+    artifacts = (
+        db.query(models.EvidenceArtifact)
+        .filter(models.EvidenceArtifact.submission_id == submission_id)
+        .all()
+    )
+    scorecard = db.get(models.CallScorecard, submission_id)
     return {
-        "id": str(session.id),
-        "project_id": str(session.project_id),
-        "enumerator_id": str(session.enumerator_id),
-        "respondent_id": str(session.respondent_id),
-        "started_at": session.started_at,
-        "stopped_at": session.stopped_at,
-        "consent_captured": session.consent_captured,
-        "sync_status": session.sync_status,
+        "id": submission.submission_id,
+        "org_id": submission.org_id,
+        "project_id": submission.project_id,
+        "enumerator_id": submission.enumerator_id,
+        "respondent_id": submission.respondent_id,
+        "started_at": submission.started_at,
+        "stopped_at": submission.stopped_at,
+        "consent_captured": submission.consent_captured,
+        "sync_status": submission.sync_status,
+        "verdict": submission.verdict,
+        "grade": submission.grade,
         "evidence_artifacts": [
             {
                 "id": str(a.id),
@@ -123,7 +129,7 @@ def get_interview_session(session_id: UUID, db: Session = Depends(get_db)):
                 "storage_ref": a.storage_ref,
                 "created_at": a.created_at,
             }
-            for a in session.evidence_artifacts
+            for a in artifacts
         ],
-        "scorecard_available": session.scorecard is not None,
+        "scorecard_available": scorecard is not None,
     }

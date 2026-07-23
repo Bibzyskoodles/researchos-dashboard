@@ -10,7 +10,10 @@ export interface AdaSummary {
 
 export interface Scorecard {
   interview_id: string;
+  // Headline shared vocabulary — same fields FieldScore dashboards render.
   overall_quality_score: number;
+  verdict: "PASS" | "FLAG" | "REJECT";
+  grade: "A" | "B" | "C" | "D" | "F";
   authenticity_score: number;
   compliance_score: number;
   behaviour_score: number;

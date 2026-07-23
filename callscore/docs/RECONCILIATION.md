@@ -40,6 +40,12 @@ InsightScore automatically" should reuse that outbox, not build a new handoff.
 
 ## 3. Decision points (stop-and-ask per CLAUDE.md)
 
+> **Status: DECIDED 2026-07-23** — all four recommended options approved:
+> 3.1 (a) registry table, 3.2 (b→slim `call_scorecards`), 3.3 shared
+> append-only `override_log`, 3.4 (a) separate service. Implemented in
+> `migrations/0001_call_mode.sql` and the rewritten models/routes.
+> 3.5 (Ada memory) remains open — revisit when Ada work reaches this repo.
+
 ### 3.1 Enumerator identity — the trust record depends on this
 Bible 4.6/4A.5 requires a **global `enumerators` table from MVP**. FieldScore
 *deliberately rejected* a stored enumerator table after `enumerator_memory`

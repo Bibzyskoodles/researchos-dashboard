@@ -86,6 +86,16 @@ class TestSynthesis:
         assert r.late_start_flag
         assert r.recommended_action != "none"
 
+    def test_field_vocabulary_mapping(self):
+        clean = scoring.to_field_vocabulary(scoring.synthesize([], False, False, []))
+        assert clean == {"verdict": "PASS", "grade": "A", "overall_score": 100}
+        high = scoring.to_field_vocabulary(
+            scoring.synthesize([_finding("voice_mismatch", 80)], False, False, [])
+        )
+        assert high["verdict"] == "REJECT"
+        partial = scoring.to_field_vocabulary(scoring.synthesize([], False, False, ["transcription"]))
+        assert partial["verdict"] == "FLAG"
+
     def test_missing_questions_hit_compliance(self):
         r = scoring.synthesize([_finding("missing_question", 90)] * 3, False, False, [])
         assert r.compliance_score < 50

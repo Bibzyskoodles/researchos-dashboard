@@ -54,8 +54,26 @@ def _clamp(v: float) -> int:
     return max(0, min(100, round(v)))
 
 
+def to_field_vocabulary(result: "SynthesisResult") -> dict:
+    """
+    Map a Call scorecard into FieldScore's shared verdict/grade vocabulary
+    (see docs/RECONCILIATION.md §2) so both modes render identically on the
+    shared dashboards and leaderboard.
+    """
+    if result.fraud_risk == "high":
+        verdict = "REJECT"
+    elif result.fraud_risk == "medium" or result.partial_analysis:
+        verdict = "FLAG"
+    else:
+        verdict = "PASS"
+
+    score = result.overall_quality_score
+    grade = "A" if score >= 90 else "B" if score >= 80 else "C" if score >= 70 else "D" if score >= 60 else "F"
+    return {"verdict": verdict, "grade": grade, "overall_score": score}
+
+
 def detect_timing_flags(
-    started_at: datetime,
+    started_at: Optional[datetime],
     stopped_at: Optional[datetime],
     call_started_at: Optional[datetime],
     call_ended_at: Optional[datetime],
@@ -64,7 +82,8 @@ def detect_timing_flags(
     """Late-start / early-stop detection (Bible 6.5)."""
     threshold = threshold_seconds if threshold_seconds is not None else config.TIMING_DISCREPANCY_THRESHOLD_SECONDS
     late_start = bool(
-        call_started_at and (started_at - call_started_at).total_seconds() > threshold
+        started_at and call_started_at
+        and (started_at - call_started_at).total_seconds() > threshold
     )
     early_stop = bool(
         stopped_at and call_ended_at and (call_ended_at - stopped_at).total_seconds() > threshold

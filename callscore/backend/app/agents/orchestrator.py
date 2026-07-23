@@ -1,5 +1,7 @@
 """
-Pipeline orchestration. See docs/ARCHITECTURE_BIBLE.md Part 4.3.
+Pipeline orchestration. See docs/ARCHITECTURE_BIBLE.md Part 4.3 and
+docs/RECONCILIATION.md — this service shares fieldscore-backend's Postgres;
+the interview entity is a `submissions` row with collection_mode='call'.
 
 Tier 1 -> Tier 2 (parallel where possible) -> Tier 3 (batched against
 interview history) -> Tier 4 (synthesis).
@@ -42,7 +44,7 @@ TIER_2 = [
 TIER_3 = [SimilarityFabricationAgent(), PatternFraudAgent(), VoiceFingerprintAgent()]
 
 
-def run_pipeline(db: Session, interview_session_id: str) -> models.Scorecard:
+def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
     """
     Synchronous pipeline run. Designed to be called from a Celery/RQ
     worker; safe to call inline for small deployments and tests.
@@ -50,22 +52,27 @@ def run_pipeline(db: Session, interview_session_id: str) -> models.Scorecard:
     Hard gate (Design Principle 2): refuses to run without a consent
     evidence artifact — enforced here in the state machine, not policy.
     """
-    session = db.get(models.InterviewSession, interview_session_id)
-    if session is None:
-        raise ValueError(f"unknown interview session {interview_session_id}")
+    submission = db.get(models.Submission, submission_id)
+    if submission is None:
+        raise ValueError(f"unknown submission {submission_id}")
+    if submission.collection_mode != "call":
+        raise ValueError(
+            f"submission {submission_id} is {submission.collection_mode}-mode; "
+            "this pipeline only scores call-mode interviews"
+        )
 
     consent = db.scalar(
         select(models.EvidenceArtifact).where(
-            models.EvidenceArtifact.interview_session_id == session.id,
+            models.EvidenceArtifact.submission_id == submission_id,
             models.EvidenceArtifact.artifact_type == "consent_recording",
         )
     )
-    if not session.consent_captured or consent is None:
+    if not submission.consent_captured or consent is None:
         raise PermissionError(
             "Consent artifact missing: analysis is blocked (Bible Part 7)."
         )
 
-    session.sync_status = "processing"
+    submission.sync_status = "processing"
     db.flush()
 
     findings: list[AgentFinding] = []
@@ -75,13 +82,13 @@ def run_pipeline(db: Session, interview_session_id: str) -> models.Scorecard:
     for tier in (TIER_1, TIER_2, TIER_3):
         for agent in tier:
             try:
-                findings.extend(agent.run(str(session.id), context))
+                findings.extend(agent.run(submission_id, context))
             except NotImplementedError:
                 # Stub agents don't count as hard failures — they're absent
                 # capability, but still tracked so confidence reflects coverage.
                 failed_agents.append(agent.name)
             except Exception:
-                logger.exception("agent %s failed for session %s", agent.name, session.id)
+                logger.exception("agent %s failed for submission %s", agent.name, submission_id)
                 failed_agents.append(agent.name)
 
     # Persist every upstream finding — the raw material Evidence
@@ -89,7 +96,7 @@ def run_pipeline(db: Session, interview_session_id: str) -> models.Scorecard:
     for f in findings:
         db.add(
             models.AgentFindingRow(
-                interview_session_id=session.id,
+                submission_id=submission_id,
                 agent_name=f.agent_name,
                 finding_type=f.finding_type,
                 description=f.description,
@@ -101,30 +108,35 @@ def run_pipeline(db: Session, interview_session_id: str) -> models.Scorecard:
         )
 
     late_start, early_stop = scoring.detect_timing_flags(
-        session.started_at,
-        session.stopped_at,
-        session.device1_call_started_at,
-        session.device1_call_ended_at,
+        submission.started_at,
+        submission.stopped_at,
+        submission.device1_call_started_at,
+        submission.device1_call_ended_at,
     )
     result = scoring.synthesize(findings, late_start, early_stop, failed_agents)
 
-    scorecard = db.scalar(
-        select(models.Scorecard).where(models.Scorecard.interview_session_id == session.id)
-    )
+    scorecard = db.get(models.CallScorecard, submission_id)
     if scorecard is None:
-        scorecard = models.Scorecard(interview_session_id=session.id)
+        scorecard = models.CallScorecard(submission_id=submission_id)
         db.add(scorecard)
 
-    scorecard.overall_quality_score = result.overall_quality_score
     scorecard.authenticity_score = result.authenticity_score
     scorecard.compliance_score = result.compliance_score
     scorecard.behaviour_score = result.behaviour_score
-    scorecard.fraud_risk = result.fraud_risk
     scorecard.confidence_level = result.confidence_level
+    scorecard.fraud_risk = result.fraud_risk
     scorecard.recommended_action = result.recommended_action
     scorecard.late_start_flag = result.late_start_flag
     scorecard.early_stop_flag = result.early_stop_flag
 
-    session.sync_status = "processed"
+    # Headline results in the shared vocabulary, onto the submissions row —
+    # this is what the existing FieldScore dashboards/leaderboard read.
+    shared = scoring.to_field_vocabulary(result)
+    submission.verdict = shared["verdict"]
+    submission.grade = shared["grade"]
+    submission.overall_score = shared["overall_score"]
+    submission.fraud_flag = result.fraud_risk if result.fraud_risk != "low" else None
+
+    submission.sync_status = "processed"
     db.commit()
     return scorecard
