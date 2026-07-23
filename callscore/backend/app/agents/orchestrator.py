@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import models
+from app.agents.questionnaire_design import QuestionnaireDesignAgent  # Tier 0 - project setup, not per-interview
 from app.agents.audio_quality import AudioQualityAgent
 from app.agents.transcription_diarization import TranscriptionDiarizationAgent
 from app.agents.question_compliance import QuestionComplianceAgent
@@ -29,6 +30,7 @@ from app.services import scoring
 
 logger = logging.getLogger(__name__)
 
+TIER_0 = [QuestionnaireDesignAgent()]  # run once at project setup, see Bible Part 4A.2
 TIER_1 = [AudioQualityAgent(), TranscriptionDiarizationAgent()]
 TIER_2 = [
     QuestionComplianceAgent(),

@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, Text, text
+from sqlalchemy import Boolean, ForeignKey, Integer, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -173,13 +173,12 @@ class AdaOverride(Base):
     # Bible 4A.6: every human decision against Ada's recommendation is
     # logged — who, when, and a required free-text reason.
     __tablename__ = "ada_overrides"
-    __table_args__ = (CheckConstraint("length(trim(reason)) > 0", name="ada_overrides_reason_required"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     interview_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("interview_sessions.id"), nullable=False)
     scorecard_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scorecards.id"), nullable=False)
-    recommended_action: Mapped[str] = mapped_column(Text, nullable=False)
-    human_action: Mapped[str] = mapped_column(Text, nullable=False)
-    overridden_by: Mapped[str] = mapped_column(Text, nullable=False)
+    ada_recommended_action: Mapped[str] = mapped_column(Text, nullable=False)
+    human_action_taken: Mapped[str] = mapped_column(Text, nullable=False)
+    overridden_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))

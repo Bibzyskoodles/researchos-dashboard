@@ -16,26 +16,28 @@ def _finding(ftype: str, confidence: int) -> AgentFinding:
 
 class TestAdaVoice:
     def test_register_boundaries(self):
-        assert ada_voice.register_for(90) is ada_voice.Register.KNOW
-        assert ada_voice.register_for(89) is ada_voice.Register.SUSPECT
-        assert ada_voice.register_for(60) is ada_voice.Register.SUSPECT
-        assert ada_voice.register_for(59) is ada_voice.Register.RECOMMEND_CHECKING
+        assert ada_voice.register_for_confidence(90) is ada_voice.AdaRegister.KNOWS
+        assert ada_voice.register_for_confidence(89) is ada_voice.AdaRegister.SUSPECTS
+        assert ada_voice.register_for_confidence(60) is ada_voice.AdaRegister.SUSPECTS
+        assert ada_voice.register_for_confidence(59) is ada_voice.AdaRegister.RECOMMENDS_CHECKING
 
     def test_out_of_range_rejected(self):
         with pytest.raises(ValueError):
-            ada_voice.register_for(101)
+            ada_voice.register_for_confidence(101)
+
+    def test_build_ada_utterance_carries_framing(self):
+        u = ada_voice.build_ada_utterance("question 7 was not asked", 70)
+        assert u["register"] == "suspects"
+        assert u["framing_instruction"] == ada_voice.REGISTER_PROMPT_FRAMING[ada_voice.AdaRegister.SUSPECTS]
 
     def test_render_finding_uses_register_opener(self):
-        s = ada_voice.render_finding("Question 7 was not asked", 95)
-        assert s.text.startswith("I know")
-        s = ada_voice.render_finding("Question 7 was not asked", 70)
-        assert s.text.startswith("I suspect")
-        s = ada_voice.render_finding("Question 7 was not asked", 30)
-        assert s.text.startswith("I recommend checking")
+        assert ada_voice.render_finding("Question 7 was not asked", 95)["text"].startswith("I know")
+        assert ada_voice.render_finding("Question 7 was not asked", 70)["text"].startswith("I suspect")
+        assert ada_voice.render_finding("Question 7 was not asked", 30)["text"].startswith("I recommend checking")
 
     def test_no_finding_never_asserts(self):
         s = ada_voice.render_scorecard_summary("high", 95, "escalate", None)
-        assert s.register is ada_voice.Register.RECOMMEND_CHECKING
+        assert s["register"] == "recommends_checking"
 
 
 class TestTimingFlags:

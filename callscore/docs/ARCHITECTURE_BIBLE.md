@@ -22,25 +22,43 @@ CallScore reviews 100% of remote research interviews for integrity, compliance, 
 - Not a call recorder. Recording is a means; verified integrity is the product.
 - Not a CATI platform. It doesn't manage sampling, dialing, or respondent databases — it verifies the interviews that happen, however they're conducted.
 
-### 1.3 Platform Positioning
+### 1.3 Platform Positioning — One App, Two Capture Modes
 
-CallScore is one of three surfaces of a single underlying trust engine:
+**Revision:** FieldScore and CallScore are not two products a user chooses between at the account level. They are **two capture modes inside one application.** The enumerator opens one app, selects a respondent, and picks **Field** or **Call** as the mode for that specific interview. One login, one project, one enumerator identity, one interview history — the mode is a per-interview choice, not a separate product boundary.
 
-| Product | Question Answered | Collection Mode |
-|---|---|---|
-| **FieldScore** | Can this in-person interview be trusted? | Face-to-face |
-| **CallScore** | Can this remote interview be trusted? | Any remote channel |
-| **InsightScore** | What does the trusted data tell us? | Post-verification analysis |
+This matters concretely, not just narratively:
+- **Shared shell:** project setup, respondent lists, enumerator assignment, supervisor dashboards, and the enumerator trust record are one system, not two synced systems.
+- **Different capture engines underneath:** Field mode uses GPS/image/in-person audio capture; Call mode uses the two-device/companion-app/BLE architecture (Part 6). These stay cleanly separated as distinct engines — this is "one app, two capture engines," not one flow that awkwardly branches to handle both.
+- **One InsightScore handoff:** verified interviews from either mode flow into InsightScore identically. InsightScore doesn't know or care which mode produced the data — only that it passed verification.
 
-All three share a common enumerator identity schema and evidence format (see Part 4.6 — Unified Trust Record). This is the platform's core long-term moat and must not be compromised for short-term shipping speed.
+| Layer | Field mode | Call mode | Shared |
+|---|---|---|---|
+| Capture | GPS, images, in-person audio | Companion app, BLE call-state, screenshot OCR | — |
+| Consent | In-person consent capture | Remote consent capture (Part 7) | Same consent evidence schema |
+| AI agents | FieldScore's existing fraud/quality agents | CallScore's Tier 0–4 agents (Part 4, 4A) | Same evidence/scorecard shape |
+| Identity | — | — | One `enumerators` table, one trust record |
+| Output | — | — | One InsightScore handoff format |
 
-### 1.4 Competitive Position
+### 1.4 Platform Entry Flow
+
+The user-facing shape of the "one app, two capture modes" idea (1.3) is a signup/navigation flow, not just a backend data model:
+
+1. **Sign up / log in** — one account, one organization, regardless of which module(s) they'll use.
+2. **Choose a module** — Field or Call — as the entry point into the work. This is presented as a top-level choice (e.g., a landing screen after login: "Field" / "Call"), not buried inside project setup. A user working a single project may use both over time; the choice is about which module they're entering *right now*, not a permanent account-level setting.
+3. **Work inside that module** — the Field or Call capture flow proceeds exactly as specified in Part 2 (workflow) and Part 6 (device/connectivity architecture) for that mode.
+4. **Verified data flows to InsightScore automatically** — once interviews are captured and scored in either module, the user can move into InsightScore to analyze the now-verified dataset. This should feel like a natural next step in one product ("your data's ready — see what it tells you"), not a handoff to a separate tool requiring a new login or export step.
+
+**Design implication:** the top-level navigation shell (post-login) has three destinations — Field, Call, InsightScore — but only two of them are data *capture* entry points. InsightScore is always the downstream destination, never a peer users "choose" instead of capturing data. Don't design a symmetric three-way switcher that implies InsightScore is an alternative to Field/Call; it's what both feed into.
+
+This flow is the reference for both the FieldScore reconciliation work (see `CLAUDE.md`) and any Call-mode-specific frontend routing built in this repo — the Call module's own screens (`SupervisorQueue.tsx`, `GlanceConfirm.tsx`) sit *inside* the Call destination, not as a separate app with its own top-level login.
+
+### 1.5 Competitive Position
 
 The nearest existing capability is SurveyCTO's "audio audit" feature — randomly-sampled recording clips, reviewed manually. No incumbent runs native, end-to-end AI analysis over 100% of remote interview audio. Real-world teams are already duct-taping this together with SurveyCTO + WhatsApp + Gmail + AssemblyAI + Gemini scripts (observed in the wild). CallScore's job is to be the native, defensible, offline-first version of what people are currently hacking together.
 
 Online-panel fraud tools (Zamplia, Kantar Qubed, ReDem, Research Defender) are **not competitors** — they solve bot/click-farm detection for self-administered online surveys, an entirely different problem from human-conducted phone/WhatsApp interviews.
 
-### 1.5 One-Line Pitch
+### 1.6 One-Line Pitch
 
 **"CallScore is the AI supervisor sitting beside every remote interview — reviewing 100% of the work a human team could only ever sample."**
 
@@ -334,6 +352,59 @@ Manager imports an XLSForm questionnaire; CallScore auto-derives compliance rule
 
 **V3**
 - Enumerator passport as a standalone, queryable cross-organization product.
+
+---
+
+## PART 4A — ADA: THE AI CHIEF RESEARCH OFFICER
+
+### 4A.1 What Ada Is
+
+Ada is not a 13th pipeline agent. She is the **interface layer sitting on top of the entire agent pipeline** — the consistent voice, memory, and communication style through which Tier 0/2/3/4 outputs reach humans. Where Part 4's agents produce structured findings, Ada is how those findings are *experienced*: as a colleague, not a dashboard.
+
+Concretely, Ada is composed of:
+- **Tier 0 — Questionnaire Design Agent** (new — see 4A.2)
+- **Tiers 1–3** — unchanged, exactly as specified in Part 4.2
+- **Tier 4 (Synthesis)** — unchanged in function, but its output is rendered through the Ada Voice Layer (4A.3) rather than as a bare JSON scorecard
+- **The Unified Enumerator Trust Record** — Ada's institutional memory (4A.4), which the roadmap must pull forward (see 4A.5)
+
+### 4A.2 Tier 0 — Questionnaire Design Agent (New)
+
+Runs before fieldwork begins, against the imported XLSForm. Flags:
+- Ambiguous wording, double-barrelled questions, leading questions
+- Inconsistent skip logic
+- Missing or incomplete consent language
+- Translation concerns
+- Questionnaire fatigue risk (length, repetition)
+
+Output feeds the Research Manager during project setup (Part 8.7), before a single interview happens. This agent has no fraud/scoring role — it's a design-quality reviewer, and its findings never touch an interview's scorecard.
+
+### 4A.3 The Ada Voice Layer — Confidence Language Is Generated, Not Authored
+
+**This is a hard rule, not a style guideline.** Ada's signature communication trait — distinguishing "I know" / "I suspect" / "I recommend checking" — must be mechanically derived from `confidence_level` and `fraud_risk` on the scorecard (Part 4.4), never freely written by a language model and merely hoped to match the underlying evidence strength.
+
+```
+confidence_level >= 90        -> "I know" register (direct, declarative)
+confidence_level 60-89        -> "I suspect" register (hedged, names the evidence)
+confidence_level < 60          -> "I recommend checking" register (never asserts, only flags)
+```
+
+A prompting instruction alone is not sufficient enforcement — this mapping must be implemented as a deterministic function the voice layer calls, so a confident-sounding sentence can never be generated from weak evidence. See `backend/app/services/ada_voice.py`.
+
+### 4A.4 Ada's Memory — Same Schema as the Unified Trust Record
+
+Ada's "I noticed this last month" / "this enumerator has improved" capability is not a new memory system — it *is* the Unified Enumerator Trust Record from Part 4.6, queried and surfaced conversationally. There is no separate "Ada memory" database. Institutional memory means: querying `enumerators`, `interview_sessions`, and `scorecards` across time and across both FieldScore and CallScore, through one identity schema.
+
+### 4A.5 Roadmap Correction
+
+Part 10 originally deferred the Unified Enumerator Trust Record to V2. **Revise: the shared `enumerator_id` schema and cross-session history query must exist from MVP**, even if the cross-*product* (FieldScore+CallScore) query layer stays a V2 feature. Ada's core personality promise — memory, noticing patterns over time — doesn't work at all if enumerator history isn't queryable from day one. This is a schema decision, not a feature decision, and it's already reflected in `backend/migrations/0001_init.sql` (the `enumerators` table is deliberately global, not per-project).
+
+### 4A.6 Accountability & Audit Logging (Blind Spot Fix)
+
+"Ada advises, humans decide" is the correct accountability model, but it is incomplete without an explicit audit trail: **every time a human approves an interview against a supervisor-facing recommendation to escalate or back-check, or rejects one Ada scored as low-risk, that override must be logged** — who, when, and why (free-text reason required, not optional). Without this, an organization cannot answer "why was this fraudulent interview approved" during an external audit. See `backend/migrations/0002_ada_overrides.sql`.
+
+### 4A.7 Ada's Presence
+
+Ambient, not persistent chrome. During an active interview she is silent unless a real-time signal (Part 4.5) warrants a coaching nudge. Post-interview and in supervisor/manager contexts, she speaks in the register defined by 4A.3, at whatever length the finding warrants — one sentence for a clean interview, a full evidence narrative for a high-risk one. Never a fixed-length report template.
 
 ---
 

@@ -44,7 +44,7 @@ def get_scorecard(session_id: UUID, db: Session = Depends(get_db)):
     summary = ada_voice.render_scorecard_summary(
         card.fraud_risk, card.confidence_level, card.recommended_action,
         top.description if top else None,
-    )
+    )  # deterministic register enforcement (Bible 4A.3)
 
     return {
         "interview_id": str(session_id),
@@ -57,7 +57,7 @@ def get_scorecard(session_id: UUID, db: Session = Depends(get_db)):
         "recommended_action": card.recommended_action,
         "late_start_flag": card.late_start_flag,
         "early_stop_flag": card.early_stop_flag,
-        "ada_summary": {"register": summary.register, "text": summary.text},
+        "ada_summary": {"register": summary["register"], "text": summary["text"]},
         "evidence": [
             {
                 "agent": f.agent_name,
@@ -110,8 +110,8 @@ def get_supervisor_queue(project_id: UUID, db: Session = Depends(get_db)):
 
 
 class OverrideIn(BaseModel):
-    human_action: str  # approve | reject | backcheck | escalate
-    overridden_by: str
+    human_action_taken: str  # approve | reject | backcheck | escalate
+    overridden_by: UUID      # user id of the deciding human
     reason: str
 
 
@@ -132,8 +132,8 @@ def record_override(session_id: UUID, payload: OverrideIn, db: Session = Depends
     override = models.AdaOverride(
         interview_session_id=session_id,
         scorecard_id=card.id,
-        recommended_action=card.recommended_action,
-        human_action=payload.human_action,
+        ada_recommended_action=card.recommended_action,
+        human_action_taken=payload.human_action_taken,
         overridden_by=payload.overridden_by,
         reason=payload.reason.strip(),
     )
