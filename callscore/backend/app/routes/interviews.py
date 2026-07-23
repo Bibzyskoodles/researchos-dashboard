@@ -99,6 +99,39 @@ def stop_interview_session(
     }
 
 
+@router.get("/project/{project_id}")
+def list_interview_sessions(project_id: str, db: Session = Depends(get_db)):
+    """Call-mode interviews for a project, most recent first — drives the
+    dashboard's Collect-stage Call tab (sync/consent status at a glance)."""
+    rows = (
+        db.query(models.Submission)
+        .filter(
+            models.Submission.project_id == project_id,
+            models.Submission.collection_mode == "call",
+        )
+        .order_by(models.Submission.started_at.desc().nulls_last())
+        .limit(200)
+        .all()
+    )
+    return {
+        "project_id": project_id,
+        "interviews": [
+            {
+                "id": s.submission_id,
+                "enumerator_id": s.enumerator_id,
+                "respondent_id": s.respondent_id,
+                "started_at": s.started_at,
+                "stopped_at": s.stopped_at,
+                "consent_captured": s.consent_captured,
+                "sync_status": s.sync_status,
+                "verdict": s.verdict,
+                "grade": s.grade,
+            }
+            for s in rows
+        ],
+    }
+
+
 @router.get("/{submission_id}")
 def get_interview_session(submission_id: str, db: Session = Depends(get_db)):
     submission = db.get(models.Submission, submission_id)

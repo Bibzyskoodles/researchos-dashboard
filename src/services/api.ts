@@ -419,4 +419,38 @@ export const webhooksApi = {
   revoke: (id: string) => api.delete(`/api/org/webhooks/${id}`),
 };
 
+// ── CallScore (Call capture mode) ──────────────────────────────────────────
+// The Call-mode agent pipeline runs as its own service sharing the backend's
+// Postgres (callscore/docs/RECONCILIATION.md §3.4), so it has its own base
+// URL. Auth is the same FieldScore Bearer token; this instance reuses the
+// same request-header pattern as `api` above. The URL is public config, not
+// a secret — nothing key-like ships via REACT_APP_* here.
+const CALLSCORE_BASE_URL =
+  process.env.REACT_APP_CALLSCORE_API_URL || 'https://callscore-production.up.railway.app';
+
+const callApi = axios.create({ baseURL: CALLSCORE_BASE_URL });
+
+callApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('fs_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+export const callScoreApi = {
+  // Push-ranked supervisor queue (Bible Part 8.6) — call-mode interviews only.
+  queue: (projectId: string) =>
+    callApi.get(`/api/v1/scorecards/queue/${encodeURIComponent(projectId)}`),
+  scorecard: (interviewId: string) =>
+    callApi.get(`/api/v1/scorecards/${encodeURIComponent(interviewId)}`),
+  listInterviews: (projectId: string) =>
+    callApi.get(`/api/v1/interviews/project/${encodeURIComponent(projectId)}`),
+  // Override audit (Bible 4A.6) — reason is mandatory, enforced server-side too.
+  recordOverride: (interviewId: string, humanAction: string, overriddenBy: string, reason: string) =>
+    callApi.post(`/api/v1/scorecards/${encodeURIComponent(interviewId)}/override`, {
+      human_action: humanAction,
+      overridden_by: overriddenBy,
+      reason,
+    }),
+};
+
 export default api;
