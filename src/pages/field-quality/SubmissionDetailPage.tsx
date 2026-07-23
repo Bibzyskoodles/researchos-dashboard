@@ -161,6 +161,65 @@ const FLAG_LABELS:Record<string,{label:string,severity:"high"|"medium"|"low"}> =
 
 // ScoreRing and EngineBar now live in src/components/ui (shared).
 
+// Extra photos/recordings beyond the first, for multi-media submissions.
+// The primary item (index 0) is rendered by the main cards; this strip covers
+// indices 1..N, fetching each through the authenticated media proxy by index.
+type MediaItem = { url?: string; status?: string; flag?: string; finding?: string; filename?: string };
+function ExtraMediaStrip({ submissionId, kind, items }:{
+  submissionId: string; kind: "image" | "audio"; items: MediaItem[];
+}){
+  const [urls,setUrls]=useState<Record<number,string>>({});
+  useEffect(()=>{
+    let alive=true; const made:string[]=[];
+    (async()=>{
+      for(let i=1;i<items.length;i++){
+        try{
+          const resp = kind==="image"
+            ? await mediaApi.fetchImage(submissionId,i)
+            : await mediaApi.fetchAudio(submissionId,i);
+          const obj=URL.createObjectURL(resp.data);
+          made.push(obj);
+          if(alive) setUrls(prev=>({...prev,[i]:obj}));
+        }catch{ /* a file that won't fetch is skipped, not fatal */ }
+      }
+    })();
+    return ()=>{ alive=false; made.forEach(u=>URL.revokeObjectURL(u)); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[submissionId,kind,items.length]);
+
+  if(!items||items.length<=1) return null;
+  const bad=(s?:string)=>s==="REJECT"||s==="FLAG";
+  return (
+    <div style={{padding:"0 20px 16px"}}>
+      <div style={{fontSize:11,color:"#9CA3AF",fontWeight:600,margin:"4px 0 8px"}}>
+        {items.length} {kind==="image"?"photos":"recordings"} on this submission
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+        {items.slice(1).map((it,idx)=>{
+          const i=idx+1; const u=urls[i];
+          return kind==="image" ? (
+            <div key={i} title={it.finding||it.filename||`Photo ${i+1}`}
+              style={{width:78,height:78,borderRadius:8,overflow:"hidden",cursor:u?"zoom-in":"default",
+                border:bad(it.status)?"2px solid #DC2626":"1px solid #E2E8F0",background:"#F8FAFF",
+                display:"grid",placeItems:"center"}}
+              onClick={()=>{ if(u) window.open(u,"_blank","noopener"); }}>
+              {u? <img src={u} alt={`Attachment ${i+1}`} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                : <span style={{fontSize:10,color:"#9CA3AF"}}>…</span>}
+            </div>
+          ) : (
+            <div key={i} style={{minWidth:220,padding:8,borderRadius:8,
+              border:bad(it.status)?"2px solid #DC2626":"1px solid #E2E8F0",background:"#F8FAFF"}}>
+              <div style={{fontSize:10.5,color:"#9CA3AF",marginBottom:4}}>{it.filename||`Recording ${i+1}`}</div>
+              {u? <audio controls src={u} style={{width:"100%",height:32}}/>
+                : <span style={{fontSize:11,color:"#9CA3AF"}}>loading…</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function SubmissionDetailPage(){
   const {id}=useParams();
   const navigate=useNavigate();
@@ -864,6 +923,9 @@ export default function SubmissionDetailPage(){
                 No image submitted
               </div>
             )}
+            {Array.isArray(sub.checks?.image?.items)&&sub.checks.image.items.length>1&&(
+              <ExtraMediaStrip submissionId={sub.submission_id} kind="image" items={sub.checks.image.items}/>
+            )}
             {checks.image&&(
               <div style={{padding:"14px 20px",display:"flex",flexDirection:"column",gap:10}}>
                 <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"12px",background:"#F8FAFF",borderRadius:10,border:"1px solid #E8EDF5"}}>
@@ -917,6 +979,9 @@ export default function SubmissionDetailPage(){
                     If you recorded audio using KoboToolbox's Record button, it is stored as an attachment. The scoring engine may not have received it. Check that your KoboToolbox form sends all attachments via the webhook (Settings → REST Services → check "Send all attachments").
                   </div>
                 </div>
+              )}
+              {Array.isArray(sub.checks?.audio?.items)&&sub.checks.audio.items.length>1&&(
+                <ExtraMediaStrip submissionId={sub.submission_id} kind="audio" items={sub.checks.audio.items}/>
               )}
               {checks.audio?.transcript&&(
                 <div>
