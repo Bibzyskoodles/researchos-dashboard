@@ -1,19 +1,24 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import * as Crypto from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import GlanceConfirm from '../components/GlanceConfirm';
+import { callApi } from '../api/client';
 import { saveSession } from '../db/local';
 import { syncAllPending } from '../sync/syncService';
 import { COLORS } from '../theme';
 import { LocalSession, QuestionnaireItem, Respondent } from '../types';
 
-// MVP placeholder — real items come from the imported XLSForm via the
-// backend's questionnaire_items (Bible 8.7).
-const PLACEHOLDER_QUESTIONS: QuestionnaireItem[] = [
+const QUESTIONNAIRE_CACHE = 'cs_questionnaire_cache';
+
+// Offline fallback until the project's XLSForm has been imported and
+// fetched at least once (Bible 8.7 — the real items come from
+// questionnaire_items server-side).
+const FALLBACK_QUESTIONS: QuestionnaireItem[] = [
   { question_key: 'q1', question_text: 'How many people live in your household?', is_required: true, sort_order: 1 },
   { question_key: 'q2', question_text: 'What is your main source of income?', is_required: true, sort_order: 2 },
   { question_key: 'q3', question_text: 'Any other comments?', is_required: false, sort_order: 3 },
@@ -41,11 +46,31 @@ export default function InterviewScreen({
   onDone: () => void;
 }) {
   const [startedAt, setStartedAt] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [questions, setQuestions] = useState<QuestionnaireItem[]>(FALLBACK_QUESTIONS);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [screenshotAttached, setScreenshotAttached] = useState(false);
   const [callNumber, setCallNumber] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Real questionnaire, cached for offline days; fallback keeps the flow
+  // usable before the project's XLSForm import has happened.
+  useEffect(() => {
+    void (async () => {
+      const cached = await AsyncStorage.getItem(`${QUESTIONNAIRE_CACHE}:${projectId}`);
+      if (cached) setQuestions(JSON.parse(cached));
+      try {
+        const data = await callApi.getQuestionnaire(projectId);
+        if (data.items.length > 0) {
+          setQuestions(data.items);
+          await AsyncStorage.setItem(`${QUESTIONNAIRE_CACHE}:${projectId}`, JSON.stringify(data.items));
+        }
+      } catch {
+        // offline — cached or fallback items stand
+      }
+    })();
+  }, [projectId]);
 
   const startInterview = async () => {
     try {
@@ -54,7 +79,20 @@ export default function InterviewScreen({
         Audio.RecordingOptionsPresets.HIGH_QUALITY,
       );
       setRecording(rec);
-      setStartedAt(new Date().toISOString()); // anchor timestamp #1
+      const started = new Date().toISOString();
+      const id = Crypto.randomUUID(); // client-generated: idempotent sync (Bible 5.3)
+      setSessionId(id);
+      setStartedAt(started); // anchor timestamp #1
+      // Best-effort early server create so CallScore Link can pair via the
+      // cloud relay during the call. Offline is fine — sync creates it
+      // later idempotently; Link pairing just isn't available (Bible 6.2:
+      // the relay is explicitly the weakest path).
+      callApi
+        .createSession({
+          id, org_id: orgId, project_id: projectId, enumerator_id: enumeratorId,
+          respondent_id: respondent.id, started_at: started, consent_captured: true,
+        })
+        .catch(() => undefined);
     } catch {
       Alert.alert('Recording failed', 'Could not start audio capture. Check microphone permission.');
     }
@@ -70,7 +108,7 @@ export default function InterviewScreen({
 
   const stopInterview = async () => {
     if (!recording || !startedAt) return;
-    const missing = PLACEHOLDER_QUESTIONS.filter(
+    const missing = questions.filter(
       (q) => q.is_required && !(answers[q.question_key] || '').trim(),
     );
     if (missing.length > 0) {
@@ -94,7 +132,7 @@ export default function InterviewScreen({
       await recording.stopAndUnloadAsync();
       const audioUri = recording.getURI();
       const session: LocalSession = {
-        id: Crypto.randomUUID(), // client-generated: idempotent sync (Bible 5.3)
+        id: sessionId || Crypto.randomUUID(),
         org_id: orgId,
         project_id: projectId,
         respondent_id: respondent.id,
@@ -139,9 +177,14 @@ export default function InterviewScreen({
     <ScrollView style={styles.wrap} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
       <View style={styles.liveBar}>
         <Text style={styles.liveText}>● Recording — {respondent.display_name || 'respondent'}</Text>
+        {sessionId && (
+          <Text style={styles.pairCode}>
+            Link code: {sessionId.slice(-6).toUpperCase()}
+          </Text>
+        )}
       </View>
 
-      {PLACEHOLDER_QUESTIONS.map((q) => (
+      {questions.map((q) => (
         <GlanceConfirm
           key={q.question_key}
           questionText={q.question_text}
@@ -192,6 +235,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.redBg, borderRadius: 8, padding: 10, marginBottom: 14,
   },
   liveText: { color: COLORS.red, fontWeight: '700', fontSize: 13 },
+  pairCode: { color: COLORS.subtext, fontSize: 12, marginTop: 4, fontVariant: ['tabular-nums'] },
   screenshotBox: {
     backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
     borderRadius: 10, padding: 14, marginTop: 6,

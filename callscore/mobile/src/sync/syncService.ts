@@ -5,10 +5,9 @@
  * idempotent on the device-generated session id: re-running after a
  * mid-upload crash never duplicates a session.
  *
- * MVP gap, tracked honestly (Bible Part 11 spirit): the actual audio BYTES
- * stay on-device — artifacts upload with a device:// storage_ref and the
- * structured payloads. A signed-URL object-storage route on the backend is
- * required before recordings themselves can sync; see mobile/README.md.
+ * Recording BYTES upload first (multipart, streamed from disk), then the
+ * evidence bundle references the server-side storage_refs — so the
+ * transcription pipeline has real audio to work on.
  */
 import NetInfo from '@react-native-community/netinfo';
 import { callApi } from '../api/client';
@@ -35,11 +34,20 @@ export async function syncSession(s: LocalSession): Promise<void> {
     if (s.stopped_at) {
       await callApi.stopSession(s.id, { stopped_at: s.stopped_at });
     }
-    // 3. Evidence bundle — consent artifact first; without it the server
+    // 3. Recording bytes — consent artifact first; without it the server
     //    rejects the whole bundle (Part 7 hard gate, enforced both ends).
+    let consentRef = s.consent_uri ? `device://${s.consent_uri}` : null;
+    let audioRef = s.audio_uri ? `device://${s.audio_uri}` : null;
+    if (s.consent_uri) {
+      consentRef = (await callApi.uploadRecording(s.id, 'consent_recording', s.consent_uri)).storage_ref;
+    }
+    if (s.audio_uri) {
+      audioRef = (await callApi.uploadRecording(s.id, 'audio', s.audio_uri)).storage_ref;
+    }
+    // 4. Evidence bundle referencing the stored files.
     const artifacts: object[] = [
-      { artifact_type: 'consent_recording', storage_ref: `device://${s.consent_uri}` },
-      { artifact_type: 'audio', storage_ref: `device://${s.audio_uri}` },
+      { artifact_type: 'consent_recording', storage_ref: consentRef },
+      { artifact_type: 'audio', storage_ref: audioRef },
       { artifact_type: 'questionnaire_response', payload: s.answers },
     ];
     if (s.screenshot_fields) {

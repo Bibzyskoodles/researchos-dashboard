@@ -21,3 +21,8 @@ CONSENT_ENCRYPTION_KEY = os.getenv("CONSENT_ENCRYPTION_KEY")
 TIMING_DISCREPANCY_THRESHOLD_SECONDS = int(
     os.getenv("TIMING_DISCREPANCY_THRESHOLD_SECONDS", "90")
 )
+
+# Near-duplicate transcript threshold for the Similarity & Fabrication
+# agent (Bible 4.2 Tier 3): sequence-similarity ratio above this against a
+# prior interview raises a 'similarity' finding.
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.7"))

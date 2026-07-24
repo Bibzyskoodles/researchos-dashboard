@@ -99,6 +99,91 @@ def stop_interview_session(
     }
 
 
+@router.get("/pair/{code}")
+def pair_by_code(code: str, db: Session = Depends(get_db)):
+    """
+    CallScore Link pairing (cloud-relay path): the main app shows a short
+    code — the tail of the client-generated session id — during a live
+    interview; Link resolves it to the full id here. Only in-progress
+    call-mode sessions started in the last 4 hours match, so stale codes
+    can't be hijacked and collisions are practically impossible within an
+    active window.
+    """
+    from datetime import timedelta, timezone as tz
+
+    code = code.strip().lower()
+    if len(code) < 6:
+        raise HTTPException(status_code=422, detail="Pairing code must be at least 6 characters.")
+    cutoff = datetime.now(tz.utc) - timedelta(hours=4)
+    matches = (
+        db.query(models.Submission)
+        .filter(
+            models.Submission.collection_mode == "call",
+            models.Submission.stopped_at.is_(None),
+            models.Submission.started_at.isnot(None),
+            models.Submission.started_at >= cutoff,
+            models.Submission.submission_id.ilike(f"%{code}"),
+        )
+        .limit(2)
+        .all()
+    )
+    if len(matches) != 1:
+        raise HTTPException(status_code=404, detail="No active interview matches this code.")
+    s = matches[0]
+    return {
+        "submission_id": s.submission_id,
+        "respondent_id": s.respondent_id,
+        "started_at": s.started_at,
+    }
+
+
+class Device1State(BaseModel):
+    call_started_at: Optional[datetime] = None
+    call_ended_at: Optional[datetime] = None
+    # OCR/manually-extracted fields from the call screen — never the image
+    # itself (Bible 6.1).
+    number: Optional[str] = None
+    name: Optional[str] = None
+    duration_seconds: Optional[int] = None
+
+
+@router.post("/{submission_id}/device1-state")
+def report_device1_state(
+    submission_id: str, payload: Device1State, db: Session = Depends(get_db)
+):
+    """
+    CallScore Link (Device 1) reports call state. This is the CLOUD RELAY
+    path — explicitly the weakest supported link (Bible 6.2 priority 3);
+    BLE replaces it as the default in V1 when the companion app gains
+    native call-state modules. Timestamps land on the same columns the
+    late-start/early-stop check reads (Bible 6.5), so the flags work
+    identically regardless of transport.
+    """
+    submission = db.get(models.Submission, submission_id)
+    if submission is None or submission.collection_mode != "call":
+        raise HTTPException(status_code=404, detail="Unknown call-mode interview session.")
+
+    if payload.call_started_at:
+        submission.device1_call_started_at = payload.call_started_at
+    if payload.call_ended_at:
+        submission.device1_call_ended_at = payload.call_ended_at
+    if payload.number or payload.name or payload.duration_seconds is not None:
+        db.add(
+            models.EvidenceArtifact(
+                submission_id=submission_id,
+                artifact_type="screenshot_extracted_fields",
+                payload={
+                    "number": payload.number,
+                    "name": payload.name,
+                    "duration_seconds": payload.duration_seconds,
+                    "source": "device1_link",
+                },
+            )
+        )
+    db.commit()
+    return {"submission_id": submission_id, "status": "device1_state_recorded"}
+
+
 @router.get("/project/{project_id}")
 def list_interview_sessions(project_id: str, db: Session = Depends(get_db)):
     """Call-mode interviews for a project, most recent first — drives the

@@ -46,15 +46,12 @@ Backend URLs are in `src/api/client.ts` (`FIELDSCORE_URL`, `CALLSCORE_URL`).
 
 ## Known MVP gaps (tracked honestly)
 
-- **Audio bytes don't upload yet.** Artifacts sync with `device://` refs +
-  structured payloads; recordings stay on-device until the backend gets a
-  signed-URL upload route (object storage). This is the next backend task.
-- Questionnaire items are placeholders — wire to `questionnaire_items`
-  once XLSForm import (backend `routes/projects.py`) is implemented.
 - Consent script is a placeholder — must come from project config,
   localized per jurisdiction (Bible Part 7).
 - Glance-Confirm `settled`/`confirm` states exist in the component but MVP
   runs all-manual; they activate when the on-device copilot pre-fill ships.
 - Project selection is a one-time manual ID entry; replace with
-  assignment-driven lists alongside the trust-record query work.
+  assignment-driven lists alongside the trust-record work.
 - No storage-cap warning yet (Bible 6.4) — add before field pilots.
+- Synced recordings are uploaded but not yet deleted locally — add
+  retention cleanup alongside the storage-cap warning.

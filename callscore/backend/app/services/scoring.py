@@ -35,6 +35,12 @@ _DIMENSION_WEIGHTS = {
 
 _AUTHENTICITY_ESCALATORS = {"respondent_mismatch", "voice_mismatch", "similarity"}
 
+# Informational findings (e.g. the persisted transcript) carry evidence for
+# humans and downstream agents but never move a score or the confidence
+# average — Design Principle 1 cuts both ways: no score without evidence,
+# and no score movement from non-evidence.
+_INFORMATIONAL = {"transcript"}
+
 
 @dataclass
 class SynthesisResult:
@@ -100,6 +106,7 @@ def synthesize(
     scores = {"quality": 100.0, "authenticity": 100.0, "compliance": 100.0, "behaviour": 100.0}
     has_escalator = False
 
+    findings = [f for f in findings if f.finding_type not in _INFORMATIONAL]
     for f in findings:
         dim, weight = _DIMENSION_WEIGHTS.get(f.finding_type, ("quality", 0.05))
         scores[dim] -= weight * f.confidence

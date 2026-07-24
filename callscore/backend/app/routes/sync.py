@@ -5,7 +5,7 @@ returns. Reconciled onto FieldScore's submissions table (RECONCILIATION.md).
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,8 +13,34 @@ from sqlalchemy.orm import Session
 from app import models
 from app.agents import orchestrator
 from app.db import get_db
+from app.services import storage
 
 router = APIRouter()
+
+
+@router.post("/{submission_id}/upload-recording")
+async def upload_recording(
+    submission_id: str,
+    kind: str = Form(...),  # 'audio' | 'consent_recording'
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Raw recording bytes for one session (audio or the standalone consent
+    recording — Bible Part 7). Called by the enumerator app BEFORE the
+    evidence-bundle JSON, so the bundle can reference the stored file.
+    Idempotent: re-uploading the same kind overwrites the same path.
+    """
+    submission = db.get(models.Submission, submission_id)
+    if submission is None or submission.collection_mode != "call":
+        raise HTTPException(status_code=404, detail="Unknown call-mode interview session.")
+    if kind not in ("audio", "consent_recording"):
+        raise HTTPException(status_code=422, detail="kind must be 'audio' or 'consent_recording'.")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=422, detail="Empty file.")
+    ref = storage.save_artifact_file(submission_id, kind, data, file.filename or "recording.m4a")
+    return {"submission_id": submission_id, "kind": kind, "storage_ref": ref, "bytes": len(data)}
 
 
 class EvidenceArtifactIn(BaseModel):

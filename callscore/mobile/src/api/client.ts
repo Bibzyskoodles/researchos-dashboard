@@ -60,6 +60,34 @@ export const callApi = {
     request<{ respondents: import('../types').Respondent[] }>(
       CALLSCORE_URL, `/api/v1/respondents/${encodeURIComponent(projectId)}`),
 
+  getQuestionnaire: (projectId: string) =>
+    request<{ items: import('../types').QuestionnaireItem[] }>(
+      CALLSCORE_URL, `/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`),
+
+  // Multipart upload of a local recording file. React Native's fetch
+  // accepts {uri, name, type} entries in FormData — the file streams from
+  // disk, so large recordings don't need to fit in memory.
+  async uploadRecording(sessionId: string, kind: 'audio' | 'consent_recording', fileUri: string) {
+    const token = await getToken();
+    const form = new FormData();
+    form.append('kind', kind);
+    form.append('file', {
+      uri: fileUri,
+      name: `${kind}.m4a`,
+      type: 'audio/m4a',
+    } as unknown as Blob);
+    const res = await fetch(
+      `${CALLSCORE_URL}/api/v1/sync/${encodeURIComponent(sessionId)}/upload-recording`,
+      {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: form,
+      },
+    );
+    if (!res.ok) throw new Error(`upload ${kind} failed: HTTP ${res.status}`);
+    return res.json() as Promise<{ storage_ref: string }>;
+  },
+
   createSession: (payload: object) =>
     request(CALLSCORE_URL, '/api/v1/interviews/', {
       method: 'POST', body: JSON.stringify(payload),

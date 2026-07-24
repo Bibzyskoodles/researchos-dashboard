@@ -44,6 +44,84 @@ TIER_2 = [
 TIER_3 = [SimilarityFabricationAgent(), PatternFraudAgent(), VoiceFingerprintAgent()]
 
 
+def _build_context(db: Session, submission: models.Submission, context: dict) -> None:
+    """Load everything each tier is entitled to (see BaseAgent.run docs):
+    Tier 1 the raw audio, Tier 2 the questionnaire + submitted answers,
+    Tier 3 this enumerator's interview history. Missing pieces stay absent —
+    agents that need them raise NotImplementedError and are counted as
+    reduced coverage rather than fed guesses."""
+    from app.services import storage
+
+    submission_id = submission.submission_id
+
+    audio = db.scalar(
+        select(models.EvidenceArtifact).where(
+            models.EvidenceArtifact.submission_id == submission_id,
+            models.EvidenceArtifact.artifact_type == "audio",
+        )
+    )
+    if audio and audio.storage_ref:
+        path = storage.resolve_storage_ref(audio.storage_ref)
+        if path is not None:
+            context["audio_path"] = path
+
+    items = (
+        db.query(models.QuestionnaireItem)
+        .filter(models.QuestionnaireItem.project_id == submission.project_id)
+        .order_by(models.QuestionnaireItem.sort_order)
+        .all()
+    )
+    if items:
+        context["questionnaire_items"] = [
+            {"question_key": i.question_key, "question_text": i.question_text,
+             "is_required": i.is_required, "skip_logic": i.skip_logic}
+            for i in items
+        ]
+
+    answers = db.scalar(
+        select(models.EvidenceArtifact).where(
+            models.EvidenceArtifact.submission_id == submission_id,
+            models.EvidenceArtifact.artifact_type == "questionnaire_response",
+        )
+    )
+    if answers and answers.payload:
+        context["answers"] = answers.payload
+
+    # Tier 3 history: prior transcripts (from transcription findings) and
+    # portfolio durations for this enumerator's call interviews.
+    prior_rows = db.scalars(
+        select(models.AgentFindingRow)
+        .join(models.Submission,
+              models.AgentFindingRow.submission_id == models.Submission.submission_id)
+        .where(
+            models.Submission.enumerator_id == submission.enumerator_id,
+            models.Submission.collection_mode == "call",
+            models.AgentFindingRow.agent_name == "transcription_diarization",
+            models.AgentFindingRow.submission_id != submission_id,
+        )
+        .order_by(models.AgentFindingRow.created_at.desc())
+        .limit(25)
+    ).all()
+    context["prior_transcripts"] = [
+        {"submission_id": r.submission_id, "text": (r.raw_output or {}).get("text", "")}
+        for r in prior_rows
+    ]
+
+    portfolio = db.scalars(
+        select(models.Submission).where(
+            models.Submission.enumerator_id == submission.enumerator_id,
+            models.Submission.collection_mode == "call",
+            models.Submission.started_at.isnot(None),
+            models.Submission.stopped_at.isnot(None),
+        ).limit(50)
+    ).all()
+    context["portfolio_durations"] = [
+        (s.stopped_at - s.started_at).total_seconds()
+        for s in portfolio
+        if s.stopped_at and s.started_at and s.stopped_at > s.started_at
+    ]
+
+
 def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
     """
     Synchronous pipeline run. Designed to be called from a Celery/RQ
@@ -78,6 +156,7 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
     findings: list[AgentFinding] = []
     failed_agents: list[str] = []
     context: dict = {"findings": findings}
+    _build_context(db, submission, context)
 
     for tier in (TIER_1, TIER_2, TIER_3):
         for agent in tier:

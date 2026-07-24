@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.auth import require_auth, require_staff
-from app.routes import interviews, projects, respondents, sync, scorecards
+from app.routes import interviews, projects, respondents, sync, scorecards, trust
 
 app = FastAPI(
     title="CallScore API",
@@ -52,6 +52,8 @@ app.include_router(interviews.router, prefix="/api/v1/interviews", tags=["interv
 app.include_router(sync.router, prefix="/api/v1/sync", tags=["sync"],
                    dependencies=[Depends(require_auth)])
 app.include_router(scorecards.router, prefix="/api/v1/scorecards", tags=["scorecards"],
+                   dependencies=[Depends(require_staff)])
+app.include_router(trust.router, prefix="/api/v1/enumerators", tags=["trust-record"],
                    dependencies=[Depends(require_staff)])
 
 
