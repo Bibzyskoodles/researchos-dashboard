@@ -1,0 +1,13 @@
+# Railway service config for the CallScore agent-pipeline service.
+# Deploy this backend/ directory as its own Railway service, in the SAME
+# Railway project as fieldscore-backend so it can share the Postgres
+# plugin's DATABASE_URL. See ../docs/DEPLOY.md for the full runbook.
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"

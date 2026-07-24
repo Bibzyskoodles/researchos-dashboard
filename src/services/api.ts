@@ -419,4 +419,75 @@ export const webhooksApi = {
   revoke: (id: string) => api.delete(`/api/org/webhooks/${id}`),
 };
 
+// ── CallScore (Call capture mode) ──────────────────────────────────────────
+// The Call-mode agent pipeline runs as its own service sharing the backend's
+// Postgres (callscore/docs/RECONCILIATION.md §3.4), so it has its own base
+// URL. Auth is the same FieldScore Bearer token; this instance reuses the
+// same request-header pattern as `api` above. The URL is public config, not
+// a secret — nothing key-like ships via REACT_APP_* here.
+const CALLSCORE_BASE_URL =
+  process.env.REACT_APP_CALLSCORE_API_URL || 'https://callscore-production.up.railway.app';
+
+const callApi = axios.create({ baseURL: CALLSCORE_BASE_URL });
+
+callApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('fs_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+export const callScoreApi = {
+  // Push-ranked supervisor queue (Bible Part 8.6) — call-mode interviews only.
+  queue: (projectId: string) =>
+    callApi.get(`/api/v1/scorecards/queue/${encodeURIComponent(projectId)}`),
+  scorecard: (interviewId: string) =>
+    callApi.get(`/api/v1/scorecards/${encodeURIComponent(interviewId)}`),
+  listInterviews: (projectId: string) =>
+    callApi.get(`/api/v1/interviews/project/${encodeURIComponent(projectId)}`),
+  // Laptop-as-Device-2 capture flow (browser MediaRecorder).
+  listRespondents: (projectId: string) =>
+    callApi.get(`/api/v1/respondents/${encodeURIComponent(projectId)}`),
+  getQuestionnaire: (projectId: string) =>
+    callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`),
+  getCallConfig: (projectId: string) =>
+    callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/call-config`),
+  createSession: (payload: object) => callApi.post('/api/v1/interviews/', payload),
+  stopSession: (id: string, payload: object) =>
+    callApi.post(`/api/v1/interviews/${encodeURIComponent(id)}/stop`, payload),
+  uploadRecording: (id: string, kind: 'audio' | 'consent_recording', blob: Blob) => {
+    const form = new FormData();
+    form.append('kind', kind);
+    form.append('file', blob, `${kind}.webm`);
+    return callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/upload-recording`, form);
+  },
+  uploadEvidenceBundle: (id: string, artifacts: object[]) =>
+    callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/evidence-bundle`, { artifacts }),
+  // Agent mode (Bible Part 12) — optional AI-conducted interviews.
+  dispatchAgentInterview: (projectId: string, respondentId: string, orgName?: string) =>
+    callApi.post(`/api/v1/agent-interviews/${encodeURIComponent(projectId)}/dispatch`,
+      { respondent_id: respondentId, org_name: orgName || '' }),
+  listAgentInterviews: (projectId: string) =>
+    callApi.get(`/api/v1/agent-interviews/${encodeURIComponent(projectId)}`),
+  // Back-checks: human (always available) or AI verification call (when a
+  // voice-agent provider is configured). Never a primary interview.
+  dispatchBackcheck: (submissionId: string, method: 'human' | 'ai', assignedTo?: string) =>
+    callApi.post(`/api/v1/backchecks/${encodeURIComponent(submissionId)}/dispatch`,
+      { method, assigned_to: assignedTo }),
+  completeBackcheck: (backcheckId: string, summary: string, interviewConfirmed?: string) =>
+    callApi.post(`/api/v1/backchecks/complete/${encodeURIComponent(backcheckId)}`,
+      { summary, interview_confirmed: interviewConfirmed }),
+  listBackchecks: (submissionId: string) =>
+    callApi.get(`/api/v1/backchecks/${encodeURIComponent(submissionId)}`),
+  // Calibration loop: supervisor verdict on one AI finding.
+  findingFeedback: (findingId: string, verdict: 'correct' | 'incorrect' | 'unsure', note?: string) =>
+    callApi.post(`/api/v1/feedback/findings/${encodeURIComponent(findingId)}`, { verdict, note }),
+  // Override audit (Bible 4A.6) — reason is mandatory, enforced server-side too.
+  recordOverride: (interviewId: string, humanAction: string, overriddenBy: string, reason: string) =>
+    callApi.post(`/api/v1/scorecards/${encodeURIComponent(interviewId)}/override`, {
+      human_action: humanAction,
+      overridden_by: overriddenBy,
+      reason,
+    }),
+};
+
 export default api;
