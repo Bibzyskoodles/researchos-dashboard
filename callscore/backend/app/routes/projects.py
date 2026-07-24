@@ -23,6 +23,10 @@ class CallConfigIn(BaseModel):
     consent_script: str
     consent_language: str = "en"
     jurisdiction: str | None = None
+    # Speech-engine routing (provider names; null = language-aware default)
+    stt_language: str | None = None
+    stt_primary: str | None = None
+    stt_verify: str | None = None
 
 
 @router.put("/{project_id}/call-config")
@@ -38,8 +42,21 @@ def set_call_config(project_id: str, payload: CallConfigIn, db: Session = Depend
     cfg.consent_script = payload.consent_script.strip()
     cfg.consent_language = payload.consent_language
     cfg.jurisdiction = payload.jurisdiction
+    cfg.stt_language = payload.stt_language
+    cfg.stt_primary = payload.stt_primary
+    cfg.stt_verify = payload.stt_verify
     db.commit()
-    return {"project_id": project_id, "status": "saved"}
+    from app.services import stt
+    return {
+        "project_id": project_id,
+        "status": "saved",
+        # Echo the effective engine order so a manager can see what their
+        # choice actually resolves to with today's configured keys.
+        "effective_stt_order": stt.resolve_order(
+            language=payload.stt_language or payload.consent_language,
+            primary=payload.stt_primary, verify=payload.stt_verify,
+        ),
+    }
 
 
 @router.get("/{project_id}/call-config")
@@ -47,11 +64,19 @@ def get_call_config(project_id: str, db: Session = Depends(get_db)):
     cfg = db.get(models.CallProjectConfig, project_id)
     if cfg is None:
         raise HTTPException(status_code=404, detail="No call config for this project yet.")
+    from app.services import stt
     return {
         "project_id": project_id,
         "consent_script": cfg.consent_script,
         "consent_language": cfg.consent_language,
         "jurisdiction": cfg.jurisdiction,
+        "stt_language": cfg.stt_language,
+        "stt_primary": cfg.stt_primary,
+        "stt_verify": cfg.stt_verify,
+        "effective_stt_order": stt.resolve_order(
+            language=cfg.stt_language or cfg.consent_language,
+            primary=cfg.stt_primary, verify=cfg.stt_verify,
+        ),
     }
 
 

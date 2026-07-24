@@ -192,11 +192,10 @@ def _whisper(audio_path: pathlib.Path) -> Optional[dict]:
     }
 
 
-# Order matters: first available = primary transcript (wants diarization),
-# second available = cross-check. Spitch sits SECOND deliberately — it's
-# the code-switch specialist voice in the verification pair, so a
-# Deepgram-vs-Spitch disagreement on Pidgin/Yoruba-heavy audio is real
-# signal, not two English-centric engines failing identically.
+# Default order: first available = primary transcript (wants diarization),
+# second available = cross-check. The specialists sit directly behind
+# Deepgram so a diarizer-vs-specialist disagreement on code-switched audio
+# is real signal. resolve_order() below re-ranks per project/language.
 _PROVIDERS = [
     ("deepgram", _deepgram),
     ("intron", _intron),
@@ -204,6 +203,48 @@ _PROVIDERS = [
     ("assemblyai", _assemblyai),
     ("openai-whisper", _whisper),
 ]
+_PROVIDER_FNS = dict(_PROVIDERS)
+
+# Languages where the African-speech specialists should LEAD rather than
+# verify: Yoruba, Igbo, Hausa, Nigerian Pidgin, Amharic, Swahili.
+_SPECIALIST_LANGUAGES = {"yo", "ig", "ha", "pcm", "am", "sw"}
+_SPECIALISTS = ["intron", "spitch"]
+
+
+def resolve_order(
+    language: str | None = None,
+    primary: str | None = None,
+    verify: str | None = None,
+) -> list[str]:
+    """The router: decides WHICH speech engines run for an interview.
+
+    Precedence: explicit per-project choices (stt_primary/stt_verify on
+    call_project_config) > language-aware default (specialist leads for
+    Nigerian/African languages, diarizer verifies) > global default order.
+    Unconfigured providers are silently skipped, so a project preference
+    never breaks scoring — it degrades to the next best engine.
+    """
+    available = configured_providers()
+    order: list[str] = []
+
+    def push(name: str | None):
+        if name and name in available and name not in order:
+            order.append(name)
+
+    push(primary)
+    push(verify)
+
+    lang = (language or "").strip().lower()
+    if lang in _SPECIALIST_LANGUAGES:
+        # Specialist first for the languages it exists for; the diarizing
+        # engine still runs as the cross-check so speaker labels and the
+        # agreement signal are both preserved.
+        for name in _SPECIALISTS:
+            push(name)
+
+    for name, _ in _PROVIDERS:
+        push(name)
+    return order
 
 
 def configured_providers() -> list[str]:
@@ -221,11 +262,20 @@ def configured_providers() -> list[str]:
     return out
 
 
-def transcribe_with_verification(audio_path: pathlib.Path) -> Optional[dict]:
-    """Primary transcript from the best available provider; when a second
-    provider exists, cross-check and attach the agreement ratio."""
+def transcribe_with_verification(
+    audio_path: pathlib.Path, order: list[str] | None = None
+) -> Optional[dict]:
+    """Primary transcript from the first working provider in `order`
+    (default: resolve_order()); when a second provider exists, cross-check
+    and attach the agreement ratio. A diarized transcript's speaker labels
+    survive regardless of which provider ranks first — if the primary has
+    no segments but the verifier does, the verifier's segments are kept."""
+    names = order if order is not None else resolve_order()
     results: list[dict] = []
-    for _, fn in _PROVIDERS:
+    for name in names:
+        fn = _PROVIDER_FNS.get(name)
+        if fn is None:
+            continue
         r = fn(audio_path)
         if r is not None:
             results.append(r)
@@ -239,4 +289,10 @@ def transcribe_with_verification(audio_path: pathlib.Path) -> Optional[dict]:
             None, _normalize(primary["text"]), _normalize(results[1]["text"]),
         ).ratio()
         primary["agreement"] = {"provider": results[1]["provider"], "ratio": round(ratio, 3)}
+        # Keep diarization wherever it came from: specialist text can lead
+        # while the diarizer's speaker-labelled segments still power the
+        # dominance analysis and evidence timestamps.
+        if not primary.get("segments") and results[1].get("segments"):
+            primary["segments"] = results[1]["segments"]
+            primary["segments_provider"] = results[1]["provider"]
     return primary

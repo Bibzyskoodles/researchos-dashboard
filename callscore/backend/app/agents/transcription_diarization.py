@@ -24,7 +24,7 @@ class TranscriptionDiarizationAgent(BaseAgent):
         audio_path = context.get("audio_path")
         if audio_path is None or not stt.configured_providers():
             raise NotImplementedError  # absent capability -> reduced confidence
-        result = stt.transcribe_with_verification(audio_path)
+        result = stt.transcribe_with_verification(audio_path, order=context.get("stt_order"))
         if result is None or not result.get("text", "").strip():
             raise NotImplementedError
         context["transcript"] = result

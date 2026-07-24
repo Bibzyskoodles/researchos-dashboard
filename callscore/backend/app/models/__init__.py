@@ -157,6 +157,11 @@ class CallProjectConfig(Base):
     consent_script: Mapped[str] = mapped_column(Text, nullable=False)
     consent_language: Mapped[str] = mapped_column(Text, nullable=False, default="en")
     jurisdiction: Mapped[Optional[str]] = mapped_column(Text)
+    # Speech-engine routing (migrations/0003): which STT providers run for
+    # this project's interviews. Null = language-aware default.
+    stt_language: Mapped[Optional[str]] = mapped_column(Text)
+    stt_primary: Mapped[Optional[str]] = mapped_column(Text)
+    stt_verify: Mapped[Optional[str]] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))
 
 

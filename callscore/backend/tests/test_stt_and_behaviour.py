@@ -19,8 +19,8 @@ class TestSttLayer:
         audio.write_bytes(b"x" * 100)
         r1 = {"text": "hello there respondent", "segments": [], "provider": "p1", "agreement": None}
         r2 = {"text": "hello their respondent", "segments": [], "provider": "p2", "agreement": None}
-        monkeypatch.setattr(stt, "_PROVIDERS", [("p1", lambda p: dict(r1)), ("p2", lambda p: dict(r2))])
-        out = stt.transcribe_with_verification(audio)
+        monkeypatch.setattr(stt, "_PROVIDER_FNS", {"p1": lambda p: dict(r1), "p2": lambda p: dict(r2)})
+        out = stt.transcribe_with_verification(audio, order=["p1", "p2"])
         assert out is not None and out["provider"] == "p1"
         assert out["agreement"]["provider"] == "p2"
         assert 0 < out["agreement"]["ratio"] <= 1
@@ -29,9 +29,52 @@ class TestSttLayer:
         audio = tmp_path / "a.m4a"
         audio.write_bytes(b"x")
         r1 = {"text": "hello", "segments": [], "provider": "p1", "agreement": None}
-        monkeypatch.setattr(stt, "_PROVIDERS", [("p1", lambda p: dict(r1)), ("p2", lambda p: None)])
-        out = stt.transcribe_with_verification(audio)
+        monkeypatch.setattr(stt, "_PROVIDER_FNS", {"p1": lambda p: dict(r1), "p2": lambda p: None})
+        out = stt.transcribe_with_verification(audio, order=["p1", "p2"])
         assert out is not None and out["agreement"] is None
+
+
+class TestRouter:
+    def _all_keys(self, monkeypatch):
+        from app.core import config
+        for k in ("DEEPGRAM_API_KEY", "INTRON_API_KEY", "SPITCH_API_KEY",
+                  "ASSEMBLYAI_API_KEY", "OPENAI_API_KEY"):
+            monkeypatch.setattr(config, k, "key")
+
+    def test_default_order_diarizer_first(self, monkeypatch):
+        self._all_keys(monkeypatch)
+        assert stt.resolve_order()[:2] == ["deepgram", "intron"]
+
+    def test_nigerian_language_puts_specialist_first(self, monkeypatch):
+        self._all_keys(monkeypatch)
+        order = stt.resolve_order(language="yo")
+        assert order[0] == "intron" and "deepgram" in order[:3]
+
+    def test_explicit_project_choice_wins(self, monkeypatch):
+        self._all_keys(monkeypatch)
+        order = stt.resolve_order(language="yo", primary="spitch", verify="deepgram")
+        assert order[:2] == ["spitch", "deepgram"]
+
+    def test_unconfigured_choice_degrades_safely(self, monkeypatch):
+        from app.core import config
+        monkeypatch.setattr(config, "DEEPGRAM_API_KEY", "key")
+        for k in ("INTRON_API_KEY", "SPITCH_API_KEY", "ASSEMBLYAI_API_KEY", "OPENAI_API_KEY"):
+            monkeypatch.setattr(config, k, None)
+        # Project asks for spitch, but only deepgram has a key: no crash,
+        # scoring proceeds on what exists.
+        assert stt.resolve_order(language="yo", primary="spitch") == ["deepgram"]
+
+    def test_diarized_segments_survive_specialist_primary(self, monkeypatch, tmp_path):
+        audio = tmp_path / "a.m4a"
+        audio.write_bytes(b"x")
+        specialist = {"text": "bawo ni everyone", "segments": [], "provider": "intron", "agreement": None}
+        diarizer = {"text": "bawo ni everyone", "provider": "deepgram", "agreement": None,
+                    "segments": [{"start": 0, "end": 3, "text": "bawo ni", "speaker": "S0"}]}
+        monkeypatch.setattr(stt, "_PROVIDER_FNS", {"intron": lambda p: dict(specialist),
+                                                   "deepgram": lambda p: dict(diarizer)})
+        out = stt.transcribe_with_verification(audio, order=["intron", "deepgram"])
+        assert out is not None and out["provider"] == "intron"
+        assert out["segments"] and out["segments_provider"] == "deepgram"
 
 
 class TestSpitchProvider:
@@ -81,7 +124,7 @@ class TestTranscriptionAgent:
             "agreement": {"provider": "assemblyai", "ratio": 0.4},
         }
         monkeypatch.setattr(stt, "configured_providers", lambda: ["deepgram", "assemblyai"])
-        monkeypatch.setattr(stt, "transcribe_with_verification", lambda p: result)
+        monkeypatch.setattr(stt, "transcribe_with_verification", lambda p, order=None: result)
         ctx: dict = {"audio_path": audio}
         findings = TranscriptionDiarizationAgent().run("S1", ctx)
         types = [f.finding_type for f in findings]

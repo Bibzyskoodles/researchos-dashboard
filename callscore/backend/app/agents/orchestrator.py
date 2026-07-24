@@ -87,6 +87,16 @@ def _build_context(db: Session, submission: models.Submission, context: dict) ->
     if answers and answers.payload:
         context["answers"] = answers.payload
 
+    # Speech-engine routing: per-project choice > language default > global.
+    from app.services import stt
+
+    cfg = db.get(models.CallProjectConfig, submission.project_id)
+    context["stt_order"] = stt.resolve_order(
+        language=(cfg.stt_language or cfg.consent_language) if cfg else None,
+        primary=cfg.stt_primary if cfg else None,
+        verify=cfg.stt_verify if cfg else None,
+    )
+
     # Tier 3 history: prior transcripts (from transcription findings) and
     # portfolio durations for this enumerator's call interviews.
     prior_rows = db.scalars(
