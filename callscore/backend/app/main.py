@@ -6,9 +6,10 @@ Design Principle 1 (Part 3): no score without evidence — every route that
 returns a scorecard must be able to trace back to agent_findings rows.
 """
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.auth import require_auth, require_staff
 from app.routes import interviews, projects, respondents, sync, scorecards
 
 app = FastAPI(
@@ -24,11 +25,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
-app.include_router(respondents.router, prefix="/api/v1/respondents", tags=["respondents"])
-app.include_router(interviews.router, prefix="/api/v1/interviews", tags=["interviews"])
-app.include_router(sync.router, prefix="/api/v1/sync", tags=["sync"])
-app.include_router(scorecards.router, prefix="/api/v1/scorecards", tags=["scorecards"])
+# All routes require a valid FieldScore Bearer token (shared JWT_SECRET —
+# see app/core/auth.py). Scorecards/queue/overrides and respondent PII are
+# enumerator-identifying, so the external client role is blocked there too;
+# interview capture routes only need any authenticated user (enumerators
+# create sessions and upload bundles).
+app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"],
+                   dependencies=[Depends(require_staff)])
+app.include_router(respondents.router, prefix="/api/v1/respondents", tags=["respondents"],
+                   dependencies=[Depends(require_staff)])
+app.include_router(interviews.router, prefix="/api/v1/interviews", tags=["interviews"],
+                   dependencies=[Depends(require_auth)])
+app.include_router(sync.router, prefix="/api/v1/sync", tags=["sync"],
+                   dependencies=[Depends(require_auth)])
+app.include_router(scorecards.router, prefix="/api/v1/scorecards", tags=["scorecards"],
+                   dependencies=[Depends(require_staff)])
 
 
 @app.get("/health")
