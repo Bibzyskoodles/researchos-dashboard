@@ -27,7 +27,7 @@ SPITCH_LANGUAGE = os.getenv("SPITCH_LANGUAGE", "en")  # en|yo|ig|ha per Spitch c
 # configurable: their API is enterprise-provisioned; confirm the exact
 # URL/shape with the key at intron.io.
 INTRON_API_KEY = os.getenv("INTRON_API_KEY")
-INTRON_API_URL = os.getenv("INTRON_API_URL", "https://api.intron.io/v1/transcribe")
+INTRON_API_URL = os.getenv("INTRON_API_URL", "https://infer.voice.intron.io/file/v1/upload/sync")
 CONSENT_ENCRYPTION_KEY = os.getenv("CONSENT_ENCRYPTION_KEY")
 
 # Late-start / early-stop detection threshold (Bible Part 6.5): a gap
