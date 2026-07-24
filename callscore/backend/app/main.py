@@ -6,6 +6,8 @@ Design Principle 1 (Part 3): no score without evidence — every route that
 returns a scorecard must be able to trace back to agent_findings rows.
 """
 
+import os
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -18,9 +20,20 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Comma-separated list of allowed origins; defaults to the production
+# dashboard plus localhost dev. Override with CORS_ORIGINS in Railway.
+_cors_origins = [
+    o.strip()
+    for o in os.getenv(
+        "CORS_ORIGINS",
+        "https://researchos-dashboard.vercel.app,http://localhost:3000",
+    ).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten before production
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,0 +1,80 @@
+# Deploying the CallScore service on Railway
+
+The CallScore agent-pipeline runs as its own Railway service **inside the
+same Railway project as `fieldscore-backend`**, sharing that project's
+Postgres plugin (decision 3.4, docs/RECONCILIATION.md). Everything below is
+already wired in the repo — deploying is configuration, not code.
+
+## 1. Create the service
+
+In the Railway project that hosts `fieldscore-backend`:
+
+1. **New → Service → GitHub repo**, pick the repo containing this code.
+2. Set the service **root directory** to `callscore/backend` (it has its own
+   `Dockerfile` and `railway.toml`; Railway will use the Dockerfile build).
+
+## 2. Environment variables
+
+| Variable | Value | Why |
+|---|---|---|
+| `DATABASE_URL` | Reference the project's existing Postgres plugin (`${{Postgres.DATABASE_URL}}`) | Shared database — CallScore extends `submissions` and adds its own tables. **Must be the same DB fieldscore-backend uses.** |
+| `JWT_SECRET` | The **exact same value** as fieldscore-backend's `JWT_SECRET` | CallScore verifies the tokens FieldScore issues (`app/core/auth.py`). Different values = every request 401s. |
+| `CORS_ORIGINS` | `https://<your-dashboard-domain>` (comma-separated for several) | Defaults to `https://researchos-dashboard.vercel.app,http://localhost:3000` if unset. |
+| `TIMING_DISCREPANCY_THRESHOLD_SECONDS` | optional, default `90` | Late-start/early-stop flag threshold (Bible 6.5). |
+| `OPENAI_API_KEY`, `REDIS_URL` | leave unset for now | Only needed once Tier 1–3 agents are implemented / the queue worker ships. |
+
+Do **not** set `PORT` — Railway injects it and the Dockerfile honours it.
+
+## 3. What happens on boot
+
+The container runs `python -m app.db.migrate` before starting uvicorn:
+every file in `backend/migrations/` is applied in order, and all of them
+are idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`), so this is
+safe on every deploy and safe against fieldscore-backend's own
+`db.init_db()` having created the same columns first — whichever service
+deploys first wins, the other no-ops.
+
+Health check: `GET /health` (configured in `railway.toml`). Everything
+else requires a FieldScore Bearer token.
+
+## 4. Point the dashboard at it
+
+In Vercel (researchos-dashboard project settings → Environment Variables):
+
+```
+REACT_APP_CALLSCORE_API_URL=https://<the-new-service>.up.railway.app
+```
+
+then redeploy the frontend. Until this is set, the frontend falls back to
+`https://callscore-production.up.railway.app` (a placeholder — update it in
+`src/services/api.ts` if your service gets a different name, or just set
+the env var).
+
+## 5. Smoke test
+
+```bash
+# open endpoint
+curl https://<service>.up.railway.app/health
+#   -> {"status":"ok"}
+
+# auth is enforced (expect 401)
+curl -i https://<service>.up.railway.app/api/v1/scorecards/queue/PROJ-1
+
+# with a real token from the dashboard (localStorage fs_token), expect 200
+curl -H "Authorization: Bearer <fs_token>" \
+  https://<service>.up.railway.app/api/v1/scorecards/queue/<project-id>
+```
+
+Then in the dashboard: open a project → Collect → Call tab (should show
+"No call interviews yet" instead of a load error), and Verify → Call
+Review Queue.
+
+## Known limits at this stage
+
+- Tier 1–3 agents are stubs: an uploaded evidence bundle scores through the
+  deterministic Tier 4 synthesis with reduced confidence and routes to
+  review — by design (Bible 4.3 failure isolation). Real transcription/
+  analysis agents are the next build phase.
+- The InsightScore handoff for call rows runs inside fieldscore-backend's
+  drainer (its branch `claude/new-session-xzd213`), which needs to be
+  merged/deployed for verified call interviews to flow onward.
