@@ -21,6 +21,13 @@ ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 SPITCH_API_KEY = os.getenv("SPITCH_API_KEY")
 SPITCH_API_URL = os.getenv("SPITCH_API_URL", "https://api.spi-tch.com/v1/transcriptions")
 SPITCH_LANGUAGE = os.getenv("SPITCH_LANGUAGE", "en")  # en|yo|ig|ha per Spitch codes
+
+# Intron Sahara — African-accent STT (500+ accents, 57 languages,
+# benchmarked above the global engines on African speech). Endpoint
+# configurable: their API is enterprise-provisioned; confirm the exact
+# URL/shape with the key at intron.io.
+INTRON_API_KEY = os.getenv("INTRON_API_KEY")
+INTRON_API_URL = os.getenv("INTRON_API_URL", "https://api.intron.io/v1/transcribe")
 CONSENT_ENCRYPTION_KEY = os.getenv("CONSENT_ENCRYPTION_KEY")
 
 # Late-start / early-stop detection threshold (Bible Part 6.5): a gap

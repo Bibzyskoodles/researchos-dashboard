@@ -152,6 +152,33 @@ def _spitch(audio_path: pathlib.Path) -> Optional[dict]:
         return None
 
 
+def _intron(audio_path: pathlib.Path) -> Optional[dict]:
+    """Intron Sahara — African-accent specialist (500+ accents, 23 African
+    languages). Same defensive posture as Spitch: enterprise-provisioned
+    API whose exact shape must be confirmed with the key (INTRON_API_URL
+    is configurable); parser accepts the common field spellings. No
+    diarization assumed, so it serves as a cross-check voice."""
+    if not config.INTRON_API_KEY:
+        return None
+    try:
+        with httpx.Client(timeout=_TIMEOUT) as client:
+            r = client.post(
+                config.INTRON_API_URL,
+                headers={"Authorization": f"Bearer {config.INTRON_API_KEY}"},
+                files={"file": (audio_path.name, audio_path.read_bytes(), "audio/*")},
+            )
+            r.raise_for_status()
+            data = r.json()
+        text = (data.get("text") or data.get("transcript")
+                or data.get("transcription") or "")
+        if not str(text).strip():
+            return None
+        return {"text": str(text), "segments": [], "provider": "intron", "agreement": None}
+    except Exception:
+        log.exception("intron transcription failed")
+        return None
+
+
 def _whisper(audio_path: pathlib.Path) -> Optional[dict]:
     from app.services import llm
     result = llm.transcribe(audio_path)
@@ -172,6 +199,7 @@ def _whisper(audio_path: pathlib.Path) -> Optional[dict]:
 # signal, not two English-centric engines failing identically.
 _PROVIDERS = [
     ("deepgram", _deepgram),
+    ("intron", _intron),
     ("spitch", _spitch),
     ("assemblyai", _assemblyai),
     ("openai-whisper", _whisper),
@@ -182,6 +210,8 @@ def configured_providers() -> list[str]:
     out = []
     if config.DEEPGRAM_API_KEY:
         out.append("deepgram")
+    if config.INTRON_API_KEY:
+        out.append("intron")
     if config.SPITCH_API_KEY:
         out.append("spitch")
     if config.ASSEMBLYAI_API_KEY:

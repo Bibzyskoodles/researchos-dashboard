@@ -35,13 +35,16 @@ class TestSttLayer:
 
 
 class TestSpitchProvider:
-    def test_provider_order_puts_spitch_second(self, monkeypatch):
+    def test_provider_order_diarizer_first_specialists_next(self, monkeypatch):
         from app.core import config
         monkeypatch.setattr(config, "DEEPGRAM_API_KEY", "k1")
-        monkeypatch.setattr(config, "SPITCH_API_KEY", "k2")
-        monkeypatch.setattr(config, "ASSEMBLYAI_API_KEY", "k3")
-        monkeypatch.setattr(config, "OPENAI_API_KEY", "k4")
-        assert stt.configured_providers() == ["deepgram", "spitch", "assemblyai", "openai-whisper"]
+        monkeypatch.setattr(config, "INTRON_API_KEY", "k2")
+        monkeypatch.setattr(config, "SPITCH_API_KEY", "k3")
+        monkeypatch.setattr(config, "ASSEMBLYAI_API_KEY", "k4")
+        monkeypatch.setattr(config, "OPENAI_API_KEY", "k5")
+        assert stt.configured_providers() == [
+            "deepgram", "intron", "spitch", "assemblyai", "openai-whisper",
+        ]
 
     def test_spitch_response_parsing(self, monkeypatch, tmp_path):
         from app.core import config
