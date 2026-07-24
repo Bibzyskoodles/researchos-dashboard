@@ -62,6 +62,11 @@ then redeploy the frontend. Until this is set, the frontend falls back to
 `src/services/api.ts` if your service gets a different name, or just set
 the env var).
 
+**If the service URL differs from the placeholder**, also add it to the
+CSP `connect-src` in `public/index.html` — the browser blocks calls to
+any host the CSP doesn't list, and that failure looks like a network
+error, not a CSP error, unless you check the console.
+
 ## 5. Smoke test
 
 ```bash

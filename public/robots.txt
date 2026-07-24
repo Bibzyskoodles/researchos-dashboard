@@ -1,3 +1,7 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
+# Public pages are crawlable; everything behind login is app UI with no
+# content for a crawler anyway.
 Disallow:
+
+Sitemap: https://researchos-dashboard.vercel.app/sitemap.xml
