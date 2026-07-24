@@ -462,6 +462,12 @@ export const callScoreApi = {
   },
   uploadEvidenceBundle: (id: string, artifacts: object[]) =>
     callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/evidence-bundle`, { artifacts }),
+  // Agent mode (Bible Part 12) — optional AI-conducted interviews.
+  dispatchAgentInterview: (projectId: string, respondentId: string, orgName?: string) =>
+    callApi.post(`/api/v1/agent-interviews/${encodeURIComponent(projectId)}/dispatch`,
+      { respondent_id: respondentId, org_name: orgName || '' }),
+  listAgentInterviews: (projectId: string) =>
+    callApi.get(`/api/v1/agent-interviews/${encodeURIComponent(projectId)}`),
   // Back-checks: human (always available) or AI verification call (when a
   // voice-agent provider is configured). Never a primary interview.
   dispatchBackcheck: (submissionId: string, method: 'human' | 'ai', assignedTo?: string) =>

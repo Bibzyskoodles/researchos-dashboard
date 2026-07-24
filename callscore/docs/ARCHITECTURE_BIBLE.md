@@ -421,3 +421,59 @@ Ambient, not persistent chrome. During an active interview she is silent unless 
 ---
 
 *This Bible is a living document. Revisions must be explicit — if a design principle in Part 3 needs to change, say so directly rather than drifting around it in code.*
+
+---
+
+## PART 12 — REVISION 2: AGENT MODE (AI-Conducted Interviews)
+
+**Status: adopted by explicit owner decision (July 2026).** This section
+deliberately amends earlier parts of this Bible; per the closing note,
+revisions are made in writing, not drifted around in code. Where this
+Part conflicts with Parts 1–11, this Part wins for Agent mode ONLY.
+
+### 12.1 What changes and what doesn't
+
+- **Amends 1.2 ("Not a calling app")**: in Agent mode, and only in Agent
+  mode, the platform DOES place calls — through a voice-agent provider
+  (Vapi-class). Field and Call modes remain communication-agnostic and
+  never touch call APIs.
+- **Amends 8.4 ("the conversation itself stays human")**: that principle
+  now scopes to Field and Call modes. Agent mode is a *third capture
+  mode* with its own trust model — it does not blur the human modes'
+  evidence boundary because an agent-conducted interview is labelled as
+  such everywhere it appears (`collection_mode='agent'`), never
+  presented as human-conducted. Provenance is the new trust anchor.
+- **Unchanged**: consent as a hard gate (12.3 strengthens it), no score
+  without evidence, offline-first for the human modes, the unified
+  enumerator trust record (agent interviews carry no enumerator and
+  never touch any enumerator's record), and the InsightScore handoff
+  (agent rows flow like any verified interview, tagged by mode).
+
+### 12.2 Optionality
+
+Agent mode is OFF by default and doubly gated: the deployment must set
+`AGENT_MODE_ENABLED=true` AND configure a voice-agent provider. An
+organisation that never enables it runs exactly the Part 1–11 product.
+
+### 12.3 Consent, strengthened for AI
+
+The agent's FIRST sentence discloses that the caller is an AI assistant
+calling on behalf of the named research organisation. It then reads the
+project's consent script and asks for explicit verbal consent. No
+consent → polite goodbye, the attempt is recorded as declined, and NO
+analysis, transcript retention, or scoring occurs — the same hard gate,
+enforced in the webhook state machine.
+
+### 12.4 Where Agent mode fits
+
+Best for: high-volume structured surveys, screening calls, follow-ups,
+and studies where respondents are informed an AI will call. Not a
+replacement for enumerator-led research — pricing, positioning, and
+IRB-facing language must keep the three modes distinct.
+
+### 12.5 Verification still applies
+
+Agent interviews run through the same Tier 2–4 pipeline (compliance,
+consistency, synthesis) using the provider transcript. Fraud signals
+that assume a human interviewer (voice fingerprint, enumerator
+portfolio patterns) are skipped as not-applicable rather than faked.

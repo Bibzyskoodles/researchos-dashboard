@@ -165,6 +165,23 @@ class CallProjectConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))
 
 
+class AgentInterviewCall(Base):
+    # Agent mode (Bible Part 12): one outbound AI-conducted interview call.
+    __tablename__ = "agent_interview_calls"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    submission_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    provider: Mapped[str] = mapped_column(Text, nullable=False, default="vapi")
+    provider_call_id: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="queued")
+    dispatched_by: Mapped[str] = mapped_column(Text, nullable=False)
+    transcript: Mapped[Optional[str]] = mapped_column(Text)
+    recording_url: Mapped[Optional[str]] = mapped_column(Text)
+    result: Mapped[Optional[dict]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))
+    completed_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
+
+
 class BackcheckCall(Base):
     # AI back-check verification call (migrations/0005). Never a primary
     # interview — Bible 8.4 keeps the conversation itself human.

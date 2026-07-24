@@ -2,18 +2,20 @@ import React, { useState } from 'react';
 import StagePageWrapper from './StagePageWrapper';
 import SubmissionsPage from '../field-quality/SubmissionsPage';
 import CallCollectPanel from '../call/CallCollectPanel';
+import AgentInterviewPanel from '../call/AgentInterviewPanel';
 
-// Field and Call are two capture modes inside one app (Bible Part 1.3) —
-// the mode is a per-interview choice made at collection time, so the
-// Collect stage is where the split surfaces. InsightScore is downstream
-// of both (the Analyse stage), never a peer of these tabs.
+// Capture modes inside one app (Bible Part 1.3 + Part 12) — the mode is a
+// per-interview choice made at collection time, so the Collect stage is
+// where the split surfaces. Agent mode is optional and clearly labelled
+// AI-conducted (Part 12); InsightScore is downstream of all modes.
 const MODES = [
   { key: 'field' as const, label: '🧭 Field', hint: 'In-person submissions' },
-  { key: 'call' as const, label: '📞 Call', hint: 'Remote interviews' },
+  { key: 'call' as const, label: '📞 Call', hint: 'Remote interviews (human)' },
+  { key: 'agent' as const, label: '🤖 Agent', hint: 'AI-conducted interviews (optional mode)' },
 ];
 
 export default function CollectStagePage() {
-  const [mode, setMode] = useState<'field' | 'call'>('field');
+  const [mode, setMode] = useState<'field' | 'call' | 'agent'>('field');
 
   return (
     <StagePageWrapper stage="Collect" icon="📡">
@@ -36,7 +38,9 @@ export default function CollectStagePage() {
           </button>
         ))}
       </div>
-      {mode === 'field' ? <SubmissionsPage /> : <CallCollectPanel />}
+      {mode === 'field' && <SubmissionsPage />}
+      {mode === 'call' && <CallCollectPanel />}
+      {mode === 'agent' && <AgentInterviewPanel />}
     </StagePageWrapper>
   );
 }

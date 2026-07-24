@@ -13,7 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.auth import require_auth, require_staff
 from app.routes import (
-    ada, backchecks, feedback, interviews, projects, respondents, sync, scorecards, trust,
+    ada, agent_interviews, backchecks, feedback, interviews, projects,
+    respondents, sync, scorecards, trust,
 )
 
 app = FastAPI(
@@ -64,6 +65,9 @@ app.include_router(ada.router, prefix="/api/v1/ada", tags=["ada"],
 app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["feedback"])
 # Auth per-route: staff for dispatch/list, shared-secret for the provider webhook.
 app.include_router(backchecks.router, prefix="/api/v1/backchecks", tags=["backchecks"])
+# Agent mode (Bible Part 12) — optional, doubly gated; same per-route auth split.
+app.include_router(agent_interviews.router, prefix="/api/v1/agent-interviews",
+                   tags=["agent-mode"])
 
 
 @app.get("/health")
@@ -86,5 +90,8 @@ def health():
             "backcheck_agent": __import__(
                 "app.services.backcheck_agent", fromlist=["available"]
             ).available(),
+            "agent_mode": __import__(
+                "app.services.ai_interviewer", fromlist=["enabled"]
+            ).enabled(),
         },
     }

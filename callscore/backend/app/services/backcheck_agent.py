@@ -72,8 +72,13 @@ def dispatch_call(
         "— not a sales call. Do you have two minutes to confirm a recent "
         "interview? You can say no and I'll hang up right away."
     ),
+    kind: str = "backcheck",
+    webhook_path: str = "/api/v1/backchecks/webhook",
+    max_duration_seconds: int = 240,
 ) -> Optional[str]:
-    """Create the outbound call; returns the provider call id or None."""
+    """Create the outbound call; returns the provider call id or None.
+    Shared transport for back-checks and Agent-mode interviews — the kind
+    and webhook route keep the two auditable as distinct call types."""
     if not available():
         return None
     body = {
@@ -87,13 +92,13 @@ def dispatch_call(
                 "messages": [{"role": "system", "content": prompt}],
             },
             "endCallFunctionEnabled": True,
-            "maxDurationSeconds": 240,
+            "maxDurationSeconds": max_duration_seconds,
         },
-        "metadata": {"submission_id": submission_id, "kind": "backcheck"},
+        "metadata": {"submission_id": submission_id, "kind": kind},
     }
     if PUBLIC_BASE_URL:
         body["assistant"]["server"] = {
-            "url": f"{PUBLIC_BASE_URL}/api/v1/backchecks/webhook",
+            "url": f"{PUBLIC_BASE_URL}{webhook_path}",
             **({"secret": VAPI_WEBHOOK_SECRET} if VAPI_WEBHOOK_SECRET else {}),
         }
     try:

@@ -21,6 +21,8 @@ class TranscriptionDiarizationAgent(BaseAgent):
     name = "transcription_diarization"
 
     def run(self, interview_session_id: str, context: dict) -> list[AgentFinding]:
+        if context.get("transcript"):
+            return []  # already transcribed (agent-mode provider / re-run)
         audio_path = context.get("audio_path")
         if audio_path is None or not stt.configured_providers():
             raise NotImplementedError  # absent capability -> reduced confidence

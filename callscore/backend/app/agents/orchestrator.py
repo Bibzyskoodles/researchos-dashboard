@@ -87,6 +87,20 @@ def _build_context(db: Session, submission: models.Submission, context: dict) ->
     if answers and answers.payload:
         context["answers"] = answers.payload
 
+    # Agent-mode (and re-runs): a transcript may already exist from the
+    # voice-agent provider — load it so Tier 1 doesn't re-transcribe.
+    existing_transcript = db.scalar(
+        select(models.AgentFindingRow)
+        .where(
+            models.AgentFindingRow.submission_id == submission_id,
+            models.AgentFindingRow.agent_name == "transcription_diarization",
+            models.AgentFindingRow.finding_type == "transcript",
+        )
+        .order_by(models.AgentFindingRow.created_at.desc())
+    )
+    if existing_transcript and (existing_transcript.raw_output or {}).get("text"):
+        context["transcript"] = existing_transcript.raw_output
+
     # Speech-engine routing: per-project choice > language default > global.
     from app.services import stt
 
@@ -146,10 +160,10 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
     submission = db.get(models.Submission, submission_id)
     if submission is None:
         raise ValueError(f"unknown submission {submission_id}")
-    if submission.collection_mode != "call":
+    if submission.collection_mode not in ("call", "agent"):
         raise ValueError(
             f"submission {submission_id} is {submission.collection_mode}-mode; "
-            "this pipeline only scores call-mode interviews"
+            "this pipeline only scores call- and agent-mode interviews"
         )
 
     consent = db.scalar(

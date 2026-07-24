@@ -29,7 +29,8 @@ In the Railway project that hosts `fieldscore-backend`:
 | `CONSENT_ENCRYPTION_KEY` | a strong random passphrase | Encrypts respondent phone numbers at rest (Bible Part 9). Respondent CSV import **refuses to run** without it. |
 | `STORAGE_DIR` | optional, default `/data/callscore-evidence` | Where uploaded recordings live. **Attach a Railway Volume at `/data`** or recordings vanish on redeploy. |
 | `SIMILARITY_THRESHOLD` | optional, default `0.7` | Tier 3 near-duplicate transcript threshold. |
-| `VAPI_API_KEY` + `VAPI_PHONE_NUMBER_ID` | Vapi credentials | **AI back-check calls** — automated verification calls dispatched from the scorecard (`conduct_backcheck` only; the agent discloses itself and never conducts interviews). Set `PUBLIC_BASE_URL` to this service's public URL and `VAPI_WEBHOOK_SECRET` so end-of-call reports land as evidence. |
+| `VAPI_API_KEY` + `VAPI_PHONE_NUMBER_ID` | Vapi credentials | **AI back-check calls** — automated verification calls dispatched from the scorecard. Set `PUBLIC_BASE_URL` to this service's public URL and `VAPI_WEBHOOK_SECRET` so end-of-call reports land as evidence. |
+| `AGENT_MODE_ENABLED` | `true` to enable | **Agent mode (Bible Part 12)** — optional AI-conducted interviews; needs the Vapi credentials above too. Off by default: unset = the Collect stage's 🤖 Agent tab explains it's disabled and nothing dispatches. The AI discloses itself, requires verbal consent (declined = nothing retained), and every interview is permanently labelled `collection_mode='agent'`. |
 | `REDIS_URL` | leave unset | Only needed when the pipeline moves from inline to a Celery/RQ worker. |
 
 Do **not** set `PORT` — Railway injects it and the Dockerfile honours it.
