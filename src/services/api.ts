@@ -426,7 +426,7 @@ export const webhooksApi = {
 // same request-header pattern as `api` above. The URL is public config, not
 // a secret — nothing key-like ships via REACT_APP_* here.
 const CALLSCORE_BASE_URL =
-  process.env.REACT_APP_CALLSCORE_API_URL || 'https://callscore-production.up.railway.app';
+  process.env.REACT_APP_CALLSCORE_API_URL || 'https://researchos-dashboard-production.up.railway.app';
 
 const callApi = axios.create({ baseURL: CALLSCORE_BASE_URL });
 

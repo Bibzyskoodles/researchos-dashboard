@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const FIELDSCORE_URL = 'https://web-production-f5bab.up.railway.app';
-export const CALLSCORE_URL = 'https://callscore-production.up.railway.app';
+export const CALLSCORE_URL = 'https://researchos-dashboard-production.up.railway.app';
 
 const TOKEN_KEY = 'fs_token';
 
