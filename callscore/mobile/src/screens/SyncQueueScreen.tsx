@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as FileSystem from 'expo-file-system';
+import { callApi } from '../api/client';
 import { listSessions } from '../db/local';
 import { syncAllPending } from '../sync/syncService';
 import { COLORS } from '../theme';
@@ -24,6 +25,20 @@ export default function SyncQueueScreen({ onBack }: { onBack: () => void }) {
   const [sessions, setSessions] = useState<LocalSession[]>([]);
   const [busy, setBusy] = useState(false);
   const [lowStorage, setLowStorage] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
+
+  const sendFeedback = async () => {
+    const msg = feedbackText.trim();
+    if (!msg) return;
+    try {
+      await callApi.sendFeedback(msg, 'field_report');
+      setFeedbackText('');
+      setFeedbackStatus('Sent — thank you.');
+    } catch {
+      setFeedbackStatus('Could not send (offline?) — try again when connected.');
+    }
+  };
 
   const load = useCallback(async () => {
     setSessions(await listSessions());
@@ -69,6 +84,25 @@ export default function SyncQueueScreen({ onBack }: { onBack: () => void }) {
         data={sessions}
         keyExtractor={(s) => s.id}
         ListEmptyComponent={<Text style={styles.empty}>No interviews yet.</Text>}
+        ListFooterComponent={
+          <View style={styles.feedbackBox}>
+            <Text style={styles.feedbackTitle}>Something not working in the field?</Text>
+            <TextInput
+              style={styles.feedbackInput}
+              placeholder="Tell the team — app problems, network issues, anything."
+              placeholderTextColor={COLORS.subtext}
+              multiline
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+            />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <TouchableOpacity style={styles.feedbackBtn} onPress={() => void sendFeedback()}>
+                <Text style={styles.feedbackBtnText}>Send feedback</Text>
+              </TouchableOpacity>
+              {feedbackStatus && <Text style={styles.feedbackStatus}>{feedbackStatus}</Text>}
+            </View>
+          </View>
+        }
         renderItem={({ item }) => {
           const st = STATUS[item.sync_status];
           return (
@@ -99,6 +133,22 @@ const styles = StyleSheet.create({
     fontSize: 12, color: COLORS.amber, backgroundColor: COLORS.amberBg,
     borderRadius: 8, padding: 10, marginBottom: 10,
   },
+  feedbackBox: {
+    marginTop: 20, backgroundColor: COLORS.card, borderWidth: 1,
+    borderColor: COLORS.border, borderRadius: 10, padding: 14,
+  },
+  feedbackTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
+  feedbackInput: {
+    backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 8, padding: 10, fontSize: 13, color: COLORS.text,
+    minHeight: 60, textAlignVertical: 'top', marginBottom: 10,
+  },
+  feedbackBtn: {
+    backgroundColor: COLORS.blue, borderRadius: 8, paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  feedbackBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  feedbackStatus: { fontSize: 11, color: COLORS.subtext, flex: 1 },
   card: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card,
     borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 14, marginBottom: 8,

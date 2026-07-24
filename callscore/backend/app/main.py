@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.auth import require_auth, require_staff
-from app.routes import ada, interviews, projects, respondents, sync, scorecards, trust
+from app.routes import ada, feedback, interviews, projects, respondents, sync, scorecards, trust
 
 app = FastAPI(
     title="CallScore API",
@@ -57,6 +57,9 @@ app.include_router(trust.router, prefix="/api/v1/enumerators", tags=["trust-reco
                    dependencies=[Depends(require_staff)])
 app.include_router(ada.router, prefix="/api/v1/ada", tags=["ada"],
                    dependencies=[Depends(require_auth)])
+# Auth handled per-route inside feedback (staff for finding feedback and
+# reads; any authenticated user may submit app feedback).
+app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["feedback"])
 
 
 @app.get("/health")

@@ -63,6 +63,7 @@ def get_scorecard(submission_id: str, db: Session = Depends(get_db)):
         "ada_summary": {"register": summary["register"], "text": summary["text"]},
         "evidence": [
             {
+                "id": str(f.id),
                 "agent": f.agent_name,
                 "type": f.finding_type,
                 "description": f.description,

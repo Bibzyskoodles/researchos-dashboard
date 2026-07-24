@@ -444,6 +444,9 @@ export const callScoreApi = {
     callApi.get(`/api/v1/scorecards/${encodeURIComponent(interviewId)}`),
   listInterviews: (projectId: string) =>
     callApi.get(`/api/v1/interviews/project/${encodeURIComponent(projectId)}`),
+  // Calibration loop: supervisor verdict on one AI finding.
+  findingFeedback: (findingId: string, verdict: 'correct' | 'incorrect' | 'unsure', note?: string) =>
+    callApi.post(`/api/v1/feedback/findings/${encodeURIComponent(findingId)}`, { verdict, note }),
   // Override audit (Bible 4A.6) — reason is mandatory, enforced server-side too.
   recordOverride: (interviewId: string, humanAction: string, overriddenBy: string, reason: string) =>
     callApi.post(`/api/v1/scorecards/${encodeURIComponent(interviewId)}/override`, {

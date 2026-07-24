@@ -165,6 +165,32 @@ class CallProjectConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))
 
 
+class FindingFeedback(Base):
+    # Supervisor verdicts on individual AI findings — append-only
+    # calibration signal (migrations/0004).
+    __tablename__ = "finding_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    finding_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    submission_id: Mapped[str] = mapped_column(Text, nullable=False)
+    agent_name: Mapped[str] = mapped_column(Text, nullable=False)
+    verdict: Mapped[str] = mapped_column(Text, nullable=False)  # correct|incorrect|unsure
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    given_by: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))
+
+
+class AppFeedback(Base):
+    __tablename__ = "app_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(Text, nullable=False)  # mobile|link|dashboard
+    category: Mapped[Optional[str]] = mapped_column(Text)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    submitted_by: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))
+
+
 class AccessLogEntry(Base):
     # Bible Part 9: append-only audit of every raw-audio / respondent-PII /
     # trust-record access — who viewed what, when.

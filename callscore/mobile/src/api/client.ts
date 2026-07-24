@@ -60,6 +60,12 @@ export const callApi = {
     request<{ respondents: import('../types').Respondent[] }>(
       CALLSCORE_URL, `/api/v1/respondents/${encodeURIComponent(projectId)}`),
 
+  sendFeedback: (message: string, category?: string) =>
+    request(CALLSCORE_URL, '/api/v1/feedback', {
+      method: 'POST',
+      body: JSON.stringify({ source: 'mobile', message, category }),
+    }),
+
   getCallConfig: (projectId: string) =>
     request<{ consent_script: string; consent_language: string }>(
       CALLSCORE_URL, `/api/v1/projects/${encodeURIComponent(projectId)}/call-config`),

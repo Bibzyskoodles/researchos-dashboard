@@ -13,6 +13,7 @@ export interface AdaSummary {
 }
 
 export interface CallEvidenceItem {
+  id: string;
   agent: string;
   type: string;
   description: string;

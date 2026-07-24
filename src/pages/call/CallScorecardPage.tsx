@@ -38,6 +38,19 @@ export default function CallScorecardPage() {
   const [overrideAction, setOverrideAction] = useState('approve');
   const [overrideReason, setOverrideReason] = useState('');
   const [overrideStatus, setOverrideStatus] = useState<string | null>(null);
+  // Calibration loop: supervisor verdicts per finding (id -> verdict sent).
+  const [findingVotes, setFindingVotes] = useState<Record<string, string>>({});
+
+  const voteFinding = (findingId: string, verdict: 'correct' | 'incorrect') => {
+    if (findingVotes[findingId]) return; // append-only server-side; one vote per view
+    setFindingVotes((v) => ({ ...v, [findingId]: verdict }));
+    callScoreApi.findingFeedback(findingId, verdict).catch(() =>
+      setFindingVotes((v) => {
+        const { [findingId]: _dropped, ...rest } = v;
+        return rest;
+      }),
+    );
+  };
 
   const load = useCallback(() => {
     if (!id) return;
@@ -110,7 +123,7 @@ export default function CallScorecardPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
           {card.evidence.map((e, i) => (
-            <div key={i} style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 12px' }}>
+            <div key={e.id || i} style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 12px' }}>
               <div style={{ display: 'flex', gap: 8, fontSize: 11, color: '#6B7280', marginBottom: 4 }}>
                 <span style={{ fontWeight: 600 }}>{e.agent}</span>
                 <span>{e.type}</span>
@@ -120,6 +133,32 @@ export default function CallScorecardPage() {
                 </span>
               </div>
               <div style={{ fontSize: 13, color: '#111827' }}>{e.description}</div>
+              {/* Was the AI right? Every verdict tunes agent precision. */}
+              {e.id && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                  {findingVotes[e.id] ? (
+                    <span style={{ fontSize: 11, color: '#6B7280' }}>
+                      Marked {findingVotes[e.id]} — thanks, this tunes the AI.
+                    </span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 11, color: '#9CA3AF' }}>Was this finding right?</span>
+                      <button
+                        onClick={() => voteFinding(e.id, 'correct')}
+                        style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, padding: '2px 10px', borderRadius: 999, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#15803D', cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        ✓ Correct
+                      </button>
+                      <button
+                        onClick={() => voteFinding(e.id, 'incorrect')}
+                        style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, padding: '2px 10px', borderRadius: 999, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        ✗ Wrong
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
