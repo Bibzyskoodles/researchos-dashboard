@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "CallScore Link",
+    "slug": "callscore-link",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": { "backgroundColor": "#080D1A" },
+    "assetBundlePatterns": ["**/*"],
+    "ios": { "supportsTablet": false, "bundleIdentifier": "ai.intelligency.callscore.link" },
+    "android": { "package": "ai.intelligency.callscore.link", "permissions": [] }
+  }
+}

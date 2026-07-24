@@ -1,0 +1,117 @@
+/**
+ * Proactive surfacing for InsightScore (CallScore Bible Part 1.4): the AI
+ * Analysis destination badges itself when freshly-verified interviews are
+ * ready to analyze, instead of waiting for the user to remember to check.
+ * "Fresh" = PASS submissions scored since the user last opened AI Analysis
+ * (tracked locally per browser — this is a nudge, not an unread-count
+ * system of record).
+ */
+import { useEffect, useRef, useState } from 'react';
+import { dashboardApi } from '../services/api';
+import { useAda } from '../ada/AdaContext';
+
+const SEEN_KEY = 'fs_insights_seen_at';
+const REFRESH_MS = 5 * 60 * 1000;
+
+export function markInsightsSeen(): void {
+  try {
+    localStorage.setItem(SEEN_KEY, new Date().toISOString());
+  } catch {
+    // storage unavailable (private mode) — badge just stays, harmless
+  }
+}
+
+function countFresh(rows: any[]): number {
+  const seenAt = localStorage.getItem(SEEN_KEY);
+  const seenTs = seenAt ? Date.parse(seenAt) : 0;
+  let count = 0;
+  for (const r of rows) {
+    const verdict = r.Verdict ?? r.verdict ?? '';
+    if (verdict !== 'PASS') continue;
+    const scored = r.Scored_At ?? r.scored_at ?? r.Submission_Date ?? r.submission_date ?? '';
+    const ts = scored ? Date.parse(scored) : NaN;
+    // Rows without a parseable timestamp count as fresh only for first-time
+    // viewers (seenTs 0) — better to over-invite than silently hide.
+    if (isNaN(ts) ? seenTs === 0 : ts > seenTs) count++;
+  }
+  return count;
+}
+
+export function useVerifiedReadyCount(): number {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      dashboardApi
+        .getSubmissions({ verdict: 'PASS', limit: 100 })
+        .then((r) => {
+          if (cancelled) return;
+          const rows = r.data.submissions || r.data || [];
+          setCount(Array.isArray(rows) ? countFresh(rows) : 0);
+        })
+        .catch(() => {
+          // Roles without submission access (or a flaky connection) just
+          // don't get the nudge — never an error surface.
+          if (!cancelled) setCount(0);
+        });
+    };
+    refresh();
+    const timer = setInterval(refresh, REFRESH_MS);
+    const onSeen = () => refresh();
+    window.addEventListener('fs-insights-seen', onSeen);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener('fs-insights-seen', onSeen);
+    };
+  }, []);
+
+  return count;
+}
+
+export function notifyInsightsSeen(): void {
+  markInsightsSeen();
+  window.dispatchEvent(new Event('fs-insights-seen'));
+}
+
+const NUDGE_SESSION_KEY = 'fs_insights_nudge_announced';
+
+/**
+ * Ada announces freshly-unlocked interviews on the home page — the
+ * conversational half of the Bible 1.4 proactive-surfacing rule (the
+ * sidebar badge is the ambient half). Fires at most once per browser
+ * session so Ada notices and offers without nagging (Bible 4A.7:
+ * ambient, not persistent chrome).
+ */
+export function useAdaVerifiedNudge(page: string): void {
+  const count = useVerifiedReadyCount();
+  const { setState, addMessage } = useAda();
+  const announcedRef = useRef(false);
+
+  useEffect(() => {
+    if (count <= 0 || announcedRef.current) return;
+    if (sessionStorage.getItem(NUDGE_SESSION_KEY)) return;
+    announcedRef.current = true;
+    try {
+      sessionStorage.setItem(NUDGE_SESSION_KEY, '1');
+    } catch {
+      // storage unavailable — announcedRef still prevents repeats this mount
+    }
+    const plural = count === 1 ? 'interview has' : 'interviews have';
+    const timer = setTimeout(() => {
+      setState('speaking');
+      addMessage({
+        id: `verified-nudge-${Date.now()}`,
+        role: 'assistant',
+        content:
+          `${count} verified ${plural} been unlocked for analysis since you last looked. ` +
+          `When you're ready, open AI Analysis and I'll dig into what the data is telling you.`,
+        timestamp: new Date().toISOString(),
+        page,
+      });
+      setTimeout(() => setState('idle'), 4000);
+    }, 2500); // after the page greeting, never over it
+    return () => clearTimeout(timer);
+  }, [count, page, setState, addMessage]);
+}
