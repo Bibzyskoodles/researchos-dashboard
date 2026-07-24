@@ -118,6 +118,40 @@ def _assemblyai(audio_path: pathlib.Path) -> Optional[dict]:
         return None
 
 
+def _spitch(audio_path: pathlib.Path) -> Optional[dict]:
+    """Spitch — the Nigerian-language specialist (Yoruba/Igbo/Hausa/
+    Nigerian English, with diacritics). No diarization or word timestamps
+    expected: it returns one plain-text transcript, so in the ensemble it
+    serves as the code-switch-aware CROSS-CHECK voice while a diarizing
+    provider stays primary.
+
+    NOTE: endpoint/response shape is young and was not verifiable from
+    this build environment — the URL is configurable (SPITCH_API_URL) and
+    the parser accepts the common field spellings. Verify against
+    docs.spitch.app when the API key is provisioned.
+    """
+    if not config.SPITCH_API_KEY:
+        return None
+    try:
+        with httpx.Client(timeout=_TIMEOUT) as client:
+            r = client.post(
+                config.SPITCH_API_URL,
+                headers={"Authorization": f"Bearer {config.SPITCH_API_KEY}"},
+                data={"language": config.SPITCH_LANGUAGE, "model": "mansa_v1"},
+                files={"content": (audio_path.name, audio_path.read_bytes(), "audio/*")},
+            )
+            r.raise_for_status()
+            data = r.json()
+        text = (data.get("text") or data.get("transcription")
+                or data.get("transcript") or "")
+        if not str(text).strip():
+            return None
+        return {"text": str(text), "segments": [], "provider": "spitch", "agreement": None}
+    except Exception:
+        log.exception("spitch transcription failed")
+        return None
+
+
 def _whisper(audio_path: pathlib.Path) -> Optional[dict]:
     from app.services import llm
     result = llm.transcribe(audio_path)
@@ -131,13 +165,25 @@ def _whisper(audio_path: pathlib.Path) -> Optional[dict]:
     }
 
 
-_PROVIDERS = [("deepgram", _deepgram), ("assemblyai", _assemblyai), ("openai-whisper", _whisper)]
+# Order matters: first available = primary transcript (wants diarization),
+# second available = cross-check. Spitch sits SECOND deliberately — it's
+# the code-switch specialist voice in the verification pair, so a
+# Deepgram-vs-Spitch disagreement on Pidgin/Yoruba-heavy audio is real
+# signal, not two English-centric engines failing identically.
+_PROVIDERS = [
+    ("deepgram", _deepgram),
+    ("spitch", _spitch),
+    ("assemblyai", _assemblyai),
+    ("openai-whisper", _whisper),
+]
 
 
 def configured_providers() -> list[str]:
     out = []
     if config.DEEPGRAM_API_KEY:
         out.append("deepgram")
+    if config.SPITCH_API_KEY:
+        out.append("spitch")
     if config.ASSEMBLYAI_API_KEY:
         out.append("assemblyai")
     if config.OPENAI_API_KEY:

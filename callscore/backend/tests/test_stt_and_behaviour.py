@@ -34,6 +34,39 @@ class TestSttLayer:
         assert out is not None and out["agreement"] is None
 
 
+class TestSpitchProvider:
+    def test_provider_order_puts_spitch_second(self, monkeypatch):
+        from app.core import config
+        monkeypatch.setattr(config, "DEEPGRAM_API_KEY", "k1")
+        monkeypatch.setattr(config, "SPITCH_API_KEY", "k2")
+        monkeypatch.setattr(config, "ASSEMBLYAI_API_KEY", "k3")
+        monkeypatch.setattr(config, "OPENAI_API_KEY", "k4")
+        assert stt.configured_providers() == ["deepgram", "spitch", "assemblyai", "openai-whisper"]
+
+    def test_spitch_response_parsing(self, monkeypatch, tmp_path):
+        from app.core import config
+        monkeypatch.setattr(config, "SPITCH_API_KEY", "k")
+
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+            def json(self):
+                return {"transcription": "bawo ni, how many people dey your house?"}
+
+        class FakeClient:
+            def __init__(self, **kw): ...
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def post(self, *a, **kw): return FakeResponse()
+
+        monkeypatch.setattr(stt.httpx, "Client", FakeClient)
+        audio = tmp_path / "a.m4a"
+        audio.write_bytes(b"x")
+        out = stt._spitch(audio)
+        assert out is not None and out["provider"] == "spitch"
+        assert "bawo ni" in out["text"] and out["segments"] == []
+
+
 class TestTranscriptionAgent:
     def test_disagreement_becomes_finding(self, monkeypatch, tmp_path):
         audio = tmp_path / "a.m4a"

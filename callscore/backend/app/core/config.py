@@ -15,6 +15,12 @@ REDIS_URL = os.getenv("REDIS_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
 ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
+# Spitch — Nigerian-language STT specialist (Yoruba/Igbo/Hausa/Nigerian
+# English). Endpoint kept configurable because their API is young; verify
+# against docs.spitch.app when the key is provisioned.
+SPITCH_API_KEY = os.getenv("SPITCH_API_KEY")
+SPITCH_API_URL = os.getenv("SPITCH_API_URL", "https://api.spi-tch.com/v1/transcriptions")
+SPITCH_LANGUAGE = os.getenv("SPITCH_LANGUAGE", "en")  # en|yo|ig|ha per Spitch codes
 CONSENT_ENCRYPTION_KEY = os.getenv("CONSENT_ENCRYPTION_KEY")
 
 # Late-start / early-stop detection threshold (Bible Part 6.5): a gap
