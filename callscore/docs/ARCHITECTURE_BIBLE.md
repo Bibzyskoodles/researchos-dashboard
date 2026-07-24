@@ -52,6 +52,8 @@ The user-facing shape of the "one app, two capture modes" idea (1.3) is a signup
 
 This flow is the reference for both the FieldScore reconciliation work (see `CLAUDE.md`) and any Call-mode-specific frontend routing built in this repo — the Call module's own screens (`SupervisorQueue.tsx`, `GlanceConfirm.tsx`) sit *inside* the Call destination, not as a separate app with its own top-level login.
 
+**Proactive surfacing, not passive availability:** InsightScore shouldn't just be reachable once data is verified — it should surface itself when there's freshly-verified data worth analyzing (e.g. a badge on the InsightScore destination: "14 new verified interviews ready to analyze"), rather than requiring the user to remember to go check. This is the navigation-level expression of Ada's core trait (Part 4A.1) — noticing and offering before being asked — applied to the platform shell itself, not just inside a module.
+
 ### 1.5 Competitive Position
 
 The nearest existing capability is SurveyCTO's "audio audit" feature — randomly-sampled recording clips, reviewed manually. No incumbent runs native, end-to-end AI analysis over 100% of remote interview audio. Real-world teams are already duct-taping this together with SurveyCTO + WhatsApp + Gmail + AssemblyAI + Gemini scripts (observed in the wild). CallScore's job is to be the native, defensible, offline-first version of what people are currently hacking together.

@@ -6,6 +6,7 @@ import { useProject } from '../../context/ProjectContext';
 import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard, X } from 'lucide-react';
 import FieldScoreLogo from '../brand/FieldScoreLogo';
 import BuildInfoBadge from './BuildInfoBadge';
+import { useVerifiedReadyCount } from '../../hooks/useVerifiedReadyCount';
 
 interface SidebarProps { onClose?: () => void; }
 
@@ -64,6 +65,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
   };
 
   const flaggedCount = lifecycle?.stages?.verify?.flagged || 0;
+  // Proactive surfacing (CallScore Bible 1.4): AI Analysis badges itself
+  // when freshly-verified interviews are waiting, from either capture mode.
+  const verifiedReady = useVerifiedReadyCount();
   const isClient = user?.role === 'client';
   const visibleNav = BROWSE_NAV
     .filter(section => !isClient || !CLIENT_HIDDEN_SECTIONS.has(section.label))
@@ -203,7 +207,19 @@ export default function Sidebar({ onClose }: SidebarProps) {
                     })}
                   >
                     <item.icon size={14} style={{ flexShrink: 0 }} />
-                    {item.label}
+                    <span style={{ flex: 1 }}>{item.label}</span>
+                    {item.to === '/insights' && verifiedReady > 0 && (
+                      <span
+                        title={`${verifiedReady} new verified interview${verifiedReady === 1 ? '' : 's'} ready to analyze`}
+                        style={{
+                          fontSize: 10, fontWeight: 700, color: 'white',
+                          background: BLUE, borderRadius: 999,
+                          padding: '1px 7px', flexShrink: 0,
+                        }}
+                      >
+                        {verifiedReady > 99 ? '99+' : verifiedReady}
+                      </span>
+                    )}
                   </NavLink>
                 ))}
                 {section.label === 'ACCOUNT' && !isClient && (

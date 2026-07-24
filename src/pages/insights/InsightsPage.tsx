@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
+import { notifyInsightsSeen } from "../../hooks/useVerifiedReadyCount";
 import { insightScoreApi, adaApi, bridgeApi, API_BASE_URL } from "../../services/api";
 import { useProject } from "../../context/ProjectContext";
 import { InsightProject } from "../../types";
@@ -700,6 +701,9 @@ export default function InsightsPage() {
   // that may have been saved after the last Excel upload.
   useEffect(() => {
     if (refreshActiveProject) refreshActiveProject();
+    // Opening AI Analysis clears the sidebar's "ready to analyze" badge
+    // (proactive surfacing, CallScore Bible 1.4).
+    notifyInsightsSeen();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
