@@ -7,6 +7,7 @@ import { DashboardData } from "../../types";
 import { useAuth } from "../../store/AuthContext";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
+import { useAdaVerifiedNudge } from "../../hooks/useVerifiedReadyCount";
 import { useIndustry } from "../../store/IndustryContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useProject } from "../../context/ProjectContext";
@@ -121,6 +122,9 @@ export default function OverviewPage() {
   const nav = useNavigate();
   const isMobile = useIsMobile();
   useAdaGreeting({ page: "overview" });
+  // Ada announces freshly-verified interviews unlocked for analysis
+  // (proactive surfacing, CallScore Bible 1.4).
+  useAdaVerifiedNudge("overview");
   const adaSettings = useAdaSettings();
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";

@@ -6,8 +6,9 @@
  * (tracked locally per browser — this is a nudge, not an unread-count
  * system of record).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { dashboardApi } from '../services/api';
+import { useAda } from '../ada/AdaContext';
 
 const SEEN_KEY = 'fs_insights_seen_at';
 const REFRESH_MS = 5 * 60 * 1000;
@@ -72,4 +73,45 @@ export function useVerifiedReadyCount(): number {
 export function notifyInsightsSeen(): void {
   markInsightsSeen();
   window.dispatchEvent(new Event('fs-insights-seen'));
+}
+
+const NUDGE_SESSION_KEY = 'fs_insights_nudge_announced';
+
+/**
+ * Ada announces freshly-unlocked interviews on the home page — the
+ * conversational half of the Bible 1.4 proactive-surfacing rule (the
+ * sidebar badge is the ambient half). Fires at most once per browser
+ * session so Ada notices and offers without nagging (Bible 4A.7:
+ * ambient, not persistent chrome).
+ */
+export function useAdaVerifiedNudge(page: string): void {
+  const count = useVerifiedReadyCount();
+  const { setState, addMessage } = useAda();
+  const announcedRef = useRef(false);
+
+  useEffect(() => {
+    if (count <= 0 || announcedRef.current) return;
+    if (sessionStorage.getItem(NUDGE_SESSION_KEY)) return;
+    announcedRef.current = true;
+    try {
+      sessionStorage.setItem(NUDGE_SESSION_KEY, '1');
+    } catch {
+      // storage unavailable — announcedRef still prevents repeats this mount
+    }
+    const plural = count === 1 ? 'interview has' : 'interviews have';
+    const timer = setTimeout(() => {
+      setState('speaking');
+      addMessage({
+        id: `verified-nudge-${Date.now()}`,
+        role: 'assistant',
+        content:
+          `${count} verified ${plural} been unlocked for analysis since you last looked. ` +
+          `When you're ready, open AI Analysis and I'll dig into what the data is telling you.`,
+        timestamp: new Date().toISOString(),
+        page,
+      });
+      setTimeout(() => setState('idle'), 4000);
+    }, 2500); // after the page greeting, never over it
+    return () => clearTimeout(timer);
+  }, [count, page, setState, addMessage]);
 }
