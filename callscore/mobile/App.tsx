@@ -69,6 +69,7 @@ export default function App() {
         {screen.name === 'consent' && (
           <ConsentScreen
             respondent={screen.respondent}
+            projectId={screen.projectId}
             onBack={() => setScreen({ name: 'respondents' })}
             onConsentCaptured={(consentUri) =>
               setScreen({

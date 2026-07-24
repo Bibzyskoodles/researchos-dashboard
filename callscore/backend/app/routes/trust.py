@@ -11,13 +11,25 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import models
+from app.core.auth import require_auth
 from app.db import get_db
 
 router = APIRouter()
 
 
 @router.get("/{enumerator_ref}/history")
-def enumerator_history(enumerator_ref: str, org_id: str = "", db: Session = Depends(get_db)):
+def enumerator_history(
+    enumerator_ref: str,
+    org_id: str = "",
+    db: Session = Depends(get_db),
+    auth: dict = Depends(require_auth),
+):
+    db.add(models.AccessLogEntry(
+        accessed_by=auth.get("sub", "unknown"),
+        resource_type="trust_record",
+        resource_id=enumerator_ref,
+    ))
+    db.commit()
     q = select(models.Submission).where(models.Submission.enumerator_id == enumerator_ref)
     if org_id:
         q = q.where(models.Submission.org_id == org_id)

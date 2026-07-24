@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 import { listSessions } from '../db/local';
 import { syncAllPending } from '../sync/syncService';
 import { COLORS } from '../theme';
@@ -17,11 +18,23 @@ const STATUS: Record<LocalSession['sync_status'], { label: string; color: string
  * Offline queue view (Bible 6.4): "Pending sync" is a normal state, shown
  * calmly. Storage-cap warnings surface here rather than failing silently.
  */
+const LOW_STORAGE_BYTES = 500 * 1024 * 1024; // warn below 500 MB free
+
 export default function SyncQueueScreen({ onBack }: { onBack: () => void }) {
   const [sessions, setSessions] = useState<LocalSession[]>([]);
   const [busy, setBusy] = useState(false);
+  const [lowStorage, setLowStorage] = useState(false);
 
-  const load = useCallback(async () => setSessions(await listSessions()), []);
+  const load = useCallback(async () => {
+    setSessions(await listSessions());
+    // Bible 6.4: surface storage pressure to the enumerator rather than
+    // silently failing mid-interview.
+    try {
+      setLowStorage((await FileSystem.getFreeDiskStorageAsync()) < LOW_STORAGE_BYTES);
+    } catch {
+      // unsupported platform — no warning is better than a wrong one
+    }
+  }, []);
   useEffect(() => { void load(); }, [load]);
 
   const syncNow = async () => {
@@ -47,6 +60,11 @@ export default function SyncQueueScreen({ onBack }: { onBack: () => void }) {
           <Text style={styles.link}>{busy ? 'Syncing…' : `Sync now (${pending})`}</Text>
         </TouchableOpacity>
       </View>
+      {lowStorage && (
+        <Text style={styles.storageWarning}>
+          ⚠️ Storage getting full — sync soon so recordings can be cleared from this device.
+        </Text>
+      )}
       <FlatList
         data={sessions}
         keyExtractor={(s) => s.id}
@@ -77,6 +95,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   link: { color: COLORS.blue, fontWeight: '600', fontSize: 13 },
   empty: { textAlign: 'center', color: COLORS.subtext, fontSize: 13, marginTop: 40 },
+  storageWarning: {
+    fontSize: 12, color: COLORS.amber, backgroundColor: COLORS.amberBg,
+    borderRadius: 8, padding: 10, marginBottom: 10,
+  },
   card: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card,
     borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 14, marginBottom: 8,

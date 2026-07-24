@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Audio } from 'expo-av';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { callApi } from '../api/client';
 import { COLORS } from '../theme';
 import { Respondent } from '../types';
 
-// MVP placeholder — the localized, per-project script comes from project
-// config (Bible Part 7); it is displayed in-app so wording can't drift.
+const SCRIPT_CACHE = 'cs_consent_script';
+
+// Fallback until the project's localized script is configured server-side
+// (Bible Part 7 — the real script is project config, displayed verbatim).
 const DEFAULT_SCRIPT =
   'Hello, my name is [your name] and I am calling on behalf of [organisation]. ' +
   'This interview will be recorded for quality and verification purposes. ' +
@@ -20,15 +24,35 @@ const DEFAULT_SCRIPT =
  */
 export default function ConsentScreen({
   respondent,
+  projectId,
   onConsentCaptured,
   onBack,
 }: {
   respondent: Respondent;
+  projectId: string;
   onConsentCaptured: (consentUri: string) => void;
   onBack: () => void;
 }) {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [script, setScript] = useState(DEFAULT_SCRIPT);
   const [error, setError] = useState<string | null>(null);
+
+  // Project-configured, localized consent script; cached for offline days.
+  useEffect(() => {
+    void (async () => {
+      const cached = await AsyncStorage.getItem(`${SCRIPT_CACHE}:${projectId}`);
+      if (cached) setScript(cached);
+      try {
+        const cfg = await callApi.getCallConfig(projectId);
+        if (cfg.consent_script) {
+          setScript(cfg.consent_script);
+          await AsyncStorage.setItem(`${SCRIPT_CACHE}:${projectId}`, cfg.consent_script);
+        }
+      } catch {
+        // offline or unconfigured — cached/default script stands
+      }
+    })();
+  }, [projectId]);
 
   const start = async () => {
     setError(null);
@@ -72,7 +96,7 @@ export default function ConsentScreen({
         Without a consent recording, this interview cannot be started or analyzed.
       </Text>
       <View style={styles.scriptBox}>
-        <Text style={styles.script}>{DEFAULT_SCRIPT}</Text>
+        <Text style={styles.script}>{script}</Text>
       </View>
       {error && <Text style={styles.error}>{error}</Text>}
       {recording ? (

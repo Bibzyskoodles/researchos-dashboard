@@ -10,6 +10,7 @@
  * transcription pipeline has real audio to work on.
  */
 import NetInfo from '@react-native-community/netinfo';
+import * as FileSystem from 'expo-file-system';
 import { callApi } from '../api/client';
 import { listPendingSessions, setSyncStatus } from '../db/local';
 import { LocalSession } from '../types';
@@ -58,6 +59,11 @@ export async function syncSession(s: LocalSession): Promise<void> {
     }
     await callApi.uploadEvidenceBundle(s.id, artifacts);
     await setSyncStatus(s.id, 'synced');
+    // Retention cleanup: recordings now live server-side; free the local
+    // copies so field devices don't fill up (Bible 6.4). Best-effort.
+    for (const uri of [s.consent_uri, s.audio_uri]) {
+      if (uri) await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => undefined);
+    }
   } catch (e) {
     await setSyncStatus(s.id, 'failed'); // retried on the next sweep
     throw e;

@@ -13,6 +13,8 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 CONSENT_ENCRYPTION_KEY = os.getenv("CONSENT_ENCRYPTION_KEY")
 
 # Late-start / early-stop detection threshold (Bible Part 6.5): a gap

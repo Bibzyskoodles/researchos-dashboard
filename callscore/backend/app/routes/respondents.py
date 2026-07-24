@@ -8,16 +8,22 @@ from fastapi import APIRouter, Depends, UploadFile
 from sqlalchemy.orm import Session
 
 from app import models
+from app.core.auth import require_auth
 from app.db import get_db
+from app.services import pii
 
 router = APIRouter()
 
 
 @router.get("/{project_id}")
-def list_respondents(project_id: str, db: Session = Depends(get_db)):
+def list_respondents(
+    project_id: str,
+    db: Session = Depends(get_db),
+    auth: dict = Depends(require_auth),
+):
     """Assigned respondents for a project — drives the enumerator app's
-    respondent picker (Bible 2.3 step 1). Phone numbers are returned only
-    to authenticated staff (router-level require_staff in main.py)."""
+    respondent picker (Bible 2.3 step 1). Phone numbers decrypt only for
+    authenticated staff, and every read is audit-logged (Bible Part 9)."""
     rows = (
         db.query(models.Respondent)
         .filter(models.Respondent.project_id == project_id)
@@ -25,13 +31,20 @@ def list_respondents(project_id: str, db: Session = Depends(get_db)):
         .limit(500)
         .all()
     )
+    db.add(models.AccessLogEntry(
+        accessed_by=auth.get("sub", "unknown"),
+        resource_type="respondent_pii",
+        resource_id=project_id,
+        detail=f"listed {len(rows)} respondents",
+    ))
+    db.commit()
     return {
         "project_id": project_id,
         "respondents": [
             {
                 "id": r.id,
                 "display_name": r.display_name,
-                "phone_number": r.phone_number,
+                "phone_number": pii.decrypt_pii(r.phone_number),
                 "metadata": r.metadata_,
             }
             for r in rows

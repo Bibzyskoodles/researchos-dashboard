@@ -148,6 +148,31 @@ class SyncQueueEntry(Base):
     last_attempt_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
 
 
+class CallProjectConfig(Base):
+    # Per-project Call configuration (Bible Part 7) — consent script is
+    # displayed verbatim in the enumerator app, localized per project.
+    __tablename__ = "call_project_config"
+
+    project_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    consent_script: Mapped[str] = mapped_column(Text, nullable=False)
+    consent_language: Mapped[str] = mapped_column(Text, nullable=False, default="en")
+    jurisdiction: Mapped[Optional[str]] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))
+
+
+class AccessLogEntry(Base):
+    # Bible Part 9: append-only audit of every raw-audio / respondent-PII /
+    # trust-record access — who viewed what, when.
+    __tablename__ = "access_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    accessed_by: Mapped[str] = mapped_column(Text, nullable=False)
+    resource_type: Mapped[str] = mapped_column(Text, nullable=False)
+    resource_id: Mapped[str] = mapped_column(Text, nullable=False)
+    detail: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))
+
+
 class OverrideLogEntry(Base):
     # Shared append-only override audit (decision 3.3, Bible 4A.6).
     __tablename__ = "override_log"

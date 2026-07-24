@@ -59,4 +59,18 @@ app.include_router(trust.router, prefix="/api/v1/enumerators", tags=["trust-reco
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    """Open probe. Reports which optional capabilities are configured so a
+    deploy can be verified at a glance — names only, never key material."""
+    from app.core import config
+    from app.services import pii, stt
+
+    return {
+        "status": "ok",
+        "capabilities": {
+            "database": bool(config.DATABASE_URL),
+            "auth": bool(os.getenv("JWT_SECRET")),
+            "pii_encryption": pii.encryption_available(),
+            "stt_providers": stt.configured_providers(),
+            "llm_judgments": bool(config.OPENAI_API_KEY),
+        },
+    }

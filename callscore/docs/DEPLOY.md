@@ -21,7 +21,9 @@ In the Railway project that hosts `fieldscore-backend`:
 | `JWT_SECRET` | The **exact same value** as fieldscore-backend's `JWT_SECRET` | CallScore verifies the tokens FieldScore issues (`app/core/auth.py`). Different values = every request 401s. |
 | `CORS_ORIGINS` | `https://<your-dashboard-domain>` (comma-separated for several) | Defaults to `https://researchos-dashboard.vercel.app,http://localhost:3000` if unset. |
 | `TIMING_DISCREPANCY_THRESHOLD_SECONDS` | optional, default `90` | Late-start/early-stop flag threshold (Bible 6.5). |
-| `OPENAI_API_KEY` | your OpenAI key | Powers transcription (whisper-1) and the Tier 2 analysis agents (gpt-4o-mini). **Without it the pipeline still runs** — interviews score through the deterministic path with reduced confidence and route to human review (Bible 4.3). |
+| `DEEPGRAM_API_KEY` | Deepgram key | **Primary STT** — diarized (speaker-labelled) transcription, telephony-tuned. |
+| `ASSEMBLYAI_API_KEY` | AssemblyAI key | **Secondary STT** — with two providers configured, every transcript is cross-checked; low agreement becomes a finding that routes the interview to human review. |
+| `OPENAI_API_KEY` | OpenAI key | Tier 2 analysis judgments (gpt-4o-mini) + whisper-1 as STT fallback. **Without any keys the pipeline still runs** — interviews score deterministically with reduced confidence and route to human review (Bible 4.3). |
 | `CONSENT_ENCRYPTION_KEY` | a strong random passphrase | Encrypts respondent phone numbers at rest (Bible Part 9). Respondent CSV import **refuses to run** without it. |
 | `STORAGE_DIR` | optional, default `/data/callscore-evidence` | Where uploaded recordings live. **Attach a Railway Volume at `/data`** or recordings vanish on redeploy. |
 | `SIMILARITY_THRESHOLD` | optional, default `0.7` | Tier 3 near-duplicate transcript threshold. |
@@ -91,13 +93,13 @@ wire Expo env config) if your service URLs differ from the defaults.
 
 ## Known limits at this stage
 
-- Whisper is **not validated** for Nigerian Pidgin / code-switched
+- No STT provider is **validated** for Nigerian Pidgin / code-switched
   Yoruba/Igbo/Hausa-English (Bible Part 11 names this the top risk AND the
-  moat) — run a dedicated evaluation before production reliance.
+  moat) — the cross-provider agreement check surfaces trouble, but a
+  dedicated evaluation benchmark (and possibly a specialised engine like
+  Spitch/Intron) is required before production reliance.
 - Voice fingerprinting (Tier 3) remains unimplemented — it needs an
   enrolment flow; the pipeline treats it as absent capability.
-- Speaker diarization is time-aligned but unlabelled (enumerator vs
-  respondent separation is V1).
 - Link's automatic call-state detection + BLE are V1 native work; MVP uses
   deliberate taps over the cloud relay (see `callscore/link/README.md`).
 - The InsightScore handoff for call rows runs inside fieldscore-backend's

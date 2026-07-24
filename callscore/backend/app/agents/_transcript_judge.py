@@ -18,10 +18,10 @@ _RESPONSE_CONTRACT = (
 
 
 def transcript_for_prompt(transcript: dict, max_chars: int = 24_000) -> str:
-    lines = [
-        f"[{int(s['start'])}s-{int(s['end'])}s] {s['text'].strip()}"
-        for s in transcript.get("segments", [])
-    ]
+    lines = []
+    for s in transcript.get("segments", []):
+        speaker = f" {s['speaker']}:" if s.get("speaker") else ""
+        lines.append(f"[{int(s['start'])}s-{int(s['end'])}s]{speaker} {s['text'].strip()}")
     text = "\n".join(lines) or transcript.get("text", "")
     return text[:max_chars]
 

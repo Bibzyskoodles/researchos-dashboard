@@ -8,6 +8,7 @@ does NOT create projects. It only attaches Call-mode artifacts
 (questionnaire_items) to an existing FieldScore project id.
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app import models
@@ -16,6 +17,42 @@ from app.db import get_db
 from app.services.xlsform import parse_xlsform
 
 router = APIRouter()
+
+
+class CallConfigIn(BaseModel):
+    consent_script: str
+    consent_language: str = "en"
+    jurisdiction: str | None = None
+
+
+@router.put("/{project_id}/call-config")
+def set_call_config(project_id: str, payload: CallConfigIn, db: Session = Depends(get_db)):
+    """Consent script is project config, localized, displayed verbatim in
+    the enumerator app so wording can't drift (Bible Part 7)."""
+    if not payload.consent_script.strip():
+        raise HTTPException(status_code=422, detail="consent_script cannot be empty.")
+    cfg = db.get(models.CallProjectConfig, project_id)
+    if cfg is None:
+        cfg = models.CallProjectConfig(project_id=project_id, consent_script="")
+        db.add(cfg)
+    cfg.consent_script = payload.consent_script.strip()
+    cfg.consent_language = payload.consent_language
+    cfg.jurisdiction = payload.jurisdiction
+    db.commit()
+    return {"project_id": project_id, "status": "saved"}
+
+
+@router.get("/{project_id}/call-config")
+def get_call_config(project_id: str, db: Session = Depends(get_db)):
+    cfg = db.get(models.CallProjectConfig, project_id)
+    if cfg is None:
+        raise HTTPException(status_code=404, detail="No call config for this project yet.")
+    return {
+        "project_id": project_id,
+        "consent_script": cfg.consent_script,
+        "consent_language": cfg.consent_language,
+        "jurisdiction": cfg.jurisdiction,
+    }
 
 
 @router.post("/{project_id}/questionnaire")

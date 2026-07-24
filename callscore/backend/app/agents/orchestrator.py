@@ -186,6 +186,15 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
             )
         )
 
+    # Design Principle 8: pair automated detection with RANDOMIZED human
+    # back-checks so enumerators can't reverse-engineer what triggers a
+    # flag. Deterministic per session id (idempotent re-scoring), rate and
+    # mechanism deliberately undisclosed outside this code.
+    import hashlib
+    random_backcheck = (
+        int(hashlib.sha256(submission_id.encode()).hexdigest(), 16) % 20 == 0  # ~5%
+    )
+
     late_start, early_stop = scoring.detect_timing_flags(
         submission.started_at,
         submission.stopped_at,
@@ -193,6 +202,8 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
         submission.device1_call_ended_at,
     )
     result = scoring.synthesize(findings, late_start, early_stop, failed_agents)
+    if random_backcheck and result.recommended_action == "none":
+        result.recommended_action = "conduct_backcheck"
 
     scorecard = db.get(models.CallScorecard, submission_id)
     if scorecard is None:
