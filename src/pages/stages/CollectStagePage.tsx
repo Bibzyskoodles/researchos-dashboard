@@ -8,10 +8,20 @@ import AgentInterviewPanel from '../call/AgentInterviewPanel';
 // per-interview choice made at collection time, so the Collect stage is
 // where the split surfaces. Agent mode is optional and clearly labelled
 // AI-conducted (Part 12); InsightScore is downstream of all modes.
+// Staged-release gates (set in Vercel): hide a mode entirely until it has
+// passed testing — UI gating layered on top of the server-side env gates,
+// never instead of them.
+const CALL_MODE_ENABLED = process.env.REACT_APP_CALL_MODE_ENABLED !== 'false'; // default on
+const AGENT_MODE_ENABLED = process.env.REACT_APP_AGENT_MODE_ENABLED === 'true'; // default OFF
+
 const MODES = [
   { key: 'field' as const, label: '🧭 Field', hint: 'In-person submissions' },
-  { key: 'call' as const, label: '📞 Call', hint: 'Remote interviews (human)' },
-  { key: 'agent' as const, label: '🤖 Agent', hint: 'AI-conducted interviews (optional mode)' },
+  ...(CALL_MODE_ENABLED
+    ? [{ key: 'call' as const, label: '📞 Call', hint: 'Remote interviews (human)' }]
+    : []),
+  ...(AGENT_MODE_ENABLED
+    ? [{ key: 'agent' as const, label: '🤖 Agent', hint: 'AI-conducted interviews (optional mode)' }]
+    : []),
 ];
 
 export default function CollectStagePage() {
