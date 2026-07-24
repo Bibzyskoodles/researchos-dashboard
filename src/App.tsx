@@ -34,6 +34,7 @@ import LiveInvestigationPage from './pages/field-quality/LiveInvestigationPage';
 import SharedReportPage from './pages/reports/SharedReportPage';
 import CallReviewQueuePage from './pages/call/CallReviewQueuePage';
 import CallScorecardPage from './pages/call/CallScorecardPage';
+import CallCapturePage from './pages/call/CallCapturePage';
 
 // The public FieldScore demo is lazy-loaded so its scripted dataset and
 // tour machinery never weigh down the main app bundle.
@@ -103,6 +104,7 @@ function AppRoutes() {
         <Route path="projects/:projectId/live" element={<LiveInvestigationPage />} />
         <Route path="projects/:projectId/verify/:id" element={<SubmissionDetailPage />} />
         <Route path="projects/:projectId/verify/enumerators" element={<EnumeratorsPage />} />
+        <Route path="projects/:projectId/collect/call/new" element={<CallCapturePage />} />
         <Route path="projects/:projectId/verify/call" element={<CallReviewQueuePage />} />
         <Route path="projects/:projectId/verify/call/:id" element={<CallScorecardPage />} />
         <Route path="projects/:projectId/verify/map" element={<MapPage />} />

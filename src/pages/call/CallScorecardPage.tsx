@@ -40,6 +40,20 @@ export default function CallScorecardPage() {
   const [overrideStatus, setOverrideStatus] = useState<string | null>(null);
   // Calibration loop: supervisor verdicts per finding (id -> verdict sent).
   const [findingVotes, setFindingVotes] = useState<Record<string, string>>({});
+  const [backcheckStatus, setBackcheckStatus] = useState<string | null>(null);
+
+  const dispatchBackcheck = () => {
+    if (!id) return;
+    setBackcheckStatus('Dispatching…');
+    callScoreApi
+      .dispatchBackcheck(id)
+      .then(() => setBackcheckStatus('AI back-check call dispatched — the result will appear in this scorecard’s evidence when the call completes.'))
+      .catch((e) => setBackcheckStatus(
+        e?.response?.status === 503
+          ? 'No voice-agent provider configured yet.'
+          : 'Could not dispatch the back-check call.',
+      ));
+  };
 
   const voteFinding = (findingId: string, verdict: 'correct' | 'incorrect') => {
     if (findingVotes[findingId]) return; // append-only server-side; one vote per view
@@ -172,6 +186,22 @@ export default function CallScorecardPage() {
           differently is fine — Ada advises, humans decide — but every override is logged with
           your name and reason for external audit.
         </div>
+        {card.recommended_action === 'conduct_backcheck' && (
+          <div style={{ marginBottom: 12 }}>
+            <button
+              onClick={dispatchBackcheck}
+              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#3730A3', cursor: 'pointer' }}
+            >
+              🤖 Dispatch AI back-check call
+            </button>
+            <span style={{ fontSize: 11, color: '#6B7280', marginLeft: 10 }}>
+              Automated verification call — it discloses itself and only confirms the interview happened; it never re-interviews.
+            </span>
+            {backcheckStatus && (
+              <div style={{ fontSize: 12, color: '#374151', marginTop: 6 }}>{backcheckStatus}</div>
+            )}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           {['approve', 'reject', 'backcheck', 'escalate'].map((a) => (
             <button

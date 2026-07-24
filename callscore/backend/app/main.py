@@ -12,7 +12,9 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.auth import require_auth, require_staff
-from app.routes import ada, feedback, interviews, projects, respondents, sync, scorecards, trust
+from app.routes import (
+    ada, backchecks, feedback, interviews, projects, respondents, sync, scorecards, trust,
+)
 
 app = FastAPI(
     title="CallScore API",
@@ -60,6 +62,8 @@ app.include_router(ada.router, prefix="/api/v1/ada", tags=["ada"],
 # Auth handled per-route inside feedback (staff for finding feedback and
 # reads; any authenticated user may submit app feedback).
 app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["feedback"])
+# Auth per-route: staff for dispatch/list, shared-secret for the provider webhook.
+app.include_router(backchecks.router, prefix="/api/v1/backchecks", tags=["backchecks"])
 
 
 @app.get("/health")
@@ -79,5 +83,8 @@ def health():
             "llm_judgments": bool(config.OPENAI_API_KEY),
             "translation": bool(config.SPITCH_API_KEY or config.OPENAI_API_KEY),
             "ada_tts": bool(config.SPITCH_API_KEY),
+            "backcheck_agent": __import__(
+                "app.services.backcheck_agent", fromlist=["available"]
+            ).available(),
         },
     }

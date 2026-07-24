@@ -37,10 +37,20 @@ export default function CallCollectPanel() {
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
-      <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 16px' }}>
+      <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 12px' }}>
         Remote interviews captured with the CallScore app. Interviews conducted offline appear
         as “Pending sync” until the enumerator regains connectivity — that's normal.
       </p>
+      <button
+        onClick={() => navigate(`/projects/${projectId}/collect/call/new`)}
+        style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 16,
+        }}
+      >
+        ＋ New call interview from this computer
+      </button>
 
       {loading && <p style={{ fontSize: 13, color: '#6B7280' }}>Loading call interviews…</p>}
       {error && <p style={{ fontSize: 13, color: '#B91C1C' }}>{error}</p>}

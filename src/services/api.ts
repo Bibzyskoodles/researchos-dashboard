@@ -444,6 +444,29 @@ export const callScoreApi = {
     callApi.get(`/api/v1/scorecards/${encodeURIComponent(interviewId)}`),
   listInterviews: (projectId: string) =>
     callApi.get(`/api/v1/interviews/project/${encodeURIComponent(projectId)}`),
+  // Laptop-as-Device-2 capture flow (browser MediaRecorder).
+  listRespondents: (projectId: string) =>
+    callApi.get(`/api/v1/respondents/${encodeURIComponent(projectId)}`),
+  getQuestionnaire: (projectId: string) =>
+    callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`),
+  getCallConfig: (projectId: string) =>
+    callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/call-config`),
+  createSession: (payload: object) => callApi.post('/api/v1/interviews/', payload),
+  stopSession: (id: string, payload: object) =>
+    callApi.post(`/api/v1/interviews/${encodeURIComponent(id)}/stop`, payload),
+  uploadRecording: (id: string, kind: 'audio' | 'consent_recording', blob: Blob) => {
+    const form = new FormData();
+    form.append('kind', kind);
+    form.append('file', blob, `${kind}.webm`);
+    return callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/upload-recording`, form);
+  },
+  uploadEvidenceBundle: (id: string, artifacts: object[]) =>
+    callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/evidence-bundle`, { artifacts }),
+  // AI back-check (verification call only — never a primary interview).
+  dispatchBackcheck: (submissionId: string) =>
+    callApi.post(`/api/v1/backchecks/${encodeURIComponent(submissionId)}/dispatch`),
+  listBackchecks: (submissionId: string) =>
+    callApi.get(`/api/v1/backchecks/${encodeURIComponent(submissionId)}`),
   // Calibration loop: supervisor verdict on one AI finding.
   findingFeedback: (findingId: string, verdict: 'correct' | 'incorrect' | 'unsure', note?: string) =>
     callApi.post(`/api/v1/feedback/findings/${encodeURIComponent(findingId)}`, { verdict, note }),
