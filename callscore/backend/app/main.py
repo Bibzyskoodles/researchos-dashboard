@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.auth import require_auth, require_staff
-from app.routes import interviews, projects, respondents, sync, scorecards, trust
+from app.routes import ada, interviews, projects, respondents, sync, scorecards, trust
 
 app = FastAPI(
     title="CallScore API",
@@ -55,6 +55,8 @@ app.include_router(scorecards.router, prefix="/api/v1/scorecards", tags=["scorec
                    dependencies=[Depends(require_staff)])
 app.include_router(trust.router, prefix="/api/v1/enumerators", tags=["trust-record"],
                    dependencies=[Depends(require_staff)])
+app.include_router(ada.router, prefix="/api/v1/ada", tags=["ada"],
+                   dependencies=[Depends(require_auth)])
 
 
 @app.get("/health")
@@ -72,5 +74,7 @@ def health():
             "pii_encryption": pii.encryption_available(),
             "stt_providers": stt.configured_providers(),
             "llm_judgments": bool(config.OPENAI_API_KEY),
+            "translation": bool(config.SPITCH_API_KEY or config.OPENAI_API_KEY),
+            "ada_tts": bool(config.SPITCH_API_KEY),
         },
     }

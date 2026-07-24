@@ -27,6 +27,22 @@ class TranscriptionDiarizationAgent(BaseAgent):
         result = stt.transcribe_with_verification(audio_path, order=context.get("stt_order"))
         if result is None or not result.get("text", "").strip():
             raise NotImplementedError
+
+        # Non-English interview: attach an English translation for the
+        # analysis agents. The original stays the evidence of record; if no
+        # translator is configured, agents analyze the original text.
+        language = (context.get("interview_language") or "en").lower()
+        if language and language != "en":
+            from app.services import translate as tr
+            result["source_language"] = language
+            translated_segments = tr.translate_segments(result.get("segments", []), language)
+            if translated_segments:
+                result["translated_segments"] = translated_segments
+            else:
+                translated_text = tr.translate(result["text"], language)
+                if translated_text:
+                    result["translated_text"] = translated_text
+
         context["transcript"] = result
 
         speakers = {s.get("speaker") for s in result["segments"] if s.get("speaker")}

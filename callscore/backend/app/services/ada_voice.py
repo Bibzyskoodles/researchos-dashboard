@@ -48,18 +48,39 @@ REGISTER_PROMPT_FRAMING = {
 }
 
 
-def build_ada_utterance(finding_description: str, confidence_level: int) -> dict:
+_LANGUAGE_NAMES = {
+    "en": "English", "yo": "Yoruba", "ig": "Igbo", "ha": "Hausa",
+    "pcm": "Nigerian Pidgin", "am": "Amharic", "sw": "Swahili",
+}
+
+
+def build_ada_utterance(
+    finding_description: str, confidence_level: int, language: str = "en"
+) -> dict:
     """
     Returns the structured input for whatever LLM call renders Ada's final
     sentence - never the sentence itself. The generating prompt must include
     REGISTER_PROMPT_FRAMING[register] as a hard constraint, not a suggestion.
+
+    `language` localizes Ada's WORDS, never her epistemics: the register is
+    derived here, deterministically, before any language model sees the
+    finding — so Ada hedges identically in Yoruba, Pidgin, or English.
     """
     register = register_for_confidence(confidence_level)
+    framing = REGISTER_PROMPT_FRAMING[register]
+    lang = (language or "en").strip().lower()
+    if lang != "en":
+        lang_name = _LANGUAGE_NAMES.get(lang, lang)
+        framing += (
+            f" Respond entirely in {lang_name}, keeping the same epistemic "
+            "register — the hedging level is non-negotiable in every language."
+        )
     return {
         "finding": finding_description,
         "confidence_level": confidence_level,
         "register": register.value,
-        "framing_instruction": REGISTER_PROMPT_FRAMING[register],
+        "language": lang,
+        "framing_instruction": framing,
     }
 
 

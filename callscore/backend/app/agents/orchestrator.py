@@ -91,8 +91,11 @@ def _build_context(db: Session, submission: models.Submission, context: dict) ->
     from app.services import stt
 
     cfg = db.get(models.CallProjectConfig, submission.project_id)
+    context["interview_language"] = (
+        (cfg.stt_language or cfg.consent_language) if cfg else "en"
+    )
     context["stt_order"] = stt.resolve_order(
-        language=(cfg.stt_language or cfg.consent_language) if cfg else None,
+        language=context["interview_language"],
         primary=cfg.stt_primary if cfg else None,
         verify=cfg.stt_verify if cfg else None,
     )

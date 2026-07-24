@@ -18,12 +18,22 @@ _RESPONSE_CONTRACT = (
 
 
 def transcript_for_prompt(transcript: dict, max_chars: int = 24_000) -> str:
+    """Prefers the English-translated segments when the interview was
+    conducted in another language (translated_segments, aligned 1:1 with
+    the originals so timestamps still cite the real evidence); falls back
+    to the original-language text."""
+    segments = transcript.get("translated_segments") or transcript.get("segments", [])
     lines = []
-    for s in transcript.get("segments", []):
+    for s in segments:
         speaker = f" {s['speaker']}:" if s.get("speaker") else ""
         lines.append(f"[{int(s['start'])}s-{int(s['end'])}s]{speaker} {s['text'].strip()}")
-    text = "\n".join(lines) or transcript.get("text", "")
-    return text[:max_chars]
+    text = "\n".join(lines) or transcript.get("translated_text") or transcript.get("text", "")
+    header = ""
+    if transcript.get("translated_segments") or transcript.get("translated_text"):
+        header = ("NOTE: transcript translated to English from "
+                  f"{transcript.get('source_language', 'the interview language')} "
+                  "for analysis; timestamps refer to the original audio.\n")
+    return (header + text)[:max_chars]
 
 
 def run_judgment(
