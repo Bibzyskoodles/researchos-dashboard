@@ -88,11 +88,22 @@ def get_supervisor_queue(project_id: str, db: Session = Depends(get_db)):
         .where(models.Submission.project_id == project_id)
     ).all()
 
+    # One query for every queue item's top finding (was an N+1 — one
+    # lookup per row — before Wave 1.5 hardening).
+    actionable = [(c, s) for c, s in rows if c.recommended_action != "none"]
+    top_by_submission: dict[str, models.AgentFindingRow] = {}
+    if actionable:
+        for f in db.scalars(
+            select(models.AgentFindingRow)
+            .where(models.AgentFindingRow.submission_id.in_(
+                [c.submission_id for c, _ in actionable]))
+            .order_by(models.AgentFindingRow.confidence.desc().nulls_last())
+        ):
+            top_by_submission.setdefault(f.submission_id, f)
+
     items = []
-    for card, submission in rows:
-        if card.recommended_action == "none":
-            continue  # push what needs attention, not everything
-        top = _top_finding(db, card.submission_id)
+    for card, submission in actionable:
+        top = top_by_submission.get(card.submission_id)
         why_now = (
             top.description
             if top

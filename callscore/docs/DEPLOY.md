@@ -81,6 +81,31 @@ Then in the dashboard: open a project → Collect → Call tab (should show
 "No call interviews yet" instead of a load error), and Verify → Call
 Review Queue.
 
+## Hardening (Wave 1.5) — on by default
+
+| Variable | Default | What it does |
+|---|---|---|
+| `RATE_LIMIT_PER_MINUTE` | `240` | Per-IP request cap (0 disables; `/health` exempt). In-process — swap for Redis if the service ever runs multiple instances. |
+| `PIPELINE_INLINE` | off | Scoring runs via the durable in-process worker (upload returns `queued`; the worker sweeps `synced` rows every `PIPELINE_SWEEP_SECONDS`, reclaims stale `processing` rows, marks crashes `failed`). Set `true` only for tests/tiny deployments. |
+| `SENTRY_DSN` | unset | Error monitoring for both this service and fieldscore-backend (same variable name on each). Set `SENTRY_TRACES_SAMPLE_RATE` > 0 for performance tracing. |
+
+## Backups & disaster recovery — do this before real data
+
+1. **Postgres**: enable Railway's backups on the Postgres plugin, then —
+   the part everyone skips — **test a restore** into a scratch database
+   and run one query against it. An untested backup is a hope, not a
+   backup. Re-test quarterly.
+2. **Evidence volume** (`/data`): Railway volumes are not backed up by
+   Railway. Recordings are legal evidence — schedule a copy to object
+   storage (e.g. a nightly `tar` of `STORAGE_DIR` pushed to S3/GCS from a
+   cron service, or Railway's volume snapshot feature if available on
+   your plan). Until that exists, treat the volume as the single copy it
+   is and say so honestly in any compliance conversation.
+3. **Secrets**: keep `JWT_SECRET`, `CONSENT_ENCRYPTION_KEY`, and provider
+   keys in a password manager as well as Railway — losing
+   `CONSENT_ENCRYPTION_KEY` permanently orphans every encrypted phone
+   number.
+
 ## The mobile apps
 
 Both are Expo apps that talk to this service — no separate deployment,

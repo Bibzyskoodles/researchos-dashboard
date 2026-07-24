@@ -11,6 +11,18 @@ import os
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Error monitoring (Wave 1.5) — env-gated, zero-cost when SENTRY_DSN unset.
+if os.getenv("SENTRY_DSN"):
+    try:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=os.environ["SENTRY_DSN"],
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0")),
+        )
+    except Exception:  # never let monitoring break the service it monitors
+        pass
+
 from app.core.auth import require_auth, require_staff
 from app.routes import (
     ada, agent_interviews, backchecks, feedback, interviews, projects,
@@ -40,6 +52,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Per-IP rate limiting (Wave 1.5) — RATE_LIMIT_PER_MINUTE, 0 disables.
+from app.core.ratelimit import RateLimitMiddleware  # noqa: E402
+
+app.add_middleware(RateLimitMiddleware)
+
+# Durable pipeline worker (Wave 1.5) — no-ops under PIPELINE_INLINE / tests.
+from app.workers.pipeline_worker import start_worker  # noqa: E402
+
+app.router.on_startup.append(start_worker)
 
 # All routes require a valid FieldScore Bearer token (shared JWT_SECRET —
 # see app/core/auth.py). Scorecards/queue/overrides and respondent PII are

@@ -106,12 +106,17 @@ def upload_evidence_bundle(
     entry.upload_status = "complete"
     db.commit()
 
-    # MVP: run the pipeline inline. Production: enqueue a Celery task here
-    # and return immediately with status 'queued' (Bible 4.3). InsightScore
-    # handoff then goes through fieldscore-backend's insightscore_outbox.
-    try:
-        orchestrator.run_pipeline(db, submission_id)
-    except PermissionError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    # Backpressure (Wave 1.5): scoring is asynchronous — the durable
+    # pipeline worker sweeps 'synced' rows (Bible 4.3's queue), so this
+    # request returns as soon as evidence is stored. PIPELINE_INLINE=true
+    # restores the old synchronous path (tests / tiny deployments).
+    from app.workers import pipeline_worker
 
-    return {"submission_id": submission_id, "status": "processed"}
+    if pipeline_worker.inline_mode():
+        try:
+            orchestrator.run_pipeline(db, submission_id)
+        except PermissionError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        return {"submission_id": submission_id, "status": "processed"}
+
+    return {"submission_id": submission_id, "status": "queued"}
