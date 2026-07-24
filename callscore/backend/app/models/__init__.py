@@ -172,6 +172,8 @@ class BackcheckCall(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     submission_id: Mapped[str] = mapped_column(Text, nullable=False)
+    method: Mapped[str] = mapped_column(Text, nullable=False, default="ai")  # 'ai' | 'human'
+    assigned_to: Mapped[Optional[str]] = mapped_column(Text)  # human back-checks
     provider: Mapped[str] = mapped_column(Text, nullable=False, default="vapi")
     provider_call_id: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="queued")

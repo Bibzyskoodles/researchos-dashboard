@@ -462,9 +462,14 @@ export const callScoreApi = {
   },
   uploadEvidenceBundle: (id: string, artifacts: object[]) =>
     callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/evidence-bundle`, { artifacts }),
-  // AI back-check (verification call only — never a primary interview).
-  dispatchBackcheck: (submissionId: string) =>
-    callApi.post(`/api/v1/backchecks/${encodeURIComponent(submissionId)}/dispatch`),
+  // Back-checks: human (always available) or AI verification call (when a
+  // voice-agent provider is configured). Never a primary interview.
+  dispatchBackcheck: (submissionId: string, method: 'human' | 'ai', assignedTo?: string) =>
+    callApi.post(`/api/v1/backchecks/${encodeURIComponent(submissionId)}/dispatch`,
+      { method, assigned_to: assignedTo }),
+  completeBackcheck: (backcheckId: string, summary: string, interviewConfirmed?: string) =>
+    callApi.post(`/api/v1/backchecks/complete/${encodeURIComponent(backcheckId)}`,
+      { summary, interview_confirmed: interviewConfirmed }),
   listBackchecks: (submissionId: string) =>
     callApi.get(`/api/v1/backchecks/${encodeURIComponent(submissionId)}`),
   // Calibration loop: supervisor verdict on one AI finding.

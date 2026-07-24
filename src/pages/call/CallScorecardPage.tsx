@@ -41,18 +41,43 @@ export default function CallScorecardPage() {
   // Calibration loop: supervisor verdicts per finding (id -> verdict sent).
   const [findingVotes, setFindingVotes] = useState<Record<string, string>>({});
   const [backcheckStatus, setBackcheckStatus] = useState<string | null>(null);
+  const [backchecks, setBackchecks] = useState<any[]>([]);
+  const [assignee, setAssignee] = useState('');
+  const [outcomeText, setOutcomeText] = useState<Record<string, string>>({});
 
-  const dispatchBackcheck = () => {
+  const loadBackchecks = useCallback(() => {
     if (!id) return;
-    setBackcheckStatus('Dispatching…');
+    callScoreApi.listBackchecks(id)
+      .then((r) => setBackchecks(r.data.backchecks || []))
+      .catch(() => undefined);
+  }, [id]);
+  useEffect(() => { loadBackchecks(); }, [loadBackchecks]);
+
+  const dispatchBackcheck = (method: 'human' | 'ai') => {
+    if (!id) return;
+    setBackcheckStatus(method === 'ai' ? 'Dispatching AI call…' : 'Assigning…');
     callScoreApi
-      .dispatchBackcheck(id)
-      .then(() => setBackcheckStatus('AI back-check call dispatched — the result will appear in this scorecard’s evidence when the call completes.'))
+      .dispatchBackcheck(id, method, method === 'human' ? assignee.trim() || undefined : undefined)
+      .then(() => {
+        setBackcheckStatus(method === 'ai'
+          ? 'AI back-check call dispatched — the result will appear in this scorecard’s evidence when the call completes.'
+          : 'Human back-check assigned — record the outcome below once the call is made.');
+        setAssignee('');
+        loadBackchecks();
+      })
       .catch((e) => setBackcheckStatus(
         e?.response?.status === 503
-          ? 'No voice-agent provider configured yet.'
-          : 'Could not dispatch the back-check call.',
+          ? 'No voice-agent provider configured — use the human option.'
+          : 'Could not create the back-check.',
       ));
+  };
+
+  const completeBackcheck = (backcheckId: string) => {
+    const summary = (outcomeText[backcheckId] || '').trim();
+    if (!summary) return;
+    callScoreApi.completeBackcheck(backcheckId, summary)
+      .then(() => { setOutcomeText((o) => ({ ...o, [backcheckId]: '' })); loadBackchecks(); load(); })
+      .catch(() => setBackcheckStatus('Could not record the outcome — try again.'));
   };
 
   const voteFinding = (findingId: string, verdict: 'correct' | 'incorrect') => {
@@ -188,18 +213,62 @@ export default function CallScorecardPage() {
         </div>
         {card.recommended_action === 'conduct_backcheck' && (
           <div style={{ marginBottom: 12 }}>
-            <button
-              onClick={dispatchBackcheck}
-              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#3730A3', cursor: 'pointer' }}
-            >
-              🤖 Dispatch AI back-check call
-            </button>
-            <span style={{ fontSize: 11, color: '#6B7280', marginLeft: 10 }}>
-              Automated verification call — it discloses itself and only confirms the interview happened; it never re-interviews.
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <input
+                value={assignee}
+                onChange={(e) => setAssignee(e.target.value)}
+                placeholder="Assignee (optional — defaults to you)"
+                style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 10px', border: '1px solid #E5E7EB', borderRadius: 8, width: 220 }}
+              />
+              <button
+                onClick={() => dispatchBackcheck('human')}
+                style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#15803D', cursor: 'pointer' }}
+              >
+                👤 Assign human back-check
+              </button>
+              <button
+                onClick={() => dispatchBackcheck('ai')}
+                style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#3730A3', cursor: 'pointer' }}
+              >
+                🤖 Dispatch AI back-check call
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 6 }}>
+              Either way, the result lands in this scorecard's evidence. The AI call discloses
+              itself and only confirms the interview happened — it never re-interviews.
+            </div>
             {backcheckStatus && (
               <div style={{ fontSize: 12, color: '#374151', marginTop: 6 }}>{backcheckStatus}</div>
             )}
+          </div>
+        )}
+
+        {backchecks.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            {backchecks.map((b) => (
+              <div key={b.id} style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 12px', marginBottom: 8, background: '#FAFAFA' }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>
+                  {b.method === 'ai' ? '🤖 AI call' : `👤 ${b.assigned_to || 'Human'}`} · {b.status}
+                  {b.summary && <span> — {b.summary}</span>}
+                </div>
+                {b.method === 'human' && b.status !== 'completed' && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <input
+                      value={outcomeText[b.id] || ''}
+                      onChange={(e) => setOutcomeText((o) => ({ ...o, [b.id]: e.target.value }))}
+                      placeholder="What did the back-check find?"
+                      style={{ flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 10px', border: '1px solid #E5E7EB', borderRadius: 8 }}
+                    />
+                    <button
+                      onClick={() => completeBackcheck(b.id)}
+                      style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#2463EB', color: '#fff', cursor: 'pointer' }}
+                    >
+                      Record outcome
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
