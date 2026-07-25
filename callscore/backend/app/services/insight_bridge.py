@@ -29,6 +29,23 @@ log = logging.getLogger(__name__)
 OUTBOX_TABLE = "insightscore_outbox"
 
 
+def _merge_answers(typed: dict, ai_extracted: dict) -> dict:
+    """Typed answers always win; AI-extracted answers only fill questions
+    the enumerator left blank (constitution: AI drafts, humans decide).
+    Returns {**answers, "_ai_extracted_keys": [...]} so downstream
+    consumers can tell which values came from the recording."""
+    merged = dict(typed)
+    ai_keys = []
+    for key, meta in (ai_extracted or {}).items():
+        answer = (meta or {}).get("answer")
+        if answer and not str(merged.get(key, "")).strip():
+            merged[key] = answer
+            ai_keys.append(key)
+    if ai_keys:
+        merged["_ai_extracted_keys"] = sorted(ai_keys)
+    return merged
+
+
 def build_analysis_payload(db: Session, submission: models.Submission) -> dict:
     """Everything InsightScore needs from one verified call interview."""
     sid = submission.submission_id
@@ -37,6 +54,12 @@ def build_analysis_payload(db: Session, submission: models.Submission) -> dict:
         select(models.EvidenceArtifact).where(
             models.EvidenceArtifact.submission_id == sid,
             models.EvidenceArtifact.artifact_type == "questionnaire_response",
+        )
+    )
+    ai_answers_row = db.scalar(
+        select(models.EvidenceArtifact).where(
+            models.EvidenceArtifact.submission_id == sid,
+            models.EvidenceArtifact.artifact_type == "ai_extracted_answers",
         )
     )
     transcript_row = db.scalar(
@@ -70,7 +93,10 @@ def build_analysis_payload(db: Session, submission: models.Submission) -> dict:
         "verdict": submission.verdict,
         "grade": submission.grade,
         "overall_score": submission.overall_score,
-        "answers": (answers_row.payload if answers_row else None) or {},
+        "answers": _merge_answers(
+            (answers_row.payload if answers_row else None) or {},
+            (ai_answers_row.payload if ai_answers_row else None) or {},
+        ),
         # Call mode's analysis advantage: the full transcript. Quotes in
         # InsightScore reports trace back to these segments/timestamps.
         "transcript_text": (transcript or {}).get("text"),

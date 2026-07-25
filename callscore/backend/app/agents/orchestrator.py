@@ -21,6 +21,7 @@ from app.agents.audio_quality import AudioQualityAgent
 from app.agents.transcription_diarization import TranscriptionDiarizationAgent
 from app.agents.question_compliance import QuestionComplianceAgent
 from app.agents.answer_consistency import AnswerConsistencyAgent
+from app.agents.answer_extraction import AnswerExtractionAgent
 from app.agents.behaviour_analysis import BehaviourAnalysisAgent
 from app.agents.respondent_engagement import RespondentEngagementAgent
 from app.agents.conversation_naturalness import ConversationNaturalnessAgent
@@ -37,6 +38,7 @@ TIER_1 = [AudioQualityAgent(), TranscriptionDiarizationAgent()]
 TIER_2 = [
     QuestionComplianceAgent(),
     AnswerConsistencyAgent(),
+    AnswerExtractionAgent(),
     BehaviourAnalysisAgent(),
     RespondentEngagementAgent(),
     ConversationNaturalnessAgent(),
@@ -196,6 +198,35 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
             except Exception:
                 logger.exception("agent %s failed for submission %s", agent.name, submission_id)
                 failed_agents.append(agent.name)
+
+    # Glance-Confirm, post-hoc half: extracted answers become their own
+    # evidence artifact so the bridges and scorecard can read them as a
+    # unit. They NEVER overwrite the enumerator's questionnaire_response
+    # — humans confirm, AI drafts (constitution: AI standards).
+    extracted = {
+        f.raw_output["question_key"]: {
+            "answer": f.raw_output.get("answer"),
+            "quote": f.raw_output.get("quote"),
+            "confidence": f.confidence,
+        }
+        for f in findings
+        if f.finding_type == "extracted_answer" and f.raw_output.get("question_key")
+    }
+    if extracted:
+        existing_ai = db.scalar(
+            select(models.EvidenceArtifact).where(
+                models.EvidenceArtifact.submission_id == submission_id,
+                models.EvidenceArtifact.artifact_type == "ai_extracted_answers",
+            )
+        )
+        if existing_ai is not None:
+            existing_ai.payload = extracted  # idempotent re-score
+        else:
+            db.add(models.EvidenceArtifact(
+                submission_id=submission_id,
+                artifact_type="ai_extracted_answers",
+                payload=extracted,
+            ))
 
     # Persist every upstream finding — the raw material Evidence
     # Generation compiles from, and the audit trail behind every score.

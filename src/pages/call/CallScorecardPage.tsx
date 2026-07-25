@@ -189,13 +189,35 @@ export default function CallScorecardPage() {
         </div>
       )}
 
+      {/* Answers the AI heard in the recording — the Glance-Confirm
+          post-hoc half. Drafted by AI, grounded in quotes; the typed
+          questionnaire answers always take precedence downstream. */}
+      {card.evidence.some((e) => e.type === 'extracted_answer') && (
+        <>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>
+            🎧 Answers heard in the recording <span style={{ fontWeight: 500, color: '#6B7280', fontSize: 12 }}>(AI-extracted — typed answers always win)</span>
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+            {card.evidence.filter((e) => e.type === 'extracted_answer').map((e, i) => (
+              <div key={e.id || `ai-${i}`} style={{ background: '#F8FAFF', border: '1px solid #DBE5F8', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ fontSize: 13, color: '#111827' }}>{e.description}</div>
+                <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                  {formatSeconds(e.timestamp_range[0])}–{formatSeconds(e.timestamp_range[1])}
+                  {e.confidence !== null ? ` · ${e.confidence}% confidence` : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Evidence — every conclusion points here (Design Principle 1) */}
       <h3 style={{ fontSize: 14, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Evidence</h3>
       {card.evidence.length === 0 ? (
         <p style={{ fontSize: 13, color: '#6B7280' }}>No findings — clean run.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-          {card.evidence.map((e, i) => (
+          {card.evidence.filter((e) => e.type !== 'extracted_answer').map((e, i) => (
             <div key={e.id || i} style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 12px' }}>
               <div style={{ display: 'flex', gap: 8, fontSize: 11, color: '#6B7280', marginBottom: 4 }}>
                 <span style={{ fontWeight: 600 }}>{e.agent}</span>
