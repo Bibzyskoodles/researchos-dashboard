@@ -53,3 +53,45 @@ export const BTN_GHOST: React.CSSProperties = {
 
 // The dark gradient used by every Ada hero / plan card
 export const DARK_GRADIENT = "linear-gradient(135deg,#1A1F3E 0%,#0F172A 40%,#1E1B4B 100%)";
+
+// ─────────────────────────────────────────────────────────────────────────
+// Lifecycle stage manifest — THE single source of truth for the five
+// stages (constitution 01: navigation reflects the research lifecycle,
+// not engine boundaries). Icons/labels/accents were previously duplicated
+// across Sidebar, ProjectPage and each stage page, and had already
+// drifted (📋 vs 📝). Import from here; never redeclare.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type StageId = "design" | "collect" | "verify" | "analyse" | "report";
+export type CollectionMode = "field" | "call" | "hybrid";
+
+export interface StageDef {
+  id: StageId;
+  num: number;
+  label: string;
+  icon: string;
+  accent: string;       // per-stage identity colour
+  blurb: string;        // one-line purpose, mode-neutral
+}
+
+export const STAGES: StageDef[] = [
+  { id: "design",  num: 1, label: "Design",  icon: "📝", accent: "#7C3AED",
+    blurb: "Questionnaire, framework and methodology." },
+  { id: "collect", num: 2, label: "Collect", icon: "📡", accent: "#2463EB",
+    blurb: "Data capture — field, call or both." },
+  { id: "verify",  num: 3, label: "Verify",  icon: "🔍", accent: "#D97706",
+    blurb: "AI verification engine — every interview, evidence-backed." },
+  { id: "analyse", num: 4, label: "Analyse", icon: "✨", accent: "#06B6D4",
+    blurb: "InsightScore — themes, statistics and patterns from verified data." },
+  { id: "report",  num: 5, label: "Report",  icon: "📄", accent: "#059669",
+    blurb: "Dashboards, exports and shared reports." },
+];
+
+export const stageDef = (id: StageId): StageDef =>
+  STAGES.find((s) => s.id === id) as StageDef;
+
+export const MODE_META: Record<CollectionMode, { icon: string; label: string; engine: string }> = {
+  field:  { icon: "🧭", label: "Field",  engine: "FieldScore" },
+  call:   { icon: "📞", label: "Call",   engine: "CallScore" },
+  hybrid: { icon: "🔀", label: "Hybrid", engine: "FieldScore + CallScore" },
+};

@@ -4,7 +4,7 @@ import QuestionnairePage from '../questionnaire/QuestionnairePage';
 
 export default function DesignStagePage() {
   return (
-    <StagePageWrapper stage="Design" icon="📋">
+    <StagePageWrapper stage="design">
       <QuestionnairePage />
     </StagePageWrapper>
   );

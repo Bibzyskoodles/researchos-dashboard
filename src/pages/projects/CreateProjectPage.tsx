@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { projectsApi } from '../../services/api';
+import { setLocalCollectionMode } from '../../context/ProjectContext';
 import { getIndustry, StudyType } from '../../context/ResearchContext';
 import { useGamify } from '../../gamify/GamifyContext';
 
@@ -158,19 +159,22 @@ const COLLECTION_MODES = [
     id: 'field' as const,
     icon: '🧭',
     title: 'Field',
-    desc: 'In-person, face-to-face interviews — enumerators collect data on the ground.',
+    engine: 'FieldScore engine',
+    desc: 'In-person, face-to-face interviews — GPS, photo and audio verification on the ground.',
   },
   {
     id: 'call' as const,
     icon: '📞',
     title: 'Call',
-    desc: 'Remote interviews over any channel — AI verifies integrity from companion audio.',
+    engine: 'CallScore engine',
+    desc: 'Remote interviews over any channel — consent-gated recording, AI transcript verification.',
   },
   {
     id: 'hybrid' as const,
     icon: '🔀',
     title: 'Hybrid',
-    desc: 'Mix of field and remote interviews in the same project.',
+    engine: 'Both engines',
+    desc: 'Field and remote interviews in one project — one dashboard, one report.',
   },
 ];
 
@@ -201,13 +205,22 @@ function Step3CollectionMode({ onNext, onBack }: { onNext: (mode: 'field' | 'cal
             }}
           >
             <span style={{ fontSize: 24 }}>{opt.icon}</span>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'white', marginBottom: 3 }}>{opt.title}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: 'white' }}>{opt.title}</span>
+                <span style={{
+                  fontSize: 10, fontWeight: 600, color: 'rgba(140,175,255,.9)',
+                  background: 'rgba(36,99,235,.18)', borderRadius: 999, padding: '2px 8px',
+                }}>{opt.engine}</span>
+              </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)' }}>{opt.desc}</div>
             </div>
           </div>
         ))}
       </div>
+      <p style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', marginBottom: 24 }}>
+        Whichever mode you choose, verified data flows into InsightScore for analysis and reporting.
+      </p>
       <div style={{ display: 'flex', gap: 12 }}>
         <button onClick={onBack} style={{
           background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.12)',
@@ -297,6 +310,7 @@ export default function CreateProjectPage() {
         target_submissions: target,
       });
       recordEvent('project_created');
+      setLocalCollectionMode(res.data.project.id, collectionMode);
       navigate(`/projects/${res.data.project.id}`);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create project');

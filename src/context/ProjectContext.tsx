@@ -28,6 +28,17 @@ export interface Project {
   pass_rate?: number | null;
 }
 
+// Per-project collection mode fallback (key = fs_mode_<projectId>).
+// The create wizard writes it so mode-aware UI works even before the
+// backend persists collection_mode; a server value always wins.
+export function getLocalCollectionMode(projectId: string): 'field' | 'call' | 'hybrid' | null {
+  const v = localStorage.getItem(`fs_mode_${projectId}`);
+  return v === 'field' || v === 'call' || v === 'hybrid' ? v : null;
+}
+export function setLocalCollectionMode(projectId: string, mode: 'field' | 'call' | 'hybrid'): void {
+  localStorage.setItem(`fs_mode_${projectId}`, mode);
+}
+
 // Per-project KoboToolbox form UID stored in localStorage (key = ros_kobo_uid_<projectId>)
 export function getProjectKoboUid(projectId: string): string | null {
   return localStorage.getItem(`ros_kobo_uid_${projectId}`);
@@ -125,7 +136,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const fetchProject = useCallback(async (id: string) => {
     try {
       const res = await api.get(`/api/projects/${id}`);
-      setActiveProjectState(res.data.project);
+      const proj: Project = res.data.project;
+      if (!proj.collection_mode) {
+        const local = getLocalCollectionMode(id);
+        if (local) proj.collection_mode = local;
+      }
+      setActiveProjectState(proj);
       localStorage.setItem('ros_active_project_id', id);
     } catch (err) {
       console.error('Failed to load project:', err);

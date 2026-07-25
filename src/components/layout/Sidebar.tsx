@@ -7,6 +7,7 @@ import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, S
 import FieldScoreLogo from '../brand/FieldScoreLogo';
 import BuildInfoBadge from './BuildInfoBadge';
 import { useVerifiedReadyCount } from '../../hooks/useVerifiedReadyCount';
+import { STAGES, MODE_META } from '../../styles/tokens';
 
 interface SidebarProps { onClose?: () => void; }
 
@@ -52,7 +53,6 @@ export default function Sidebar({ onClose }: SidebarProps) {
     location.pathname.startsWith(`/projects/${projectId}/`)
   );
 
-  const stageOrder = ['design', 'collect', 'verify', 'analyse', 'report'];
   const getStageIcon = (stage: string): string => {
     if (!lifecycle) return '○';
     const s = lifecycle.stages[stage as keyof typeof lifecycle.stages];
@@ -123,20 +123,23 @@ export default function Sidebar({ onClose }: SidebarProps) {
             }}>
               {activeProject?.name || 'Loading...'}
             </div>
-            {activeProject?.collection_mode && (
+            {activeProject?.collection_mode && MODE_META[activeProject.collection_mode] && (
               <div style={{
                 padding: '0 8px 4px', fontSize: 10, color: 'rgba(255,255,255,.35)',
               }}>
-                {activeProject.collection_mode === 'call' ? '📞 Call' : activeProject.collection_mode === 'hybrid' ? '🔀 Hybrid' : '🧭 Field'}
+                {MODE_META[activeProject.collection_mode].icon} {MODE_META[activeProject.collection_mode].label}
+                {' · '}{MODE_META[activeProject.collection_mode].engine}
               </div>
             )}
 
             <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '6px 8px 10px' }} />
 
-            {/* Stage nav */}
-            {stageOrder.map((stage, i) => {
+            {/* Stage nav — from the STAGES manifest, one source of truth */}
+            {STAGES.map((stageDef) => {
+              const stage = stageDef.id;
               const icon = getStageIcon(stage);
-              const label = stage.charAt(0).toUpperCase() + stage.slice(1);
+              const label = stageDef.label;
+              const i = stageDef.num - 1;
 
               return (
                 <NavLink

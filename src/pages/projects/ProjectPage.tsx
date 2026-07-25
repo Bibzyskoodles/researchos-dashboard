@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { projectsApi } from '../../services/api';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Project, ProjectLifecycle } from '../../context/ProjectContext';
+import { Project, ProjectLifecycle, getLocalCollectionMode, setLocalCollectionMode } from '../../context/ProjectContext';
 import { getIndustry, getStudyType } from '../../context/ResearchContext';
+import { CollectionMode, MODE_META } from '../../styles/tokens';
 
 const BLUE = '#2463EB';
 const GREEN = '#059669';
@@ -203,10 +204,26 @@ export default function ProjectPage() {
       projectsApi.get(projectId),
       projectsApi.lifecycle(projectId),
     ]).then(([pRes, lcRes]) => {
-      setProject(pRes.data.project);
+      const proj: Project = pRes.data.project;
+      if (!proj.collection_mode && projectId) {
+        const local = getLocalCollectionMode(projectId);
+        if (local) proj.collection_mode = local;
+      }
+      setProject(proj);
       setLifecycle(lcRes.data);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [projectId]);
+
+  // Cycle field → call → hybrid. Saved locally immediately (mode-aware UI
+  // works today) and PATCHed to the server, which wins once it persists it.
+  const cycleMode = async () => {
+    if (!project || !projectId) return;
+    const order: CollectionMode[] = ['field', 'call', 'hybrid'];
+    const next = order[(order.indexOf((project.collection_mode as CollectionMode) || 'field') + 1) % order.length];
+    setProject({ ...project, collection_mode: next });
+    setLocalCollectionMode(projectId, next);
+    try { await projectsApi.update(projectId, { collection_mode: next }); } catch { /* server may not persist yet */ }
+  };
 
   if (loading) {
     return (
@@ -271,10 +288,19 @@ export default function ProjectPage() {
               <span style={{ color: 'rgba(255,255,255,.2)' }}>·</span>
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,.55)' }}>{studyType.label}</span>
               <span style={{ color: 'rgba(255,255,255,.2)' }}>·</span>
-              <span style={{
-                fontSize: 11, background: BLUE + '22', color: 'rgba(100,160,255,.9)',
-                borderRadius: 20, padding: '2px 9px', fontWeight: 600,
-              }}>{project.platform || 'KoboToolbox'}</span>
+              <button
+                onClick={cycleMode}
+                title="Change collection mode (field / call / hybrid)"
+                style={{
+                  fontSize: 11, background: BLUE + '22', color: 'rgba(100,160,255,.9)',
+                  borderRadius: 20, padding: '2px 9px', fontWeight: 600, border: 'none',
+                  cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                {MODE_META[(project.collection_mode as CollectionMode) || 'field'].icon}{' '}
+                {MODE_META[(project.collection_mode as CollectionMode) || 'field'].label} mode
+                {' · '}{MODE_META[(project.collection_mode as CollectionMode) || 'field'].engine} ⇄
+              </button>
               {project.target_submissions && (
                 <>
                   <span style={{ color: 'rgba(255,255,255,.2)' }}>·</span>
