@@ -96,7 +96,7 @@ def upload_evidence_bundle(
             entry = models.SyncQueueEntry(submission_id=submission_id)
             db.add(entry)
         entry.upload_status = "uploading"
-        entry.attempts += 1
+        entry.attempts = (entry.attempts or 0) + 1
 
         for a in bundle.artifacts:
             db.add(
