@@ -80,6 +80,10 @@ def upload_evidence_bundle(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"sync_queue query failed: {exc}")
     if entry is not None and entry.upload_status == "complete":
+        if not submission.consent_captured:
+            submission.consent_captured = True
+            submission.sync_status = "synced"
+            db.commit()
         return {"submission_id": submission_id, "status": submission.sync_status, "idempotent": True}
 
     # Consent hard gate (Bible Part 7): the bundle must contain a consent
