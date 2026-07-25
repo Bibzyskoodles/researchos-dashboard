@@ -112,8 +112,11 @@ export default function StagePageWrapper({ stage, chromeless, children }: StageP
                 onClick={() => navigate(`/projects/${projectId}/${s.id}`)}
                 title={s.blurb}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 7, background: 'none',
-                  border: 'none', cursor: 'pointer', padding: '2px 2px',
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  background: isCurrent ? `${s.accent}14` : 'none',
+                  border: 'none', cursor: 'pointer',
+                  padding: isCurrent ? '4px 10px 4px 4px' : '2px 2px',
+                  borderRadius: 999, transition: 'all 220ms ease',
                   fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
                 }}
               >
@@ -136,15 +139,29 @@ export default function StagePageWrapper({ stage, chromeless, children }: StageP
       </div>
 
       {!chromeless && (
-        <div style={{ marginBottom: 6 }}>
+        /* Stage identity band — each stage has its own colour atmosphere so
+           you know where you are at a glance, without breaking the system. */
+        <div style={{
+          marginBottom: 18, padding: '16px 18px', borderRadius: 12,
+          background: `linear-gradient(135deg, ${def.accent}10 0%, ${def.accent}05 60%, transparent 100%)`,
+          borderLeft: `4px solid ${def.accent}`,
+        }}>
           <h1 style={{
             fontSize: 22, fontWeight: 800, color: COLORS.ink, margin: 0,
             display: 'flex', alignItems: 'center', gap: 10,
           }}>
-            <span>{def.icon}</span> {def.label}
+            <span style={{
+              width: 38, height: 38, borderRadius: 10, fontSize: 19,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              background: `${def.accent}18`,
+            }}>{def.icon}</span>
+            <span>
+              {def.label}
+              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 500, color: '#6B7280', marginTop: 2 }}>
+                {blurb}
+              </span>
+            </span>
           </h1>
-          <p style={{ fontSize: 13, color: '#6B7280', margin: '4px 0 0' }}>{blurb}</p>
-          <div style={{ width: 44, height: 3, borderRadius: 2, background: def.accent, margin: '12px 0 18px' }} />
         </div>
       )}
 
@@ -170,7 +187,7 @@ export default function StagePageWrapper({ stage, chromeless, children }: StageP
             />
           </span>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#7C89B0', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: def.accent, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 }}>
               Ada · {def.label}
             </div>
             <div style={{ fontSize: 13, color: '#1F2937', lineHeight: 1.45 }}>{adaLine}</div>
