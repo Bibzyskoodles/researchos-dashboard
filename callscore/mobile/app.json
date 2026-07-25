@@ -19,6 +19,6 @@
       "package": "ai.intelligency.callscore",
       "permissions": ["RECORD_AUDIO"]
     },
-    "plugins": ["expo-sqlite", "expo-av", "expo-image-picker"]
+    "plugins": ["expo-av", "expo-image-picker"]
   }
 }
