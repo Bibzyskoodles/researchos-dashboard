@@ -64,15 +64,21 @@ def upload_evidence_bundle(
     Idempotent: if this submission_id was already fully uploaded, returns
     the existing status rather than reprocessing or duplicating.
     """
-    submission = db.get(models.Submission, submission_id)
+    try:
+        submission = db.get(models.Submission, submission_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"DB lookup failed: {exc}")
     if submission is None or submission.collection_mode != "call":
         raise HTTPException(status_code=404, detail="Unknown call-mode interview session.")
 
-    entry = db.scalar(
-        select(models.SyncQueueEntry).where(
-            models.SyncQueueEntry.submission_id == submission_id
+    try:
+        entry = db.scalar(
+            select(models.SyncQueueEntry).where(
+                models.SyncQueueEntry.submission_id == submission_id
+            )
         )
-    )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"sync_queue query failed: {exc}")
     if entry is not None and entry.upload_status == "complete":
         return {"submission_id": submission_id, "status": submission.sync_status, "idempotent": True}
 
@@ -104,7 +110,11 @@ def upload_evidence_bundle(
         )
     submission.sync_status = "synced"
     entry.upload_status = "complete"
-    db.commit()
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"DB commit failed: {exc}")
 
     # Backpressure (Wave 1.5): scoring is asynchronous — the durable
     # pipeline worker sweeps 'synced' rows (Bible 4.3's queue), so this
