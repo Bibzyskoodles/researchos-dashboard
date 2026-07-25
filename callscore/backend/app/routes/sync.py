@@ -91,35 +91,33 @@ def upload_evidence_bundle(
             detail="Evidence bundle rejected: consent_recording artifact is required.",
         )
 
-    if entry is None:
-        entry = models.SyncQueueEntry(submission_id=submission_id)
-        db.add(entry)
-    entry.upload_status = "uploading"
-    entry.attempts += 1
-
-    for a in bundle.artifacts:
-        db.add(
-            models.EvidenceArtifact(
-                submission_id=submission_id,
-                artifact_type=a.artifact_type,
-                storage_ref=a.storage_ref,
-                payload=a.payload,
-                timestamp_range_start=a.timestamp_range_start,
-                timestamp_range_end=a.timestamp_range_end,
-            )
-        )
-    submission.sync_status = "synced"
-    entry.upload_status = "complete"
     try:
+        if entry is None:
+            entry = models.SyncQueueEntry(submission_id=submission_id)
+            db.add(entry)
+        entry.upload_status = "uploading"
+        entry.attempts += 1
+
+        for a in bundle.artifacts:
+            db.add(
+                models.EvidenceArtifact(
+                    submission_id=submission_id,
+                    artifact_type=a.artifact_type,
+                    storage_ref=a.storage_ref,
+                    payload=a.payload,
+                    timestamp_range_start=a.timestamp_range_start,
+                    timestamp_range_end=a.timestamp_range_end,
+                )
+            )
+        submission.sync_status = "synced"
+        entry.upload_status = "complete"
         db.commit()
+    except HTTPException:
+        raise
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"DB commit failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Evidence bundle store failed: {exc!r}")
 
-    # Backpressure (Wave 1.5): scoring is asynchronous — the durable
-    # pipeline worker sweeps 'synced' rows (Bible 4.3's queue), so this
-    # request returns as soon as evidence is stored. PIPELINE_INLINE=true
-    # restores the old synchronous path (tests / tiny deployments).
     from app.workers import pipeline_worker
 
     if pipeline_worker.inline_mode():
@@ -127,6 +125,8 @@ def upload_evidence_bundle(
             orchestrator.run_pipeline(db, submission_id)
         except PermissionError as e:
             raise HTTPException(status_code=422, detail=str(e))
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Pipeline failed: {exc!r}")
         return {"submission_id": submission_id, "status": "processed"}
 
     return {"submission_id": submission_id, "status": "queued"}
