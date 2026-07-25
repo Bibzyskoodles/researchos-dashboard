@@ -3,54 +3,56 @@ import StagePageWrapper from './StagePageWrapper';
 import SubmissionsPage from '../field-quality/SubmissionsPage';
 import CallCollectPanel from '../call/CallCollectPanel';
 import AgentInterviewPanel from '../call/AgentInterviewPanel';
+import { useProject } from '../../context/ProjectContext';
 
-// Capture modes inside one app (Bible Part 1.3 + Part 12) — the mode is a
-// per-interview choice made at collection time, so the Collect stage is
-// where the split surfaces. Agent mode is optional and clearly labelled
-// AI-conducted (Part 12); InsightScore is downstream of all modes.
-// Staged-release gates (set in Vercel): hide a mode entirely until it has
-// passed testing — UI gating layered on top of the server-side env gates,
-// never instead of them.
-const CALL_MODE_ENABLED = process.env.REACT_APP_CALL_MODE_ENABLED !== 'false'; // default on
-const AGENT_MODE_ENABLED = process.env.REACT_APP_AGENT_MODE_ENABLED === 'true'; // default OFF
-
-const MODES = [
-  { key: 'field' as const, label: '🧭 Field', hint: 'In-person submissions' },
-  ...(CALL_MODE_ENABLED
-    ? [{ key: 'call' as const, label: '📞 Call', hint: 'Remote interviews (human)' }]
-    : []),
-  ...(AGENT_MODE_ENABLED
-    ? [{ key: 'agent' as const, label: '🤖 Agent', hint: 'AI-conducted interviews (optional mode)' }]
-    : []),
-];
+const AGENT_MODE_ENABLED = process.env.REACT_APP_AGENT_MODE_ENABLED === 'true';
 
 export default function CollectStagePage() {
-  const [mode, setMode] = useState<'field' | 'call' | 'agent'>('field');
+  const { activeProject } = useProject();
+  const mode = activeProject?.collection_mode || 'field';
+
+  const showField = mode === 'field' || mode === 'hybrid';
+  const showCall = mode === 'call' || mode === 'hybrid';
+
+  const tabs = [
+    ...(showField ? [{ key: 'field' as const, label: '🧭 Field', hint: 'In-person submissions' }] : []),
+    ...(showCall ? [{ key: 'call' as const, label: '📞 Call', hint: 'Remote interviews' }] : []),
+    ...(AGENT_MODE_ENABLED
+      ? [{ key: 'agent' as const, label: '🤖 Agent', hint: 'AI-conducted interviews' }]
+      : []),
+  ];
+
+  const defaultTab = mode === 'call' ? 'call' : 'field';
+  const [tab, setTab] = useState<'field' | 'call' | 'agent'>(defaultTab);
+
+  const singleMode = tabs.length === 1;
 
   return (
     <StagePageWrapper stage="Collect" icon="📡">
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, fontFamily: 'Inter, sans-serif' }}>
-        {MODES.map((m) => (
-          <button
-            key={m.key}
-            onClick={() => setMode(m.key)}
-            title={m.hint}
-            style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '8px 16px', borderRadius: 8,
-              cursor: 'pointer',
-              border: mode === m.key ? '1px solid #2463EB' : '1px solid #E5E7EB',
-              background: mode === m.key ? '#EFF6FF' : '#FFFFFF',
-              color: mode === m.key ? '#2463EB' : '#374151',
-              fontWeight: mode === m.key ? 700 : 500,
-            }}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-      {mode === 'field' && <SubmissionsPage />}
-      {mode === 'call' && <CallCollectPanel />}
-      {mode === 'agent' && <AgentInterviewPanel />}
+      {!singleMode && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20, fontFamily: 'Inter, sans-serif' }}>
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              title={t.hint}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '8px 16px', borderRadius: 8,
+                cursor: 'pointer',
+                border: tab === t.key ? '1px solid #2463EB' : '1px solid #E5E7EB',
+                background: tab === t.key ? '#EFF6FF' : '#FFFFFF',
+                color: tab === t.key ? '#2463EB' : '#374151',
+                fontWeight: tab === t.key ? 700 : 500,
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {tab === 'field' && showField && <SubmissionsPage />}
+      {tab === 'call' && showCall && <CallCollectPanel />}
+      {tab === 'agent' && <AgentInterviewPanel />}
     </StagePageWrapper>
   );
 }

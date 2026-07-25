@@ -16,6 +16,7 @@ export interface Project {
   questionnaire_id?: string;
   kobo_asset_uid?: string;
   insightscore_project_id?: string;
+  collection_mode?: 'field' | 'call' | 'hybrid';
   created_at?: string;
   updated_at?: string;
   // Real stats from the submissions table — null if the backend couldn't

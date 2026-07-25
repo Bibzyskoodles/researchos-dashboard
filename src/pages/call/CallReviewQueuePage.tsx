@@ -21,7 +21,7 @@ const ACTION_LABELS: Record<string, string> = {
   escalate: 'Escalate',
 };
 
-export default function CallReviewQueuePage() {
+export default function CallReviewQueuePage({ embedded }: { embedded?: boolean } = {}) {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const [items, setItems] = useState<CallQueueItem[]>([]);

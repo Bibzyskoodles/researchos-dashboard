@@ -114,15 +114,22 @@ export default function Sidebar({ onClose }: SidebarProps) {
               Projects
             </button>
 
-            {/* Project name */}
+            {/* Project name + mode */}
             <div style={{
-              padding: '6px 8px', marginBottom: 4,
+              padding: '6px 8px', marginBottom: 2,
               fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.55)',
               letterSpacing: 0.8, textTransform: 'uppercase',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               {activeProject?.name || 'Loading...'}
             </div>
+            {activeProject?.collection_mode && (
+              <div style={{
+                padding: '0 8px 4px', fontSize: 10, color: 'rgba(255,255,255,.35)',
+              }}>
+                {activeProject.collection_mode === 'call' ? '📞 Call' : activeProject.collection_mode === 'hybrid' ? '🔀 Hybrid' : '🧭 Field'}
+              </div>
+            )}
 
             <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '6px 8px 10px' }} />
 

@@ -153,29 +153,29 @@ function Step2StudyType({
   );
 }
 
-const START_OPTIONS = [
+const COLLECTION_MODES = [
   {
-    id: 'design',
-    icon: '📝',
-    title: 'Design a questionnaire',
-    desc: 'Ada will help you build a questionnaire from scratch — or from a brief.',
+    id: 'field' as const,
+    icon: '🧭',
+    title: 'Field',
+    desc: 'In-person, face-to-face interviews — enumerators collect data on the ground.',
   },
   {
-    id: 'connect',
-    icon: '🔗',
-    title: 'I already have a form',
-    desc: 'Connect KoboToolbox, SurveyCTO, or ODK and start receiving submissions.',
+    id: 'call' as const,
+    icon: '📞',
+    title: 'Call',
+    desc: 'Remote interviews over any channel — AI verifies integrity from companion audio.',
   },
   {
-    id: 'upload',
-    icon: '📂',
-    title: 'Upload existing data',
-    desc: 'Start from data already collected — import a CSV or Excel file.',
+    id: 'hybrid' as const,
+    icon: '🔀',
+    title: 'Hybrid',
+    desc: 'Mix of field and remote interviews in the same project.',
   },
 ];
 
-function Step3StartPoint({ onNext, onBack }: { onNext: (sp: string) => void; onBack: () => void }) {
-  const [selected, setSelected] = useState<string>('design');
+function Step3CollectionMode({ onNext, onBack }: { onNext: (mode: 'field' | 'call' | 'hybrid') => void; onBack: () => void }) {
+  const [selected, setSelected] = useState<'field' | 'call' | 'hybrid'>('field');
 
   return (
     <div style={{ maxWidth: 580, margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
@@ -183,13 +183,13 @@ function Step3StartPoint({ onNext, onBack }: { onNext: (sp: string) => void; onB
         Step 3 of 4
       </div>
       <h1 style={{ fontSize: 28, fontWeight: 800, color: 'white', marginBottom: 6 }}>
-        Where are you starting?
+        How will data be collected?
       </h1>
       <p style={{ fontSize: 14, color: 'rgba(255,255,255,.5)', marginBottom: 28 }}>
-        Choose how you'd like to begin this project.
+        Choose the collection mode for this project.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
-        {START_OPTIONS.map(opt => (
+        {COLLECTION_MODES.map(opt => (
           <div
             key={opt.id}
             onClick={() => setSelected(opt.id)}
@@ -281,7 +281,7 @@ export default function CreateProjectPage() {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [studyTypeId, setStudyTypeId] = useState('');
-  const [startPoint, setStartPoint] = useState('design');
+  const [collectionMode, setCollectionMode] = useState<'field' | 'call' | 'hybrid'>('field');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -292,9 +292,9 @@ export default function CreateProjectPage() {
       const res = await projectsApi.create({
         name,
         study_type_id: studyTypeId,
-        platform: startPoint === 'connect' ? 'kobo' : 'manual',
+        collection_mode: collectionMode,
+        platform: 'manual',
         target_submissions: target,
-        start_point: startPoint,
       });
       recordEvent('project_created');
       navigate(`/projects/${res.data.project.id}`);
@@ -339,7 +339,7 @@ export default function CreateProjectPage() {
       <div style={{ flex: 1, width: '100%' }}>
         {step === 1 && <Step1Name onNext={(n) => { setName(n); setStep(2); }} />}
         {step === 2 && <Step2StudyType onNext={(st) => { setStudyTypeId(st); setStep(3); }} onBack={() => setStep(1)} />}
-        {step === 3 && <Step3StartPoint onNext={(sp) => { setStartPoint(sp); setStep(4); }} onBack={() => setStep(2)} />}
+        {step === 3 && <Step3CollectionMode onNext={(m) => { setCollectionMode(m); setStep(4); }} onBack={() => setStep(2)} />}
         {step === 4 && <Step4Target onSubmit={handleSubmit} onBack={() => setStep(3)} loading={loading} />}
       </div>
     </div>

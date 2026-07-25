@@ -3,17 +3,22 @@ import { useNavigate, useParams } from 'react-router-dom';
 import StagePageWrapper from './StagePageWrapper';
 import SubmissionsPage from '../field-quality/SubmissionsPage';
 import DataIntegrityCard from '../../gamify/DataIntegrityCard';
+import CallReviewQueuePage from '../call/CallReviewQueuePage';
+import { useProject } from '../../context/ProjectContext';
 
 export default function VerifyStagePage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { activeProject } = useProject();
+  const mode = activeProject?.collection_mode || 'field';
+
+  const showField = mode === 'field' || mode === 'hybrid';
+  const showCall = mode === 'call' || mode === 'hybrid';
+
   return (
     <StagePageWrapper stage="Verify" icon="🔍">
       <DataIntegrityCard />
-      {/* Call-mode interviews verify through their own push-ranked queue
-          (Bible 8.6) rather than this browsable submissions table.
-          Hidden with the Call mode staged-release gate. */}
-      {process.env.REACT_APP_CALL_MODE_ENABLED !== 'false' && (
+      {showCall && mode === 'hybrid' && (
         <button
           onClick={() => navigate(`/projects/${projectId}/verify/call`)}
           style={{
@@ -26,7 +31,8 @@ export default function VerifyStagePage() {
           📞 Call Review Queue — remote interviews ranked by what needs you today ›
         </button>
       )}
-      <SubmissionsPage />
+      {showCall && mode === 'call' && <CallReviewQueuePage embedded />}
+      {showField && <SubmissionsPage />}
     </StagePageWrapper>
   );
 }
