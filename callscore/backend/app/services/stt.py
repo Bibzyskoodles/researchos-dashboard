@@ -153,24 +153,32 @@ def _spitch(audio_path: pathlib.Path) -> Optional[dict]:
 
 
 def _intron(audio_path: pathlib.Path) -> Optional[dict]:
-    """Intron Sahara — African-accent specialist (500+ accents, 23 African
-    languages). Same defensive posture as Spitch: enterprise-provisioned
-    API whose exact shape must be confirmed with the key (INTRON_API_URL
-    is configurable); parser accepts the common field spellings. No
-    diarization assumed, so it serves as a cross-check voice."""
+    """Intron — African-accent STT specialist (200+ accents, 57 languages).
+    Uses the synchronous file-upload endpoint; falls back gracefully on 503
+    (processing timeout) by returning None so the ensemble tries the next
+    provider.  Supports optional diarization and language hint via
+    use_language_asr_input (e.g. "sw" for Swahili)."""
     if not config.INTRON_API_KEY:
         return None
     try:
         with httpx.Client(timeout=_TIMEOUT) as client:
+            form_data = {
+                "audio_file_name": audio_path.stem,
+            }
+            lang = getattr(config, "INTRON_LANGUAGE", None)
+            if lang:
+                form_data["use_language_asr_input"] = lang
+            form_data["use_diarization"] = "TRUE"
             r = client.post(
                 config.INTRON_API_URL,
                 headers={"Authorization": f"Bearer {config.INTRON_API_KEY}"},
-                files={"file": (audio_path.name, audio_path.read_bytes(), "audio/*")},
+                data=form_data,
+                files={"audio_file_blob": (audio_path.name, audio_path.read_bytes(), "audio/*")},
             )
             r.raise_for_status()
-            data = r.json()
-        text = (data.get("text") or data.get("transcript")
-                or data.get("transcription") or "")
+            body = r.json()
+        data = body.get("data", {})
+        text = data.get("audio_transcript", "")
         if not str(text).strip():
             return None
         return {"text": str(text), "segments": [], "provider": "intron", "agreement": None}

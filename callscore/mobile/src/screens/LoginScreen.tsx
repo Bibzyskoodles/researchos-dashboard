@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { authApi } from '../api/client';
 import { COLORS } from '../theme';
 
@@ -40,9 +40,9 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) 
         value={password} onChangeText={setPassword} placeholderTextColor={COLORS.subtext}
       />
       {error && <Text style={styles.error}>{error}</Text>}
-      <TouchableOpacity style={styles.button} onPress={submit} disabled={busy}>
+      <Pressable style={({pressed}) => [styles.button, pressed && {opacity: 0.7}]} onPress={submit} disabled={busy}>
         {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
 }
