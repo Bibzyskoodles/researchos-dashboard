@@ -451,6 +451,12 @@ export const callScoreApi = {
     callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`),
   getCallConfig: (projectId: string) =>
     callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/call-config`),
+  setCallConfig: (projectId: string, payload: object) =>
+    callApi.put(`/api/v1/projects/${encodeURIComponent(projectId)}/call-config`, payload),
+  // Verified call interviews in InsightScore's ingestion shape (pull side
+  // of the bridge — the push side is the pipeline's outbox enqueue).
+  analysisExport: (projectId: string) =>
+    callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/analysis-export`),
   createSession: (payload: object) => callApi.post('/api/v1/interviews/', payload),
   stopSession: (id: string, payload: object) =>
     callApi.post(`/api/v1/interviews/${encodeURIComponent(id)}/stop`, payload),

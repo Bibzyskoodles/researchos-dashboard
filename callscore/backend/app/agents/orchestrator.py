@@ -256,4 +256,12 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
 
     submission.sync_status = "processed"
     db.commit()
+
+    # Verified data flows downstream automatically (Bible Part 11 /
+    # constitution 01): PASS interviews are handed to InsightScore via
+    # fieldscore-backend's outbox. Best-effort — never fails scoring.
+    if submission.verdict == "PASS":
+        from app.services import insight_bridge
+        insight_bridge.enqueue(db, submission)
+
     return scorecard

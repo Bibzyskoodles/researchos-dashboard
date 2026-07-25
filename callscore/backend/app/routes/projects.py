@@ -161,3 +161,31 @@ def get_questionnaire(project_id: str, db: Session = Depends(get_db)):
             for i in items
         ],
     }
+
+
+@router.get("/{project_id}/analysis-export")
+def analysis_export(project_id: str, db: Session = Depends(get_db)):
+    """Verified (PASS) call interviews for InsightScore — the pull side of
+    the handoff (RECONCILIATION.md: InsightScore is the consumer, Bible
+    Part 11). Same payload the outbox push enqueues, so either transport
+    yields identical analysis input: answers + full transcript + shared
+    scoring vocabulary."""
+    from app.services.insight_bridge import build_analysis_payload
+
+    rows = (
+        db.query(models.Submission)
+        .filter(
+            models.Submission.project_id == project_id,
+            models.Submission.collection_mode == "call",
+            models.Submission.verdict == "PASS",
+        )
+        .order_by(models.Submission.started_at.asc())
+        .limit(2000)
+        .all()
+    )
+    return {
+        "project_id": project_id,
+        "collection_mode": "call",
+        "count": len(rows),
+        "interviews": [build_analysis_payload(db, s) for s in rows],
+    }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import StagePageWrapper from './StagePageWrapper';
 import SubmissionsPage from '../field-quality/SubmissionsPage';
 import CallCollectPanel from '../call/CallCollectPanel';
+import CallConfigPanel from '../call/CallConfigPanel';
 import AgentInterviewPanel from '../call/AgentInterviewPanel';
 import { useProject } from '../../context/ProjectContext';
 import { COLORS } from '../../styles/tokens';
@@ -52,7 +53,12 @@ export default function CollectStagePage() {
         </div>
       )}
       {tab === 'field' && showField && <SubmissionsPage />}
-      {tab === 'call' && showCall && <CallCollectPanel />}
+      {tab === 'call' && showCall && (
+        <>
+          <CallConfigPanel />
+          <CallCollectPanel />
+        </>
+      )}
       {tab === 'agent' && <AgentInterviewPanel />}
     </StagePageWrapper>
   );
