@@ -63,6 +63,8 @@ export default function CallCapturePage() {
   const [recordingConsent, setRecordingConsent] = useState(false);
   const [consentBlob, setConsentBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usingDefaultScript, setUsingDefaultScript] = useState(true);
+  const [elapsed, setElapsed] = useState(0);
   const consentRec = useRecorder();
   const audioRec = useRecorder();
 
@@ -75,9 +77,30 @@ export default function CallCapturePage() {
       .then((r) => { if (r.data.items?.length) setQuestions(r.data.items); })
       .catch(() => undefined);
     callScoreApi.getCallConfig(projectId)
-      .then((r) => { if (r.data.consent_script) setScript(r.data.consent_script); })
+      .then((r) => {
+        if (r.data.consent_script) { setScript(r.data.consent_script); setUsingDefaultScript(false); }
+      })
       .catch(() => undefined);
   }, [projectId]);
+
+  // A refresh or closed tab mid-interview loses the recording entirely —
+  // the browser flow has no offline queue (by design), so guard the exit.
+  useEffect(() => {
+    if (stage !== 'consent' && stage !== 'interview' && stage !== 'uploading') return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [stage]);
+
+  // Elapsed interview timer — enumerators need to see the recording is alive.
+  useEffect(() => {
+    if (stage !== 'interview' || !startedAt) return;
+    const t = setInterval(
+      () => setElapsed(Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000))),
+      1000,
+    );
+    return () => clearInterval(t);
+  }, [stage, startedAt]);
 
   const startInterview = async () => {
     if (!respondent || !projectId || !consentBlob) return;
@@ -102,6 +125,17 @@ export default function CallCapturePage() {
 
   const stopInterview = async () => {
     if (!sessionId || !startedAt || !consentBlob) return;
+    // Same guard the mobile app applies (parity): blank required questions
+    // will be flagged by the compliance agent — confirm before uploading.
+    const blank = questions.filter((q) => q.is_required && !(answers[q.question_key] || '').trim());
+    if (blank.length > 0) {
+      const ok = window.confirm(
+        `${blank.length} required question${blank.length === 1 ? ' is' : 's are'} blank ` +
+        `(${blank.map((q) => q.question_text).slice(0, 3).join('; ')}${blank.length > 3 ? '…' : ''}). ` +
+        'The compliance check will flag them. Stop and upload anyway?',
+      );
+      if (!ok) return;
+    }
     setStage('uploading');
     setError(null);
     try {
@@ -163,6 +197,12 @@ export default function CallCapturePage() {
 
       {stage === 'consent' && (
         <div>
+          {usingDefaultScript && (
+            <p style={{ fontSize: 12, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
+              ⚠️ This project has no consent script configured — you are reading the generic default.
+              Set the project's own script in Collect → Call configuration.
+            </p>
+          )}
           <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderLeft: `4px solid ${BLUE}`, borderRadius: 8, padding: 16, marginBottom: 14, fontSize: 14, lineHeight: 1.6 }}>
             {script}
           </div>
@@ -191,10 +231,26 @@ export default function CallCapturePage() {
 
       {stage === 'interview' && (
         <div>
-          <div style={{ background: '#FEE2E2', borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 13, fontWeight: 700, color: '#B91C1C' }}>
-            ● Recording — {respondent?.display_name || 'respondent'}
-            {sessionId && <span style={{ fontWeight: 400, color: '#6B7280', marginLeft: 12 }}>Link code: {sessionId.slice(-6).toUpperCase()}</span>}
+          <div style={{ background: '#FEE2E2', borderRadius: 8, padding: '10px 12px', marginBottom: 6, fontSize: 13, fontWeight: 700, color: '#B91C1C', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <span>● Recording — {respondent?.display_name || 'respondent'}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}
+            </span>
+            {sessionId && <span style={{ fontWeight: 400, color: '#6B7280' }}>Link code: {sessionId.slice(-6).toUpperCase()}</span>}
+            <span style={{ marginLeft: 'auto', fontWeight: 400, color: '#6B7280', fontSize: 12 }}>
+              {questions.length > 0 && `${questions.filter((q) => (answers[q.question_key] || '').trim()).length}/${questions.length} answered`}
+            </span>
           </div>
+          <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 14px' }}>
+            Keep recording until the call has fully ended — stopping early leaves an unverifiable gap
+            and the interview will carry a timing flag.
+          </p>
+          {questions.length === 0 && (
+            <p style={{ fontSize: 13, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+              No questionnaire loaded for this project — the recording still uploads, but answers can't
+              be captured here. Import a questionnaire in the Design stage.
+            </p>
+          )}
           {questions.map((q) => (
             <div key={q.question_key} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 12, marginBottom: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 6 }}>
