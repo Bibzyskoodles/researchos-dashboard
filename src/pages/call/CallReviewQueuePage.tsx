@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { callScoreApi } from '../../services/api';
 import { CallQueueItem } from '../../types/callscore';
+import StagePageWrapper from '../stages/StagePageWrapper';
 
 const RISK_STYLES: Record<string, { bg: string; fg: string }> = {
   high: { bg: '#FEE2E2', fg: '#B91C1C' },
@@ -39,7 +40,7 @@ export default function CallReviewQueuePage({ embedded }: { embedded?: boolean }
     return () => { cancelled = true; };
   }, [projectId]);
 
-  return (
+  const body = (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
       <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>
         📞 Call Review Queue
@@ -92,4 +93,7 @@ export default function CallReviewQueuePage({ embedded }: { embedded?: boolean }
       </div>
     </div>
   );
+
+  if (embedded) return body;
+  return <StagePageWrapper stage="verify" chromeless>{body}</StagePageWrapper>;
 }

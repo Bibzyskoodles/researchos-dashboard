@@ -2,7 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { projectsApi } from '../../services/api';
-import { Project } from '../../context/ProjectContext';
+import { Project, getLocalCollectionMode } from '../../context/ProjectContext';
+import { MODE_META } from '../../styles/tokens';
 import { getIndustry, getStudyType } from '../../context/ResearchContext';
 import { verifyKoboToken } from '../../services/kobo/koboToolboxApi';
 import HealthRing from '../../gamify/HealthRing';
@@ -75,6 +76,7 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
   const industry = getIndustry((project as any).industry_id);
   const studyType = getStudyType(industry, project.study_type_id);
   const status = project.status || 'design';
+  const mode = project.collection_mode || getLocalCollectionMode(project.id) || 'field';
 
   return (
     <div
@@ -107,7 +109,7 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
           fontSize: 10, color: BLUE, background: BLUE + '12',
           padding: '2px 7px', borderRadius: 20, fontWeight: 600,
         }}>
-          {project.platform || 'kobo'}
+          {MODE_META[mode].icon} {MODE_META[mode].label}
         </span>
       </div>
 

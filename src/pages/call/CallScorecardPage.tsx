@@ -9,6 +9,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { callScoreApi } from '../../services/api';
 import { CallScorecard } from '../../types/callscore';
+import { COLORS, scoreColor } from '../../styles/tokens';
+import StagePageWrapper from '../stages/StagePageWrapper';
 
 const REGISTER_STYLES: Record<string, { border: string; bg: string; label: string }> = {
   knows: { border: '#15803D', bg: '#F0FDF4', label: 'High confidence' },
@@ -18,9 +20,9 @@ const REGISTER_STYLES: Record<string, { border: string; bg: string; label: strin
 
 function ScoreTile({ label, value }: { label: string; value: number | null }) {
   return (
-    <div style={{ flex: 1, minWidth: 120, background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' }}>
-      <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>{value ?? '—'}</div>
+    <div style={{ flex: 1, minWidth: 120, background: '#FFFFFF', border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: '12px 14px', boxShadow: '0 1px 6px rgba(10,15,28,.04)' }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.muted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: value === null || value === undefined ? '#111827' : scoreColor(value) }}>{value ?? '—'}</div>
     </div>
   );
 }
@@ -113,23 +115,55 @@ export default function CallScorecardPage() {
       .catch(() => setOverrideStatus('Failed to log override — try again.'));
   };
 
-  if (error) return <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#B91C1C' }}>{error}</p>;
-  if (!card) return <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#6B7280' }}>Loading scorecard…</p>;
+  if (error) {
+    return (
+      <StagePageWrapper stage="verify" chromeless>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#B91C1C' }}>{error}</p>
+      </StagePageWrapper>
+    );
+  }
+  if (!card) {
+    return (
+      <StagePageWrapper stage="verify" chromeless>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#6B7280' }}>Loading scorecard…</p>
+      </StagePageWrapper>
+    );
+  }
 
   const reg = REGISTER_STYLES[card.ada_summary.register] || REGISTER_STYLES.recommends_checking;
 
   return (
+    <StagePageWrapper stage="verify" chromeless>
     <div style={{ fontFamily: 'Inter, sans-serif', maxWidth: 760 }}>
       <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 16px' }}>
         📞 Call Interview Scorecard
       </h2>
 
-      {/* Ada speaks first */}
-      <div style={{ borderLeft: `4px solid ${reg.border}`, background: reg.bg, borderRadius: 8, padding: '14px 16px', marginBottom: 20 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: reg.border, textTransform: 'uppercase', marginBottom: 4 }}>
-          Ada · {reg.label} ({card.confidence_level}%)
+      {/* Ada speaks first — the same Ada presence as everywhere else */}
+      <div style={{
+        display: 'flex', gap: 12, alignItems: 'flex-start',
+        borderLeft: `4px solid ${reg.border}`, background: reg.bg,
+        borderRadius: 12, padding: '14px 16px', marginBottom: 20,
+      }}>
+        <span style={{
+          width: 34, height: 34, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+          background: 'linear-gradient(135deg,#2463EB,#7C3AED)', color: 'white',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 14, fontWeight: 700, position: 'relative',
+        }}>
+          A
+          <img
+            src="/ada-avatar.jpg" alt=""
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            style={{ position: 'absolute', inset: 0, width: 34, height: 34, objectFit: 'cover' }}
+          />
+        </span>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: reg.border, textTransform: 'uppercase', marginBottom: 4 }}>
+            Ada · {reg.label} ({card.confidence_level}%)
+          </div>
+          <div style={{ fontSize: 14, color: '#111827', lineHeight: 1.5 }}>{card.ada_summary.text}</div>
         </div>
-        <div style={{ fontSize: 14, color: '#111827' }}>{card.ada_summary.text}</div>
       </div>
 
       {/* Headline shared vocabulary + sub-scores */}
@@ -312,5 +346,6 @@ export default function CallScorecardPage() {
         </div>
       </div>
     </div>
+    </StagePageWrapper>
   );
 }
