@@ -109,6 +109,7 @@ def upload_evidence_bundle(
                     timestamp_range_end=a.timestamp_range_end,
                 )
             )
+        submission.consent_captured = True
         submission.sync_status = "synced"
         entry.upload_status = "complete"
         db.commit()

@@ -43,6 +43,7 @@ class Submission(Base):
     device1_call_ended_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
     consent_captured: Mapped[bool] = mapped_column(Boolean, default=False)
     sync_status: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))
 
     # Shared scoring vocabulary — headline results both modes render.
     overall_score: Mapped[Optional[int]] = mapped_column(Integer)
