@@ -26,6 +26,11 @@ def get_engine():
         if not config.DATABASE_URL:
             raise RuntimeError("DATABASE_URL is not configured")
         _engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
+        # Auto-create CallScore-specific tables if they don't exist yet.
+        # Safe against FieldScore's existing tables (CREATE IF NOT EXISTS
+        # semantics via checkfirst=True).
+        import app.models  # noqa: F401 — ensure all models are registered
+        Base.metadata.create_all(_engine, checkfirst=True)
     return _engine
 
 
