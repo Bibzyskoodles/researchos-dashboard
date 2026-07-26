@@ -87,7 +87,12 @@ def _extract(questions: list[dict], transcript: str) -> list[dict]:
 
 @router.websocket("/transcribe")
 async def live_transcribe(
-    ws: WebSocket, project_id: str = "", language: str = "en", token: str = ""
+    ws: WebSocket,
+    project_id: str = "",
+    language: str = "en",
+    token: str = "",
+    encoding: str = "",     # e.g. "linear16" — mobile streams raw PCM tailed
+    sample_rate: int = 0,   # from its WAV recording; browser sends webm
 ):
     # Browsers cannot set headers on a WebSocket, so the Bearer token
     # travels as a query param — verified with the exact same shared-JWT
@@ -119,6 +124,8 @@ async def live_transcribe(
         "?model=nova-2&smart_format=true&interim_results=false"
         f"&language={language or 'en'}"
     )
+    if encoding:
+        dg_url += f"&encoding={encoding}&sample_rate={sample_rate or 16000}&channels=1"
     transcript_parts: list[str] = []
     last_extract_len = 0
 

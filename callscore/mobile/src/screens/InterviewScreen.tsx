@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Audio } from 'expo-av';
+import { startLiveSession, LiveSession, LIVE_SAMPLE_RATE } from '../live/liveTranscribe';
 import * as ImagePicker from 'expo-image-picker';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,6 +15,26 @@ import { COLORS } from '../theme';
 import { LocalSession, QuestionnaireItem, Respondent } from '../types';
 
 const QUESTIONNAIRE_CACHE = 'cs_questionnaire_cache';
+
+// Live pre-fill needs a progressively-readable recording — LINEARPCM WAV.
+// iOS only: Android's MediaRecorder can't produce PCM via expo-av. The
+// WAV file IS the evidence recording (one recorder, tailed for live).
+const LIVE_WAV_OPTIONS: Audio.RecordingOptions = {
+  isMeteringEnabled: false,
+  android: Audio.RecordingOptionsPresets.HIGH_QUALITY.android,
+  ios: {
+    extension: '.wav',
+    outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+    audioQuality: Audio.IOSAudioQuality.HIGH,
+    sampleRate: LIVE_SAMPLE_RATE,
+    numberOfChannels: 1,
+    bitRate: LIVE_SAMPLE_RATE * 16,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: Audio.RecordingOptionsPresets.HIGH_QUALITY.web,
+};
 
 // Offline fallback until the project's XLSForm has been imported and
 // fetched at least once (Bible 8.7 — the real items come from
@@ -53,6 +74,13 @@ export default function InterviewScreen({
   const [screenshotAttached, setScreenshotAttached] = useState(false);
   const [callNumber, setCallNumber] = useState('');
   const [busy, setBusy] = useState(false);
+  // Live pre-fill (opt-in — streaming uses more data; constitution 00 §6).
+  const [liveEnabled, setLiveEnabled] = useState(false);
+  const [liveState, setLiveState] = useState<'off' | 'live' | 'unavailable'>('off');
+  const [aiSuggested, setAiSuggested] = useState<Record<string, number>>({});
+  const touchedRef = useRef<Set<string>>(new Set());
+  const liveRef = useRef<LiveSession | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   // Real questionnaire, cached for offline days; fallback keeps the flow
   // usable before the project's XLSForm import has happened.
@@ -75,10 +103,30 @@ export default function InterviewScreen({
   const startInterview = async () => {
     try {
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const useLive = liveEnabled && Platform.OS === 'ios';
       const { recording: rec } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        useLive ? LIVE_WAV_OPTIONS : Audio.RecordingOptionsPresets.HIGH_QUALITY,
       );
       setRecording(rec);
+      recordingRef.current = rec;
+      if (useLive) {
+        liveRef.current = await startLiveSession({
+          projectId,
+          language: 'en',
+          recordingUri: () => recordingRef.current?.getURI() ?? null,
+          onState: setLiveState,
+          onAnswers: (list) => {
+            for (const a of list) {
+              if (touchedRef.current.has(a.question_key)) continue; // human wins
+              setAnswers((prev) =>
+                (prev[a.question_key] || '').trim() && aiSuggested[a.question_key] === undefined
+                  ? prev
+                  : { ...prev, [a.question_key]: a.answer });
+              setAiSuggested((prev) => ({ ...prev, [a.question_key]: a.confidence }));
+            }
+          },
+        });
+      }
       const started = new Date().toISOString();
       const id = Crypto.randomUUID(); // client-generated: idempotent sync (Bible 5.3)
       setSessionId(id);
@@ -129,6 +177,8 @@ export default function InterviewScreen({
     if (!recording || !startedAt || busy) return;
     setBusy(true);
     try {
+      liveRef.current?.stop();
+      liveRef.current = null;
       await recording.stopAndUnloadAsync();
       const audioUri = recording.getURI();
       const session: LocalSession = {
@@ -166,6 +216,18 @@ export default function InterviewScreen({
           Consent is recorded. Place the call on your other phone as usual, then press
           Start Interview the moment the conversation begins.
         </Text>
+        {Platform.OS === 'ios' && (
+          <View style={styles.liveToggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.liveToggleTitle}>🎧 Live answer capture</Text>
+              <Text style={styles.liveToggleSub}>
+                Answers pre-fill as they're heard. Needs a connection and uses
+                more data — if the signal drops, recording continues untouched.
+              </Text>
+            </View>
+            <Switch value={liveEnabled} onValueChange={setLiveEnabled} />
+          </View>
+        )}
         <TouchableOpacity style={styles.startButton} onPress={startInterview}>
           <Text style={styles.startText}>▶ Start Interview</Text>
         </TouchableOpacity>
@@ -183,19 +245,40 @@ export default function InterviewScreen({
           </Text>
         )}
       </View>
+      {liveState === 'live' && (
+        <Text style={styles.livePill}>🎧 Live listening — answers pre-fill as they're heard</Text>
+      )}
 
-      {questions.map((q) => (
-        <GlanceConfirm
-          key={q.question_key}
-          questionText={q.question_text}
-          required={q.is_required}
-          value={answers[q.question_key] || ''}
-          state="manual"
-          questionType={q.question_type}
-          choices={q.choices}
-          onChange={(v) => setAnswers((a) => ({ ...a, [q.question_key]: v }))}
-        />
-      ))}
+      {questions.map((q) => {
+        const suggested =
+          aiSuggested[q.question_key] !== undefined && !touchedRef.current.has(q.question_key);
+        return (
+          <GlanceConfirm
+            key={q.question_key}
+            questionText={q.question_text}
+            required={q.is_required}
+            value={answers[q.question_key] || ''}
+            state={suggested ? 'confirm' : 'manual'}
+            questionType={q.question_type}
+            choices={q.choices}
+            onChange={(v) => {
+              touchedRef.current.add(q.question_key); // human input wins from now on
+              setAiSuggested((prev) => {
+                const { [q.question_key]: _gone, ...rest } = prev;
+                return rest;
+              });
+              setAnswers((a) => ({ ...a, [q.question_key]: v }));
+            }}
+            onConfirm={() => {
+              touchedRef.current.add(q.question_key);
+              setAiSuggested((prev) => {
+                const { [q.question_key]: _gone, ...rest } = prev;
+                return rest;
+              });
+            }}
+          />
+        );
+      })}
 
       <View style={styles.screenshotBox}>
         <Text style={styles.screenshotTitle}>Call screen evidence</Text>
@@ -231,6 +314,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
   sub: { fontSize: 14, color: COLORS.subtext, textAlign: 'center', marginTop: 10, marginBottom: 28, lineHeight: 21 },
   startButton: { backgroundColor: COLORS.green, borderRadius: 12, padding: 18, alignItems: 'center' },
+  liveToggleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 12, padding: 14, marginBottom: 16,
+  },
+  liveToggleTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  liveToggleSub: { fontSize: 12, color: COLORS.subtext, marginTop: 3, lineHeight: 17 },
+  livePill: {
+    fontSize: 12, fontWeight: '600', color: COLORS.green, marginBottom: 12,
+  },
   stopButton: { backgroundColor: COLORS.red, borderRadius: 12, padding: 18, alignItems: 'center', marginTop: 16 },
   startText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   liveBar: {
