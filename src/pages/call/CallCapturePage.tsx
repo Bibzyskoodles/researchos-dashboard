@@ -106,10 +106,17 @@ export default function CallCapturePage() {
   }, [projectId]);
 
   // Live transcription socket — opens with the interview, dies with it.
-  // Every failure path degrades to the plain manual flow; the recording
-  // itself is never touched (it stays client-side until Stop).
+  // Network-adaptive (constitution 00 §6): if the connection drops
+  // mid-interview it retries with backoff and resumes when signal
+  // returns; capture is never touched either way (recording stays
+  // client-side until Stop). Audio during an outage simply isn't
+  // live-transcribed — the post-hoc pipeline still hears all of it.
+  const liveDesiredRef = useRef(false);
+  const liveBackoffRef = useRef(3000);
+  const liveRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openLiveSocket = () => {
     if (!projectId) return;
+    liveDesiredRef.current = true;
     try {
       const base = (process.env.REACT_APP_CALLSCORE_API_URL ||
         'https://researchos-dashboard-production.up.railway.app').replace(/^http/, 'ws');
@@ -123,6 +130,10 @@ export default function CallCapturePage() {
           const msg = JSON.parse(ev.data);
           if (msg.type === 'status') {
             setLiveState(msg.state === 'live' ? 'live' : 'unavailable');
+            if (msg.state === 'live') liveBackoffRef.current = 3000; // healthy again
+            if (msg.state === 'unauthorized' || msg.state === 'unavailable') {
+              liveDesiredRef.current = false; // server said no — don't hammer it
+            }
           } else if (msg.type === 'answers') {
             for (const a of msg.answers || []) {
               const key = a.question_key as string;
@@ -135,7 +146,19 @@ export default function CallCapturePage() {
         } catch { /* non-JSON frame — ignore */ }
       };
       socket.onerror = () => setLiveState('unavailable');
-      socket.onclose = () => { if (liveWsRef.current === socket) liveWsRef.current = null; };
+      socket.onclose = () => {
+        if (liveWsRef.current === socket) liveWsRef.current = null;
+        // Signal cut mid-interview: retry with backoff until Stop or the
+        // server refuses. Live resumes by itself when the network does.
+        if (liveDesiredRef.current) {
+          setLiveState('unavailable');
+          const delay = liveBackoffRef.current;
+          liveBackoffRef.current = Math.min(delay * 2, 30000);
+          liveRetryTimerRef.current = setTimeout(() => {
+            if (liveDesiredRef.current) openLiveSocket();
+          }, delay);
+        }
+      };
       liveWsRef.current = socket;
     } catch {
       setLiveState('unavailable');
@@ -144,6 +167,8 @@ export default function CallCapturePage() {
   const aiSuggestedRef = useRef<Record<string, number>>({});
   useEffect(() => { aiSuggestedRef.current = aiSuggested; }, [aiSuggested]);
   const closeLiveSocket = () => {
+    liveDesiredRef.current = false;
+    if (liveRetryTimerRef.current) { clearTimeout(liveRetryTimerRef.current); liveRetryTimerRef.current = null; }
     liveWsRef.current?.close();
     liveWsRef.current = null;
     setLiveState('off');
@@ -309,6 +334,11 @@ export default function CallCapturePage() {
             {liveState === 'live' && (
               <span style={{ fontWeight: 600, fontSize: 11, color: '#15803D', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 999, padding: '2px 8px' }}>
                 🎧 Live listening — answers pre-fill as they're heard
+              </span>
+            )}
+            {liveState === 'unavailable' && liveDesiredRef.current && (
+              <span style={{ fontWeight: 600, fontSize: 11, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 999, padding: '2px 8px' }}>
+                🎧 Live paused — reconnecting… recording is unaffected
               </span>
             )}
             <span style={{ marginLeft: 'auto', fontWeight: 400, color: '#6B7280', fontSize: 12 }}>

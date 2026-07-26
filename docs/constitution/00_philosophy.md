@@ -102,17 +102,30 @@ are constraints that shape every architectural decision from day one.
 Features that cannot be built within these constraints are redesigned
 until they can, not shipped with a plan to "fix compliance later."
 
-### 6. Offline is not a fallback
+### 6. Network-adaptive, offline-guaranteed
 
 In the environments where this platform operates — rural Nigeria, remote
-clinics, conflict zones — connectivity is the exception, not the rule.
-Every feature that touches data collection must work fully offline. Not
-"gracefully degraded." Fully functional.
+clinics, conflict zones — connectivity is unreliable, not absent. The
+rule is therefore two-sided, and both sides are binding:
 
-This is a first-class architectural constraint, not a progressive
-enhancement. The sync engine, the local database, the evidence capture
-flow — all designed offline-first, tested offline-first, and never
-allowed to regress into requiring connectivity for core operations.
+**Capture never depends on connectivity.** Recording, consent, answers,
+local save: these must work in a dead zone, and a network failure at any
+moment — including mid-interview — must never lose a byte of captured
+evidence. This is what "offline-first" means here.
+
+**Intelligence uses the network greedily when it exists.** Offline-first
+does NOT mean building as if there is never internet. When connectivity
+is present, the platform should exploit it: sync immediately, stream
+live transcription, pre-fill answers in real time. When signal degrades
+or cuts, features shed gracefully — live enhancements stop, capture
+continues untouched, and everything deferred happens automatically the
+moment connectivity returns. The user should never have to think about
+which mode they are in.
+
+The test for any feature: unplug the network at the worst possible
+moment. If any captured data is lost or the enumerator is blocked from
+finishing the interview, the feature is wrong. If the only cost is that
+some intelligence arrives later, it is right.
 
 ### 7. Simplicity is the product
 
