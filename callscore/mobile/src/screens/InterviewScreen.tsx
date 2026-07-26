@@ -16,12 +16,20 @@ import { LocalSession, QuestionnaireItem, Respondent } from '../types';
 
 const QUESTIONNAIRE_CACHE = 'cs_questionnaire_cache';
 
-// Live pre-fill needs a progressively-readable recording — LINEARPCM WAV.
-// iOS only: Android's MediaRecorder can't produce PCM via expo-av. The
-// WAV file IS the evidence recording (one recorder, tailed for live).
-const LIVE_WAV_OPTIONS: Audio.RecordingOptions = {
+// Live pre-fill needs a progressively-readable recording, and the file IS
+// the evidence recording (one recorder, tailed for live). Android first —
+// that's what enumerators carry: AMR-WB, the wideband telephony codec
+// (frame-streamable, ~25kbps — cheapest option on data). iOS: PCM WAV.
+const LIVE_RECORDING_OPTIONS: Audio.RecordingOptions = {
   isMeteringEnabled: false,
-  android: Audio.RecordingOptionsPresets.HIGH_QUALITY.android,
+  android: {
+    extension: '.amr',
+    outputFormat: Audio.AndroidOutputFormat.AMR_WB,
+    audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
+    sampleRate: LIVE_SAMPLE_RATE,
+    numberOfChannels: 1,
+    bitRate: 23850, // AMR-WB's highest mode
+  },
   ios: {
     extension: '.wav',
     outputFormat: Audio.IOSOutputFormat.LINEARPCM,
@@ -103,9 +111,9 @@ export default function InterviewScreen({
   const startInterview = async () => {
     try {
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const useLive = liveEnabled && Platform.OS === 'ios';
+      const useLive = liveEnabled;
       const { recording: rec } = await Audio.Recording.createAsync(
-        useLive ? LIVE_WAV_OPTIONS : Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        useLive ? LIVE_RECORDING_OPTIONS : Audio.RecordingOptionsPresets.HIGH_QUALITY,
       );
       setRecording(rec);
       recordingRef.current = rec;
@@ -113,6 +121,7 @@ export default function InterviewScreen({
         liveRef.current = await startLiveSession({
           projectId,
           language: 'en',
+          format: Platform.OS === 'android' ? 'amr-wb' : 'wav',
           recordingUri: () => recordingRef.current?.getURI() ?? null,
           onState: setLiveState,
           onAnswers: (list) => {
@@ -216,7 +225,7 @@ export default function InterviewScreen({
           Consent is recorded. Place the call on your other phone as usual, then press
           Start Interview the moment the conversation begins.
         </Text>
-        {Platform.OS === 'ios' && (
+        {(Platform.OS === 'android' || Platform.OS === 'ios') && (
           <View style={styles.liveToggleRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.liveToggleTitle}>🎧 Live answer capture</Text>

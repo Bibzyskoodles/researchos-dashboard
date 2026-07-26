@@ -1,21 +1,31 @@
 /**
  * Live answer pre-fill for the phone — network-adaptive, offline-guaranteed
  * (constitution 00 §6): live streaming is an OPT-IN enhancement layered on
- * top of capture. The evidence recording is the same WAV file the recorder
- * is writing; this module only *tails* it — reads the bytes appended since
- * the last tick and streams them to the CallScore live WebSocket as raw
- * PCM. Any failure (no signal, socket refused, read error) silently stops
- * the enhancement; the recording and manual flow are never affected.
+ * top of capture. The evidence recording is the same file the recorder is
+ * writing; this module only *tails* it — reads the bytes appended since
+ * the last tick and streams them to the CallScore live WebSocket. Any
+ * failure (no signal, socket refused, read error) silently stops the
+ * enhancement; the recording and manual flow are never affected.
  *
- * iOS-only for now: live tailing needs a progressively-decodable format,
- * which means LINEARPCM/WAV — expo-av on Android cannot produce that.
+ * Live tailing needs a progressively-decodable recording format, and the
+ * two platforms differ (Android first — that's what enumerators carry):
+ *  - Android: AMR-WB (.amr) — the wideband telephony codec, frame-based
+ *    and streamable, ~25kbps so it's the CHEAPEST format on data. Sent
+ *    from byte 0 (Deepgram's amr-wb decoder wants the #!AMR-WB header).
+ *  - iOS: LINEARPCM WAV 16kHz mono, header skipped (raw linear16).
  */
 import * as FileSystem from 'expo-file-system';
 import { CALLSCORE_URL, getToken } from '../api/client';
 
 export const LIVE_SAMPLE_RATE = 16000;
 const TAIL_INTERVAL_MS = 4000;
-const WAV_HEADER_BYTES = 44;
+
+export type LiveFormat = 'wav' | 'amr-wb';
+
+const FORMAT_PARAMS: Record<LiveFormat, { encoding: string; headerSkip: number }> = {
+  wav: { encoding: 'linear16', headerSkip: 44 },   // raw PCM after the RIFF header
+  'amr-wb': { encoding: 'amr-wb', headerSkip: 0 }, // decoder needs the magic header
+};
 
 export interface LiveAnswer { question_key: string; answer: string; confidence: number }
 
@@ -36,14 +46,16 @@ function base64ToBytes(b64: string): Uint8Array {
 export async function startLiveSession(opts: {
   projectId: string;
   language: string;
+  format: LiveFormat;
   recordingUri: () => string | null;
   onAnswers: (answers: LiveAnswer[]) => void;
   onState: (state: 'live' | 'unavailable' | 'off') => void;
 }): Promise<LiveSession> {
   const token = (await getToken()) || '';
+  const fmt = FORMAT_PARAMS[opts.format];
   let ws: WebSocket | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
-  let position = WAV_HEADER_BYTES; // skip the RIFF header; Deepgram wants raw PCM
+  let position = fmt.headerSkip;
   let stopped = false;
 
   const cleanup = () => {
@@ -64,7 +76,7 @@ export async function startLiveSession(opts: {
       `?project_id=${encodeURIComponent(opts.projectId)}` +
       `&language=${encodeURIComponent(opts.language)}` +
       `&token=${encodeURIComponent(token)}` +
-      `&encoding=linear16&sample_rate=${LIVE_SAMPLE_RATE}`;
+      `&encoding=${encodeURIComponent(fmt.encoding)}&sample_rate=${LIVE_SAMPLE_RATE}`;
     ws = new WebSocket(url);
 
     ws.onmessage = (ev) => {

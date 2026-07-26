@@ -81,13 +81,16 @@ export const callApi = {
     const token = await getToken();
     const form = new FormData();
     form.append('kind', kind);
-    // Live-capture interviews record WAV (progressively readable); the
-    // default path stays m4a — derive from the actual file.
-    const ext = fileUri.toLowerCase().endsWith('.wav') ? 'wav' : 'm4a';
+    // Live-capture interviews record WAV (iOS) or AMR-WB (Android) —
+    // progressively readable; the default path stays m4a. Derive from
+    // the actual file.
+    const lower = fileUri.toLowerCase();
+    const ext = lower.endsWith('.wav') ? 'wav' : lower.endsWith('.amr') ? 'amr' : 'm4a';
+    const mime = ext === 'wav' ? 'audio/wav' : ext === 'amr' ? 'audio/amr' : 'audio/m4a';
     form.append('file', {
       uri: fileUri,
       name: `${kind}.${ext}`,
-      type: ext === 'wav' ? 'audio/wav' : 'audio/m4a',
+      type: mime,
     } as unknown as Blob);
     const res = await fetch(
       `${CALLSCORE_URL}/api/v1/sync/${encodeURIComponent(sessionId)}/upload-recording`,
