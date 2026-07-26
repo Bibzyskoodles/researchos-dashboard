@@ -38,30 +38,71 @@ function toChoices(text: string) {
     : null;
 }
 
+function serverItemsToEditable(items: any[]): EditableQ[] {
+  return (items || []).map((i: any): EditableQ => ({
+    question_key: i.question_key,
+    question_text: i.question_text,
+    question_type: i.question_type || 'text',
+    is_required: i.is_required !== false,
+    choicesText: (i.choices || []).map((c: any) => c.label).join(', '),
+  }));
+}
+
 export default function CallQuestionnaireEditor() {
   const { projectId } = useParams<{ projectId: string }>();
   const [items, setItems] = useState<EditableQ[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [brief, setBrief] = useState('');
+  const [drafting, setDrafting] = useState(false);
+  const [parsingFile, setParsingFile] = useState(false);
 
   const load = useCallback(() => {
     if (!projectId) return;
     callScoreApi.getQuestionnaire(projectId)
-      .then((res) => {
-        const loadedItems = (res.data.items || []).map((i: any): EditableQ => ({
-          question_key: i.question_key,
-          question_text: i.question_text,
-          question_type: i.question_type || 'text',
-          is_required: !!i.is_required,
-          choicesText: (i.choices || []).map((c: any) => c.label).join(', '),
-        }));
-        setItems(loadedItems);
-      })
+      .then((res) => setItems(serverItemsToEditable(res.data.items)))
       .catch(() => undefined)
       .finally(() => setLoaded(true));
   }, [projectId]);
   useEffect(() => { load(); }, [load]);
+
+  const askAda = () => {
+    if (!projectId || !brief.trim()) return;
+    setDrafting(true);
+    setStatus(null);
+    callScoreApi.draftQuestionnaire(projectId, brief.trim())
+      .then((res) => {
+        setItems(serverItemsToEditable(res.data.items));
+        setStatus({ ok: true, text: `Ada drafted ${res.data.items.length} questions — review them, adjust anything, then press Save.` });
+      })
+      .catch((e) => setStatus({
+        ok: false,
+        text: e?.response?.data?.detail || 'Ada could not draft — try describing the study with a bit more detail.',
+      }))
+      .finally(() => setDrafting(false));
+  };
+
+  const onFilePicked = (file: File | null) => {
+    if (!projectId || !file) return;
+    setParsingFile(true);
+    setStatus(null);
+    callScoreApi.parseQuestionnaireFile(projectId, file)
+      .then((res) => {
+        setItems(serverItemsToEditable(res.data.items));
+        setStatus({
+          ok: true,
+          text: res.data.source === 'xlsform'
+            ? `Recognised a standard form — ${res.data.items.length} questions loaded. Review and Save.`
+            : `Ada read ${res.data.items.length} questions from your file — review them, then press Save.`,
+        });
+      })
+      .catch((e) => setStatus({
+        ok: false,
+        text: e?.response?.data?.detail || 'Could not read that file — try Excel or CSV.',
+      }))
+      .finally(() => setParsingFile(false));
+  };
 
   const update = (idx: number, patch: Partial<EditableQ>) =>
     setItems((prev) => prev.map((q, i) => (i === idx ? { ...q, ...patch } : q)));
@@ -109,6 +150,59 @@ export default function CallQuestionnaireEditor() {
         These are the questions your interviewers ask on every call. The AI uses this same list to
         check that every question was actually asked, and to fill in answers it hears.
       </p>
+
+      {/* Three ways in: Ada drafts it, upload a file, or type below. */}
+      <div style={{
+        display: 'flex', gap: 10, alignItems: 'stretch', flexWrap: 'wrap', marginBottom: 16,
+      }}>
+        <div style={{
+          flex: 2, minWidth: 260, background: 'linear-gradient(135deg,#F5F8FF 0%,#F8F7FF 100%)',
+          border: '1px solid #E3EAFB', borderRadius: 10, padding: 12,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1D4ED8', marginBottom: 6 }}>
+            ✨ Ask Ada to draft it
+          </div>
+          <textarea
+            value={brief}
+            onChange={(e) => setBrief(e.target.value)}
+            placeholder={'Describe the study in your own words — e.g. "Phone survey of small shop owners in Lagos about how they choose which soft drinks to stock, about 10 minutes."'}
+            style={{ ...inputStyle, width: '100%', minHeight: 56, resize: 'vertical', lineHeight: 1.5 }}
+          />
+          <button
+            onClick={askAda}
+            disabled={drafting || !brief.trim()}
+            style={{
+              marginTop: 8, fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 600,
+              background: drafting || !brief.trim() ? '#93B4F5' : COLORS.blue, color: 'white',
+              border: 'none', borderRadius: 8, padding: '8px 16px',
+              cursor: drafting || !brief.trim() ? 'default' : 'pointer',
+            }}
+          >
+            {drafting ? 'Ada is drafting…' : 'Draft questions'}
+          </button>
+        </div>
+        <label style={{
+          flex: 1, minWidth: 200, background: '#FAFBFE', border: '1px dashed #C7D4EC',
+          borderRadius: 10, padding: 12, cursor: 'pointer',
+          display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.ink, marginBottom: 4 }}>
+            📄 Upload a file
+          </div>
+          <div style={{ fontSize: 11.5, color: '#6B7280', lineHeight: 1.45 }}>
+            {parsingFile
+              ? 'Reading your file…'
+              : 'Excel or CSV — any layout. Ada finds the questions and lays them out below.'}
+          </div>
+          <input
+            type="file"
+            accept=".xlsx,.xls,.xlsm,.csv,.txt"
+            style={{ display: 'none' }}
+            disabled={parsingFile}
+            onChange={(e) => { onFilePicked(e.target.files?.[0] || null); e.target.value = ''; }}
+          />
+        </label>
+      </div>
 
       {!loaded && <p style={{ fontSize: 13, color: '#6B7280' }}>Loading…</p>}
 

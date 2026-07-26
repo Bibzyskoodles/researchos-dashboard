@@ -234,3 +234,149 @@ def analysis_export(project_id: str, db: Session = Depends(get_db)):
         "count": len(rows),
         "interviews": [build_analysis_payload(db, s) for s in rows],
     }
+
+
+# ── Ada-assisted questionnaire creation ─────────────────────────────────
+# Two more ways in besides typing and strict XLSForm: describe the study
+# and Ada drafts it, or upload ANY spreadsheet/CSV and Ada reads the
+# questions out of it. Both return items for the editor to review — the
+# human saves; Ada never writes the questionnaire herself (AI drafts,
+# humans approve).
+
+_QUESTION_CONTRACT = (
+    'Respond with JSON: {"items": [{"question_text": string, '
+    '"question_type": "text"|"numeric"|"select_one"|"select_multiple", '
+    '"is_required": boolean, '
+    '"choices": [{"name": string, "label": string}] | null}]}. '
+    "choices only for the select types. Questions must be neutral, "
+    "single-purpose, and phrased exactly as an interviewer would ask them "
+    "aloud. Never invent content that is not implied by the input."
+)
+
+
+def _clean_drafted_items(result: dict | None) -> list[dict]:
+    if not result:
+        return []
+    out = []
+    for q in result.get("items", []):
+        text = str(q.get("question_text", "")).strip()
+        if not text:
+            continue
+        qtype = q.get("question_type")
+        if qtype not in ("text", "numeric", "select_one", "select_multiple"):
+            qtype = "text"
+        choices = q.get("choices") if qtype in ("select_one", "select_multiple") else None
+        if choices is not None:
+            choices = [
+                {"name": str(c.get("name") or c.get("label", "")).strip().lower().replace(" ", "_"),
+                 "label": str(c.get("label", "")).strip()}
+                for c in choices if str(c.get("label", "")).strip()
+            ] or None
+        out.append({
+            "question_text": text,
+            "question_type": qtype,
+            "is_required": bool(q.get("is_required", True)),
+            "choices": choices,
+        })
+    return out[:60]
+
+
+class DraftBrief(BaseModel):
+    brief: str
+
+
+@router.post("/{project_id}/questionnaire/draft")
+def draft_questionnaire(project_id: str, payload: DraftBrief):
+    """Ada drafts a questionnaire from a plain-language study brief."""
+    from app.services import llm
+
+    if not llm.available():
+        raise HTTPException(status_code=503, detail="Ada's drafting needs the AI service configured.")
+    brief = payload.brief.strip()
+    if not brief:
+        raise HTTPException(status_code=422, detail="Describe the study in a sentence or two first.")
+    result = llm.judge(
+        "You are an expert survey methodologist drafting a phone-interview "
+        "questionnaire from a study brief. 6-12 questions unless the brief "
+        "implies otherwise, ordered for natural conversation flow (easy "
+        "opener first, sensitive topics later). " + _QUESTION_CONTRACT,
+        f"STUDY BRIEF:\n{brief[:4000]}",
+    )
+    items = _clean_drafted_items(result)
+    if not items:
+        raise HTTPException(status_code=502, detail="Ada could not draft from that brief — try adding more detail.")
+    return {"project_id": project_id, "items": items, "source": "ada_draft"}
+
+
+@router.post("/{project_id}/questionnaire/parse-file")
+async def parse_questionnaire_file(project_id: str, file: UploadFile):
+    """Ada reads questions out of ANY spreadsheet or CSV. Strict XLSForms
+    are parsed deterministically (no AI needed); anything else is read
+    cell-by-cell and Ada extracts the questions for review."""
+    data = await file.read()
+    name = (file.filename or "").lower()
+
+    # Deterministic first: a real XLSForm needs no AI.
+    if name.endswith((".xlsx", ".xls", ".xlsm")):
+        try:
+            questions = parse_xlsform(data)
+            return {
+                "project_id": project_id,
+                "source": "xlsform",
+                "items": [
+                    {"question_text": q.question_text, "question_type": q.question_type,
+                     "is_required": q.is_required, "choices": q.choices}
+                    for q in questions
+                ],
+            }
+        except ValueError:
+            pass  # not an XLSForm — fall through to Ada
+
+    from app.services import llm
+
+    if not llm.available():
+        raise HTTPException(
+            status_code=503,
+            detail="This file isn't a standard form, and Ada's reading needs the AI service configured.",
+        )
+
+    # Flatten the file to text for Ada.
+    text = ""
+    if name.endswith((".xlsx", ".xls", ".xlsm")):
+        import io as _io
+
+        from openpyxl import load_workbook
+
+        try:
+            wb = load_workbook(_io.BytesIO(data), read_only=True, data_only=True)
+        except Exception:
+            raise HTTPException(status_code=422, detail="Could not open that file — is it a valid Excel file?")
+        lines = []
+        for sheet in wb.sheetnames[:5]:
+            lines.append(f"--- sheet: {sheet} ---")
+            for row in wb[sheet].iter_rows(values_only=True):
+                cells = [str(c).strip() for c in row if c is not None and str(c).strip()]
+                if cells:
+                    lines.append(" | ".join(cells))
+                if len(lines) > 600:
+                    break
+        text = "\n".join(lines)
+    else:
+        text = data.decode("utf-8-sig", errors="replace")
+
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="The file looks empty.")
+
+    result = llm.judge(
+        "You extract interview questions from a research team's document "
+        "(a spreadsheet or CSV dump). Identify the actual questions an "
+        "interviewer asks a respondent — ignore headers, notes, metadata, "
+        "logic columns and translations (keep one language, prefer "
+        "English). Preserve the original order and wording. Detect answer "
+        "options where present. " + _QUESTION_CONTRACT,
+        f"DOCUMENT:\n{text[:24000]}",
+    )
+    items = _clean_drafted_items(result)
+    if not items:
+        raise HTTPException(status_code=422, detail="Ada could not find questions in that file.")
+    return {"project_id": project_id, "items": items, "source": "ada_file"}

@@ -457,6 +457,13 @@ export const callScoreApi = {
     callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`),
   setQuestionnaire: (projectId: string, items: object[]) =>
     callApi.put(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`, { items }),
+  draftQuestionnaire: (projectId: string, brief: string) =>
+    callApi.post(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire/draft`, { brief }),
+  parseQuestionnaireFile: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return callApi.post(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire/parse-file`, form);
+  },
   getCallConfig: (projectId: string) =>
     callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/call-config`),
   setCallConfig: (projectId: string, payload: object) =>
