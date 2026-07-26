@@ -168,6 +168,21 @@ organizations whose procurement process includes a security audit.
 | `callscore/` | CallScore backend + mobile app (Expo) |
 | `docs/constitution/` | Platform constitution — philosophy, architecture, Ada bible |
 
+## How to communicate with the founder
+
+The founder understands the product deeply (especially FieldScore) but
+is not an engineer. When reporting work or explaining decisions:
+
+- Lead with what it means for the product and the user, not how it
+  works inside.
+- Use FieldScore comparisons ("this is like how FieldScore does X").
+- Plain language. No jargon without a one-line translation. Never
+  assume terms like WebSocket, codec, schema, or middleware are known.
+- Keep the technical detail available but at the bottom, clearly
+  optional.
+- When asking the founder to decide something, present it as a product
+  choice with trade-offs in plain words — never as a technical choice.
+
 ## How to work
 
 When given a task:
