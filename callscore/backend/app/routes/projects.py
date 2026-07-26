@@ -140,6 +140,47 @@ async def import_questionnaire(project_id: str, file: UploadFile, db: Session = 
     }
 
 
+class QuestionIn(BaseModel):
+    question_key: str | None = None
+    question_text: str
+    question_type: str = "text"  # text | numeric | select_one | select_multiple
+    is_required: bool = True
+    choices: list | None = None  # [{name, label}] for the select types
+
+
+class QuestionnaireIn(BaseModel):
+    items: list[QuestionIn]
+
+
+@router.put("/{project_id}/questionnaire")
+def set_questionnaire(project_id: str, payload: QuestionnaireIn, db: Session = Depends(get_db)):
+    """The no-XLSForm path: the dashboard's call-mode question editor
+    saves the whole questionnaire as JSON. Full replace, same as re-import
+    (Part 8.7 — setup should feel simple, not like configuring software)."""
+    cleaned = [q for q in payload.items if q.question_text.strip()]
+    if not cleaned:
+        raise HTTPException(status_code=422, detail="At least one question is required.")
+
+    db.query(models.QuestionnaireItem).filter(
+        models.QuestionnaireItem.project_id == project_id
+    ).delete()
+    for order, q in enumerate(cleaned, start=1):
+        qtype = q.question_type if q.question_type in (
+            "text", "numeric", "select_one", "select_multiple") else "text"
+        db.add(models.QuestionnaireItem(
+            project_id=project_id,
+            question_key=(q.question_key or "").strip() or f"q{order}",
+            question_text=q.question_text.strip(),
+            is_required=q.is_required,
+            skip_logic=None,
+            sort_order=order,
+            question_type=qtype,
+            choices=q.choices if qtype in ("select_one", "select_multiple") else None,
+        ))
+    db.commit()
+    return {"project_id": project_id, "saved": len(cleaned)}
+
+
 @router.get("/{project_id}/questionnaire")
 def get_questionnaire(project_id: str, db: Session = Depends(get_db)):
     """Drives the enumerator app's Glance-Confirm rows and the Question

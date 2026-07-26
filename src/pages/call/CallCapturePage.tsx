@@ -49,11 +49,16 @@ function useRecorder(onChunk?: (chunk: Blob) => void) {
   const stop = () => new Promise<Blob>((resolve, reject) => {
     const rec = recorderRef.current;
     if (!rec) return reject(new Error('not recording'));
-    rec.onstop = () => {
-      rec.stream.getTracks().forEach((t) => t.stop());
+    const finish = () => {
+      try { rec.stream.getTracks().forEach((t) => t.stop()); } catch { /* already stopped */ }
       resolve(new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' }));
     };
-    rec.stop();
+    // Already stopped (double-tap, tab suspension): resolve with what we
+    // have instead of waiting forever for an onstop that never fires.
+    if (rec.state === 'inactive') return finish();
+    const safety = setTimeout(finish, 5000);
+    rec.onstop = () => { clearTimeout(safety); finish(); };
+    try { rec.stop(); } catch { clearTimeout(safety); finish(); }
   });
   return { start, stop };
 }
@@ -129,6 +134,7 @@ export default function CallCapturePage() {
   // (amber), fields the enumerator has touched (AI never overwrites), and
   // the streaming socket itself.
   const [liveState, setLiveState] = useState<'off' | 'live' | 'unavailable'>('off');
+  const [uploadStep, setUploadStep] = useState('');
   const [aiSuggested, setAiSuggested] = useState<Record<string, number>>({}); // key -> confidence
   const touchedRef = useRef<Set<string>>(new Set());
   const liveWsRef = useRef<WebSocket | null>(null);
@@ -283,8 +289,10 @@ export default function CallCapturePage() {
     setError(null);
     closeLiveSocket();
     try {
+      setUploadStep('Finishing the recording…');
       const audioBlob = await audioRec.stop();
       const user = JSON.parse(localStorage.getItem('fs_user') || '{}');
+      setUploadStep('Saving the interview…');
       // Recreate idempotently in case the at-start create failed.
       await callScoreApi.createSession({
         id: sessionId, org_id: user.org || '', project_id: projectId,
@@ -292,8 +300,11 @@ export default function CallCapturePage() {
         respondent_id: respondent!.id, started_at: startedAt, consent_captured: true,
       });
       await callScoreApi.stopSession(sessionId, { stopped_at: new Date().toISOString() });
+      setUploadStep('Uploading the consent recording…');
       const consentRef = (await callScoreApi.uploadRecording(sessionId, 'consent_recording', consentBlob)).data.storage_ref;
+      setUploadStep('Uploading the interview recording…');
       const audioRef = (await callScoreApi.uploadRecording(sessionId, 'audio', audioBlob)).data.storage_ref;
+      setUploadStep('Finalising…');
       const artifacts: object[] = [
         { artifact_type: 'consent_recording', storage_ref: consentRef },
         { artifact_type: 'audio', storage_ref: audioRef },
@@ -494,7 +505,11 @@ export default function CallCapturePage() {
         </div>
       )}
 
-      {stage === 'uploading' && <p style={{ fontSize: 13, color: '#6B7280' }}>Uploading evidence bundle…</p>}
+      {stage === 'uploading' && (
+        <p style={{ fontSize: 13, color: '#6B7280' }}>
+          {uploadStep || 'Uploading…'} <span style={{ color: '#9CA3AF' }}>(this takes under a minute — if it fails you can retry, nothing is lost)</span>
+        </p>
+      )}
 
       {stage === 'done' && (
         <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 16 }}>

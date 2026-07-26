@@ -428,7 +428,9 @@ export const webhooksApi = {
 const CALLSCORE_BASE_URL =
   process.env.REACT_APP_CALLSCORE_API_URL || 'https://researchos-dashboard-production.up.railway.app';
 
-const callApi = axios.create({ baseURL: CALLSCORE_BASE_URL });
+// 2-minute ceiling: a hung request must surface as a retryable error,
+// never an infinite spinner (the capture flow shows per-step progress).
+const callApi = axios.create({ baseURL: CALLSCORE_BASE_URL, timeout: 120000 });
 
 callApi.interceptors.request.use((config) => {
   const token = localStorage.getItem('fs_token');
@@ -453,6 +455,8 @@ export const callScoreApi = {
     }),
   getQuestionnaire: (projectId: string) =>
     callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`),
+  setQuestionnaire: (projectId: string, items: object[]) =>
+    callApi.put(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`, { items }),
   getCallConfig: (projectId: string) =>
     callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/call-config`),
   setCallConfig: (projectId: string, payload: object) =>
