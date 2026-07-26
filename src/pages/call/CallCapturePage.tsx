@@ -30,14 +30,19 @@ const FALLBACK_SCRIPT =
   'Your answers are confidential and you may stop at any time. ' +
   'Do I have your permission to record and begin?';
 
-function useRecorder() {
+function useRecorder(onChunk?: (chunk: Blob) => void) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const start = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     chunksRef.current = [];
     const rec = new MediaRecorder(stream);
-    rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+    rec.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        chunksRef.current.push(e.data);
+        onChunk?.(e.data); // same chunks, second consumer: live transcription
+      }
+    };
     rec.start(1000);
     recorderRef.current = rec;
   };
@@ -70,8 +75,19 @@ export default function CallCapturePage() {
   const [error, setError] = useState<string | null>(null);
   const [usingDefaultScript, setUsingDefaultScript] = useState(true);
   const [elapsed, setElapsed] = useState(0);
+  // Live Glance-Confirm state: AI-suggested answers awaiting confirmation
+  // (amber), fields the enumerator has touched (AI never overwrites), and
+  // the streaming socket itself.
+  const [liveState, setLiveState] = useState<'off' | 'live' | 'unavailable'>('off');
+  const [aiSuggested, setAiSuggested] = useState<Record<string, number>>({}); // key -> confidence
+  const touchedRef = useRef<Set<string>>(new Set());
+  const liveWsRef = useRef<WebSocket | null>(null);
+  const [sttLanguage, setSttLanguage] = useState('en');
   const consentRec = useRecorder();
-  const audioRec = useRecorder();
+  const audioRec = useRecorder((chunk) => {
+    const s = liveWsRef.current;
+    if (s && s.readyState === WebSocket.OPEN) s.send(chunk);
+  });
 
   useEffect(() => {
     if (!projectId) return;
@@ -84,9 +100,54 @@ export default function CallCapturePage() {
     callScoreApi.getCallConfig(projectId)
       .then((r) => {
         if (r.data.consent_script) { setScript(r.data.consent_script); setUsingDefaultScript(false); }
+        setSttLanguage(r.data.stt_language || r.data.consent_language || 'en');
       })
       .catch(() => undefined);
   }, [projectId]);
+
+  // Live transcription socket — opens with the interview, dies with it.
+  // Every failure path degrades to the plain manual flow; the recording
+  // itself is never touched (it stays client-side until Stop).
+  const openLiveSocket = () => {
+    if (!projectId) return;
+    try {
+      const base = (process.env.REACT_APP_CALLSCORE_API_URL ||
+        'https://researchos-dashboard-production.up.railway.app').replace(/^http/, 'ws');
+      const token = localStorage.getItem('fs_token') || '';
+      const socket = new WebSocket(
+        `${base}/api/v1/live/transcribe?project_id=${encodeURIComponent(projectId)}` +
+        `&language=${encodeURIComponent(sttLanguage)}&token=${encodeURIComponent(token)}`,
+      );
+      socket.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'status') {
+            setLiveState(msg.state === 'live' ? 'live' : 'unavailable');
+          } else if (msg.type === 'answers') {
+            for (const a of msg.answers || []) {
+              const key = a.question_key as string;
+              if (touchedRef.current.has(key)) continue; // human input wins, always
+              setAnswers((prev) => (prev[key] || '').trim() && !aiSuggestedRef.current[key]
+                ? prev : { ...prev, [key]: a.answer });
+              setAiSuggested((prev) => ({ ...prev, [key]: a.confidence }));
+            }
+          }
+        } catch { /* non-JSON frame — ignore */ }
+      };
+      socket.onerror = () => setLiveState('unavailable');
+      socket.onclose = () => { if (liveWsRef.current === socket) liveWsRef.current = null; };
+      liveWsRef.current = socket;
+    } catch {
+      setLiveState('unavailable');
+    }
+  };
+  const aiSuggestedRef = useRef<Record<string, number>>({});
+  useEffect(() => { aiSuggestedRef.current = aiSuggested; }, [aiSuggested]);
+  const closeLiveSocket = () => {
+    liveWsRef.current?.close();
+    liveWsRef.current = null;
+    setLiveState('off');
+  };
 
   // A refresh or closed tab mid-interview loses the recording entirely —
   // the browser flow has no offline queue (by design), so guard the exit.
@@ -109,9 +170,11 @@ export default function CallCapturePage() {
 
   const startInterview = async () => {
     if (!respondent || !projectId || !consentBlob) return;
+    openLiveSocket(); // open first so early chunks stream too
     try {
       await audioRec.start();
     } catch {
+      closeLiveSocket();
       setError('Microphone access is required. Allow it and try again.');
       return;
     }
@@ -143,6 +206,7 @@ export default function CallCapturePage() {
     }
     setStage('uploading');
     setError(null);
+    closeLiveSocket();
     try {
       const audioBlob = await audioRec.stop();
       const user = JSON.parse(localStorage.getItem('fs_user') || '{}');
@@ -242,6 +306,11 @@ export default function CallCapturePage() {
               {String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}
             </span>
             {sessionId && <span style={{ fontWeight: 400, color: '#6B7280' }}>Link code: {sessionId.slice(-6).toUpperCase()}</span>}
+            {liveState === 'live' && (
+              <span style={{ fontWeight: 600, fontSize: 11, color: '#15803D', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 999, padding: '2px 8px' }}>
+                🎧 Live listening — answers pre-fill as they're heard
+              </span>
+            )}
             <span style={{ marginLeft: 'auto', fontWeight: 400, color: '#6B7280', fontSize: 12 }}>
               {questions.length > 0 && `${questions.filter((q) => (answers[q.question_key] || '').trim()).length}/${questions.length} answered`}
             </span>
@@ -258,12 +327,25 @@ export default function CallCapturePage() {
           )}
           {questions.map((q) => {
             const val = answers[q.question_key] || '';
-            const setVal = (v: string) => setAnswers((a) => ({ ...a, [q.question_key]: v }));
+            const suggested = aiSuggested[q.question_key] !== undefined && !touchedRef.current.has(q.question_key);
+            const setVal = (v: string) => {
+              touchedRef.current.add(q.question_key); // human input wins from now on
+              setAiSuggested((prev) => { const { [q.question_key]: _gone, ...rest } = prev; return rest; });
+              setAnswers((a) => ({ ...a, [q.question_key]: v }));
+            };
+            const confirmSuggestion = () => {
+              touchedRef.current.add(q.question_key);
+              setAiSuggested((prev) => { const { [q.question_key]: _gone, ...rest } = prev; return rest; });
+            };
             const hasChoices = (q.question_type === 'select_one' || q.question_type === 'select_multiple') && (q.choices?.length || 0) > 0;
             const multi = q.question_type === 'select_multiple';
             const selected = new Set(val.split(',').map((s) => s.trim()).filter(Boolean));
             return (
-              <div key={q.question_key} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+              <div key={q.question_key} style={{
+                background: suggested ? '#FFFBEB' : '#fff',
+                border: suggested ? '1px solid #FDE68A' : '1px solid #E5E7EB',
+                borderRadius: 8, padding: 12, marginBottom: 10, transition: 'all 220ms ease',
+              }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 6 }}>
                   {q.question_text}{q.is_required && <span style={{ color: '#B91C1C' }}> *</span>}
                   {multi && <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: 11 }}> (select all that apply)</span>}
@@ -301,6 +383,14 @@ export default function CallCapturePage() {
                     onChange={(e) => setVal(e.target.value)} />
                 ) : (
                   <input style={inputStyle} value={val} onChange={(e) => setVal(e.target.value)} />
+                )}
+                {suggested && (
+                  <button type="button" onClick={confirmSuggestion} style={{
+                    marginTop: 8, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 700,
+                    color: '#B45309', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                  }}>
+                    🎧 Heard live ({aiSuggested[q.question_key]}%) — tap to confirm ✓
+                  </button>
                 )}
               </div>
             );

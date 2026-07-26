@@ -25,7 +25,7 @@ if os.getenv("SENTRY_DSN"):
 
 from app.core.auth import require_auth, require_staff
 from app.routes import (
-    ada, agent_interviews, backchecks, feedback, interviews, projects,
+    ada, agent_interviews, backchecks, feedback, interviews, live, projects,
     respondents, sync, scorecards, trust,
 )
 
@@ -91,6 +91,9 @@ app.include_router(backchecks.router, prefix="/api/v1/backchecks", tags=["backch
 # Agent mode (Bible Part 12) — optional, doubly gated; same per-route auth split.
 app.include_router(agent_interviews.router, prefix="/api/v1/agent-interviews",
                    tags=["agent-mode"])
+# Live transcription WebSocket (laptop Glance-Confirm pre-fill). Auth is
+# inside the route — browsers can't set headers on a WebSocket.
+app.include_router(live.router, prefix="/api/v1/live", tags=["live"])
 
 
 @app.get("/health")
