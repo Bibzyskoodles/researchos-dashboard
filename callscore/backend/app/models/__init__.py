@@ -90,6 +90,10 @@ class QuestionnaireItem(Base):
     is_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     skip_logic: Mapped[Optional[dict]] = mapped_column(JSONB)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # text | numeric | select_one | select_multiple (XLSForm-derived);
+    # choices = [{name, label}] for the select types.
+    question_type: Mapped[str] = mapped_column(Text, nullable=False, default="text", server_default="text")
+    choices: Mapped[Optional[list]] = mapped_column(JSONB)
 
 
 class EvidenceArtifact(Base):

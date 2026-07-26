@@ -17,7 +17,12 @@ import { callScoreApi } from '../../services/api';
 const BLUE = '#2463EB';
 
 interface Respondent { id: string; display_name: string | null; phone_number: string | null }
-interface QItem { question_key: string; question_text: string; is_required: boolean }
+interface QChoice { name: string; label: string }
+interface QItem {
+  question_key: string; question_text: string; is_required: boolean;
+  question_type?: 'text' | 'numeric' | 'select_one' | 'select_multiple';
+  choices?: QChoice[] | null;
+}
 
 const FALLBACK_SCRIPT =
   'Hello, my name is [your name] and I am calling on behalf of [organisation]. ' +
@@ -251,15 +256,55 @@ export default function CallCapturePage() {
               be captured here. Import a questionnaire in the Design stage.
             </p>
           )}
-          {questions.map((q) => (
-            <div key={q.question_key} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 12, marginBottom: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 6 }}>
-                {q.question_text}{q.is_required && <span style={{ color: '#B91C1C' }}> *</span>}
+          {questions.map((q) => {
+            const val = answers[q.question_key] || '';
+            const setVal = (v: string) => setAnswers((a) => ({ ...a, [q.question_key]: v }));
+            const hasChoices = (q.question_type === 'select_one' || q.question_type === 'select_multiple') && (q.choices?.length || 0) > 0;
+            const multi = q.question_type === 'select_multiple';
+            const selected = new Set(val.split(',').map((s) => s.trim()).filter(Boolean));
+            return (
+              <div key={q.question_key} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 6 }}>
+                  {q.question_text}{q.is_required && <span style={{ color: '#B91C1C' }}> *</span>}
+                  {multi && <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: 11 }}> (select all that apply)</span>}
+                </div>
+                {hasChoices ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {q.choices!.map((c) => {
+                      const on = multi ? selected.has(c.name) : val === c.name;
+                      return (
+                        <button
+                          key={c.name} type="button"
+                          onClick={() => {
+                            if (multi) {
+                              const next = new Set(selected);
+                              if (next.has(c.name)) next.delete(c.name); else next.add(c.name);
+                              setVal(Array.from(next).join(', '));
+                            } else {
+                              setVal(on ? '' : c.name);
+                            }
+                          }}
+                          style={{
+                            fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: on ? 700 : 500,
+                            padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
+                            border: on ? `1.5px solid ${BLUE}` : '1px solid #E5E7EB',
+                            background: on ? '#EFF6FF' : '#fff', color: on ? BLUE : '#374151',
+                          }}
+                        >
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : q.question_type === 'numeric' ? (
+                  <input style={inputStyle} type="number" inputMode="decimal" value={val}
+                    onChange={(e) => setVal(e.target.value)} />
+                ) : (
+                  <input style={inputStyle} value={val} onChange={(e) => setVal(e.target.value)} />
+                )}
               </div>
-              <input style={inputStyle} value={answers[q.question_key] || ''}
-                onChange={(e) => setAnswers((a) => ({ ...a, [q.question_key]: e.target.value }))} />
-            </div>
-          ))}
+            );
+          })}
           <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 12, marginBottom: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 6 }}>Number dialled (from your phone's call screen)</div>
             <input style={inputStyle} value={callNumber} onChange={(e) => setCallNumber(e.target.value)} placeholder="+234…" />

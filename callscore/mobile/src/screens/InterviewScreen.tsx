@@ -191,6 +191,8 @@ export default function InterviewScreen({
           required={q.is_required}
           value={answers[q.question_key] || ''}
           state="manual"
+          questionType={q.question_type}
+          choices={q.choices}
           onChange={(v) => setAnswers((a) => ({ ...a, [q.question_key]: v }))}
         />
       ))}

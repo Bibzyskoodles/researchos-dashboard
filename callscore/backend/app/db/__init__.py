@@ -31,6 +31,17 @@ def get_engine():
         # semantics via checkfirst=True).
         import app.models  # noqa: F401 — ensure all models are registered
         Base.metadata.create_all(_engine, checkfirst=True)
+        # create_all never ALTERs existing tables — columns added after a
+        # table first shipped need explicit idempotent statements.
+        from sqlalchemy import text
+        with _engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE questionnaire_items "
+                "ADD COLUMN IF NOT EXISTS question_type TEXT NOT NULL DEFAULT 'text'"
+            ))
+            conn.execute(text(
+                "ALTER TABLE questionnaire_items ADD COLUMN IF NOT EXISTS choices JSONB"
+            ))
     return _engine
 
 

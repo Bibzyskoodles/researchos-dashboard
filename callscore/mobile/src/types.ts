@@ -10,6 +10,8 @@ export interface QuestionnaireItem {
   question_text: string;
   is_required: boolean;
   sort_order: number;
+  question_type?: 'text' | 'numeric' | 'select_one' | 'select_multiple';
+  choices?: { name: string; label: string }[] | null;
 }
 
 // One Start/Stop cycle — the core unit (Bible 5.1). Stored locally first

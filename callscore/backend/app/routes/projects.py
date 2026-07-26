@@ -107,6 +107,8 @@ async def import_questionnaire(project_id: str, file: UploadFile, db: Session = 
             is_required=q.is_required,
             skip_logic=q.skip_logic,
             sort_order=q.sort_order,
+            question_type=q.question_type,
+            choices=q.choices,
         )
         for q in questions
     ]
@@ -157,6 +159,8 @@ def get_questionnaire(project_id: str, db: Session = Depends(get_db)):
                 "is_required": i.is_required,
                 "skip_logic": i.skip_logic,
                 "sort_order": i.sort_order,
+                "question_type": i.question_type,
+                "choices": i.choices,
             }
             for i in items
         ],
