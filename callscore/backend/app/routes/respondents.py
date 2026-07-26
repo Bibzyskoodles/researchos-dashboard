@@ -4,7 +4,8 @@ encrypt at rest per docs/ARCHITECTURE_BIBLE.md Part 9.
 project_id is a FieldScore project id (TEXT, PROJ-…) — respondents are a
 Call-specific table attached to existing FieldScore projects
 (docs/RECONCILIATION.md §2)."""
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app import models
@@ -13,6 +14,48 @@ from app.db import get_db
 from app.services import pii
 
 router = APIRouter()
+
+
+class RespondentIn(BaseModel):
+    display_name: str
+    phone_number: str | None = None
+
+
+@router.post("/{project_id}")
+def create_respondent(
+    project_id: str,
+    payload: RespondentIn,
+    db: Session = Depends(get_db),
+    auth: dict = Depends(require_auth),
+):
+    """Add one respondent from the app — the no-CSV path. Same encryption
+    rule as import: no CONSENT_ENCRYPTION_KEY, no plaintext phone stored."""
+    import uuid
+
+    name = payload.display_name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="A name is required.")
+    phone = (payload.phone_number or "").strip()
+    if phone and not pii.encryption_available():
+        raise HTTPException(
+            status_code=503,
+            detail="Phone numbers cannot be stored: encryption is not configured.",
+        )
+    r = models.Respondent(
+        id=f"RESP-{uuid.uuid4().hex[:10].upper()}",
+        org_id=auth.get("org", ""),
+        project_id=project_id,
+        display_name=name,
+        phone_number=pii.encrypt_pii(phone) if phone else None,
+    )
+    db.add(r)
+    db.commit()
+    return {
+        "id": r.id,
+        "display_name": r.display_name,
+        "phone_number": phone or None,
+        "metadata": None,
+    }
 
 
 @router.get("/{project_id}")

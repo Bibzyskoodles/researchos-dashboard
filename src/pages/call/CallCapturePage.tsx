@@ -58,6 +58,56 @@ function useRecorder(onChunk?: (chunk: Blob) => void) {
   return { start, stop };
 }
 
+function AddRespondentForm({ projectId, onAdded }: { projectId: string; onAdded: (r: Respondent) => void }) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const add = async () => {
+    if (!name.trim()) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await callScoreApi.createRespondent(projectId, name.trim(), phone.trim() || undefined);
+      onAdded(res.data);
+      setName('');
+      setPhone('');
+    } catch {
+      setErr('Could not add — check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div style={{ background: '#F8FAFF', border: '1px solid #DBE5F8', borderRadius: 8, padding: 12, marginBottom: 6 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#111827', marginBottom: 8 }}>＋ Add someone to call</div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <input
+          value={name} onChange={(e) => setName(e.target.value)} placeholder="Name"
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+          style={{ flex: 2, minWidth: 140, fontFamily: 'Inter, sans-serif', fontSize: 13, padding: 9, border: '1px solid #E5E7EB', borderRadius: 6 }}
+        />
+        <input
+          value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (optional)"
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+          style={{ flex: 1, minWidth: 120, fontFamily: 'Inter, sans-serif', fontSize: 13, padding: 9, border: '1px solid #E5E7EB', borderRadius: 6 }}
+        />
+        <button
+          onClick={add} disabled={busy || !name.trim()}
+          style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#fff',
+            background: busy || !name.trim() ? '#93B4F5' : BLUE, border: 'none', borderRadius: 6,
+            padding: '9px 16px', cursor: busy || !name.trim() ? 'default' : 'pointer',
+          }}
+        >
+          {busy ? 'Adding…' : 'Add'}
+        </button>
+      </div>
+      {err && <p style={{ fontSize: 12, color: '#B91C1C', margin: '8px 0 0' }}>{err}</p>}
+    </div>
+  );
+}
+
 export default function CallCapturePage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
@@ -278,7 +328,15 @@ export default function CallCapturePage() {
 
       {stage === 'pick' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {respondents.length === 0 && <p style={{ fontSize: 13, color: '#6B7280' }}>No respondents on this project yet.</p>}
+          <AddRespondentForm
+            projectId={projectId!}
+            onAdded={(r) => setRespondents((prev) => [r, ...prev])}
+          />
+          {respondents.length === 0 && (
+            <p style={{ fontSize: 13, color: '#6B7280' }}>
+              No one to call yet — add your first respondent above.
+            </p>
+          )}
           {respondents.map((r) => (
             <button key={r.id} onClick={() => { setRespondent(r); setStage('consent'); }}
               style={{ textAlign: 'left', cursor: 'pointer', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px', fontFamily: 'Inter, sans-serif' }}>

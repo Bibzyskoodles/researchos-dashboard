@@ -447,6 +447,10 @@ export const callScoreApi = {
   // Laptop-as-Device-2 capture flow (browser MediaRecorder).
   listRespondents: (projectId: string) =>
     callApi.get(`/api/v1/respondents/${encodeURIComponent(projectId)}`),
+  createRespondent: (projectId: string, displayName: string, phoneNumber?: string) =>
+    callApi.post(`/api/v1/respondents/${encodeURIComponent(projectId)}`, {
+      display_name: displayName, phone_number: phoneNumber || null,
+    }),
   getQuestionnaire: (projectId: string) =>
     callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`),
   getCallConfig: (projectId: string) =>
