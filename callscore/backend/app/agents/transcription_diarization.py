@@ -54,7 +54,10 @@ class TranscriptionDiarizationAgent(BaseAgent):
             description=(
                 f"Transcribed via {result['provider']}: {len(result['segments'])} segments, "
                 f"{len(result['text'].split())} words, "
-                f"{len(speakers) or 'no'} labelled speaker(s)."
+                f"{len(speakers) or 'no'} labelled speaker(s). "
+                f"Interview language: {context.get('interview_language') or 'en'}; "
+                f"engine order attempted: {', '.join(context.get('stt_order') or []) or 'default'}; "
+                f"translated for analysis: {'yes' if result.get('translated_segments') or result.get('translated_text') else 'no'}."
             ),
             confidence=0,  # informational — never moves a score
             raw_output=result,

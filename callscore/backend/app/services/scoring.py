@@ -56,6 +56,19 @@ _INFORMATIONAL = {"transcript", "extracted_answer", "consent_transcript", "voice
 # is exactly the injustice this platform exists to end.
 _MEASUREMENT_LIMITS = {"transcription_disagreement"}
 
+# Findings whose evidence IS the transcript. When the transcript itself is
+# unreliable (engines in major disagreement — code-switched Pidgin/Yoruba
+# beyond current engine coverage), these are built on sand: they stay
+# visible as tentative evidence but may not deduct a single point. The
+# founder's Pidgin test made this concrete: a garbled transcript drove
+# compliance to 0 for an interview conducted correctly.
+_TRANSCRIPT_DERIVED = {
+    "missing_question", "answer_mismatch", "internal_contradiction",
+    "scripted_exchange", "low_engagement", "pacing", "rushed_segment",
+    "interviewer_dominance", "coaching_indicator", "third_party_voice",
+    "similarity", "consent_mismatch",
+}
+
 
 @dataclass
 class SynthesisResult:
@@ -131,6 +144,13 @@ def synthesize(
         f for f in findings
         if f.finding_type not in _INFORMATIONAL and f.finding_type not in _MEASUREMENT_LIMITS
     ]
+    if measurement_limited:
+        # Unreliable transcript => transcript-derived findings carry no
+        # score weight. Audio-, timing- and typed-answer-based checks
+        # (short_interview, trap_failed, single_voice, consent_not_verified,
+        # straightlining, audio_quality) still apply — their evidence
+        # doesn't depend on the transcript being right.
+        findings = [f for f in findings if f.finding_type not in _TRANSCRIPT_DERIVED]
     for f in findings:
         dim, weight = _DIMENSION_WEIGHTS.get(f.finding_type, ("quality", 0.05))
         scores[dim] -= weight * f.confidence
