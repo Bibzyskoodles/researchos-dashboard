@@ -49,7 +49,14 @@ def _load_questionnaire(project_id: str) -> list[dict]:
             .all()
         )
         return [
-            {"question_key": i.question_key, "question_text": i.question_text}
+            {
+                "question_key": i.question_key,
+                "question_text": i.question_text,
+                "question_type": i.question_type,
+                # option names so extraction can answer in the exact
+                # vocabulary the choice buttons use
+                "choices": [c.get("name") for c in (i.choices or [])] or None,
+            }
             for i in items
         ]
 
@@ -65,7 +72,12 @@ def _extract(questions: list[dict], transcript: str) -> list[dict]:
         "You extract questionnaire answers from a LIVE, PARTIAL research "
         "interview transcript. Extract only answers the respondent has "
         "clearly given so far — skip anything not yet asked or answered, "
-        "never infer. Respond with JSON: {\"answers\": [{\"question_key\": "
+        "never infer. For questions that list 'choices', the answer MUST "
+        "be exactly one of those choice values (or several, comma-"
+        "separated, for select_multiple) — map what was said onto the "
+        "closest choice; skip the question if nothing said maps clearly. "
+        "For numeric questions answer with just the number. "
+        "Respond with JSON: {\"answers\": [{\"question_key\": "
         "string, \"answer\": string, \"confidence\": number 0-100}]}.",
         f"QUESTIONNAIRE:\n{json.dumps(questions)[:6000]}\n\n"
         f"TRANSCRIPT SO FAR:\n{transcript[-16000:]}",

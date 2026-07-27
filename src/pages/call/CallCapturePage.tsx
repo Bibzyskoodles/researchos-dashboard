@@ -94,6 +94,35 @@ function useRecorder(onChunk?: (chunk: Blob) => void) {
   return { start, stop, getLevel };
 }
 
+/** Snap an AI-heard answer onto the question's actual controls: choice
+    answers match option names/labels (case-insensitive, multi via commas),
+    numeric answers keep just the number. Free text passes through. */
+function normalizeAnswer(q: QItem, raw: string): string {
+  const answer = raw.trim();
+  if (!answer) return answer;
+  if ((q.question_type === 'select_one' || q.question_type === 'select_multiple') && q.choices?.length) {
+    const match = (token: string): string | null => {
+      const t = token.trim().toLowerCase();
+      if (!t) return null;
+      const hit = q.choices!.find(
+        (c) => c.name.toLowerCase() === t || c.label.toLowerCase() === t
+          || c.label.toLowerCase().includes(t) || t.includes(c.label.toLowerCase()),
+      );
+      return hit ? hit.name : null;
+    };
+    if (q.question_type === 'select_multiple') {
+      const names = answer.split(/[,;]/).map(match).filter(Boolean) as string[];
+      return names.length ? Array.from(new Set(names)).join(', ') : answer;
+    }
+    return match(answer) ?? answer;
+  }
+  if (q.question_type === 'numeric') {
+    const num = answer.match(/-?\d+(\.\d+)?/);
+    return num ? num[0] : answer;
+  }
+  return answer;
+}
+
 /** Live mic meter: green bars while sound is coming in, a hard warning
     after ~5s of silence. Twice now an interview died at upload with an
     empty recording — the mic being dead must be visible in real time. */
@@ -273,8 +302,10 @@ export default function CallCapturePage() {
             for (const a of msg.answers || []) {
               const key = a.question_key as string;
               if (touchedRef.current.has(key)) continue; // human input wins, always
+              const q = questionsRef.current.find((x) => x.question_key === key);
+              const value = q ? normalizeAnswer(q, String(a.answer ?? '')) : String(a.answer ?? '');
               setAnswers((prev) => (prev[key] || '').trim() && !aiSuggestedRef.current[key]
-                ? prev : { ...prev, [key]: a.answer });
+                ? prev : { ...prev, [key]: value });
               setAiSuggested((prev) => ({ ...prev, [key]: a.confidence }));
             }
           }
@@ -301,6 +332,8 @@ export default function CallCapturePage() {
   };
   const aiSuggestedRef = useRef<Record<string, number>>({});
   useEffect(() => { aiSuggestedRef.current = aiSuggested; }, [aiSuggested]);
+  const questionsRef = useRef<QItem[]>([]);
+  useEffect(() => { questionsRef.current = questions; }, [questions]);
   const closeLiveSocket = () => {
     liveDesiredRef.current = false;
     if (liveRetryTimerRef.current) { clearTimeout(liveRetryTimerRef.current); liveRetryTimerRef.current = null; }

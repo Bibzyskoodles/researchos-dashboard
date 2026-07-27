@@ -16,6 +16,34 @@ import { LocalSession, QuestionnaireItem, Respondent } from '../types';
 
 const QUESTIONNAIRE_CACHE = 'cs_questionnaire_cache';
 
+// Snap an AI-heard answer onto the question's actual controls: choice
+// answers match option names/labels; numeric keeps just the number.
+function normalizeAnswer(q: QuestionnaireItem, raw: string): string {
+  const answer = raw.trim();
+  if (!answer) return answer;
+  if ((q.question_type === 'select_one' || q.question_type === 'select_multiple') && q.choices?.length) {
+    const match = (token: string): string | null => {
+      const t = token.trim().toLowerCase();
+      if (!t) return null;
+      const hit = q.choices!.find(
+        (c) => c.name.toLowerCase() === t || c.label.toLowerCase() === t
+          || c.label.toLowerCase().includes(t) || t.includes(c.label.toLowerCase()),
+      );
+      return hit ? hit.name : null;
+    };
+    if (q.question_type === 'select_multiple') {
+      const names = answer.split(/[,;]/).map(match).filter(Boolean) as string[];
+      return names.length ? Array.from(new Set(names)).join(', ') : answer;
+    }
+    return match(answer) ?? answer;
+  }
+  if (q.question_type === 'numeric') {
+    const num = answer.match(/-?\d+(\.\d+)?/);
+    return num ? num[0] : answer;
+  }
+  return answer;
+}
+
 // Live pre-fill needs a progressively-readable recording, and the file IS
 // the evidence recording (one recorder, tailed for live). Android first —
 // that's what enumerators carry: AMR-WB, the wideband telephony codec
@@ -90,6 +118,7 @@ export default function InterviewScreen({
   const touchedRef = useRef<Set<string>>(new Set());
   const liveRef = useRef<LiveSession | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const questionsRef = useRef<QuestionnaireItem[]>(FALLBACK_QUESTIONS);
 
   // Real questionnaire, cached for offline days; fallback keeps the flow
   // usable before the project's XLSForm import has happened.
@@ -101,6 +130,7 @@ export default function InterviewScreen({
         const data = await callApi.getQuestionnaire(projectId);
         if (data.items.length > 0) {
           setQuestions(data.items);
+          questionsRef.current = data.items;
           await AsyncStorage.setItem(`${QUESTIONNAIRE_CACHE}:${projectId}`, JSON.stringify(data.items));
         }
       } catch {
@@ -128,10 +158,12 @@ export default function InterviewScreen({
           onAnswers: (list) => {
             for (const a of list) {
               if (touchedRef.current.has(a.question_key)) continue; // human wins
+              const q = questionsRef.current.find((x) => x.question_key === a.question_key);
+              const value = q ? normalizeAnswer(q, String(a.answer ?? '')) : String(a.answer ?? '');
               setAnswers((prev) =>
                 (prev[a.question_key] || '').trim() && aiSuggested[a.question_key] === undefined
                   ? prev
-                  : { ...prev, [a.question_key]: a.answer });
+                  : { ...prev, [a.question_key]: value });
               setAiSuggested((prev) => ({ ...prev, [a.question_key]: a.confidence }));
             }
           },
