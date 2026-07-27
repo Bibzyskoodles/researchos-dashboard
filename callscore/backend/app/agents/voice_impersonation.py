@@ -61,10 +61,17 @@ class VoiceImpersonationAgent(BaseAgent):
 
         import httpx
 
+        # The decoder picks its parser from this mimetype — a wrong label
+        # (webm bytes read as mp3) makes the check silently unavailable.
+        suffix = audio_path.suffix.lower()
+        mime = {
+            ".webm": "audio/webm", ".wav": "audio/wav", ".m4a": "audio/mp4",
+            ".mp3": "audio/mpeg", ".ogg": "audio/ogg", ".mp4": "audio/mp4",
+        }.get(suffix, "audio/webm")
         resp = httpx.post(
             f"{FIELDSCORE_URL}/api/internal/acoustic-voice-check",
             headers={"Authorization": f"Bearer {token}"},
-            files={"file": (audio_path.name, data, "audio/mpeg")},
+            files={"file": (audio_path.name, data, mime)},
             timeout=120,
         )
         if resp.status_code != 200:
