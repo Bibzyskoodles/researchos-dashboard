@@ -47,7 +47,7 @@ _AUTHENTICITY_ESCALATORS = {"respondent_mismatch", "voice_mismatch", "similarity
 # humans and downstream agents but never move a score or the confidence
 # average — Design Principle 1 cuts both ways: no score without evidence,
 # and no score movement from non-evidence.
-_INFORMATIONAL = {"transcript", "extracted_answer", "consent_transcript", "voice_diversity_ok"}
+_INFORMATIONAL = {"transcript", "extracted_answer", "consent_transcript", "voice_diversity_ok", "check_unavailable"}
 
 
 @dataclass

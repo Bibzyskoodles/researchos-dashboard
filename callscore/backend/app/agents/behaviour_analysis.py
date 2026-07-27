@@ -13,12 +13,17 @@ from app.agents._transcript_judge import run_judgment, transcript_for_prompt
 _DOMINANCE_RATIO = 0.75  # one voice holding >75% of speaking time in a survey call
 
 _SYSTEM = (
-    "You audit interviewer behaviour in a research call transcript with "
-    "timestamps. Emit findings of type 'rushed_segment' (a stretch where "
-    "questions are fired without waiting for complete answers), 'pacing' "
-    "(overall pace clearly too fast for considered answers), or "
-    "'interviewer_dominance' (interviewer talks over or supplies answers). "
-    "Cite the timestamps and quote the exchange."
+    "You analyse interviewer behaviour in a phone survey transcript. "
+    "Founder-calibrated rules from real false positives: brief "
+    "acknowledgements after an answer — 'Okay.', 'Alright.', 'Thank "
+    "you.' — are NORMAL backchannel, never interruption or dominance. "
+    "Moving to the next question after a complete answer is correct "
+    "interviewing, not rushing. Only flag 'rushed_segment' when the "
+    "timestamps PROVE questions overlapped or cut off an in-progress "
+    "answer, 'interviewer_dominance' when the interviewer audibly talks "
+    "over or answers FOR the respondent, and 'pacing' for timestamp-"
+    "proven abnormal gaps. Quote concrete evidence; when in doubt, "
+    "emit nothing."
 )
 
 

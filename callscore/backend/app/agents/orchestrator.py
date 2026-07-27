@@ -324,6 +324,17 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
                 payload=extracted,
             ))
 
+    # Checks that couldn't run are VISIBLE evidence, not silence — a
+    # supervisor (and the founder debugging) must see coverage gaps on
+    # the scorecard itself, not infer them from a confidence dip.
+    for agent_name in failed_agents:
+        findings.append(AgentFinding(
+            agent_name=agent_name,
+            finding_type="check_unavailable",
+            description=f"The {agent_name.replace('_', ' ')} check could not run on this interview — its capability was unavailable. Confidence is reduced accordingly.",
+            confidence=0,
+        ))
+
     # Persist every upstream finding — the raw material Evidence
     # Generation compiles from, and the audit trail behind every score.
     for f in findings:
