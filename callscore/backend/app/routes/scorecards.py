@@ -47,6 +47,28 @@ def get_scorecard(submission_id: str, db: Session = Depends(get_db)):
         .order_by(models.AgentFindingRow.confidence.desc().nulls_last())
     ).all()
 
+    # The "answers heard" section must read top-to-bottom like the
+    # questionnaire — confidence order (right for risk evidence) makes
+    # extracted answers appear shuffled. Reorder just those findings by
+    # the questionnaire's sort_order; everything else keeps its ranking.
+    question_order: dict[str, int] = {}
+    if submission and submission.project_id:
+        keys = db.scalars(
+            select(models.QuestionnaireItem.question_key)
+            .where(models.QuestionnaireItem.project_id == submission.project_id)
+            .order_by(models.QuestionnaireItem.sort_order)
+        ).all()
+        question_order = {k: i for i, k in enumerate(keys)}
+
+    def _question_pos(f: models.AgentFindingRow) -> int:
+        key = (f.raw_output or {}).get("question_key")
+        return question_order.get(key, len(question_order))
+
+    extracted = sorted(
+        (f for f in findings if f.finding_type == "extracted_answer"), key=_question_pos
+    )
+    findings = [f for f in findings if f.finding_type != "extracted_answer"] + extracted
+
     top = findings[0] if findings else None
     summary = ada_voice.render_scorecard_summary(
         card.fraud_risk, card.confidence_level, card.recommended_action,
@@ -126,6 +148,13 @@ def get_supervisor_queue(project_id: str, db: Session = Depends(get_db)):
         ):
             top_by_submission.setdefault(f.submission_id, f)
 
+    # Batch respondent-name lookup (avoids a per-row query).
+    respondent_names: dict[str, str | None] = {}
+    rids = [s.respondent_id for _, s in actionable if s.respondent_id]
+    if rids:
+        for r in db.scalars(select(models.Respondent).where(models.Respondent.id.in_(rids))):
+            respondent_names[r.id] = r.display_name
+
     items = []
     for card, submission in actionable:
         top = top_by_submission.get(card.submission_id)
@@ -138,6 +167,8 @@ def get_supervisor_queue(project_id: str, db: Session = Depends(get_db)):
             {
                 "interview_id": card.submission_id,
                 "enumerator_id": submission.enumerator_id,
+                "respondent_name": respondent_names.get(submission.respondent_id),
+                "started_at": submission.started_at.isoformat() if submission.started_at else None,
                 "fraud_risk": card.fraud_risk,
                 "confidence_level": card.confidence_level,
                 "recommended_action": card.recommended_action,
@@ -145,7 +176,9 @@ def get_supervisor_queue(project_id: str, db: Session = Depends(get_db)):
             }
         )
 
-    items.sort(key=lambda i: (_RISK_ORDER.get(i["fraud_risk"], 3), -(i["confidence_level"] or 0)))
+    # Newest first, so "which one just came in" is always the top card;
+    # risk stays visible on the badge rather than driving the sort.
+    items.sort(key=lambda i: i["started_at"] or "", reverse=True)
     return {"project_id": project_id, "queue": items}
 
 

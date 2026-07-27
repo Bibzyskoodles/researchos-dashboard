@@ -49,6 +49,8 @@ export interface CallScorecard {
 export interface CallQueueItem {
   interview_id: string;
   enumerator_id: string;
+  respondent_name?: string | null;
+  started_at?: string | null;
   fraud_risk: CallFraudRisk;
   confidence_level: number;
   recommended_action: CallRecommendedAction;

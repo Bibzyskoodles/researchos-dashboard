@@ -46,8 +46,9 @@ export default function CallReviewQueuePage({ embedded }: { embedded?: boolean }
         📞 Call Review Queue
       </h2>
       <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 20px' }}>
-        Remote interviews that need your attention today, ranked by risk. Clean interviews
-        are not listed — an empty queue means nothing needs you.
+        Remote interviews that need your attention, newest first — the latest submission is
+        always the top card. Clean interviews are not listed — an empty queue means nothing
+        needs you.
       </p>
 
       {loading && <p style={{ fontSize: 13, color: '#6B7280' }}>Loading queue…</p>}
@@ -84,6 +85,14 @@ export default function CallReviewQueuePage({ embedded }: { embedded?: boolean }
                 <span style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>
                   Enumerator {item.enumerator_id}
                 </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6, fontSize: 12, color: '#6B7280' }}>
+                {item.respondent_name && <span style={{ fontWeight: 700, color: '#111827' }}>{item.respondent_name}</span>}
+                {item.started_at && (
+                  <span>
+                    {new Date(item.started_at).toLocaleDateString()} · {new Date(item.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
               </div>
               {/* The "why now" line — never a bare score (Bible 8.6). */}
               <div style={{ fontSize: 13, color: '#111827' }}>{item.why_now}</div>
