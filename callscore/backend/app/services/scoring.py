@@ -31,7 +31,6 @@ _DIMENSION_WEIGHTS = {
     "voice_mismatch": ("authenticity", 0.40),
     "device_state_discrepancy": ("authenticity", 0.20),
     "audio_quality": ("quality", 0.15),
-    "transcription_disagreement": ("quality", 0.10),
     "short_interview": ("behaviour", 0.30),
     "consent_not_verified": ("compliance", 0.45),
     "consent_mismatch": ("compliance", 0.45),
@@ -48,6 +47,14 @@ _AUTHENTICITY_ESCALATORS = {"respondent_mismatch", "voice_mismatch", "similarity
 # average — Design Principle 1 cuts both ways: no score without evidence,
 # and no score movement from non-evidence.
 _INFORMATIONAL = {"transcript", "extracted_answer", "consent_transcript", "voice_diversity_ok", "check_unavailable"}
+
+# Measurement-limitation findings: OUR instruments struggled (engines
+# disagreeing on a transcript), which says nothing about the enumerator's
+# conduct. Founder-set principle: doubt about our measurement lowers our
+# CONFIDENCE and routes to a human ear — it never deducts from the
+# interview's scores. Punishing an enumerator for our tooling's limits
+# is exactly the injustice this platform exists to end.
+_MEASUREMENT_LIMITS = {"transcription_disagreement"}
 
 
 @dataclass
@@ -119,7 +126,11 @@ def synthesize(
     scores = {"quality": 100.0, "authenticity": 100.0, "compliance": 100.0, "behaviour": 100.0}
     has_escalator = False
 
-    findings = [f for f in findings if f.finding_type not in _INFORMATIONAL]
+    measurement_limited = any(f.finding_type in _MEASUREMENT_LIMITS for f in findings)
+    findings = [
+        f for f in findings
+        if f.finding_type not in _INFORMATIONAL and f.finding_type not in _MEASUREMENT_LIMITS
+    ]
     for f in findings:
         dim, weight = _DIMENSION_WEIGHTS.get(f.finding_type, ("quality", 0.05))
         scores[dim] -= weight * f.confidence
@@ -151,13 +162,14 @@ def synthesize(
         avg_conf = sum(f.confidence for f in findings) / len(findings)
     else:
         avg_conf = 75  # clean run: solid but not absolute
-    confidence_level = _clamp(avg_conf - coverage_penalty)
+    confidence_level = _clamp(avg_conf - coverage_penalty - (20 if measurement_limited else 0))
 
     if fraud_risk == "high":
         action = "escalate"
     elif fraud_risk == "medium":
         action = "conduct_backcheck"
-    elif late_start_flag or early_stop_flag or failed_agents or confidence_level < (75 if strict else 60):
+    elif (late_start_flag or early_stop_flag or failed_agents or measurement_limited
+          or confidence_level < (75 if strict else 60)):
         action = "review_recording"
     else:
         action = "none"
