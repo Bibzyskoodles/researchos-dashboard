@@ -94,9 +94,25 @@ function useRecorder(onChunk?: (chunk: Blob) => void) {
   return { start, stop, getLevel };
 }
 
+// Respondents SAY numbers ("four", "eight out of ten") — a rating button
+// named "4" or a number box never matches the word form without this.
+// Kept in sync with callscore/mobile/src/screens/InterviewScreen.tsx.
+const NUMBER_WORDS: Record<string, string> = {
+  zero: '0', one: '1', two: '2', three: '3', four: '4', five: '5',
+  six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
+};
+
+function spokenDigits(s: string): string {
+  return s.replace(
+    /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten)\b/gi,
+    (w) => NUMBER_WORDS[w.toLowerCase()],
+  );
+}
+
 /** Snap an AI-heard answer onto the question's actual controls: choice
-    answers match option names/labels (case-insensitive, multi via commas),
-    numeric answers keep just the number. Free text passes through. */
+    answers match option names/labels (case-insensitive, multi via commas,
+    spoken numbers snap to numeric choice names), numeric answers keep
+    just the number. Free text passes through. */
 function normalizeAnswer(q: QItem, raw: string): string {
   const answer = raw.trim();
   if (!answer) return answer;
@@ -108,7 +124,16 @@ function normalizeAnswer(q: QItem, raw: string): string {
         (c) => c.name.toLowerCase() === t || c.label.toLowerCase() === t
           || c.label.toLowerCase().includes(t) || t.includes(c.label.toLowerCase()),
       );
-      return hit ? hit.name : null;
+      if (hit) return hit.name;
+      // Rating-style choices: "I'd say four" -> the choice named/labelled 4.
+      const num = spokenDigits(t).match(/-?\d+(\.\d+)?/)?.[0];
+      if (num) {
+        const byNum = q.choices!.find(
+          (c) => c.name === num || c.label.trim().split(/[\s\-–—:]/)[0] === num,
+        );
+        if (byNum) return byNum.name;
+      }
+      return null;
     };
     if (q.question_type === 'select_multiple') {
       const names = answer.split(/[,;]/).map(match).filter(Boolean) as string[];
@@ -117,7 +142,7 @@ function normalizeAnswer(q: QItem, raw: string): string {
     return match(answer) ?? answer;
   }
   if (q.question_type === 'numeric') {
-    const num = answer.match(/-?\d+(\.\d+)?/);
+    const num = spokenDigits(answer).match(/-?\d+(\.\d+)?/);
     return num ? num[0] : answer;
   }
   return answer;
