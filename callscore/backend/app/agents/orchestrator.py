@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app import models
 from app.agents.questionnaire_design import QuestionnaireDesignAgent  # Tier 0 - project setup, not per-interview
 from app.agents.audio_quality import AudioQualityAgent
+from app.agents.consent_verification import ConsentVerificationAgent
 from app.agents.transcription_diarization import TranscriptionDiarizationAgent
 from app.agents.question_compliance import QuestionComplianceAgent
 from app.agents.answer_consistency import AnswerConsistencyAgent
@@ -34,7 +35,7 @@ from app.services import scoring
 logger = logging.getLogger(__name__)
 
 TIER_0 = [QuestionnaireDesignAgent()]  # run once at project setup, see Bible Part 4A.2
-TIER_1 = [AudioQualityAgent(), TranscriptionDiarizationAgent()]
+TIER_1 = [AudioQualityAgent(), TranscriptionDiarizationAgent(), ConsentVerificationAgent()]
 TIER_2 = [
     QuestionComplianceAgent(),
     AnswerConsistencyAgent(),
@@ -66,6 +67,17 @@ def _build_context(db: Session, submission: models.Submission, context: dict) ->
         path = storage.resolve_storage_ref(audio.storage_ref)
         if path is not None:
             context["audio_path"] = path
+
+    consent_art = db.scalar(
+        select(models.EvidenceArtifact).where(
+            models.EvidenceArtifact.submission_id == submission_id,
+            models.EvidenceArtifact.artifact_type == "consent_recording",
+        )
+    )
+    if consent_art and consent_art.storage_ref:
+        consent_path = storage.resolve_storage_ref(consent_art.storage_ref)
+        if consent_path is not None:
+            context["consent_audio_path"] = consent_path
 
     items = (
         db.query(models.QuestionnaireItem)
@@ -107,6 +119,7 @@ def _build_context(db: Session, submission: models.Submission, context: dict) ->
     from app.services import stt
 
     cfg = db.get(models.CallProjectConfig, submission.project_id)
+    context["consent_script"] = cfg.consent_script if cfg else None
     context["interview_language"] = (
         (cfg.stt_language or cfg.consent_language) if cfg else "en"
     )
