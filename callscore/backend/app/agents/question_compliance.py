@@ -10,9 +10,16 @@ _SYSTEM = (
     "You are a survey-compliance auditor. Given a questionnaire and an "
     "interview transcript with timestamps, identify REQUIRED questions that "
     "were never asked in substance (rephrasing counts as asked; skipping or "
-    "answering on the respondent's behalf does not). Emit one finding of "
-    "type 'missing_question' per unasked required question, citing the "
-    "question key and where in the transcript the interviewer moved past it."
+    "answering on the respondent's behalf does not). CONDITIONAL questions "
+    "must NOT be counted missing when their condition did not apply: a "
+    "question marked conditional, or whose wording begins 'If yes/If no/"
+    "If applicable', is only owed when the triggering answer occurred — "
+    "correctly skipping it is compliant, never a finding. Also never emit "
+    "a finding for a question that WAS asked but merely lacked follow-up "
+    "probing — missing_question means the question itself was never asked. "
+    "Emit one finding of type 'missing_question' per genuinely unasked "
+    "required question, citing the question key and where in the "
+    "transcript the interviewer moved past it."
 )
 
 
@@ -25,7 +32,10 @@ class QuestionComplianceAgent(BaseAgent):
         if not transcript or not questions:
             raise NotImplementedError
         qlist = "\n".join(
-            f"- [{q['question_key']}]{' (required)' if q['is_required'] else ''} {q['question_text']}"
+            f"- [{q['question_key']}]"
+            f"{' (required)' if q['is_required'] else ''}"
+            f"{' (conditional — only owed if its condition applies)' if q.get('skip_logic') else ''}"
+            f" {q['question_text']}"
             for q in questions
         )
         return run_judgment(
