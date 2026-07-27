@@ -483,6 +483,10 @@ export const callScoreApi = {
   },
   uploadEvidenceBundle: (id: string, artifacts: object[]) =>
     callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/evidence-bundle`, { artifacts }),
+  finalizeSync: (id: string, answers?: object) =>
+    callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/finalize`, { answers: answers || null }),
+  abandonSync: (id: string) =>
+    callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/abandon`, {}),
   // Agent mode (Bible Part 12) — optional AI-conducted interviews.
   dispatchAgentInterview: (projectId: string, respondentId: string, orgName?: string) =>
     callApi.post(`/api/v1/agent-interviews/${encodeURIComponent(projectId)}/dispatch`,

@@ -15,7 +15,61 @@ const SYNC_LABELS: Record<string, { label: string; color: string }> = {
   processing: { label: 'Analyzing…', color: '#2463EB' },
   processed: { label: 'Verified', color: '#15803D' },
   failed: { label: 'Sync failed', color: '#B91C1C' },
+  abandoned: { label: 'Marked as lost', color: '#9CA3AF' },
 };
+
+// Sync got stuck: either finish it from what the server already holds,
+// or mark it lost (the record stays — every attempt leaves evidence).
+function StuckActions({ id, onChanged }: { id: string; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const finish = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      await callScoreApi.finalizeSync(id);
+      setNote('Recovered — analysis is starting.');
+      onChanged();
+    } catch (e: any) {
+      setNote(e?.response?.data?.detail || 'Could not recover — try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const markLost = async () => {
+    if (!window.confirm('Mark this interview as lost? The record stays for the audit trail, but it will stop showing as in-progress.')) return;
+    setBusy(true);
+    try {
+      await callScoreApi.abandonSync(id);
+      onChanged();
+    } catch {
+      setNote('Could not update — try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={finish} disabled={busy} style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+          background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8',
+          borderRadius: 6, padding: '5px 10px',
+        }}>
+          {busy ? 'Working…' : '↻ Finish sync'}
+        </button>
+        <button onClick={markLost} disabled={busy} style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+          background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#6B7280',
+          borderRadius: 6, padding: '5px 10px',
+        }}>
+          Mark as lost
+        </button>
+      </div>
+      {note && <div style={{ fontSize: 11.5, color: '#374151', marginTop: 6 }}>{note}</div>}
+    </div>
+  );
+}
 
 export default function CallCollectPanel() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -24,16 +78,15 @@ export default function CallCollectPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const reload = React.useCallback(() => {
     if (!projectId) return;
-    let cancelled = false;
     callScoreApi
       .listInterviews(projectId)
-      .then((res) => { if (!cancelled) setInterviews(res.data.interviews || []); })
-      .catch(() => { if (!cancelled) setError('Could not load call interviews.'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then((res) => setInterviews(res.data.interviews || []))
+      .catch(() => setError('Could not load call interviews.'))
+      .finally(() => setLoading(false));
   }, [projectId]);
+  useEffect(() => { reload(); }, [reload]);
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -64,31 +117,36 @@ export default function CallCollectPanel() {
         {interviews.map((iv) => {
           const sync = SYNC_LABELS[iv.sync_status || 'pending'] || SYNC_LABELS.pending;
           const done = iv.sync_status === 'processed';
+          const stuck = iv.sync_status === 'pending' || iv.sync_status === 'failed';
           return (
             <div
               key={iv.id}
-              onClick={done ? () => navigate(`/projects/${projectId}/verify/call/${iv.id}`) : undefined}
               style={{
-                display: 'flex', alignItems: 'center', gap: 12, background: '#FFFFFF',
-                border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px',
-                cursor: done ? 'pointer' : 'default',
+                background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8,
+                padding: '12px 14px', opacity: iv.sync_status === 'abandoned' ? 0.6 : 1,
               }}
             >
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
-                  Enumerator {iv.enumerator_id || '—'}
+              <div
+                onClick={done ? () => navigate(`/projects/${projectId}/verify/call/${iv.id}`) : undefined}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: done ? 'pointer' : 'default' }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
+                    Enumerator {iv.enumerator_id || '—'}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>
+                    {iv.started_at ? new Date(iv.started_at).toLocaleString() : 'Not started'}
+                    {!iv.consent_captured && iv.sync_status !== 'abandoned' && ' · ⚠️ no consent artifact'}
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: '#6B7280' }}>
-                  {iv.started_at ? new Date(iv.started_at).toLocaleString() : 'Not started'}
-                  {!iv.consent_captured && ' · ⚠️ no consent artifact'}
-                </div>
+                {iv.verdict && (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: iv.verdict === 'REJECT' ? '#B91C1C' : iv.verdict === 'FLAG' ? '#B45309' : '#15803D' }}>
+                    {iv.verdict}{iv.grade ? ` · ${iv.grade}` : ''}
+                  </span>
+                )}
+                <span style={{ fontSize: 12, fontWeight: 600, color: sync.color }}>{sync.label}</span>
               </div>
-              {iv.verdict && (
-                <span style={{ fontSize: 12, fontWeight: 700, color: iv.verdict === 'REJECT' ? '#B91C1C' : iv.verdict === 'FLAG' ? '#B45309' : '#15803D' }}>
-                  {iv.verdict}{iv.grade ? ` · ${iv.grade}` : ''}
-                </span>
-              )}
-              <span style={{ fontSize: 12, fontWeight: 600, color: sync.color }}>{sync.label}</span>
+              {stuck && <StuckActions id={iv.id} onChanged={reload} />}
             </div>
           );
         })}

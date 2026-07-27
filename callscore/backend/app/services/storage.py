@@ -15,7 +15,7 @@ STORAGE_DIR = pathlib.Path(os.getenv("STORAGE_DIR", "/data/callscore-evidence"))
 
 _SAFE = re.compile(r"[^A-Za-z0-9._-]")
 
-_ALLOWED_KINDS = {"audio", "consent_recording"}
+_ALLOWED_KINDS = {"audio", "consent_recording", "call_screen"}
 
 
 def _safe(name: str) -> str:
@@ -31,6 +31,22 @@ def save_artifact_file(submission_id: str, kind: str, data: bytes, filename: str
     path = folder / f"{kind}__{_safe(filename) or 'recording.m4a'}"
     path.write_bytes(data)
     return f"file://{path}"
+
+
+def list_saved_files(submission_id: str) -> dict[str, str]:
+    """Kinds already uploaded for a submission -> storage_ref. Used by
+    the finalize/recovery path: recordings often upload successfully even
+    when the final bundle step fails, so sync can be completed from what
+    the server already holds."""
+    folder = STORAGE_DIR / _safe(submission_id)
+    if not folder.is_dir():
+        return {}
+    out: dict[str, str] = {}
+    for path in sorted(folder.iterdir()):
+        kind = path.name.split("__", 1)[0]
+        if kind in _ALLOWED_KINDS:
+            out[kind] = f"file://{path}"
+    return out
 
 
 def resolve_storage_ref(storage_ref: str) -> pathlib.Path | None:

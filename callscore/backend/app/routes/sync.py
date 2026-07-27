@@ -138,3 +138,86 @@ def upload_evidence_bundle(
         return {"submission_id": submission_id, "status": "processed"}
 
     return {"submission_id": submission_id, "status": "queued"}
+
+
+class FinalizeIn(BaseModel):
+    answers: Optional[dict] = None  # re-supplied if the original bundle never landed
+
+
+@router.post("/{submission_id}/finalize")
+def finalize_sync(
+    submission_id: str,
+    payload: FinalizeIn = FinalizeIn(),
+    db: Session = Depends(get_db),
+):
+    """Recovery for interviews stuck at 'pending'/'failed': recordings
+    usually uploaded fine even when the final bundle step failed, so this
+    completes the sync from what the server already holds. The consent
+    hard gate still applies — no consent recording on the server, no
+    finalize (Bible Part 7)."""
+    submission = db.get(models.Submission, submission_id)
+    if submission is None or submission.collection_mode != "call":
+        raise HTTPException(status_code=404, detail="Unknown call-mode interview session.")
+    if submission.sync_status in ("synced", "processing", "processed"):
+        return {"submission_id": submission_id, "status": submission.sync_status, "idempotent": True}
+
+    saved = storage.list_saved_files(submission_id)
+    missing = [k for k in ("consent_recording", "audio") if k not in saved]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot recover this interview — the server never received: "
+                   + ", ".join(missing).replace("_", " ")
+                   + ". The recording only existed on the capture device.",
+        )
+
+    existing_types = {
+        a.artifact_type
+        for a in db.query(models.EvidenceArtifact)
+        .filter(models.EvidenceArtifact.submission_id == submission_id)
+        .all()
+    }
+    for kind in ("consent_recording", "audio", "call_screen"):
+        if kind in saved and kind not in existing_types:
+            db.add(models.EvidenceArtifact(
+                submission_id=submission_id,
+                artifact_type="screenshot_extracted_fields" if kind == "call_screen" else kind,
+                storage_ref=saved[kind],
+                payload={} if kind == "call_screen" else None,
+            ))
+    if payload.answers and "questionnaire_response" not in existing_types:
+        db.add(models.EvidenceArtifact(
+            submission_id=submission_id,
+            artifact_type="questionnaire_response",
+            payload=payload.answers,
+        ))
+
+    entry = db.scalar(
+        select(models.SyncQueueEntry).where(
+            models.SyncQueueEntry.submission_id == submission_id
+        )
+    )
+    if entry is None:
+        entry = models.SyncQueueEntry(submission_id=submission_id)
+        db.add(entry)
+    entry.upload_status = "complete"
+    entry.attempts = (entry.attempts or 0) + 1
+    submission.consent_captured = True
+    submission.sync_status = "synced"  # pipeline worker sweeps it from here
+    db.commit()
+    return {"submission_id": submission_id, "status": "synced", "recovered": True}
+
+
+@router.post("/{submission_id}/abandon")
+def abandon_sync(submission_id: str, db: Session = Depends(get_db)):
+    """Mark an unrecoverable interview as lost. The record stays — every
+    attempted interview leaves evidence (constitution 00 §4); this only
+    stops it looking like something still in progress."""
+    submission = db.get(models.Submission, submission_id)
+    if submission is None or submission.collection_mode != "call":
+        raise HTTPException(status_code=404, detail="Unknown call-mode interview session.")
+    if submission.sync_status in ("processing", "processed"):
+        raise HTTPException(status_code=422, detail="This interview already completed — nothing to abandon.")
+    submission.sync_status = "abandoned"
+    db.commit()
+    return {"submission_id": submission_id, "status": "abandoned"}

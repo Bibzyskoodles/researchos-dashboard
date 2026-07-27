@@ -24,8 +24,14 @@ export default function CollectStagePage() {
       : []),
   ];
 
-  const defaultTab = mode === 'call' ? 'call' : 'field';
-  const [tab, setTab] = useState<'field' | 'call' | 'agent'>(defaultTab);
+  const [tab, setTab] = useState<'field' | 'call' | 'agent'>(mode === 'call' ? 'call' : 'field');
+
+  // The project loads asynchronously: on a fresh page load the first
+  // render runs with mode defaulted to 'field', so the initial tab can
+  // be one this project doesn't have — which rendered NOTHING. Snap to
+  // a valid tab whenever the real mode arrives.
+  const validKeys = tabs.map((t) => t.key);
+  const effectiveTab = validKeys.includes(tab) ? tab : (validKeys[0] ?? 'field');
 
   const singleMode = tabs.length === 1;
 
@@ -41,10 +47,10 @@ export default function CollectStagePage() {
               style={{
                 fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '8px 16px', borderRadius: 8,
                 cursor: 'pointer', transition: 'all 220ms ease',
-                border: tab === t.key ? `1px solid ${COLORS.blue}` : `1px solid ${COLORS.line}`,
-                background: tab === t.key ? '#EFF6FF' : '#FFFFFF',
-                color: tab === t.key ? COLORS.blue : COLORS.slate,
-                fontWeight: tab === t.key ? 700 : 500,
+                border: effectiveTab === t.key ? `1px solid ${COLORS.blue}` : `1px solid ${COLORS.line}`,
+                background: effectiveTab === t.key ? '#EFF6FF' : '#FFFFFF',
+                color: effectiveTab === t.key ? COLORS.blue : COLORS.slate,
+                fontWeight: effectiveTab === t.key ? 700 : 500,
               }}
             >
               {t.label}
@@ -52,14 +58,14 @@ export default function CollectStagePage() {
           ))}
         </div>
       )}
-      {tab === 'field' && showField && <SubmissionsPage />}
-      {tab === 'call' && showCall && (
+      {effectiveTab === 'field' && showField && <SubmissionsPage />}
+      {effectiveTab === 'call' && showCall && (
         <>
           <CallConfigPanel />
           <CallCollectPanel />
         </>
       )}
-      {tab === 'agent' && <AgentInterviewPanel />}
+      {effectiveTab === 'agent' && <AgentInterviewPanel />}
     </StagePageWrapper>
   );
 }
