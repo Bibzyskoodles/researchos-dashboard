@@ -444,6 +444,13 @@ export const callScoreApi = {
     callApi.get(`/api/v1/scorecards/queue/${encodeURIComponent(projectId)}`),
   scorecard: (interviewId: string) =>
     callApi.get(`/api/v1/scorecards/${encodeURIComponent(interviewId)}`),
+  // Bearer-auth fetch of an evidence file as a Blob — a plain <audio src>
+  // cannot carry the Authorization header (see certificatePrint.ts pattern).
+  evidenceFile: (interviewId: string, kind: string) =>
+    callApi.get(
+      `/api/v1/scorecards/${encodeURIComponent(interviewId)}/evidence-file/${encodeURIComponent(kind)}`,
+      { responseType: 'blob' }
+    ),
   listInterviews: (projectId: string) =>
     callApi.get(`/api/v1/interviews/project/${encodeURIComponent(projectId)}`),
   // Laptop-as-Device-2 capture flow (browser MediaRecorder).

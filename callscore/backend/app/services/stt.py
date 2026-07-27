@@ -249,6 +249,13 @@ def resolve_order(
         # agreement signal are both preserved.
         for name in _SPECIALISTS:
             push(name)
+        # If neither Nigerian-language specialist is configured (or both are
+        # down, in which case transcribe_with_verification falls through to
+        # the next name here), Whisper's broad multilingual training handles
+        # code-switched Pidgin/Yoruba/Igbo/Hausa better than a telephony-
+        # tuned English model — let it lead the words while the diarizing
+        # engine still runs as cross-check to supply speaker labels.
+        push("openai-whisper")
 
     for name, _ in _PROVIDERS:
         push(name)

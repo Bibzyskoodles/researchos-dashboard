@@ -41,6 +41,7 @@ export interface CallScorecard {
   late_start_flag: boolean;
   early_stop_flag: boolean;
   ada_summary: AdaSummary;
+  recordings?: string[];
   evidence: CallEvidenceItem[];
 }
 

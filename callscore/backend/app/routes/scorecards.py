@@ -4,13 +4,21 @@ not a browsable dashboard. Every item needs a 'why now' evidence pointer.
 Reconciled onto FieldScore's submissions table (docs/RECONCILIATION.md).
 """
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import models
 from app.db import get_db
-from app.services import ada_voice
+from app.services import ada_voice, storage
+
+_EVIDENCE_MEDIA_TYPES = {
+    ".webm": "audio/webm", ".wav": "audio/wav", ".m4a": "audio/mp4",
+    ".mp3": "audio/mpeg", ".ogg": "audio/ogg", ".amr": "audio/amr",
+    ".mp4": "audio/mp4", ".png": "image/png", ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
 
 router = APIRouter()
 
@@ -75,6 +83,9 @@ def get_scorecard(submission_id: str, db: Session = Depends(get_db)):
         "late_start_flag": card.late_start_flag,
         "early_stop_flag": card.early_stop_flag,
         "ada_summary": {"register": summary["register"], "text": summary["text"]},
+        # Evidence files a supervisor can open directly from the scorecard —
+        # "review the recording" must come with a play button, not a chase.
+        "recordings": sorted(storage.list_saved_files(submission_id).keys()),
         "evidence": [
             {
                 "id": str(f.id),
@@ -136,6 +147,23 @@ def get_supervisor_queue(project_id: str, db: Session = Depends(get_db)):
 
     items.sort(key=lambda i: (_RISK_ORDER.get(i["fraud_risk"], 3), -(i["confidence_level"] or 0)))
     return {"project_id": project_id, "queue": items}
+
+
+@router.get("/{submission_id}/evidence-file/{kind}")
+def get_evidence_file(submission_id: str, kind: str):
+    """Stream a stored evidence file (call audio, consent recording, call
+    screenshot) to an authenticated staff user. No public URLs exist for
+    evidence (Bible Part 9) — access always passes through router auth."""
+    files = storage.list_saved_files(submission_id)
+    ref = files.get(kind)
+    path = storage.resolve_storage_ref(ref) if ref else None
+    if path is None:
+        raise HTTPException(status_code=404, detail="No such evidence file for this interview.")
+    return FileResponse(
+        path,
+        media_type=_EVIDENCE_MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream"),
+        filename=path.name,
+    )
 
 
 class OverrideIn(BaseModel):

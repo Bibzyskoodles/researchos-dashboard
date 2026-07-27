@@ -93,6 +93,66 @@ function ScoreBreakdown({ card }: { card: CallScorecard }) {
   );
 }
 
+const RECORDING_LABELS: Record<string, string> = {
+  audio: '📞 Full call recording',
+  consent_recording: '🛡️ Consent recording',
+  call_screen: '📱 Call screen proof',
+};
+
+/**
+ * Evidence playback. Files are fetched through the authenticated api
+ * instance (bearer header — a bare <audio src> would arrive with no auth)
+ * and handed to the browser as an object URL, loaded only on demand.
+ */
+function EvidencePlayer({ interviewId, kinds }: { interviewId: string; kinds: string[] }) {
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => () => { Object.values(urls).forEach(URL.revokeObjectURL); }, [urls]);
+
+  const load = (kind: string) => {
+    setLoading(kind);
+    setLoadError(null);
+    callScoreApi.evidenceFile(interviewId, kind)
+      .then((r) => setUrls((u) => ({ ...u, [kind]: URL.createObjectURL(r.data) })))
+      .catch(() => setLoadError(`Could not load the ${RECORDING_LABELS[kind] || kind} — try again.`))
+      .finally(() => setLoading(null));
+  };
+
+  if (kinds.length === 0) return null;
+  return (
+    <div style={{ background: '#FFFFFF', border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.ink, marginBottom: 8 }}>
+        Listen for yourself — the evidence behind every score
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {kinds.map((kind) => (
+          <div key={kind} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: '#374151', minWidth: 170 }}>
+              {RECORDING_LABELS[kind] || kind}
+            </span>
+            {urls[kind] ? (
+              kind === 'call_screen'
+                ? <a href={urls[kind]} target="_blank" rel="noreferrer" style={{ fontSize: 12.5 }}>Open screenshot</a>
+                : <audio controls src={urls[kind]} style={{ height: 34, maxWidth: '100%' }} />
+            ) : (
+              <button
+                onClick={() => load(kind)}
+                disabled={loading === kind}
+                style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 8, border: `1px solid ${COLORS.line}`, background: '#F9FAFB', cursor: 'pointer' }}
+              >
+                {loading === kind ? 'Loading…' : kind === 'call_screen' ? 'View' : '▶ Play'}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {loadError && <div style={{ fontSize: 12, color: '#B91C1C', marginTop: 8 }}>{loadError}</div>}
+    </div>
+  );
+}
+
 function formatSeconds(s: number | null): string {
   if (s === null || s === undefined) return '—';
   const m = Math.floor(s / 60);
@@ -258,6 +318,8 @@ export default function CallScorecardPage() {
       </div>
 
       <ScoreBreakdown card={card} />
+
+      {id && <EvidencePlayer interviewId={id} kinds={card.recordings || []} />}
 
       {(card.late_start_flag || card.early_stop_flag) && (
         <div style={{ fontSize: 12, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginBottom: 20 }}>
