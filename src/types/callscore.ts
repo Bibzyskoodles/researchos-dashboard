@@ -23,6 +23,12 @@ export interface CallEvidenceItem {
 
 export interface CallScorecard {
   interview_id: string;
+  interview?: {
+    respondent_name: string | null;
+    enumerator_id: string | null;
+    started_at: string | null;
+    duration_seconds: number | null;
+  };
   overall_quality_score: number | null;
   verdict: 'PASS' | 'FLAG' | 'REJECT' | null;
   grade: 'A' | 'B' | 'C' | 'D' | 'F' | null;

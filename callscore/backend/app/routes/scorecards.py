@@ -45,8 +45,22 @@ def get_scorecard(submission_id: str, db: Session = Depends(get_db)):
         top.description if top else None,
     )  # deterministic register enforcement (Bible 4A.3)
 
+    # Identity header — a scorecard must say WHICH interview it judges.
+    respondent = db.get(models.Respondent, submission.respondent_id) if submission and submission.respondent_id else None
+    duration_seconds = None
+    if submission and submission.started_at and submission.stopped_at:
+        delta = (submission.stopped_at - submission.started_at).total_seconds()
+        if delta > 0:
+            duration_seconds = int(delta)
+
     return {
         "interview_id": submission_id,
+        "interview": {
+            "respondent_name": respondent.display_name if respondent else None,
+            "enumerator_id": submission.enumerator_id if submission else None,
+            "started_at": submission.started_at.isoformat() if submission and submission.started_at else None,
+            "duration_seconds": duration_seconds,
+        },
         # Headline shared vocabulary (lives on submissions):
         "overall_quality_score": submission.overall_score if submission else None,
         "verdict": submission.verdict if submission else None,

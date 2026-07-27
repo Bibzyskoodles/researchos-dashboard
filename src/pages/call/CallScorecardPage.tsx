@@ -135,9 +135,20 @@ export default function CallScorecardPage() {
   return (
     <StagePageWrapper stage="verify" chromeless>
     <div style={{ fontFamily: 'Inter, sans-serif', maxWidth: 760 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 16px' }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>
         📞 Call Interview Scorecard
       </h2>
+      {/* Which interview this is — respondent, who conducted it, when, how long */}
+      <div style={{ fontSize: 13, color: '#4B5563', margin: '0 0 16px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontWeight: 700, color: '#111827' }}>
+          {card.interview?.respondent_name || 'Unknown respondent'}
+        </span>
+        {card.interview?.enumerator_id && <span>· interviewed by {card.interview.enumerator_id}</span>}
+        {card.interview?.started_at && <span>· {new Date(card.interview.started_at).toLocaleString()}</span>}
+        {card.interview?.duration_seconds != null && (
+          <span>· {Math.floor(card.interview.duration_seconds / 60)}m {card.interview.duration_seconds % 60}s</span>
+        )}
+      </div>
 
       {/* Ada speaks first — the same Ada presence as everywhere else */}
       <div style={{
