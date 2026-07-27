@@ -135,6 +135,11 @@ export default function CallCapturePage() {
   // the streaming socket itself.
   const [liveState, setLiveState] = useState<'off' | 'live' | 'unavailable'>('off');
   const [uploadStep, setUploadStep] = useState('');
+  // Completed-step memory for retries (survives repeated Stop presses).
+  const audioBlobRef = useRef<Blob | null>(null);
+  const consentRefRef = useRef<string | null>(null);
+  const audioRefRef = useRef<string | null>(null);
+  const [liveReason, setLiveReason] = useState<string | null>(null);
   const [aiSuggested, setAiSuggested] = useState<Record<string, number>>({}); // key -> confidence
   const touchedRef = useRef<Set<string>>(new Set());
   const liveWsRef = useRef<WebSocket | null>(null);
@@ -186,9 +191,10 @@ export default function CallCapturePage() {
           const msg = JSON.parse(ev.data);
           if (msg.type === 'status') {
             setLiveState(msg.state === 'live' ? 'live' : 'unavailable');
-            if (msg.state === 'live') liveBackoffRef.current = 3000; // healthy again
+            if (msg.state === 'live') { liveBackoffRef.current = 3000; setLiveReason(null); }
             if (msg.state === 'unauthorized' || msg.state === 'unavailable') {
               liveDesiredRef.current = false; // server said no — don't hammer it
+              if (msg.reason) setLiveReason(String(msg.reason));
             }
           } else if (msg.type === 'answers') {
             for (const a of msg.answers || []) {
@@ -274,6 +280,7 @@ export default function CallCapturePage() {
 
   const stopInterview = async () => {
     if (!sessionId || !startedAt || !consentBlob) return;
+    if (stage === 'uploading') return; // one upload at a time
     // Same guard the mobile app applies (parity): blank required questions
     // will be flagged by the compliance agent — confirm before uploading.
     const blank = questions.filter((q) => q.is_required && !(answers[q.question_key] || '').trim());
@@ -288,26 +295,38 @@ export default function CallCapturePage() {
     setStage('uploading');
     setError(null);
     closeLiveSocket();
+    // Retry-friendly: each completed step is remembered so pressing Stop
+    // again skips straight to whatever actually failed, and the error
+    // names the failing step + the server's reason — no more guessing.
+    let step = 'Finishing the recording';
     try {
       setUploadStep('Finishing the recording…');
-      const audioBlob = await audioRec.stop();
+      if (!audioBlobRef.current) audioBlobRef.current = await audioRec.stop();
+      const audioBlob = audioBlobRef.current;
       const user = JSON.parse(localStorage.getItem('fs_user') || '{}');
+      step = 'Saving the interview';
       setUploadStep('Saving the interview…');
-      // Recreate idempotently in case the at-start create failed.
       await callScoreApi.createSession({
         id: sessionId, org_id: user.org || '', project_id: projectId,
         enumerator_id: user.id || user.email || 'unknown',
         respondent_id: respondent!.id, started_at: startedAt, consent_captured: true,
       });
       await callScoreApi.stopSession(sessionId, { stopped_at: new Date().toISOString() });
+      step = 'Uploading the consent recording';
       setUploadStep('Uploading the consent recording…');
-      const consentRef = (await callScoreApi.uploadRecording(sessionId, 'consent_recording', consentBlob)).data.storage_ref;
+      if (!consentRefRef.current) {
+        consentRefRef.current = (await callScoreApi.uploadRecording(sessionId, 'consent_recording', consentBlob)).data.storage_ref;
+      }
+      step = 'Uploading the interview recording';
       setUploadStep('Uploading the interview recording…');
-      const audioRef = (await callScoreApi.uploadRecording(sessionId, 'audio', audioBlob)).data.storage_ref;
+      if (!audioRefRef.current) {
+        audioRefRef.current = (await callScoreApi.uploadRecording(sessionId, 'audio', audioBlob)).data.storage_ref;
+      }
+      step = 'Finalising';
       setUploadStep('Finalising…');
       const artifacts: object[] = [
-        { artifact_type: 'consent_recording', storage_ref: consentRef },
-        { artifact_type: 'audio', storage_ref: audioRef },
+        { artifact_type: 'consent_recording', storage_ref: consentRefRef.current },
+        { artifact_type: 'audio', storage_ref: audioRefRef.current },
         { artifact_type: 'questionnaire_response', payload: answers },
       ];
       if (callNumber.trim()) {
@@ -315,8 +334,12 @@ export default function CallCapturePage() {
       }
       await callScoreApi.uploadEvidenceBundle(sessionId, artifacts);
       setStage('done');
-    } catch {
-      setError('Upload failed — check your connection. Nothing is lost; press Stop again to retry.');
+    } catch (e: any) {
+      const serverDetail =
+        (typeof e?.response?.data?.detail === 'string' && e.response.data.detail) ||
+        (e?.code === 'ECONNABORTED' && 'the server took too long to respond') ||
+        e?.message || 'unknown error';
+      setError(`${step} failed — ${String(serverDetail).slice(0, 300)}. Your recording is safe; press Stop again to retry.`);
       setStage('interview');
     }
   };
@@ -410,6 +433,11 @@ export default function CallCapturePage() {
                 🎧 Live paused — reconnecting… recording is unaffected
               </span>
             )}
+            {liveState === 'unavailable' && !liveDesiredRef.current && liveReason && (
+              <span style={{ fontWeight: 400, fontSize: 11, color: '#9CA3AF' }}>
+                🎧 Live answers off: {liveReason}
+              </span>
+            )}
             <span style={{ marginLeft: 'auto', fontWeight: 400, color: '#6B7280', fontSize: 12 }}>
               {questions.length > 0 && `${questions.filter((q) => (answers[q.question_key] || '').trim()).length}/${questions.length} answered`}
             </span>
@@ -495,7 +523,11 @@ export default function CallCapturePage() {
             );
           })}
           <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 12, marginBottom: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 6 }}>Number dialled (from your phone's call screen)</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Which number did you call?</div>
+            <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 8 }}>
+              Optional — copy it from your phone's call screen. It helps verification match this
+              recording to the real call. (No photo needed; just the number.)
+            </div>
             <input style={inputStyle} value={callNumber} onChange={(e) => setCallNumber(e.target.value)} placeholder="+234…" />
           </div>
           <button onClick={stopInterview}

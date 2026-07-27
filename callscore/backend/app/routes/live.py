@@ -101,11 +101,13 @@ async def live_transcribe(
 
     await ws.accept()
     if verify_token(token) is None:
-        await ws.send_json({"type": "status", "state": "unauthorized"})
+        await ws.send_json({"type": "status", "state": "unauthorized",
+                            "reason": "sign in again — the session token was not accepted"})
         await ws.close()
         return
     if not config.DEEPGRAM_API_KEY:
-        await ws.send_json({"type": "status", "state": "unavailable"})
+        await ws.send_json({"type": "status", "state": "unavailable",
+                            "reason": "live transcription is not configured on the server (no Deepgram key)"})
         await ws.close()
         return
 
@@ -113,7 +115,8 @@ async def live_transcribe(
         import websockets
     except ImportError:
         log.warning("websockets package missing — live transcription off")
-        await ws.send_json({"type": "status", "state": "unavailable"})
+        await ws.send_json({"type": "status", "state": "unavailable",
+                            "reason": "server is missing its websockets package (deploy issue)"})
         await ws.close()
         return
 
@@ -181,10 +184,11 @@ async def live_transcribe(
                 t.cancel()
     except WebSocketDisconnect:
         pass
-    except Exception:
+    except Exception as exc:
         log.exception("live transcription session failed")
         try:
-            await ws.send_json({"type": "status", "state": "unavailable"})
+            await ws.send_json({"type": "status", "state": "unavailable",
+                                "reason": f"live session error: {type(exc).__name__}"})
         except Exception:
             pass
     finally:
