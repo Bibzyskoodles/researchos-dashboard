@@ -29,6 +29,7 @@ from app.agents.conversation_naturalness import ConversationNaturalnessAgent
 from app.agents.similarity_fabrication import SimilarityFabricationAgent
 from app.agents.pattern_fraud import PatternFraudAgent
 from app.agents.voice_fingerprint import VoiceFingerprintAgent
+from app.agents.voice_impersonation import VoiceImpersonationAgent
 from app.agents.base import AgentFinding
 from app.services import scoring
 
@@ -43,6 +44,7 @@ TIER_2 = [
     BehaviourAnalysisAgent(),
     RespondentEngagementAgent(),
     ConversationNaturalnessAgent(),
+    VoiceImpersonationAgent(),
 ]
 TIER_3 = [SimilarityFabricationAgent(), PatternFraudAgent(), VoiceFingerprintAgent()]
 

@@ -38,15 +38,16 @@ _DIMENSION_WEIGHTS = {
     "trap_failed": ("authenticity", 0.50),
     "internal_contradiction": ("authenticity", 0.30),
     "straightlining": ("behaviour", 0.15),
+    "single_voice": ("authenticity", 0.50),
 }
 
-_AUTHENTICITY_ESCALATORS = {"respondent_mismatch", "voice_mismatch", "similarity", "trap_failed"}
+_AUTHENTICITY_ESCALATORS = {"respondent_mismatch", "voice_mismatch", "similarity", "trap_failed", "single_voice"}
 
 # Informational findings (e.g. the persisted transcript) carry evidence for
 # humans and downstream agents but never move a score or the confidence
 # average — Design Principle 1 cuts both ways: no score without evidence,
 # and no score movement from non-evidence.
-_INFORMATIONAL = {"transcript", "extracted_answer", "consent_transcript"}
+_INFORMATIONAL = {"transcript", "extracted_answer", "consent_transcript", "voice_diversity_ok"}
 
 
 @dataclass
