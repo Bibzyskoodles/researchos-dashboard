@@ -27,6 +27,70 @@ function ScoreTile({ label, value }: { label: string; value: number | null }) {
   );
 }
 
+// Mirror of the backend's scoring weights (services/scoring.py owns the
+// truth) — lets the scorecard show WHICH findings pulled each score down
+// and by how much: deduction = weight × finding confidence.
+const DIMENSION_WEIGHTS: Record<string, [dim: 'authenticity' | 'compliance' | 'behaviour' | 'quality', weight: number]> = {
+  missing_question: ['compliance', 0.30], answer_mismatch: ['compliance', 0.25],
+  consent_not_verified: ['compliance', 0.45], consent_mismatch: ['compliance', 0.45],
+  pacing: ['behaviour', 0.15], interviewer_dominance: ['behaviour', 0.15],
+  rushed_segment: ['behaviour', 0.20], low_engagement: ['behaviour', 0.10],
+  short_interview: ['behaviour', 0.30], straightlining: ['behaviour', 0.15],
+  coaching_indicator: ['authenticity', 0.30], third_party_voice: ['authenticity', 0.20],
+  scripted_exchange: ['authenticity', 0.25], similarity: ['authenticity', 0.35],
+  portfolio_anomaly: ['authenticity', 0.25], respondent_mismatch: ['authenticity', 0.40],
+  voice_mismatch: ['authenticity', 0.40], device_state_discrepancy: ['authenticity', 0.20],
+  trap_failed: ['authenticity', 0.50], internal_contradiction: ['authenticity', 0.30],
+  single_voice: ['authenticity', 0.50],
+  audio_quality: ['quality', 0.15], transcription_disagreement: ['quality', 0.10],
+};
+
+const DIM_LABELS: Record<string, string> = {
+  authenticity: 'Authenticity', compliance: 'Compliance', behaviour: 'Behaviour', quality: 'Quality',
+};
+
+/** Per-dimension "what pulled this score down", derived from the evidence. */
+function ScoreBreakdown({ card }: { card: CallScorecard }) {
+  const rows: Record<string, { label: string; deduction: number }[]> = {};
+  for (const e of card.evidence) {
+    const entry = DIMENSION_WEIGHTS[e.type];
+    if (!entry || e.confidence === null) continue;
+    const [dim, weight] = entry;
+    (rows[dim] ||= []).push({
+      label: e.type.replace(/_/g, ' '),
+      deduction: Math.round(weight * e.confidence),
+    });
+  }
+  const dims = Object.keys(rows);
+  if (dims.length === 0) return null;
+  return (
+    <div style={{ background: '#FFFFFF', border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.ink, marginBottom: 8 }}>
+        Why these scores — every deduction traces to a finding below
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+        {dims.map((dim) => (
+          <div key={dim}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: COLORS.muted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+              {DIM_LABELS[dim] || dim}
+            </div>
+            {rows[dim].map((r, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: '#374151', marginBottom: 2 }}>
+                <span>{r.label}</span>
+                <span style={{ fontWeight: 700, color: '#B91C1C', whiteSpace: 'nowrap' }}>−{r.deduction}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 8 }}>
+        Deduction = the finding's severity weight × its confidence. Overall is capped by the average
+        of the three dimensions. Fixed rules, written before any data is seen.
+      </div>
+    </div>
+  );
+}
+
 function formatSeconds(s: number | null): string {
   if (s === null || s === undefined) return '—';
   const m = Math.floor(s / 60);
@@ -190,6 +254,8 @@ export default function CallScorecardPage() {
           </div>
         </div>
       </div>
+
+      <ScoreBreakdown card={card} />
 
       {(card.late_start_flag || card.early_stop_flag) && (
         <div style={{ fontSize: 12, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px', marginBottom: 20 }}>
