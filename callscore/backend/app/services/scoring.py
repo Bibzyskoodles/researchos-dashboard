@@ -36,6 +36,8 @@ _DIMENSION_WEIGHTS = {
     "consent_not_verified": ("compliance", 0.45),
     "consent_mismatch": ("compliance", 0.45),
     "trap_failed": ("authenticity", 0.50),
+    "internal_contradiction": ("authenticity", 0.30),
+    "straightlining": ("behaviour", 0.15),
 }
 
 _AUTHENTICITY_ESCALATORS = {"respondent_mismatch", "voice_mismatch", "similarity", "trap_failed"}

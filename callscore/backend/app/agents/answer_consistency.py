@@ -13,7 +13,11 @@ _SYSTEM = (
     "actually said in the transcript. Emit one finding of type "
     "'answer_mismatch' per field where the spoken answer clearly contradicts "
     "the submitted value (quote both). Ignore minor phrasing differences, "
-    "rounding, and fields never discussed aloud."
+    "rounding, and fields never discussed aloud. ALSO check the submitted "
+    "answers against EACH OTHER: emit 'internal_contradiction' where two "
+    "answers cannot both be true (e.g. price named as the top priority in "
+    "one answer, willingness to pay the highest price in another) — quote "
+    "both answers. Logical impossibility only, never mere tension."
 )
 
 
@@ -26,7 +30,7 @@ class AnswerConsistencyAgent(BaseAgent):
         if not transcript or not answers:
             raise NotImplementedError
         return run_judgment(
-            self.name, {"answer_mismatch"}, _SYSTEM,
+            self.name, {"answer_mismatch", "internal_contradiction"}, _SYSTEM,
             f"SUBMITTED ANSWERS:\n{json.dumps(answers, indent=1)[:4000]}\n\n"
             f"TRANSCRIPT:\n{transcript_for_prompt(transcript)}",
         )

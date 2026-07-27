@@ -89,7 +89,8 @@ def _build_context(db: Session, submission: models.Submission, context: dict) ->
         context["questionnaire_items"] = [
             {"question_key": i.question_key, "question_text": i.question_text,
              "is_required": i.is_required, "skip_logic": i.skip_logic,
-             "question_type": i.question_type, "integrity": i.integrity}
+             "question_type": i.question_type, "integrity": i.integrity,
+             "choices": i.choices}
             for i in items
         ]
 
@@ -238,6 +239,38 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
                             "given": given, "expected": expected,
                             "note": integ.get("note")},
             ))
+
+    # Straightlining (industry-standard signal, weighted not disqualifying:
+    # a straightliner may genuinely agree): with enough choice questions,
+    # the same option position chosen nearly every time is suspicious.
+    select_items = [
+        i for i in context.get("questionnaire_items") or []
+        if i.get("question_type") == "select_one"
+    ]
+    if len(select_items) >= 5:
+        submitted_answers = context.get("answers") or {}
+        positions = []
+        for item in select_items:
+            given = str(submitted_answers.get(item["question_key"], "")).strip().lower()
+            names = [str(c.get("name", "")).lower() for c in (item.get("choices") or [])]
+            if given and given in names:
+                positions.append(names.index(given))
+        if len(positions) >= 5:
+            most_common = max(set(positions), key=positions.count)
+            share = positions.count(most_common) / len(positions)
+            if share >= 0.8:
+                findings.append(AgentFinding(
+                    agent_name="straightline_check",
+                    finding_type="straightlining",
+                    description=(
+                        f"{positions.count(most_common)} of {len(positions)} choice "
+                        "questions were answered with the same option position — "
+                        "a straightlining pattern. Weighted, not disqualifying: "
+                        "check the recording before concluding."
+                    ),
+                    confidence=int(min(85, 40 + share * 50)),
+                    raw_output={"share": round(share, 2), "answered": len(positions)},
+                ))
 
     # Deterministic duration check: a real interview takes real time.
     # Below a plausible minimum for the questionnaire's size, an explicit
