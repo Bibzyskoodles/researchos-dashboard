@@ -475,10 +475,10 @@ export const callScoreApi = {
   createSession: (payload: object) => callApi.post('/api/v1/interviews/', payload),
   stopSession: (id: string, payload: object) =>
     callApi.post(`/api/v1/interviews/${encodeURIComponent(id)}/stop`, payload),
-  uploadRecording: (id: string, kind: 'audio' | 'consent_recording', blob: Blob) => {
+  uploadRecording: (id: string, kind: 'audio' | 'consent_recording' | 'call_screen', blob: Blob, filename?: string) => {
     const form = new FormData();
     form.append('kind', kind);
-    form.append('file', blob, `${kind}.webm`);
+    form.append('file', blob, filename || `${kind}.webm`);
     return callApi.post(`/api/v1/sync/${encodeURIComponent(id)}/upload-recording`, form);
   },
   uploadEvidenceBundle: (id: string, artifacts: object[]) =>

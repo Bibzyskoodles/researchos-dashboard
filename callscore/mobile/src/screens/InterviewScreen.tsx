@@ -80,6 +80,7 @@ export default function InterviewScreen({
   const [questions, setQuestions] = useState<QuestionnaireItem[]>(FALLBACK_QUESTIONS);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [screenshotAttached, setScreenshotAttached] = useState(false);
+  const [screenshotUri, setScreenshotUri] = useState<string | null>(null);
   const [callNumber, setCallNumber] = useState('');
   const [busy, setBusy] = useState(false);
   // Live pre-fill (opt-in — streaming uses more data; constitution 00 §6).
@@ -155,12 +156,15 @@ export default function InterviewScreen({
     }
   };
 
-  // Manual, one-tap screenshot attach (Bible 6.1, MVP interim per Part 10).
-  // The image is picked only to prove it exists on-device; it is NEVER
-  // uploaded — only the number the enumerator confirms below syncs.
+  // Manual, one-tap screenshot attach (Bible 6.1; deliberate human action).
+  // The image uploads with the evidence bundle — number, duration and
+  // timestamp in one shot is the ironclad proof (founder decision).
   const attachScreenshot = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.5 });
-    if (!res.canceled) setScreenshotAttached(true);
+    if (!res.canceled && res.assets?.[0]?.uri) {
+      setScreenshotUri(res.assets[0].uri);
+      setScreenshotAttached(true);
+    }
   };
 
   const stopInterview = async () => {
@@ -204,6 +208,7 @@ export default function InterviewScreen({
         screenshot_fields: screenshotAttached || callNumber
           ? { number: callNumber || undefined }
           : null,
+        screenshot_uri: screenshotUri,
         answers,
         sync_status: 'pending',
         created_at: new Date().toISOString(),
@@ -305,7 +310,7 @@ export default function InterviewScreen({
         />
         <TouchableOpacity style={styles.attachBtn} onPress={attachScreenshot}>
           <Text style={styles.attachText}>
-            {screenshotAttached ? '✓ Screenshot attached (kept on device)' : 'Attach screenshot'}
+            {screenshotAttached ? '✓ Screenshot attached — uploads with the interview' : 'Attach call-screen screenshot'}
           </Text>
         </TouchableOpacity>
       </View>

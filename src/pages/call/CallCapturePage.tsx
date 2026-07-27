@@ -140,6 +140,8 @@ export default function CallCapturePage() {
   const consentRefRef = useRef<string | null>(null);
   const audioRefRef = useRef<string | null>(null);
   const [liveReason, setLiveReason] = useState<string | null>(null);
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const screenshotRefRef = useRef<string | null>(null);
   const [aiSuggested, setAiSuggested] = useState<Record<string, number>>({}); // key -> confidence
   const touchedRef = useRef<Set<string>>(new Set());
   const liveWsRef = useRef<WebSocket | null>(null);
@@ -322,6 +324,13 @@ export default function CallCapturePage() {
       if (!audioRefRef.current) {
         audioRefRef.current = (await callScoreApi.uploadRecording(sessionId, 'audio', audioBlob)).data.storage_ref;
       }
+      if (screenshotFile && !screenshotRefRef.current) {
+        step = 'Uploading the call-screen proof';
+        setUploadStep('Uploading the call-screen proof…');
+        screenshotRefRef.current = (
+          await callScoreApi.uploadRecording(sessionId, 'call_screen', screenshotFile, screenshotFile.name)
+        ).data.storage_ref;
+      }
       step = 'Finalising';
       setUploadStep('Finalising…');
       const artifacts: object[] = [
@@ -329,8 +338,12 @@ export default function CallCapturePage() {
         { artifact_type: 'audio', storage_ref: audioRefRef.current },
         { artifact_type: 'questionnaire_response', payload: answers },
       ];
-      if (callNumber.trim()) {
-        artifacts.push({ artifact_type: 'screenshot_extracted_fields', payload: { number: callNumber.trim() } });
+      if (callNumber.trim() || screenshotRefRef.current) {
+        artifacts.push({
+          artifact_type: 'screenshot_extracted_fields',
+          payload: { number: callNumber.trim() || undefined },
+          ...(screenshotRefRef.current ? { storage_ref: screenshotRefRef.current } : {}),
+        });
       }
       await callScoreApi.uploadEvidenceBundle(sessionId, artifacts);
       setStage('done');
@@ -523,12 +536,29 @@ export default function CallCapturePage() {
             );
           })}
           <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 12, marginBottom: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Which number did you call?</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Call screen proof</div>
             <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 8 }}>
-              Optional — copy it from your phone's call screen. It helps verification match this
-              recording to the real call. (No photo needed; just the number.)
+              Screenshot your phone's call screen (it shows the number, duration and time), send it
+              to this computer, and attach it here — that image is the strongest proof the call
+              happened. You can also type the number as a quick backup.
             </div>
-            <input style={inputStyle} value={callNumber} onChange={(e) => setCallNumber(e.target.value)} placeholder="+234…" />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input style={{ ...inputStyle, flex: 1, minWidth: 160 }} value={callNumber}
+                onChange={(e) => setCallNumber(e.target.value)} placeholder="Number dialled, e.g. +234…" />
+              <label style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                background: screenshotFile ? '#F0FDF4' : '#EFF6FF',
+                border: screenshotFile ? '1px solid #BBF7D0' : '1px solid #BFDBFE',
+                color: screenshotFile ? '#15803D' : '#1D4ED8',
+                borderRadius: 8, padding: '9px 14px',
+              }}>
+                {screenshotFile ? `✓ ${screenshotFile.name.slice(0, 24)}` : '📸 Attach screenshot'}
+                <input
+                  type="file" accept="image/*" style={{ display: 'none' }}
+                  onChange={(e) => setScreenshotFile(e.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
           </div>
           <button onClick={stopInterview}
             style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 700, color: '#fff', background: '#B91C1C', border: 'none', borderRadius: 8, padding: '12px 22px', cursor: 'pointer' }}>

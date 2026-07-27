@@ -45,16 +45,27 @@ export async function syncSession(s: LocalSession): Promise<void> {
     if (s.audio_uri) {
       audioRef = (await callApi.uploadRecording(s.id, 'audio', s.audio_uri)).storage_ref;
     }
+    // Call-screen screenshot — number, duration and timestamp in one
+    // image, the strongest proof of the call (founder decision upgraded
+    // this from fields-only). Best-effort: a failed image upload never
+    // blocks the interview itself from syncing.
+    let screenshotRef: string | null = null;
+    if (s.screenshot_uri) {
+      try {
+        screenshotRef = (await callApi.uploadRecording(s.id, 'call_screen', s.screenshot_uri)).storage_ref;
+      } catch { /* retried on next sweep via the fields artifact below */ }
+    }
     // 4. Evidence bundle referencing the stored files.
     const artifacts: object[] = [
       { artifact_type: 'consent_recording', storage_ref: consentRef },
       { artifact_type: 'audio', storage_ref: audioRef },
       { artifact_type: 'questionnaire_response', payload: s.answers },
     ];
-    if (s.screenshot_fields) {
+    if (s.screenshot_fields || screenshotRef) {
       artifacts.push({
         artifact_type: 'screenshot_extracted_fields',
-        payload: s.screenshot_fields, // fields only — never the image (Bible 6.1)
+        payload: s.screenshot_fields || {},
+        ...(screenshotRef ? { storage_ref: screenshotRef } : {}),
       });
     }
     await callApi.uploadEvidenceBundle(s.id, artifacts);

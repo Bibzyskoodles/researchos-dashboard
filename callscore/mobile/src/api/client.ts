@@ -77,16 +77,23 @@ export const callApi = {
   // Multipart upload of a local recording file. React Native's fetch
   // accepts {uri, name, type} entries in FormData — the file streams from
   // disk, so large recordings don't need to fit in memory.
-  async uploadRecording(sessionId: string, kind: 'audio' | 'consent_recording', fileUri: string) {
+  async uploadRecording(sessionId: string, kind: 'audio' | 'consent_recording' | 'call_screen', fileUri: string) {
     const token = await getToken();
     const form = new FormData();
     form.append('kind', kind);
     // Live-capture interviews record WAV (iOS) or AMR-WB (Android) —
-    // progressively readable; the default path stays m4a. Derive from
-    // the actual file.
+    // progressively readable; the default path stays m4a. call_screen is
+    // the enumerator's screenshot image. Derive from the actual file.
     const lower = fileUri.toLowerCase();
-    const ext = lower.endsWith('.wav') ? 'wav' : lower.endsWith('.amr') ? 'amr' : 'm4a';
-    const mime = ext === 'wav' ? 'audio/wav' : ext === 'amr' ? 'audio/amr' : 'audio/m4a';
+    const ext = lower.endsWith('.wav') ? 'wav'
+      : lower.endsWith('.amr') ? 'amr'
+      : lower.endsWith('.png') ? 'png'
+      : lower.endsWith('.jpg') || lower.endsWith('.jpeg') ? 'jpg'
+      : kind === 'call_screen' ? 'jpg' : 'm4a';
+    const mime = ext === 'wav' ? 'audio/wav'
+      : ext === 'amr' ? 'audio/amr'
+      : ext === 'png' ? 'image/png'
+      : ext === 'jpg' ? 'image/jpeg' : 'audio/m4a';
     form.append('file', {
       uri: fileUri,
       name: `${kind}.${ext}`,

@@ -28,9 +28,12 @@ export interface LocalSession {
   stopped_at: string | null;
   consent_uri: string | null;   // local recording file — the hard gate
   audio_uri: string | null;     // local interview recording file
-  // Manually confirmed fields from the enumerator's own screenshot. The
-  // raw image NEVER leaves the device (Bible 6.1) — these fields do.
+  // Fields confirmed from the enumerator's call-screen screenshot, plus
+  // the image itself (screenshot_uri) — upgraded from fields-only by
+  // founder decision: the image (number + duration + timestamp in one
+  // shot) is the ironclad proof, and we already store full audio.
   screenshot_fields: { number?: string; name?: string } | null;
+  screenshot_uri?: string | null;
   answers: Record<string, string>;
   sync_status: 'local' | 'pending' | 'syncing' | 'synced' | 'failed';
   created_at: string;

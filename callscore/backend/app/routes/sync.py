@@ -34,8 +34,11 @@ async def upload_recording(
     submission = db.get(models.Submission, submission_id)
     if submission is None or submission.collection_mode != "call":
         raise HTTPException(status_code=404, detail="Unknown call-mode interview session.")
-    if kind not in ("audio", "consent_recording"):
-        raise HTTPException(status_code=422, detail="kind must be 'audio' or 'consent_recording'.")
+    # call_screen: the enumerator's screenshot of the phone's call screen —
+    # number, duration and timestamp in one image, the ironclad companion
+    # to the typed number (upgraded from fields-only by founder decision).
+    if kind not in ("audio", "consent_recording", "call_screen"):
+        raise HTTPException(status_code=422, detail="kind must be 'audio', 'consent_recording' or 'call_screen'.")
     data = await file.read()
     if not data:
         raise HTTPException(status_code=422, detail="Empty file.")
