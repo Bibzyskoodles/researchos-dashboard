@@ -172,6 +172,9 @@ class CallProjectConfig(Base):
     # Speech-engine routing (migrations/0003): which STT providers run for
     # this project's interviews. Null = language-aware default.
     stt_language: Mapped[Optional[str]] = mapped_column(Text)
+    # 'standard' | 'strict' — how hard verification bites (thread-sourced:
+    # directional research tolerates noise; board-deck numbers don't).
+    strictness: Mapped[str] = mapped_column(Text, nullable=False, default="standard", server_default="standard")
     stt_primary: Mapped[Optional[str]] = mapped_column(Text)
     stt_verify: Mapped[Optional[str]] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"))

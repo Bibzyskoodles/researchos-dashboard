@@ -48,6 +48,9 @@ def get_engine():
             conn.execute(text(
                 "ALTER TABLE questionnaire_items ADD COLUMN IF NOT EXISTS integrity JSONB"
             ))
+            conn.execute(text(
+                "ALTER TABLE call_project_config ADD COLUMN IF NOT EXISTS strictness TEXT NOT NULL DEFAULT 'standard'"
+            ))
     return _engine
 
 

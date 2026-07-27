@@ -45,6 +45,7 @@ export default function CallConfigPanel() {
   const [sttLanguage, setSttLanguage] = useState('');
   const [sttPrimary, setSttPrimary] = useState('');
   const [sttVerify, setSttVerify] = useState('');
+  const [strictness, setStrictness] = useState('standard');
   const [effectiveOrder, setEffectiveOrder] = useState<string[]>([]);
   const [status, setStatus] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -59,6 +60,7 @@ export default function CallConfigPanel() {
         setSttLanguage(c.stt_language || '');
         setSttPrimary(c.stt_primary || '');
         setSttVerify(c.stt_verify || '');
+        setStrictness(c.strictness || 'standard');
         setEffectiveOrder(c.effective_stt_order || []);
       })
       .catch(() => undefined) // 404 = not configured yet; the form starts blank
@@ -81,6 +83,7 @@ export default function CallConfigPanel() {
       stt_language: sttLanguage || null,
       stt_primary: sttPrimary || null,
       stt_verify: sttVerify || null,
+      strictness,
     })
       .then((res) => {
         setEffectiveOrder(res.data.effective_stt_order || []);
@@ -159,7 +162,21 @@ export default function CallConfigPanel() {
                 {STT_PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
               </select>
             </div>
+            <div>
+              <label style={labelStyle}>Cleaning strictness</label>
+              <select value={strictness} onChange={(e) => setStrictness(e.target.value)} style={inputStyle}>
+                <option value="standard">Standard — directional research</option>
+                <option value="strict">Strict — board-deck grade</option>
+              </select>
+            </div>
           </div>
+          {strictness === 'strict' && (
+            <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 12 }}>
+              Strict mode flags earlier and sends more interviews to human review. The findings
+              themselves never change — only how hard they bite. Tell your client which mode the
+              data was cleaned under; that transparency is the point.
+            </div>
+          )}
 
           {effectiveOrder.length > 0 && (
             <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 12 }}>

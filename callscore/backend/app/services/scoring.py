@@ -109,7 +109,12 @@ def synthesize(
     late_start_flag: bool,
     early_stop_flag: bool,
     failed_agents: list[str],
+    strictness: str = "standard",
 ) -> SynthesisResult:
+    # Strictness moves the risk thresholds, never the findings themselves —
+    # the rule is written here, before any data is seen (thread doctrine:
+    # "write the rule down before you look at results").
+    strict = strictness == "strict"
     scores = {"quality": 100.0, "authenticity": 100.0, "compliance": 100.0, "behaviour": 100.0}
     has_escalator = False
 
@@ -130,9 +135,9 @@ def synthesize(
     behav = _clamp(scores["behaviour"])
     quality = _clamp(min(scores["quality"], (auth + comp + behav) / 3))
 
-    if has_escalator or auth < 40:
+    if has_escalator or auth < (50 if strict else 40):
         fraud_risk = "high"
-    elif auth < 70 or comp < 50:
+    elif auth < (80 if strict else 70) or comp < (65 if strict else 50):
         fraud_risk = "medium"
     else:
         fraud_risk = "low"
@@ -151,7 +156,7 @@ def synthesize(
         action = "escalate"
     elif fraud_risk == "medium":
         action = "conduct_backcheck"
-    elif late_start_flag or early_stop_flag or failed_agents or confidence_level < 60:
+    elif late_start_flag or early_stop_flag or failed_agents or confidence_level < (75 if strict else 60):
         action = "review_recording"
     else:
         action = "none"

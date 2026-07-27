@@ -353,7 +353,11 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
         submission.device1_call_started_at,
         submission.device1_call_ended_at,
     )
-    result = scoring.synthesize(findings, late_start, early_stop, failed_agents)
+    cfg_for_scoring = db.get(models.CallProjectConfig, submission.project_id)
+    result = scoring.synthesize(
+        findings, late_start, early_stop, failed_agents,
+        strictness=(cfg_for_scoring.strictness if cfg_for_scoring else "standard"),
+    )
     if random_backcheck and result.recommended_action == "none":
         result.recommended_action = "conduct_backcheck"
 

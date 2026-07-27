@@ -27,6 +27,7 @@ class CallConfigIn(BaseModel):
     stt_language: str | None = None
     stt_primary: str | None = None
     stt_verify: str | None = None
+    strictness: str = "standard"  # standard | strict
 
 
 @router.put("/{project_id}/call-config")
@@ -45,6 +46,7 @@ def set_call_config(project_id: str, payload: CallConfigIn, db: Session = Depend
     cfg.stt_language = payload.stt_language
     cfg.stt_primary = payload.stt_primary
     cfg.stt_verify = payload.stt_verify
+    cfg.strictness = payload.strictness if payload.strictness in ("standard", "strict") else "standard"
     db.commit()
     from app.services import stt
     return {
@@ -73,6 +75,7 @@ def get_call_config(project_id: str, db: Session = Depends(get_db)):
         "stt_language": cfg.stt_language,
         "stt_primary": cfg.stt_primary,
         "stt_verify": cfg.stt_verify,
+        "strictness": cfg.strictness,
         "effective_stt_order": stt.resolve_order(
             language=cfg.stt_language or cfg.consent_language,
             primary=cfg.stt_primary, verify=cfg.stt_verify,
