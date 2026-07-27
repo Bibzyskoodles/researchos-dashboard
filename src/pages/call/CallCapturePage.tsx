@@ -33,9 +33,21 @@ const FALLBACK_SCRIPT =
 function useRecorder(onChunk?: (chunk: Blob) => void) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const start = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     chunksRef.current = [];
+    // Level meter tap: mic problems must be VISIBLE while recording, not
+    // discovered at upload time as an empty file.
+    try {
+      const ctx = new AudioContext();
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      audioCtxRef.current = ctx;
+      analyserRef.current = analyser;
+    } catch { /* meter is a bonus — recording works without it */ }
     const rec = new MediaRecorder(stream);
     rec.ondataavailable = (e) => {
       if (e.data.size > 0) {
@@ -46,11 +58,27 @@ function useRecorder(onChunk?: (chunk: Blob) => void) {
     rec.start(1000);
     recorderRef.current = rec;
   };
+  /** 0..1 — how loud the mic is right now. 0 while not recording. */
+  const getLevel = (): number => {
+    const analyser = analyserRef.current;
+    if (!analyser) return 0;
+    const data = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(data);
+    let peak = 0;
+    for (let i = 0; i < data.length; i += 1) {
+      const dev = Math.abs(data[i] - 128);
+      if (dev > peak) peak = dev;
+    }
+    return Math.min(1, peak / 96);
+  };
   const stop = () => new Promise<Blob>((resolve, reject) => {
     const rec = recorderRef.current;
     if (!rec) return reject(new Error('not recording'));
     const finish = () => {
       try { rec.stream.getTracks().forEach((t) => t.stop()); } catch { /* already stopped */ }
+      try { audioCtxRef.current?.close(); } catch { /* fine */ }
+      analyserRef.current = null;
+      audioCtxRef.current = null;
       resolve(new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' }));
     };
     // Already stopped (double-tap, tab suspension): resolve with what we
@@ -63,7 +91,47 @@ function useRecorder(onChunk?: (chunk: Blob) => void) {
       rec.stop();
     } catch { clearTimeout(safety); finish(); }
   });
-  return { start, stop };
+  return { start, stop, getLevel };
+}
+
+/** Live mic meter: green bars while sound is coming in, a hard warning
+    after ~5s of silence. Twice now an interview died at upload with an
+    empty recording — the mic being dead must be visible in real time. */
+function MicMeter({ getLevel }: { getLevel: () => number }) {
+  const [level, setLevel] = useState(0);
+  const [silentMs, setSilentMs] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => {
+      const l = getLevel();
+      setLevel(l);
+      setSilentMs((prev) => (l > 0.02 ? 0 : prev + 200));
+    }, 200);
+    return () => clearInterval(t);
+  }, [getLevel]);
+  const bars = 12;
+  const lit = Math.round(level * bars);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 18 }}>
+        {Array.from({ length: bars }, (_, i) => (
+          <span key={i} style={{
+            width: 4, borderRadius: 2, height: 5 + i * 1.1,
+            background: i < lit ? (i > bars * 0.75 ? '#D97706' : '#15803D') : '#E5E7EB',
+            transition: 'background 120ms ease',
+          }} />
+        ))}
+      </div>
+      <span style={{ fontSize: 11, color: '#6B7280' }}>🎙 microphone</span>
+      {silentMs >= 5000 && (
+        <span style={{
+          fontSize: 12, fontWeight: 700, color: '#B91C1C', background: '#FEF2F2',
+          border: '1px solid #FECACA', borderRadius: 999, padding: '2px 10px',
+        }}>
+          ⚠️ No sound is reaching the microphone — check your mic before continuing
+        </span>
+      )}
+    </div>
+  );
 }
 
 function AddRespondentForm({ projectId, onAdded }: { projectId: string; onAdded: (r: Respondent) => void }) {
@@ -447,6 +515,11 @@ export default function CallCapturePage() {
               ■ Stop — consent given
             </button>
           )}
+          {recordingConsent && (
+            <div style={{ marginTop: 12 }}>
+              <MicMeter getLevel={consentRec.getLevel} />
+            </div>
+          )}
           {consentBlob && (
             <button onClick={startInterview}
               style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 700, color: '#fff', background: '#15803D', border: 'none', borderRadius: 8, padding: '12px 20px', cursor: 'pointer', marginLeft: 10 }}>
@@ -482,6 +555,9 @@ export default function CallCapturePage() {
             <span style={{ marginLeft: 'auto', fontWeight: 400, color: '#6B7280', fontSize: 12 }}>
               {questions.length > 0 && `${questions.filter((q) => (answers[q.question_key] || '').trim()).length}/${questions.length} answered`}
             </span>
+          </div>
+          <div style={{ margin: '0 0 8px' }}>
+            <MicMeter getLevel={audioRec.getLevel} />
           </div>
           <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 14px' }}>
             Keep recording until the call has fully ended — stopping early leaves an unverifiable gap
