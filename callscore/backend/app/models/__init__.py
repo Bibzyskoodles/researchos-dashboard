@@ -151,6 +151,9 @@ class SyncQueueEntry(Base):
     upload_status: Mapped[str] = mapped_column(Text, nullable=False, default="queued")
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_attempt_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
+    # Why the last pipeline run failed — surfaced in the dashboard so a
+    # crashing analysis is diagnosable without server logs.
+    last_error: Mapped[Optional[str]] = mapped_column(Text)
 
 
 class CallProjectConfig(Base):

@@ -62,6 +62,7 @@ export interface CallInterviewListItem {
   stopped_at: string | null;
   consent_captured: boolean;
   sync_status: string | null;
+  last_error?: string | null;
   verdict: string | null;
   grade: string | null;
 }

@@ -198,6 +198,14 @@ def list_interview_sessions(project_id: str, db: Session = Depends(get_db)):
         .limit(200)
         .all()
     )
+    # Failure reasons (pipeline crashes) so a failed row explains itself.
+    errors = {
+        e.submission_id: e.last_error
+        for e in db.query(models.SyncQueueEntry)
+        .filter(models.SyncQueueEntry.submission_id.in_([r.submission_id for r in rows]))
+        .all()
+        if e.last_error
+    }
     return {
         "project_id": project_id,
         "interviews": [
@@ -211,6 +219,7 @@ def list_interview_sessions(project_id: str, db: Session = Depends(get_db)):
                 "sync_status": s.sync_status,
                 "verdict": s.verdict,
                 "grade": s.grade,
+                "last_error": errors.get(s.submission_id) if s.sync_status == "failed" else None,
             }
             for s in rows
         ],

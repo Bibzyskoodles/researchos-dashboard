@@ -70,12 +70,21 @@ def process_once() -> int:
             try:
                 orchestrator.run_pipeline(db, submission_id)
                 processed += 1
-            except Exception:
+            except Exception as exc:
                 log.exception("pipeline failed for %s", submission_id)
                 db.rollback()
                 sub = db.get(models.Submission, submission_id)
                 if sub is not None:
                     sub.sync_status = "failed"
+                    # Surface WHY in the dashboard (sync_queue.last_error) —
+                    # a silently flapping synced→failed row is undiagnosable.
+                    from sqlalchemy import select as _select
+                    entry = db.scalar(_select(models.SyncQueueEntry).where(
+                        models.SyncQueueEntry.submission_id == submission_id))
+                    if entry is None:
+                        entry = models.SyncQueueEntry(submission_id=submission_id)
+                        db.add(entry)
+                    entry.last_error = f"analysis failed: {type(exc).__name__}: {str(exc)[:400]}"
                     db.commit()
     return processed
 

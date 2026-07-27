@@ -146,6 +146,11 @@ export default function CallCollectPanel() {
                 )}
                 <span style={{ fontSize: 12, fontWeight: 600, color: sync.color }}>{sync.label}</span>
               </div>
+              {iv.sync_status === 'failed' && iv.last_error && (
+                <div style={{ fontSize: 11.5, color: '#B91C1C', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '6px 10px', marginTop: 8 }}>
+                  {iv.last_error}
+                </div>
+              )}
               {stuck && <StuckActions id={iv.id} onChanged={reload} />}
             </div>
           );
