@@ -367,9 +367,16 @@ export default function CallCapturePage() {
       <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>
         📞 New Call Interview (laptop)
       </h2>
-      <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 16px' }}>
-        Place the actual call on your phone as usual — this screen records room audio, shows the
-        questionnaire, and uploads the evidence bundle. Needs to stay online.
+      <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 10px' }}>
+        Place the actual call on your phone as usual — this screen records the room audio, shows the
+        questionnaire, and uploads the evidence. Needs to stay online.
+      </p>
+      <p style={{
+        fontSize: 12.5, fontWeight: 600, color: '#1D4ED8', background: '#EFF6FF',
+        border: '1px solid #BFDBFE', borderRadius: 8, padding: '9px 12px', margin: '0 0 16px',
+      }}>
+        🔊 Put your phone on LOUDSPEAKER and keep it close to this computer — otherwise the
+        recording only captures your voice, not the respondent's, and the interview can't be verified.
       </p>
       {error && <p style={{ fontSize: 13, color: '#B91C1C' }}>{error}</p>}
 

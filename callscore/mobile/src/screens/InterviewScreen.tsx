@@ -227,8 +227,9 @@ export default function InterviewScreen({
       <View style={styles.center}>
         <Text style={styles.title}>{respondent.display_name || 'Respondent'}</Text>
         <Text style={styles.sub}>
-          Consent is recorded. Place the call on your other phone as usual, then press
-          Start Interview the moment the conversation begins.
+          Consent is recorded. Place the call on your other phone ON LOUDSPEAKER and keep
+          it close to this phone — otherwise only your voice is recorded and the interview
+          can't be verified. Press Start Interview the moment the conversation begins.
         </Text>
         {(Platform.OS === 'android' || Platform.OS === 'ios') && (
           <View style={styles.liveToggleRow}>
