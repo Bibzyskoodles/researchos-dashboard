@@ -58,7 +58,10 @@ function useRecorder(onChunk?: (chunk: Blob) => void) {
     if (rec.state === 'inactive') return finish();
     const safety = setTimeout(finish, 5000);
     rec.onstop = () => { clearTimeout(safety); finish(); };
-    try { rec.stop(); } catch { clearTimeout(safety); finish(); }
+    try {
+      rec.requestData?.(); // flush any buffered audio before stopping
+      rec.stop();
+    } catch { clearTimeout(safety); finish(); }
   });
   return { start, stop };
 }
@@ -305,6 +308,12 @@ export default function CallCapturePage() {
       setUploadStep('Finishing the recording…');
       if (!audioBlobRef.current) audioBlobRef.current = await audioRec.stop();
       const audioBlob = audioBlobRef.current;
+      if (!audioBlob || audioBlob.size === 0) {
+        throw Object.assign(new Error('the interview recording came out empty — the microphone may have cut out'), { code: 'EMPTY_AUDIO' });
+      }
+      if (consentBlob.size === 0) {
+        throw Object.assign(new Error('the consent recording is empty — it must be re-recorded'), { code: 'EMPTY_CONSENT' });
+      }
       const user = JSON.parse(localStorage.getItem('fs_user') || '{}');
       step = 'Saving the interview';
       setUploadStep('Saving the interview…');
@@ -421,7 +430,19 @@ export default function CallCapturePage() {
               ● Record consent
             </button>
           ) : (
-            <button onClick={async () => { setConsentBlob(await consentRec.stop()); setRecordingConsent(false); }}
+            <button onClick={async () => {
+              const blob = await consentRec.stop();
+              setRecordingConsent(false);
+              // An empty recording caught HERE, not at upload time — the
+              // enumerator re-records now, before the interview starts.
+              if (!blob || blob.size === 0) {
+                setConsentBlob(null);
+                setError('The consent recording came out empty — your microphone may not be working. Check it and record the consent again.');
+                return;
+              }
+              setError(null);
+              setConsentBlob(blob);
+            }}
               style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 700, color: '#fff', background: '#B91C1C', border: 'none', borderRadius: 8, padding: '12px 20px', cursor: 'pointer' }}>
               ■ Stop — consent given
             </button>

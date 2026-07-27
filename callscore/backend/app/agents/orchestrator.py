@@ -199,6 +199,27 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
                 logger.exception("agent %s failed for submission %s", agent.name, submission_id)
                 failed_agents.append(agent.name)
 
+    # Deterministic duration check: a real interview takes real time.
+    # Below a plausible minimum for the questionnaire's size, an explicit
+    # finding is raised — no LLM involved, pure arithmetic evidence.
+    if submission.started_at and submission.stopped_at:
+        duration_s = (submission.stopped_at - submission.started_at).total_seconds()
+        question_count = len(context.get("questionnaire_items") or [])
+        min_expected = max(60, question_count * 15)  # ≥15s per question, ≥1 min overall
+        if 0 < duration_s < min_expected:
+            findings.append(AgentFinding(
+                agent_name="timing_check",
+                finding_type="short_interview",
+                description=(
+                    f"Interview lasted {int(duration_s)}s against {question_count} "
+                    f"questions — below the plausible minimum of ~{min_expected}s. "
+                    "Genuine interviews of this questionnaire take longer."
+                ),
+                confidence=85,
+                timestamp_range_start=0,
+                timestamp_range_end=int(duration_s),
+            ))
+
     # Glance-Confirm, post-hoc half: extracted answers become their own
     # evidence artifact so the bridges and scorecard can read them as a
     # unit. They NEVER overwrite the enumerator's questionnaire_response

@@ -32,6 +32,7 @@ _DIMENSION_WEIGHTS = {
     "device_state_discrepancy": ("authenticity", 0.20),
     "audio_quality": ("quality", 0.15),
     "transcription_disagreement": ("quality", 0.10),
+    "short_interview": ("behaviour", 0.30),
 }
 
 _AUTHENTICITY_ESCALATORS = {"respondent_mismatch", "voice_mismatch", "similarity"}
