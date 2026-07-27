@@ -35,9 +35,10 @@ _DIMENSION_WEIGHTS = {
     "short_interview": ("behaviour", 0.30),
     "consent_not_verified": ("compliance", 0.45),
     "consent_mismatch": ("compliance", 0.45),
+    "trap_failed": ("authenticity", 0.50),
 }
 
-_AUTHENTICITY_ESCALATORS = {"respondent_mismatch", "voice_mismatch", "similarity"}
+_AUTHENTICITY_ESCALATORS = {"respondent_mismatch", "voice_mismatch", "similarity", "trap_failed"}
 
 # Informational findings (e.g. the persisted transcript) carry evidence for
 # humans and downstream agents but never move a score or the confidence

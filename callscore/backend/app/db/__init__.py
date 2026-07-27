@@ -45,6 +45,9 @@ def get_engine():
             conn.execute(text(
                 "ALTER TABLE sync_queue ADD COLUMN IF NOT EXISTS last_error TEXT"
             ))
+            conn.execute(text(
+                "ALTER TABLE questionnaire_items ADD COLUMN IF NOT EXISTS integrity JSONB"
+            ))
     return _engine
 
 

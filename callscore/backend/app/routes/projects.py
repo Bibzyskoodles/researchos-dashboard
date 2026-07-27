@@ -146,6 +146,9 @@ class QuestionIn(BaseModel):
     question_type: str = "text"  # text | numeric | select_one | select_multiple
     is_required: bool = True
     choices: list | None = None  # [{name, label}] for the select types
+    # {"role": "trap", "expected": str, "note": str} — supervisor-set
+    # red herring; scoring raises trap_failed when answered otherwise.
+    integrity: dict | None = None
 
 
 class QuestionnaireIn(BaseModel):
@@ -176,6 +179,7 @@ def set_questionnaire(project_id: str, payload: QuestionnaireIn, db: Session = D
             sort_order=order,
             question_type=qtype,
             choices=q.choices if qtype in ("select_one", "select_multiple") else None,
+            integrity=q.integrity or None,
         ))
     db.commit()
     return {"project_id": project_id, "saved": len(cleaned)}
@@ -202,6 +206,7 @@ def get_questionnaire(project_id: str, db: Session = Depends(get_db)):
                 "sort_order": i.sort_order,
                 "question_type": i.question_type,
                 "choices": i.choices,
+                "integrity": i.integrity,
             }
             for i in items
         ],
@@ -380,3 +385,58 @@ async def parse_questionnaire_file(project_id: str, file: UploadFile):
     if not items:
         raise HTTPException(status_code=422, detail="Ada could not find questions in that file.")
     return {"project_id": project_id, "items": items, "source": "ada_file"}
+
+
+@router.post("/{project_id}/questionnaire/review")
+def review_questionnaire(project_id: str, payload: QuestionnaireIn):
+    """Ada reviews the questionnaire as drafted in the editor (unsaved
+    items welcome): deterministic design heuristics (Tier 0 agent) plus,
+    when the LLM is available, improvement suggestions and trap-question
+    ideas. Advisory only — nothing is changed until the human saves."""
+    items = [
+        {"question_key": q.question_key or f"q{i+1}", "question_text": q.question_text,
+         "is_required": q.is_required, "skip_logic": None}
+        for i, q in enumerate(payload.items) if q.question_text.strip()
+    ]
+    if not items:
+        raise HTTPException(status_code=422, detail="Nothing to review yet — add questions first.")
+
+    findings = []
+    for agent in TIER_0:
+        try:
+            findings.extend(
+                {"type": f.finding_type, "description": f.description, "confidence": f.confidence}
+                for f in agent.run(project_id, {"questionnaire_items": items})
+            )
+        except NotImplementedError:
+            pass
+
+    from app.services import llm
+    suggestions = []
+    if llm.available():
+        import json as _json
+        result = llm.judge(
+            "You are an expert survey methodologist reviewing a phone-"
+            "interview questionnaire. Suggest concrete improvements: "
+            "clearer wording, better ordering, missing screener or "
+            "demographic questions, and ONE integrity trap question idea "
+            "(a plausible-sounding question about something fictitious, "
+            "where any positive answer signals fabrication — state the "
+            "expected honest answer). Respond with JSON: {\"suggestions\": "
+            '[{"kind": "wording"|"ordering"|"missing"|"trap_idea", '
+            '"suggestion": string, "question_key": string|null, '
+            '"trap": {"question_text": string, "choices": [string], '
+            '"expected": string} | null}]}. Max 6 suggestions, most '
+            "valuable first. Never invent problems to seem thorough.",
+            f"QUESTIONNAIRE:\n{_json.dumps(items, indent=1)[:8000]}",
+        )
+        for sug in (result or {}).get("suggestions", [])[:6]:
+            if str(sug.get("suggestion", "")).strip():
+                suggestions.append({
+                    "kind": str(sug.get("kind", "wording")),
+                    "suggestion": str(sug.get("suggestion"))[:400],
+                    "question_key": sug.get("question_key"),
+                    "trap": sug.get("trap") if isinstance(sug.get("trap"), dict) else None,
+                })
+
+    return {"project_id": project_id, "findings": findings, "suggestions": suggestions}

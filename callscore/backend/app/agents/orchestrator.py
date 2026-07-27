@@ -88,7 +88,8 @@ def _build_context(db: Session, submission: models.Submission, context: dict) ->
     if items:
         context["questionnaire_items"] = [
             {"question_key": i.question_key, "question_text": i.question_text,
-             "is_required": i.is_required, "skip_logic": i.skip_logic}
+             "is_required": i.is_required, "skip_logic": i.skip_logic,
+             "question_type": i.question_type, "integrity": i.integrity}
             for i in items
         ]
 
@@ -211,6 +212,32 @@ def run_pipeline(db: Session, submission_id: str) -> models.CallScorecard:
             except Exception:
                 logger.exception("agent %s failed for submission %s", agent.name, submission_id)
                 failed_agents.append(agent.name)
+
+    # Trap questions (supervisor-set red herrings, Design stage): the
+    # expected honest answer is known; any other non-empty answer is
+    # strong fabrication evidence. Pure comparison — no LLM.
+    submitted = context.get("answers") or {}
+    for item in context.get("questionnaire_items") or []:
+        integ = item.get("integrity") or {}
+        if integ.get("role") != "trap" or not integ.get("expected"):
+            continue
+        given = str(submitted.get(item["question_key"], "")).strip()
+        expected = str(integ["expected"]).strip()
+        if given and given.lower() != expected.lower():
+            findings.append(AgentFinding(
+                agent_name="trap_check",
+                finding_type="trap_failed",
+                description=(
+                    f"Trap question '{item['question_key']}' answered "
+                    f"“{given[:80]}” — the only honest answer is "
+                    f"“{expected}”. This question was designed so that any "
+                    "other answer indicates fabrication."
+                ),
+                confidence=90,
+                raw_output={"question_key": item["question_key"],
+                            "given": given, "expected": expected,
+                            "note": integ.get("note")},
+            ))
 
     # Deterministic duration check: a real interview takes real time.
     # Below a plausible minimum for the questionnaire's size, an explicit

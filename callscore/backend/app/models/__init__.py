@@ -94,6 +94,10 @@ class QuestionnaireItem(Base):
     # choices = [{name, label}] for the select types.
     question_type: Mapped[str] = mapped_column(Text, nullable=False, default="text", server_default="text")
     choices: Mapped[Optional[list]] = mapped_column(JSONB)
+    # Supervisor-set integrity measures (Design stage): e.g.
+    # {"role": "trap", "expected": "no", "note": "fictitious brand"} —
+    # a red-herring question where any other answer signals fabrication.
+    integrity: Mapped[Optional[dict]] = mapped_column(JSONB)
 
 
 class EvidenceArtifact(Base):

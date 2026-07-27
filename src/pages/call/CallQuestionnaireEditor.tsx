@@ -16,6 +16,16 @@ interface EditableQ {
   question_type: 'text' | 'numeric' | 'select_one' | 'select_multiple';
   is_required: boolean;
   choicesText: string; // comma-separated labels, e.g. "Yes, No, Not sure"
+  trap: boolean;          // supervisor-set red herring
+  trapExpected: string;   // the only honest answer
+}
+
+interface ReviewResult {
+  findings: { type: string; description: string; confidence: number }[];
+  suggestions: {
+    kind: string; suggestion: string; question_key: string | null;
+    trap: { question_text: string; choices?: string[]; expected: string } | null;
+  }[];
 }
 
 const TYPE_LABELS: { id: EditableQ['question_type']; label: string }[] = [
@@ -45,6 +55,8 @@ function serverItemsToEditable(items: any[]): EditableQ[] {
     question_type: i.question_type || 'text',
     is_required: i.is_required !== false,
     choicesText: (i.choices || []).map((c: any) => c.label).join(', '),
+    trap: i.integrity?.role === 'trap',
+    trapExpected: i.integrity?.expected || '',
   }));
 }
 
@@ -108,7 +120,29 @@ export default function CallQuestionnaireEditor() {
     setItems((prev) => prev.map((q, i) => (i === idx ? { ...q, ...patch } : q)));
 
   const addQuestion = () =>
-    setItems((prev) => [...prev, { question_text: '', question_type: 'text', is_required: true, choicesText: '' }]);
+    setItems((prev) => [...prev, { question_text: '', question_type: 'text', is_required: true, choicesText: '', trap: false, trapExpected: '' }]);
+
+  const [reviewing, setReviewing] = useState(false);
+  const [review, setReview] = useState<ReviewResult | null>(null);
+  const askReview = () => {
+    if (!projectId) return;
+    setReviewing(true);
+    setReview(null);
+    callScoreApi.reviewQuestionnaire(projectId, items.filter((q) => q.question_text.trim()).map((q) => ({
+      question_key: q.question_key, question_text: q.question_text,
+      question_type: q.question_type, is_required: q.is_required,
+    })))
+      .then((res) => setReview(res.data))
+      .catch((e) => setStatus({ ok: false, text: e?.response?.data?.detail || 'Review failed — try again.' }))
+      .finally(() => setReviewing(false));
+  };
+  const addTrapFromSuggestion = (trap: { question_text: string; choices?: string[]; expected: string }) => {
+    setItems((prev) => [...prev, {
+      question_text: trap.question_text, question_type: (trap.choices?.length ? 'select_one' : 'text'),
+      is_required: false, choicesText: (trap.choices || []).join(', '),
+      trap: true, trapExpected: trap.expected,
+    }]);
+  };
 
   const remove = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx));
 
@@ -137,6 +171,8 @@ export default function CallQuestionnaireEditor() {
       is_required: q.is_required,
       choices: q.question_type === 'select_one' || q.question_type === 'select_multiple'
         ? toChoices(q.choicesText) : null,
+      integrity: q.trap && q.trapExpected.trim()
+        ? { role: 'trap', expected: q.trapExpected.trim() } : null,
     })))
       .then(() => setStatus({ ok: true, text: 'Saved — these questions now appear in every call interview.' }))
       .catch(() => setStatus({ ok: false, text: 'Could not save — check your connection and try again.' }))
@@ -238,6 +274,22 @@ export default function CallQuestionnaireEditor() {
                 />
                 Must be asked
               </label>
+              <label style={{ fontSize: 12.5, color: q.trap ? '#B45309' : '#374151', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} title="A red herring: only one honest answer exists. Any other answer is fabrication evidence. Interviewers never see the marking.">
+                <input
+                  type="checkbox"
+                  checked={q.trap}
+                  onChange={(e) => update(idx, { trap: e.target.checked })}
+                />
+                🪤 Trap question
+              </label>
+              {q.trap && (
+                <input
+                  value={q.trapExpected}
+                  onChange={(e) => update(idx, { trapExpected: e.target.value })}
+                  placeholder="The only honest answer — e.g. No"
+                  style={{ ...inputStyle, width: 200, borderColor: '#FDE68A', background: '#FFFBEB' }}
+                />
+              )}
               {needsChoices && (
                 <input
                   value={q.choicesText}
@@ -264,6 +316,17 @@ export default function CallQuestionnaireEditor() {
             ＋ Add a question
           </button>
           <button
+            onClick={askReview}
+            disabled={reviewing || items.filter((q) => q.question_text.trim()).length === 0}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              background: '#F5F3FF', border: '1px solid #DDD6FE', color: '#6D28D9',
+              borderRadius: 8, padding: '9px 16px',
+            }}
+          >
+            {reviewing ? 'Ada is reviewing…' : '✨ Ada, review these questions'}
+          </button>
+          <button
             onClick={save}
             disabled={saving}
             style={{
@@ -277,6 +340,39 @@ export default function CallQuestionnaireEditor() {
           {status && (
             <span style={{ fontSize: 12.5, color: status.ok ? COLORS.green : '#B91C1C' }}>{status.text}</span>
           )}
+        </div>
+      )}
+
+      {review && (
+        <div style={{ marginTop: 16, background: '#FAFAFF', border: '1px solid #E4E4F4', borderRadius: 10, padding: '12px 14px' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: '#6D28D9', marginBottom: 8 }}>
+            ✨ Ada's review
+          </div>
+          {review.findings.length === 0 && review.suggestions.length === 0 && (
+            <div style={{ fontSize: 12.5, color: '#374151' }}>No issues found — the questionnaire reads well.</div>
+          )}
+          {review.findings.map((f, i) => (
+            <div key={`f-${i}`} style={{ fontSize: 12.5, color: '#374151', marginBottom: 6 }}>
+              ⚠️ {f.description}
+            </div>
+          ))}
+          {review.suggestions.map((sug, i) => (
+            <div key={`s-${i}`} style={{ fontSize: 12.5, color: '#374151', marginBottom: 6, display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <span>💡 {sug.suggestion}</span>
+              {sug.trap && (
+                <button
+                  onClick={() => addTrapFromSuggestion(sug.trap!)}
+                  style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+                    background: '#FFFBEB', border: '1px solid #FDE68A', color: '#B45309',
+                    borderRadius: 999, padding: '3px 10px',
+                  }}
+                >
+                  🪤 Add this trap question
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

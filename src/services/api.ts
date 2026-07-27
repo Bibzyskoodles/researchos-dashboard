@@ -457,6 +457,8 @@ export const callScoreApi = {
     callApi.get(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`),
   setQuestionnaire: (projectId: string, items: object[]) =>
     callApi.put(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire`, { items }),
+  reviewQuestionnaire: (projectId: string, items: object[]) =>
+    callApi.post(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire/review`, { items }),
   draftQuestionnaire: (projectId: string, brief: string) =>
     callApi.post(`/api/v1/projects/${encodeURIComponent(projectId)}/questionnaire/draft`, { brief }),
   parseQuestionnaireFile: (projectId: string, file: File) => {
