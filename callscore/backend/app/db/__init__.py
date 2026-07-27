@@ -51,6 +51,17 @@ def get_engine():
             conn.execute(text(
                 "ALTER TABLE call_project_config ADD COLUMN IF NOT EXISTS strictness TEXT NOT NULL DEFAULT 'standard'"
             ))
+            # The original artifact-type CHECK predates ai_extracted_answers
+            # (the answer-extraction agent's artifact) — inserts violated it
+            # and killed every pipeline run. Replace with the current list.
+            conn.execute(text(
+                "ALTER TABLE evidence_artifacts DROP CONSTRAINT IF EXISTS evidence_artifacts_artifact_type_check"
+            ))
+            conn.execute(text(
+                "ALTER TABLE evidence_artifacts ADD CONSTRAINT evidence_artifacts_artifact_type_check "
+                "CHECK (artifact_type IN ('audio', 'consent_recording', 'ble_call_state_log', "
+                "'screenshot_extracted_fields', 'questionnaire_response', 'ai_extracted_answers'))"
+            ))
     return _engine
 
 
