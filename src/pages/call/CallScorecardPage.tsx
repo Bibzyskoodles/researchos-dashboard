@@ -42,7 +42,9 @@ const DIMENSION_WEIGHTS: Record<string, [dim: 'authenticity' | 'compliance' | 'b
   voice_mismatch: ['authenticity', 0.40], device_state_discrepancy: ['authenticity', 0.20],
   trap_failed: ['authenticity', 0.50], internal_contradiction: ['authenticity', 0.30],
   single_voice: ['authenticity', 0.50],
-  audio_quality: ['quality', 0.15], transcription_disagreement: ['quality', 0.10],
+  audio_quality: ['quality', 0.15],
+  // transcription_disagreement deliberately absent: engines disagreeing is
+  // OUR measurement limit — it lowers confidence, never the score.
 };
 
 const DIM_LABELS: Record<string, string> = {
