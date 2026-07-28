@@ -119,10 +119,12 @@ export const authApi = {
 // Blob to turn into an object URL (same pattern as certificatePrint.ts's
 // openCertificate/downloadCertificatePdf).
 export const mediaApi = {
-  fetchImage: (submissionId: string) =>
-    api.get(`/api/media/${submissionId}/image`, { responseType: 'blob' }),
-  fetchAudio: (submissionId: string) =>
-    api.get(`/api/media/${submissionId}/audio`, { responseType: 'blob' }),
+  // index selects which photo/recording on a multi-media submission; 0 (default)
+  // is the representative Image_URL/Audio_URL, index>0 the Nth stored item.
+  fetchImage: (submissionId: string, index = 0) =>
+    api.get(`/api/media/${submissionId}/image`, { params: index ? { index } : undefined, responseType: 'blob' }),
+  fetchAudio: (submissionId: string, index = 0) =>
+    api.get(`/api/media/${submissionId}/audio`, { params: index ? { index } : undefined, responseType: 'blob' }),
 };
 
 export const dashboardApi = {
