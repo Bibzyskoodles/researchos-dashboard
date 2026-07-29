@@ -21,9 +21,12 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Type-check
-        run: npx tsc --noEmit -p .
-      - name: Build (CI=true — warnings are errors, exactly like Vercel)
+      # CI=true npm run build is the authoritative gate (per CLAUDE.md): its
+      # `prebuild` generates src/buildInfo.generated.ts, then react-scripts
+      # type-checks AND treats every ESLint warning as an error, exactly like
+      # Vercel. A standalone `tsc` step would run before buildInfo.generated
+      # exists and fail spuriously, so the build is the single check.
+      - name: Build (CI=true — type-check + warnings-as-errors, exactly like Vercel)
         run: CI=true npm run build
       # Advisory dependency scan — surfaced in the log, not blocking (xlsx/CRA
       # have known advisories; tighten once triaged).
