@@ -1,0 +1,35 @@
+name: CI
+
+# The frontend had no CI — the only build gate was Vercel at deploy time, so a
+# CI=true failure (e.g. an unused import) was only caught AFTER it broke
+# production (see CLAUDE.md's account of commit 245b8c2). This runs the exact
+# Vercel-equivalent build on every push/PR so that class of break is caught
+# before merge, not in prod.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install
+        run: npm ci
+      # CI=true npm run build is the authoritative gate (per CLAUDE.md): its
+      # `prebuild` generates src/buildInfo.generated.ts, then react-scripts
+      # type-checks AND treats every ESLint warning as an error, exactly like
+      # Vercel. A standalone `tsc` step would run before buildInfo.generated
+      # exists and fail spuriously, so the build is the single check.
+      - name: Build (CI=true — type-check + warnings-as-errors, exactly like Vercel)
+        run: CI=true npm run build
+      # Advisory dependency scan — surfaced in the log, not blocking (xlsx/CRA
+      # have known advisories; tighten once triaged).
+      - name: Dependency audit
+        continue-on-error: true
+        run: npm audit --audit-level=high
