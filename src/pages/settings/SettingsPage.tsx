@@ -1079,10 +1079,26 @@ function ResearchSection() {
   );
 }
 
+// Retention windows offered in the UI. "0" is the explicit "keep everything"
+// default — retention must be opt-in, never a surprise deletion.
+const RETENTION_OPTIONS: [string, string][] = [
+  ["0", "Keep indefinitely (default)"],
+  ["365", "Delete after 12 months"],
+  ["730", "Delete after 24 months"],
+  ["1095", "Delete after 36 months"],
+];
+
 function StorageSection() {
-  const [autoDeleteAudio, setAutoDeleteAudio] = useState(true);
-  const [archiveOld, setArchiveOld] = useState(false);
-  const [keepAiOutputs, setKeepAiOutputs] = useState(true);
+  // `retentionDays` is the ONLY control that authorises deletion. It maps to
+  // submission_retention_days, which fieldscore-backend's retention sweeper
+  // reads. The old "Archive submissions older than 12 months — move to cold
+  // storage" toggle is intentionally gone: there is no cold storage, so that
+  // label described an operation this platform cannot perform. Orgs that
+  // ticked it are shown a notice and must choose a real window here, because
+  // consent to "archive" can't be silently upgraded to consent to "delete".
+  const [retentionDays, setRetentionDays] = useState("0");
+  const [legacyArchivePending, setLegacyArchivePending] = useState(false);
+  const [cutoff, setCutoff] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -1091,20 +1107,37 @@ function StorageSection() {
     orgSettingsApi.getStorage()
       .then(r => {
         const d = r.data || {};
-        if (d.auto_delete_audio !== undefined) setAutoDeleteAudio(d.auto_delete_audio);
-        if (d.archive_old !== undefined) setArchiveOld(d.archive_old);
-        if (d.keep_ai_outputs !== undefined) setKeepAiOutputs(d.keep_ai_outputs);
+        if (d.submission_retention_days !== undefined && d.submission_retention_days !== null) {
+          setRetentionDays(String(d.submission_retention_days));
+        }
+      })
+      .catch(() => {});
+    // The backend is authoritative on whether retention is actually active and
+    // whether this org is still carrying the legacy toggle.
+    orgSettingsApi.getRetentionPolicy()
+      .then(r => {
+        const d = r.data || {};
+        setLegacyArchivePending(!!d.legacy_archive_pending);
+        setCutoff(d.cutoff || null);
       })
       .catch(() => {});
   }, []);
 
-  const save = async (next: { auto_delete_audio: boolean; archive_old: boolean; keep_ai_outputs: boolean }) => {
+  const save = async (days: string) => {
     setSaving(true);
     setError("");
     try {
-      await orgSettingsApi.updateStorage(next);
+      // Clearing archive_old as we write a real window: leaving it set would
+      // keep this org flagged as needing re-consent forever.
+      await orgSettingsApi.updateStorage({
+        submission_retention_days: Number(days),
+        archive_old: false,
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      const policy = await orgSettingsApi.getRetentionPolicy();
+      setLegacyArchivePending(!!policy.data?.legacy_archive_pending);
+      setCutoff(policy.data?.cutoff || null);
     } catch (e: any) {
       setError(e?.response?.data?.error || "Could not save — please try again.");
     } finally {
@@ -1121,10 +1154,49 @@ function StorageSection() {
           </div>
         </SettingsGroup>
         <SectionDivider label="Retention Policy" />
+        {legacyArchivePending && (
+          <div style={{ padding: "14px 16px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, fontSize: 12.5, color: "#92400E", marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Action needed: your old retention setting was never applied</div>
+            This organisation had “Archive submissions older than 12 months (move to cold
+            storage)” switched on. That option never did anything — there is no cold storage
+            on this platform — so <strong>nothing has been deleted or archived</strong>. Your
+            data is all still here. To set a real policy, choose a retention period below.
+            Please note it <strong>permanently deletes</strong> submissions past that age; it
+            does not archive them.
+          </div>
+        )}
         <SettingsGroup>
-          <Toggle value={autoDeleteAudio} onChange={v => { setAutoDeleteAudio(v); save({ auto_delete_audio: v, archive_old: archiveOld, keep_ai_outputs: keepAiOutputs }); }} label="Auto-delete Raw Audio after 90 days" description="Audio files are deleted after analysis is complete" />
-          <Toggle value={archiveOld} onChange={v => { setArchiveOld(v); save({ auto_delete_audio: autoDeleteAudio, archive_old: v, keep_ai_outputs: keepAiOutputs }); }} label="Archive submissions older than 12 months" description="Move to cold storage to reduce active storage usage" />
-          <Toggle value={keepAiOutputs} onChange={v => { setKeepAiOutputs(v); save({ auto_delete_audio: autoDeleteAudio, archive_old: archiveOld, keep_ai_outputs: v }); }} label="Keep AI outputs indefinitely" description="Insight reports and analysis are never auto-deleted" />
+          <SettingsField
+            label="Delete submissions older than"
+            hint="Applies to this organisation's submissions across all projects. Deletion is permanent and cannot be undone — every purge is recorded in your erasure log."
+          >
+            <select style={{ ...INPUT }} value={retentionDays} onChange={e => { setRetentionDays(e.target.value); save(e.target.value); }}>
+              {RETENTION_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </SettingsField>
+          {cutoff && (
+            <div style={{ fontSize: 11.5, color: "#6B7280", padding: "0 2px" }}>
+              Currently deleting submissions dated before {new Date(cutoff).toLocaleDateString()}.
+            </div>
+          )}
+          {/* Audio-specific retention isn't enforced yet — the retention sweeper
+              deletes whole submissions past the window, it does not strip audio
+              from an otherwise-kept submission. A live toggle here would let an
+              admin believe raw recordings were being purged when they aren't,
+              which is the same trap as the removed 2FA toggle (see
+              SecuritySection). Honest "coming soon" copy instead. */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8", opacity: 0.65 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Auto-delete raw audio separately</div>
+                <Badge label="Coming Soon" color="#9CA3AF" />
+              </div>
+              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Today, retention removes the whole submission. Deleting recordings while keeping the scores isn't available yet.</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: "#6B7280", padding: "10px 2px 0" }}>
+            Insight reports and AI analysis are kept indefinitely and are not affected by this setting.
+          </div>
         </SettingsGroup>
         {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
         {saving && <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8 }}>Saving…</div>}

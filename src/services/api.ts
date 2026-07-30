@@ -395,6 +395,11 @@ export const orgSettingsApi = {
   updateNotifications: (data: object) => api.put('/api/org/notifications', data),
   getStorage: () => api.get('/api/org/storage'),
   updateStorage: (data: object) => api.put('/api/org/storage', data),
+  // The backend's view of retention: the effective cutoff, whether it's active,
+  // and legacy_archive_pending (this org still has the old "archive to cold
+  // storage" toggle on, which never did anything and deliberately does NOT
+  // authorise deletion — see fieldscore-backend retention.py::effective_cutoff).
+  getRetentionPolicy: () => api.get('/api/retention/policy'),
   getSecurity: () => api.get('/api/org/security'),
   updateSecurity: (data: object) => api.put('/api/org/security', data),
   getBilling: () => api.get('/api/org/billing'),
