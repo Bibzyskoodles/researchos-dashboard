@@ -388,6 +388,7 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [result, setResult] = useState('');
+  const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -436,8 +437,59 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
 
       const submissions = buildSubmissionsPayload(rows, mapping, newProjectId);
       const res = await dashboardApi.uploadSubmissions(submissions);
-      setResult(`✓ ${res.data?.imported ?? submissions.length} submissions scored and imported into "${projectName.trim()}".`);
-      setStage('done');
+
+      // Scoring now happens on a durable background queue rather than inline in
+      // the upload request (so a large import can't stall the whole backend or
+      // lose rows on a restart). The endpoint returns a batch id we poll for
+      // progress. If an older backend without the queue responds, fall back to
+      // its synchronous "imported" count.
+      const batchId: string | undefined = res.data?.batch_id;
+      if (!batchId) {
+        setResult(`✓ ${res.data?.imported ?? submissions.length} submissions scored and imported into "${projectName.trim()}".`);
+        setStage('done');
+        return;
+      }
+
+      const total: number = res.data?.total ?? submissions.length;
+      setProgress(`0 of ${total} scored…`);
+
+      // Poll until the batch is complete, or until we hit a generous ceiling —
+      // the work is durable and keeps going server-side either way, so on
+      // timeout we tell the truth ("still scoring in the background") rather
+      // than claim completion.
+      const started = Date.now();
+      const MAX_POLL_MS = 10 * 60 * 1000; // 10 min of foreground polling
+      const POLL_INTERVAL_MS = 2000;
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        await sleep(POLL_INTERVAL_MS);
+        let st: any;
+        try {
+          const s = await dashboardApi.uploadStatus(batchId);
+          st = s.data;
+        } catch {
+          // A transient status-poll error shouldn't fail the upload — the
+          // scoring continues server-side. Keep polling until the ceiling.
+          if (Date.now() - started > MAX_POLL_MS) break;
+          continue;
+        }
+        const done = st?.done ?? 0;
+        const failed = st?.failed ?? 0;
+        setProgress(`${done} of ${st?.total ?? total} scored…`);
+        if (st?.complete) {
+          const failNote = failed > 0 ? ` (${failed} could not be scored and were skipped)` : '';
+          setResult(`✓ ${done} submissions scored and imported into "${projectName.trim()}"${failNote}.`);
+          setStage('done');
+          return;
+        }
+        if (Date.now() - started > MAX_POLL_MS) {
+          setResult(`✓ ${done} of ${total} submissions scored so far in "${projectName.trim()}". The rest are still being scored in the background — this page can be closed; results will keep appearing in the project.`);
+          setStage('done');
+          return;
+        }
+      }
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || 'Upload failed';
       setError(msg);
@@ -447,7 +499,7 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
 
   const reset = () => {
     setStage('idle'); setFileName(''); setProjectName(''); setCreatedProjectId('');
-    setHeaders([]); setRows([]); setMapping({}); setResult(''); setError('');
+    setHeaders([]); setRows([]); setMapping({}); setResult(''); setProgress(''); setError('');
   };
 
   return (
@@ -571,7 +623,7 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 0' }}>
           <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
             style={{ width: 18, height: 18, border: `2px solid #E2E8F0`, borderTopColor: BLUE, borderRadius: '50%' }} />
-          <span style={{ fontSize: 13, color: '#6B7280' }}>Uploading {rows.length} submissions...</span>
+          <span style={{ fontSize: 13, color: '#6B7280' }}>{progress || `Uploading ${rows.length} submissions...`}</span>
         </div>
       )}
 
