@@ -395,6 +395,22 @@ export const orgSettingsApi = {
   updateNotifications: (data: object) => api.put('/api/org/notifications', data),
   getStorage: () => api.get('/api/org/storage'),
   updateStorage: (data: object) => api.put('/api/org/storage', data),
+  // The backend's view of retention: the effective cutoff, whether it's active,
+  // and legacy_archive_pending (this org still has the old "archive to cold
+  // storage" toggle on, which never did anything and deliberately does NOT
+  // authorise deletion — see fieldscore-backend retention.py::effective_cutoff).
+  getRetentionPolicy: () => api.get('/api/retention/policy'),
+  // Right-to-erasure. Two-step by design (see fieldscore-backend
+  // retention_routes.py): preview returns what WOULD be erased plus a
+  // confirm_token bound to that exact scope, and erase refuses without a
+  // matching token — so a deletion can never be a single accidental click, and
+  // a stale confirmation stops validating if the scope changed. Admin-only,
+  // enforced server-side.
+  previewErasure: (target: { project_id?: string; submission_ids?: string[] }) =>
+    api.post('/api/retention/preview', target),
+  performErasure: (target: { project_id?: string; submission_ids?: string[] }, confirm_token: string, reason: string) =>
+    api.post('/api/retention/erase', { ...target, confirm_token, reason }),
+  getErasureLog: (limit = 50) => api.get('/api/retention/log', { params: { limit } }),
   getSecurity: () => api.get('/api/org/security'),
   updateSecurity: (data: object) => api.put('/api/org/security', data),
   getBilling: () => api.get('/api/org/billing'),

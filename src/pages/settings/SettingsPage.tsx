@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Layers, Users, Shield, Palette, Puzzle, Brain,
@@ -1079,10 +1079,37 @@ function ResearchSection() {
   );
 }
 
+// Retention windows offered in the UI. "0" is the explicit "keep everything"
+// default — retention must be opt-in, never a surprise deletion.
+const RETENTION_OPTIONS: [string, string][] = [
+  ["0", "Keep indefinitely (default)"],
+  ["365", "Delete after 12 months"],
+  ["730", "Delete after 24 months"],
+  ["1095", "Delete after 36 months"],
+];
+
+// Audio retention is a separate, shorter window: recordings and transcripts are
+// deleted while the submission and its verification scores are kept.
+const AUDIO_RETENTION_OPTIONS: [string, string][] = [
+  ["30", "30 days"],
+  ["90", "90 days"],
+  ["180", "180 days"],
+  ["365", "12 months"],
+];
+
 function StorageSection() {
-  const [autoDeleteAudio, setAutoDeleteAudio] = useState(true);
-  const [archiveOld, setArchiveOld] = useState(false);
-  const [keepAiOutputs, setKeepAiOutputs] = useState(true);
+  // `retentionDays` is the ONLY control that authorises deletion. It maps to
+  // submission_retention_days, which fieldscore-backend's retention sweeper
+  // reads. The old "Archive submissions older than 12 months — move to cold
+  // storage" toggle is intentionally gone: there is no cold storage, so that
+  // label described an operation this platform cannot perform. Orgs that
+  // ticked it are shown a notice and must choose a real window here, because
+  // consent to "archive" can't be silently upgraded to consent to "delete".
+  const [retentionDays, setRetentionDays] = useState("0");
+  const [autoDeleteAudio, setAutoDeleteAudio] = useState(false);
+  const [audioRetentionDays, setAudioRetentionDays] = useState("90");
+  const [legacyArchivePending, setLegacyArchivePending] = useState(false);
+  const [cutoff, setCutoff] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -1091,20 +1118,43 @@ function StorageSection() {
     orgSettingsApi.getStorage()
       .then(r => {
         const d = r.data || {};
-        if (d.auto_delete_audio !== undefined) setAutoDeleteAudio(d.auto_delete_audio);
-        if (d.archive_old !== undefined) setArchiveOld(d.archive_old);
-        if (d.keep_ai_outputs !== undefined) setKeepAiOutputs(d.keep_ai_outputs);
+        if (d.submission_retention_days !== undefined && d.submission_retention_days !== null) {
+          setRetentionDays(String(d.submission_retention_days));
+        }
+        if (d.auto_delete_audio !== undefined) setAutoDeleteAudio(!!d.auto_delete_audio);
+        if (d.audio_retention_days !== undefined && d.audio_retention_days !== null) {
+          setAudioRetentionDays(String(d.audio_retention_days));
+        }
+      })
+      .catch(() => {});
+    // The backend is authoritative on whether retention is actually active and
+    // whether this org is still carrying the legacy toggle.
+    orgSettingsApi.getRetentionPolicy()
+      .then(r => {
+        const d = r.data || {};
+        setLegacyArchivePending(!!d.legacy_archive_pending);
+        setCutoff(d.cutoff || null);
       })
       .catch(() => {});
   }, []);
 
-  const save = async (next: { auto_delete_audio: boolean; archive_old: boolean; keep_ai_outputs: boolean }) => {
+  const save = async (next?: Partial<{ days: string; audioOn: boolean; audioDays: string }>) => {
     setSaving(true);
     setError("");
     try {
-      await orgSettingsApi.updateStorage(next);
+      // Clearing archive_old as we write a real window: leaving it set would
+      // keep this org flagged as needing re-consent forever.
+      await orgSettingsApi.updateStorage({
+        submission_retention_days: Number(next?.days ?? retentionDays),
+        auto_delete_audio: next?.audioOn ?? autoDeleteAudio,
+        audio_retention_days: Number(next?.audioDays ?? audioRetentionDays),
+        archive_old: false,
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      const policy = await orgSettingsApi.getRetentionPolicy();
+      setLegacyArchivePending(!!policy.data?.legacy_archive_pending);
+      setCutoff(policy.data?.cutoff || null);
     } catch (e: any) {
       setError(e?.response?.data?.error || "Could not save — please try again.");
     } finally {
@@ -1121,16 +1171,268 @@ function StorageSection() {
           </div>
         </SettingsGroup>
         <SectionDivider label="Retention Policy" />
+        {legacyArchivePending && (
+          <div style={{ padding: "14px 16px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, fontSize: 12.5, color: "#92400E", marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Action needed: your old retention setting was never applied</div>
+            This organisation had “Archive submissions older than 12 months (move to cold
+            storage)” switched on. That option never did anything — there is no cold storage
+            on this platform — so <strong>nothing has been deleted or archived</strong>. Your
+            data is all still here. To set a real policy, choose a retention period below.
+            Please note it <strong>permanently deletes</strong> submissions past that age; it
+            does not archive them.
+          </div>
+        )}
         <SettingsGroup>
-          <Toggle value={autoDeleteAudio} onChange={v => { setAutoDeleteAudio(v); save({ auto_delete_audio: v, archive_old: archiveOld, keep_ai_outputs: keepAiOutputs }); }} label="Auto-delete Raw Audio after 90 days" description="Audio files are deleted after analysis is complete" />
-          <Toggle value={archiveOld} onChange={v => { setArchiveOld(v); save({ auto_delete_audio: autoDeleteAudio, archive_old: v, keep_ai_outputs: keepAiOutputs }); }} label="Archive submissions older than 12 months" description="Move to cold storage to reduce active storage usage" />
-          <Toggle value={keepAiOutputs} onChange={v => { setKeepAiOutputs(v); save({ auto_delete_audio: autoDeleteAudio, archive_old: archiveOld, keep_ai_outputs: v }); }} label="Keep AI outputs indefinitely" description="Insight reports and analysis are never auto-deleted" />
+          <SettingsField
+            label="Delete submissions older than"
+            hint="Applies to this organisation's submissions across all projects. Deletion is permanent and cannot be undone — every purge is recorded in your erasure log."
+          >
+            <select style={{ ...INPUT }} value={retentionDays} onChange={e => { setRetentionDays(e.target.value); save({ days: e.target.value }); }}>
+              {RETENTION_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </SettingsField>
+          {cutoff && (
+            <div style={{ fontSize: 11.5, color: "#6B7280", padding: "0 2px" }}>
+              Currently deleting submissions dated before {new Date(cutoff).toLocaleDateString()}.
+            </div>
+          )}
+          <SectionDivider label="Recordings" />
+          {/* Now genuinely enforced by fieldscore-backend's retention sweeper
+              (retention.py::apply_audio_retention), which strips the recording
+              reference, the transcript and the voiceprint while keeping the
+              submission's scores. */}
+          <Toggle
+            value={autoDeleteAudio}
+            onChange={v => { setAutoDeleteAudio(v); save({ audioOn: v }); }}
+            label="Delete interview recordings on a shorter schedule"
+            description="Removes the recording, its transcript and its voice fingerprint, but keeps the submission and all of its verification scores. Useful when recordings are the most sensitive thing you hold but you still need the audit trail."
+          />
+          {autoDeleteAudio && (
+            <SettingsField
+              label="Delete recordings older than"
+              hint="Applies to recordings only. Scores, flags and findings are unaffected and stay valid evidence."
+            >
+              <select style={{ ...INPUT }} value={audioRetentionDays} onChange={e => { setAudioRetentionDays(e.target.value); save({ audioDays: e.target.value }); }}>
+                {AUDIO_RETENTION_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </SettingsField>
+          )}
+          <div style={{ fontSize: 11.5, color: "#6B7280", padding: "0 2px" }}>
+            The recording file itself is stored on your KoboToolbox/ODK server. This removes our copy of the transcript and voice fingerprint and our access to the file — delete the original on your own server if you need it gone there too.
+          </div>
+          <div style={{ fontSize: 12, color: "#6B7280", padding: "10px 2px 0" }}>
+            Insight reports and AI analysis are kept indefinitely and are not affected by this setting.
+          </div>
         </SettingsGroup>
         {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
         {saving && <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8 }}>Saving…</div>}
         {saved && <div style={{ fontSize: 11.5, color: GREEN, marginTop: 8 }}>Saved</div>}
       </SettingsCard>
+      <ErasureCard />
     </div>
+  );
+}
+
+interface ErasurePreview {
+  submission_count: number;
+  retained?: { store: string; reason: string }[];
+  rejected?: string[];
+  confirm_token?: string;
+}
+
+interface ErasureRecord {
+  id: number; scope: string; scope_ref?: string; submission_count: number;
+  actor: string; reason?: string; erased_at: string; trigger: string;
+  signature_valid: boolean;
+}
+
+// Right-to-erasure panel. The backend (retention_routes.py) is the enforcement:
+// admin-only, org-scoped, and preview→confirm_token→erase so a deletion can
+// never be one accidental click. This UI exists because that capability was
+// otherwise only reachable by calling the API by hand — which made a compliance
+// feature unusable in practice for the person who actually fields the request.
+function ErasureCard() {
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [mode, setMode] = useState<"project" | "submissions">("project");
+  const [projectId, setProjectId] = useState("");
+  const [submissionIds, setSubmissionIds] = useState("");
+  const [reason, setReason] = useState("");
+  const [preview, setPreview] = useState<ErasurePreview | null>(null);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string>("");
+  const [error, setError] = useState("");
+  const [history, setHistory] = useState<ErasureRecord[]>([]);
+
+  const loadHistory = useCallback(() => {
+    orgSettingsApi.getErasureLog(25)
+      .then(r => setHistory(r.data?.erasures || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    projectsApi.list()
+      .then(r => setProjects((r.data?.projects || r.data || []).map((p: any) => ({ id: p.id, name: p.name || p.id }))))
+      .catch(() => {});
+    loadHistory();
+  }, [loadHistory]);
+
+  const target = () => mode === "project"
+    ? { project_id: projectId }
+    : { submission_ids: submissionIds.split(/[\s,]+/).filter(Boolean) };
+
+  const runPreview = async () => {
+    setBusy(true); setError(""); setResult(""); setPreview(null); setTyped("");
+    try {
+      const r = await orgSettingsApi.previewErasure(target());
+      setPreview(r.data);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Could not check what would be deleted.");
+    } finally { setBusy(false); }
+  };
+
+  const runErase = async () => {
+    if (!preview?.confirm_token) return;
+    setBusy(true); setError("");
+    try {
+      const r = await orgSettingsApi.performErasure(target(), preview.confirm_token, reason);
+      const n = r.data?.submission_count ?? 0;
+      const failed = r.data?.failures ? Object.keys(r.data.failures).length : 0;
+      setResult(failed
+        ? `Deleted data for ${n} submission(s), but ${failed} storage location(s) reported an error — see the erasure log and retry.`
+        : `Permanently deleted all data for ${n} submission(s). This is recorded in the erasure log below.`);
+      setPreview(null); setTyped(""); setReason("");
+      loadHistory();
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "The deletion could not be completed.");
+    } finally { setBusy(false); }
+  };
+
+  const confirmed = typed.trim().toUpperCase() === "DELETE";
+
+  return (
+    <SettingsCard style={{ padding: 24 }}>
+      <SettingsGroup label="Delete a Respondent's or Project's Data">
+        <div style={{ padding: "14px 16px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, fontSize: 12.5, color: "#991B1B", lineHeight: 1.6 }}>
+          <strong>This permanently deletes data and cannot be undone.</strong> Use it to
+          honour a request from someone who wants their data removed. It erases the
+          submission, its answers, photos/recording references, transcripts and voice
+          fingerprints from every place we store them — and records who did it and when,
+          so you can prove it happened.
+        </div>
+
+        <SettingsField label="What should be deleted?" hint="Choose a whole project, or list specific submission IDs for an individual request.">
+          <select style={{ ...INPUT }} value={mode} onChange={e => { setMode(e.target.value as "project" | "submissions"); setPreview(null); }}>
+            <option value="project">All data in one project</option>
+            <option value="submissions">Specific submissions</option>
+          </select>
+        </SettingsField>
+
+        {mode === "project" ? (
+          <SettingsField label="Project">
+            <select style={{ ...INPUT }} value={projectId} onChange={e => { setProjectId(e.target.value); setPreview(null); }}>
+              <option value="">Select a project…</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </SettingsField>
+        ) : (
+          <SettingsField label="Submission IDs" hint="One per line, or separated by commas.">
+            <textarea
+              style={{ ...INPUT, minHeight: 72, fontFamily: "monospace", fontSize: 12 }}
+              value={submissionIds}
+              onChange={e => { setSubmissionIds(e.target.value); setPreview(null); }}
+              placeholder="e.g. 1a2b3c4d-..."
+            />
+          </SettingsField>
+        )}
+
+        <SettingsField label="Reason (recorded in the erasure log)" hint="For example: “Respondent withdrew consent, request received 12 June.”">
+          <input style={{ ...INPUT }} value={reason} onChange={e => setReason(e.target.value)} placeholder="Why this data is being deleted" />
+        </SettingsField>
+
+        <button
+          onClick={runPreview}
+          disabled={busy || (mode === "project" ? !projectId : !submissionIds.trim())}
+          style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", color: "#374151", fontSize: 12.5, fontWeight: 600, cursor: busy ? "default" : "pointer", fontFamily: "Inter, sans-serif", width: "fit-content", opacity: busy ? 0.6 : 1 }}
+        >
+          {busy && !preview ? "Checking…" : "Check what would be deleted"}
+        </button>
+
+        {preview && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "16px 18px", background: "#F8FAFF", border: "1px solid #E8EDF5", borderRadius: 12 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>
+              {preview.submission_count === 0
+                ? "Nothing found to delete"
+                : `${preview.submission_count} submission${preview.submission_count === 1 ? "" : "s"} will be permanently deleted`}
+            </div>
+            {!!preview.rejected?.length && (
+              <div style={{ fontSize: 11.5, color: "#92400E" }}>
+                {preview.rejected.length} ID(s) were ignored because they don't belong to your organisation.
+              </div>
+            )}
+            {/* Surfacing what is NOT deleted matters: whoever fields the request
+                needs to answer accurately, and some of it (the recording on the
+                client's own Kobo server) requires action outside FieldScore. */}
+            {!!preview.retained?.length && preview.submission_count > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6 }}>What will NOT be deleted</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {preview.retained.map((r, i) => (
+                    <div key={i} style={{ fontSize: 11.5, color: "#4B5563", lineHeight: 1.5 }}>
+                      <strong>{r.store}</strong> — {r.reason}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {preview.submission_count > 0 && (
+              <>
+                <SettingsField label="Type DELETE to confirm">
+                  <input style={{ ...INPUT }} value={typed} onChange={e => setTyped(e.target.value)} placeholder="DELETE" autoComplete="off" />
+                </SettingsField>
+                <button
+                  onClick={runErase}
+                  disabled={busy || !confirmed}
+                  style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: confirmed ? RED : "#FCA5A5", color: "white", fontSize: 12.5, fontWeight: 700, cursor: confirmed && !busy ? "pointer" : "default", fontFamily: "Inter, sans-serif", width: "fit-content" }}
+                >
+                  {busy ? "Deleting…" : "Permanently delete this data"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {result && <div style={{ fontSize: 12.5, color: GREEN, fontWeight: 600 }}>{result}</div>}
+        {error && <div style={{ fontSize: 12.5, color: RED }}>{error}</div>}
+      </SettingsGroup>
+
+      <SectionDivider label="Deletion History" />
+      <SettingsGroup>
+        {history.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#9CA3AF" }}>No data has been deleted yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {history.map(h => (
+              <div key={h.id} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "10px 14px", background: "#F8FAFF", border: "1px solid #EEF2F8", borderRadius: 10 }}>
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: "#111827" }}>
+                    {h.submission_count} submission{h.submission_count === 1 ? "" : "s"}
+                    {h.scope === "audio_minimisation" ? " — recordings removed" : " deleted"}
+                    {h.scope_ref ? ` (project ${h.scope_ref})` : ""}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
+                    {new Date(h.erased_at).toLocaleString()} · {h.trigger === "manual" ? `by ${h.actor}` : "automatic (retention policy)"}
+                    {h.reason ? ` · ${h.reason}` : ""}
+                  </div>
+                </div>
+                {/* The log is signed; a failed check means the record was altered. */}
+                <Badge label={h.signature_valid ? "Verified" : "Altered"} color={h.signature_valid ? GREEN : RED} />
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingsGroup>
+    </SettingsCard>
   );
 }
 
