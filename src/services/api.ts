@@ -159,6 +159,8 @@ export const dashboardApi = {
     api.post('/odk/import', { project_id, form_id, limit, ...(fieldscore_project_id ? { fieldscore_project_id } : {}) }),
   uploadSubmissions: (submissions: object[]) =>
     api.post('/api/submissions/upload', { submissions }),
+  uploadStatus: (batchId: string) =>
+    api.get(`/api/submissions/upload-status/${encodeURIComponent(batchId)}`),
   deleteSubmission: (id: string) =>
     api.delete(`/api/submissions/${id}`),
   bulkDelete: (ids: string[]) =>
