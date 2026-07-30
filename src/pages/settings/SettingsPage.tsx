@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Layers, Users, Shield, Palette, Puzzle, Brain,
@@ -1228,7 +1228,211 @@ function StorageSection() {
         {saving && <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8 }}>Saving…</div>}
         {saved && <div style={{ fontSize: 11.5, color: GREEN, marginTop: 8 }}>Saved</div>}
       </SettingsCard>
+      <ErasureCard />
     </div>
+  );
+}
+
+interface ErasurePreview {
+  submission_count: number;
+  retained?: { store: string; reason: string }[];
+  rejected?: string[];
+  confirm_token?: string;
+}
+
+interface ErasureRecord {
+  id: number; scope: string; scope_ref?: string; submission_count: number;
+  actor: string; reason?: string; erased_at: string; trigger: string;
+  signature_valid: boolean;
+}
+
+// Right-to-erasure panel. The backend (retention_routes.py) is the enforcement:
+// admin-only, org-scoped, and preview→confirm_token→erase so a deletion can
+// never be one accidental click. This UI exists because that capability was
+// otherwise only reachable by calling the API by hand — which made a compliance
+// feature unusable in practice for the person who actually fields the request.
+function ErasureCard() {
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [mode, setMode] = useState<"project" | "submissions">("project");
+  const [projectId, setProjectId] = useState("");
+  const [submissionIds, setSubmissionIds] = useState("");
+  const [reason, setReason] = useState("");
+  const [preview, setPreview] = useState<ErasurePreview | null>(null);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string>("");
+  const [error, setError] = useState("");
+  const [history, setHistory] = useState<ErasureRecord[]>([]);
+
+  const loadHistory = useCallback(() => {
+    orgSettingsApi.getErasureLog(25)
+      .then(r => setHistory(r.data?.erasures || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    projectsApi.list()
+      .then(r => setProjects((r.data?.projects || r.data || []).map((p: any) => ({ id: p.id, name: p.name || p.id }))))
+      .catch(() => {});
+    loadHistory();
+  }, [loadHistory]);
+
+  const target = () => mode === "project"
+    ? { project_id: projectId }
+    : { submission_ids: submissionIds.split(/[\s,]+/).filter(Boolean) };
+
+  const runPreview = async () => {
+    setBusy(true); setError(""); setResult(""); setPreview(null); setTyped("");
+    try {
+      const r = await orgSettingsApi.previewErasure(target());
+      setPreview(r.data);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Could not check what would be deleted.");
+    } finally { setBusy(false); }
+  };
+
+  const runErase = async () => {
+    if (!preview?.confirm_token) return;
+    setBusy(true); setError("");
+    try {
+      const r = await orgSettingsApi.performErasure(target(), preview.confirm_token, reason);
+      const n = r.data?.submission_count ?? 0;
+      const failed = r.data?.failures ? Object.keys(r.data.failures).length : 0;
+      setResult(failed
+        ? `Deleted data for ${n} submission(s), but ${failed} storage location(s) reported an error — see the erasure log and retry.`
+        : `Permanently deleted all data for ${n} submission(s). This is recorded in the erasure log below.`);
+      setPreview(null); setTyped(""); setReason("");
+      loadHistory();
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "The deletion could not be completed.");
+    } finally { setBusy(false); }
+  };
+
+  const confirmed = typed.trim().toUpperCase() === "DELETE";
+
+  return (
+    <SettingsCard style={{ padding: 24 }}>
+      <SettingsGroup label="Delete a Respondent's or Project's Data">
+        <div style={{ padding: "14px 16px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, fontSize: 12.5, color: "#991B1B", lineHeight: 1.6 }}>
+          <strong>This permanently deletes data and cannot be undone.</strong> Use it to
+          honour a request from someone who wants their data removed. It erases the
+          submission, its answers, photos/recording references, transcripts and voice
+          fingerprints from every place we store them — and records who did it and when,
+          so you can prove it happened.
+        </div>
+
+        <SettingsField label="What should be deleted?" hint="Choose a whole project, or list specific submission IDs for an individual request.">
+          <select style={{ ...INPUT }} value={mode} onChange={e => { setMode(e.target.value as "project" | "submissions"); setPreview(null); }}>
+            <option value="project">All data in one project</option>
+            <option value="submissions">Specific submissions</option>
+          </select>
+        </SettingsField>
+
+        {mode === "project" ? (
+          <SettingsField label="Project">
+            <select style={{ ...INPUT }} value={projectId} onChange={e => { setProjectId(e.target.value); setPreview(null); }}>
+              <option value="">Select a project…</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </SettingsField>
+        ) : (
+          <SettingsField label="Submission IDs" hint="One per line, or separated by commas.">
+            <textarea
+              style={{ ...INPUT, minHeight: 72, fontFamily: "monospace", fontSize: 12 }}
+              value={submissionIds}
+              onChange={e => { setSubmissionIds(e.target.value); setPreview(null); }}
+              placeholder="e.g. 1a2b3c4d-..."
+            />
+          </SettingsField>
+        )}
+
+        <SettingsField label="Reason (recorded in the erasure log)" hint="For example: “Respondent withdrew consent, request received 12 June.”">
+          <input style={{ ...INPUT }} value={reason} onChange={e => setReason(e.target.value)} placeholder="Why this data is being deleted" />
+        </SettingsField>
+
+        <button
+          onClick={runPreview}
+          disabled={busy || (mode === "project" ? !projectId : !submissionIds.trim())}
+          style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", color: "#374151", fontSize: 12.5, fontWeight: 600, cursor: busy ? "default" : "pointer", fontFamily: "Inter, sans-serif", width: "fit-content", opacity: busy ? 0.6 : 1 }}
+        >
+          {busy && !preview ? "Checking…" : "Check what would be deleted"}
+        </button>
+
+        {preview && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "16px 18px", background: "#F8FAFF", border: "1px solid #E8EDF5", borderRadius: 12 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#080D1A" }}>
+              {preview.submission_count === 0
+                ? "Nothing found to delete"
+                : `${preview.submission_count} submission${preview.submission_count === 1 ? "" : "s"} will be permanently deleted`}
+            </div>
+            {!!preview.rejected?.length && (
+              <div style={{ fontSize: 11.5, color: "#92400E" }}>
+                {preview.rejected.length} ID(s) were ignored because they don't belong to your organisation.
+              </div>
+            )}
+            {/* Surfacing what is NOT deleted matters: whoever fields the request
+                needs to answer accurately, and some of it (the recording on the
+                client's own Kobo server) requires action outside FieldScore. */}
+            {!!preview.retained?.length && preview.submission_count > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6 }}>What will NOT be deleted</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {preview.retained.map((r, i) => (
+                    <div key={i} style={{ fontSize: 11.5, color: "#4B5563", lineHeight: 1.5 }}>
+                      <strong>{r.store}</strong> — {r.reason}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {preview.submission_count > 0 && (
+              <>
+                <SettingsField label="Type DELETE to confirm">
+                  <input style={{ ...INPUT }} value={typed} onChange={e => setTyped(e.target.value)} placeholder="DELETE" autoComplete="off" />
+                </SettingsField>
+                <button
+                  onClick={runErase}
+                  disabled={busy || !confirmed}
+                  style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: confirmed ? RED : "#FCA5A5", color: "white", fontSize: 12.5, fontWeight: 700, cursor: confirmed && !busy ? "pointer" : "default", fontFamily: "Inter, sans-serif", width: "fit-content" }}
+                >
+                  {busy ? "Deleting…" : "Permanently delete this data"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {result && <div style={{ fontSize: 12.5, color: GREEN, fontWeight: 600 }}>{result}</div>}
+        {error && <div style={{ fontSize: 12.5, color: RED }}>{error}</div>}
+      </SettingsGroup>
+
+      <SectionDivider label="Deletion History" />
+      <SettingsGroup>
+        {history.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#9CA3AF" }}>No data has been deleted yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {history.map(h => (
+              <div key={h.id} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "10px 14px", background: "#F8FAFF", border: "1px solid #EEF2F8", borderRadius: 10 }}>
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: "#111827" }}>
+                    {h.submission_count} submission{h.submission_count === 1 ? "" : "s"}
+                    {h.scope === "audio_minimisation" ? " — recordings removed" : " deleted"}
+                    {h.scope_ref ? ` (project ${h.scope_ref})` : ""}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
+                    {new Date(h.erased_at).toLocaleString()} · {h.trigger === "manual" ? `by ${h.actor}` : "automatic (retention policy)"}
+                    {h.reason ? ` · ${h.reason}` : ""}
+                  </div>
+                </div>
+                {/* The log is signed; a failed check means the record was altered. */}
+                <Badge label={h.signature_valid ? "Verified" : "Altered"} color={h.signature_valid ? GREEN : RED} />
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingsGroup>
+    </SettingsCard>
   );
 }
 
