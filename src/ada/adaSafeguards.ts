@@ -215,6 +215,10 @@ export function validateCommand(cmd: unknown): cmd is AdaCommand {
     case 'RESCORE_PROJECT':
       return typeof c.project_id === 'string' && c.project_id.length > 0;
 
+    case 'RESCORE_SUBMISSION':
+      return typeof c.submission_id === 'string' && c.submission_id.length > 0 && c.submission_id.length < 128
+        && (c.level === undefined || c.level === 'full' || c.level === 'recompute');
+
     case 'BRIDGE_SYNC':
       return typeof c.project_id === 'string' && c.project_id.length > 0;
 
@@ -226,6 +230,20 @@ export function validateCommand(cmd: unknown): cmd is AdaCommand {
       // validated like every other command since it's still AI-returned input.
       return typeof c.project_id === 'string' && c.project_id.length > 0
         && typeof c.project_name === 'string' && c.project_name.length > 0 && c.project_name.length < 200;
+
+    case 'CONFIRM_ERASURE': {
+      // Only ever surfaces a confirmation card — the real preview→confirm-token
+      // →erase flow runs on the user's click (see AdaDock). Still validated as
+      // AI-returned input: needs a reason + a target that is either a project_id
+      // or a non-empty, bounded list of submission ids (never both empty).
+      if (typeof c.reason !== 'string' || c.reason.length === 0 || c.reason.length > 500) return false;
+      if (typeof c.label !== 'string' || c.label.length === 0 || c.label.length > 200) return false;
+      const hasProject = typeof c.project_id === 'string' && (c.project_id as string).length > 0;
+      const ids = c.submission_ids;
+      const hasIds = Array.isArray(ids) && ids.length > 0 && ids.length <= 5000
+        && ids.every(s => typeof s === 'string' && s.length > 0 && s.length < 128);
+      return hasProject || hasIds;
+    }
 
     case 'OPEN_SETTINGS_SECTION':
     case 'CREATE_PROJECT':
