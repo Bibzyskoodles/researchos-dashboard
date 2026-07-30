@@ -20,6 +20,7 @@ export interface AdaContext {
 // action describes has happened yet; only the user's click triggers it.
 export type AdaConfirmAction =
   | { type: 'delete_project'; project_id: string; project_name: string }
+  | { type: 'erasure'; project_id?: string; submission_ids?: string[]; reason: string; label: string }
   | {
       type: 'upload_submissions';
       fileName: string;

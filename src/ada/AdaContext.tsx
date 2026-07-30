@@ -8,12 +8,15 @@ interface GuideTarget {
   height: number;
 }
 
-// Commands Ada can issue to adjust the UI when the user asks. She can filter,
-// highlight, navigate, switch project, change settings, and submit — deletion
-// is the one exception: CONFIRM_DELETE_PROJECT never deletes anything by
-// itself, it only surfaces a confirmation card in chat (see AdaDock). Only
-// the user's click on that card, followed by the server independently
-// re-verifying the project is actually empty, results in an actual delete.
+// Commands Ada can issue to adjust the UI or act on the user's behalf. She can
+// filter, highlight, navigate, switch project, change settings, and — in her
+// research domain — re-run verification/scoring directly (RESCORE_SUBMISSION,
+// RESCORE_PROJECT) because those only re-derive results from data that already
+// exists. Destroying data is the exception: CONFIRM_DELETE_PROJECT and
+// CONFIRM_ERASURE never delete anything by themselves, they only surface a
+// confirmation card in chat (see AdaDock). Only the user's click on that card,
+// followed by the server independently re-verifying (ownership, and for erasure
+// a fresh preview + scope-bound confirm token), results in an actual deletion.
 export type AdaCommand =
   | { type: 'FILTER_SUBMISSIONS'; verdict: 'PASS' | 'FLAG' | 'REJECT' | 'ALL' }
   | { type: 'HIGHLIGHT_ENUMERATOR'; id: string }
@@ -25,8 +28,10 @@ export type AdaCommand =
   | { type: 'CHANGE_SETTING'; key: string; value: any; label: string; scope?: string; project_id?: string }
   | { type: 'GENERATE_REPORT'; project_id: string; format: 'docx' | 'pptx' | 'xlsx' }
   | { type: 'RESCORE_PROJECT'; project_id: string }
+  | { type: 'RESCORE_SUBMISSION'; submission_id: string; level?: 'full' | 'recompute' }
   | { type: 'BRIDGE_SYNC'; project_id: string }
-  | { type: 'CONFIRM_DELETE_PROJECT'; project_id: string; project_name: string };
+  | { type: 'CONFIRM_DELETE_PROJECT'; project_id: string; project_name: string }
+  | { type: 'CONFIRM_ERASURE'; project_id?: string; submission_ids?: string[]; reason: string; label: string };
 
 // Map a natural-language message to a command intent, or null if none.
 export function parseAdaCommand(text: string): AdaCommand | null {

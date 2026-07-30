@@ -189,9 +189,23 @@ export default function AppShell() {
 
       case 'RESCORE_PROJECT': {
         const rescoreId = cmd.project_id;
-        showToast('Rescoring project…');
-        import('../../services/api').then(({ default: api }) => {
-          api.post(`/api/projects/${rescoreId}/rescore-all`).catch(() => showToast('Rescore failed — please try again.'));
+        showToast('Re-verifying project…');
+        import('../../services/api').then(({ dashboardApi }) => {
+          dashboardApi.rescoreProject(rescoreId, 'full')
+            .then(() => showToast('Re-verification started — new verdicts will appear shortly.'))
+            .catch(() => showToast('Re-verification failed — please try again.'));
+        });
+        break;
+      }
+
+      case 'RESCORE_SUBMISSION': {
+        const subId = cmd.submission_id;
+        const level = cmd.level === 'recompute' ? 'recompute' : 'full';
+        showToast('Re-verifying submission…');
+        import('../../services/api').then(({ dashboardApi }) => {
+          dashboardApi.rescoreSubmission(subId, level)
+            .then(() => showToast('Re-verification started — the new verdict will appear shortly.'))
+            .catch(() => showToast('Re-verification failed — please try again.'));
         });
         break;
       }
@@ -216,6 +230,27 @@ export default function AppShell() {
           content: `I'd like to delete "${cmd.project_name}" — it looks like an empty duplicate. Confirm?`,
           timestamp: new Date().toISOString(),
           confirmAction: { type: 'delete_project', project_id: cmd.project_id, project_name: cmd.project_name },
+        });
+        break;
+
+      case 'CONFIRM_ERASURE':
+        // Never erases anything here — surfaces a confirmation card in chat.
+        // Permanent, irreversible data deletion (right-to-erasure). AdaDock
+        // renders the card and only on the user's click runs the real
+        // preview→confirm-token→erase flow, with the server re-verifying
+        // ownership and re-issuing the token. Mirrors CONFIRM_DELETE_PROJECT.
+        addMessage({
+          id: `erasure-${cmd.project_id || 'ids'}-${cmd.seq}`,
+          role: 'assistant',
+          content: `You've asked me to permanently delete ${cmd.label}. This can't be undone. Confirm to proceed?`,
+          timestamp: new Date().toISOString(),
+          confirmAction: {
+            type: 'erasure',
+            project_id: cmd.project_id || undefined,
+            submission_ids: cmd.submission_ids && cmd.submission_ids.length ? cmd.submission_ids : undefined,
+            reason: cmd.reason,
+            label: cmd.label,
+          },
         });
         break;
 

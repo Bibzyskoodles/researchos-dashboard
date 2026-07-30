@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAda, parseAdaCommand, AdaCommand } from "../../ada/AdaContext";
+import { validateCommand } from "../../ada/adaSafeguards";
 import { useProject } from "../../context/ProjectContext";
 import { adaApi, orgSettingsApi, projectsApi, dashboardApi } from "../../services/api";
 import { isSpreadsheetFile, loadSpreadsheetFile, autoMap, buildSubmissionsPayload, FIELD_MAP } from "../../services/csvImport";
@@ -215,7 +216,19 @@ export default function AdaDock() {
       addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: reply, timestamp: new Date().toISOString() });
       setState("speaking");
       setTimeout(() => setState("idle"), 3000);
-      detectAndNavigate(reply);
+      // Execute the action Ada chose server-side. Her tool call arrives as a
+      // structured `command`; run it only if it passes the client-side schema
+      // guard (validateCommand) — a defence-in-depth layer over the real
+      // server-side auth/ownership checks the command's endpoint applies. The
+      // destructive ones (CONFIRM_DELETE_PROJECT, CONFIRM_ERASURE) only surface
+      // a confirmation card here; nothing is deleted without the user's click.
+      const backendCmd = res.data?.command;
+      if (backendCmd && validateCommand(backendCmd)) {
+        dispatchCommand(backendCmd as AdaCommand);
+      } else if (!backendCmd) {
+        // No structured command — fall back to the legacy reply-text nav parser.
+        detectAndNavigate(reply);
+      }
     } catch {
       setState("idle");
     } finally {
@@ -354,6 +367,46 @@ export default function AdaDock() {
     }
   };
 
+  // Permanent right-to-erasure. Like project deletion, Ada never finalizes
+  // this herself: AppShell's CONFIRM_ERASURE handler added the card this
+  // responds to, and only this click runs the real flow. The server's own
+  // two-step guard is honoured end to end — we PREVIEW first to obtain a
+  // fresh, scope-bound confirm token, then ERASE with that exact token. The
+  // token is re-derived server-side from the caller's org + the scope's
+  // current contents, so a stale or cross-org request fails there regardless
+  // of anything Ada believed. Erasure is admin-only server-side; a non-admin
+  // caller gets a 403 from the endpoint no matter what the UI shows.
+  const handleConfirmErasure = async (
+    messageId: string,
+    action: { project_id?: string; submission_ids?: string[]; reason: string; label: string },
+    confirmed: boolean
+  ) => {
+    setResolvedConfirms(prev => new Set(prev).add(messageId));
+    if (!confirmed) {
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Okay — I won't delete ${action.label}. Nothing was removed.`, timestamp: new Date().toISOString() });
+      return;
+    }
+    setConfirmBusy(messageId);
+    const target = action.project_id
+      ? { project_id: action.project_id }
+      : { submission_ids: action.submission_ids || [] };
+    try {
+      const preview = await orgSettingsApi.previewErasure(target);
+      const token: string = preview.data?.confirm_token;
+      if (!token) throw new Error("no confirm token");
+      await orgSettingsApi.performErasure(target, token, action.reason);
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Done — ${action.label} has been permanently erased. It's recorded in the deletion log with your reason.`, timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      const msg = err?.response?.status === 403
+        ? `I couldn't run that erasure — it needs an admin account. You can ask an admin, or run it from Settings → Data & Storage.`
+        : `I couldn't complete that erasure — nothing was deleted. Please try again from Settings → Data & Storage.`;
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: msg, timestamp: new Date().toISOString() });
+    } finally {
+      setConfirmBusy(null);
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  };
+
   // Mirrors IntegrationsPage's own import flow (same create-project +
   // upload-submissions calls) so a spreadsheet dropped in chat behaves
   // identically to one uploaded through Integrations — nothing is imported
@@ -467,6 +520,8 @@ export default function AdaDock() {
                   ? msg.confirmAction : null;
                 const pendingUpload = msg.confirmAction?.type === 'upload_submissions' && !resolvedConfirms.has(msg.id)
                   ? msg.confirmAction : null;
+                const pendingErasure = msg.confirmAction?.type === 'erasure' && !resolvedConfirms.has(msg.id)
+                  ? msg.confirmAction : null;
                 const busy = confirmBusy === msg.id;
                 return (
                   <div key={msg.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
@@ -506,6 +561,24 @@ export default function AdaDock() {
                           </button>
                           <button
                             onClick={() => handleConfirmUpload(msg.id, pendingUpload, false)}
+                            disabled={busy}
+                            style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #E2E8F0", background: "white", color: "#6B7280", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                      {pendingErasure && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                          <button
+                            onClick={() => handleConfirmErasure(msg.id, pendingErasure, true)}
+                            disabled={busy}
+                            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: "none", background: "#DC2626", color: "white", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
+                          >
+                            <Trash2 size={11} /> Erase permanently
+                          </button>
+                          <button
+                            onClick={() => handleConfirmErasure(msg.id, pendingErasure, false)}
                             disabled={busy}
                             style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #E2E8F0", background: "white", color: "#6B7280", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
                           >
