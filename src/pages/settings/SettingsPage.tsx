@@ -1088,6 +1088,15 @@ const RETENTION_OPTIONS: [string, string][] = [
   ["1095", "Delete after 36 months"],
 ];
 
+// Audio retention is a separate, shorter window: recordings and transcripts are
+// deleted while the submission and its verification scores are kept.
+const AUDIO_RETENTION_OPTIONS: [string, string][] = [
+  ["30", "30 days"],
+  ["90", "90 days"],
+  ["180", "180 days"],
+  ["365", "12 months"],
+];
+
 function StorageSection() {
   // `retentionDays` is the ONLY control that authorises deletion. It maps to
   // submission_retention_days, which fieldscore-backend's retention sweeper
@@ -1097,6 +1106,8 @@ function StorageSection() {
   // ticked it are shown a notice and must choose a real window here, because
   // consent to "archive" can't be silently upgraded to consent to "delete".
   const [retentionDays, setRetentionDays] = useState("0");
+  const [autoDeleteAudio, setAutoDeleteAudio] = useState(false);
+  const [audioRetentionDays, setAudioRetentionDays] = useState("90");
   const [legacyArchivePending, setLegacyArchivePending] = useState(false);
   const [cutoff, setCutoff] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1109,6 +1120,10 @@ function StorageSection() {
         const d = r.data || {};
         if (d.submission_retention_days !== undefined && d.submission_retention_days !== null) {
           setRetentionDays(String(d.submission_retention_days));
+        }
+        if (d.auto_delete_audio !== undefined) setAutoDeleteAudio(!!d.auto_delete_audio);
+        if (d.audio_retention_days !== undefined && d.audio_retention_days !== null) {
+          setAudioRetentionDays(String(d.audio_retention_days));
         }
       })
       .catch(() => {});
@@ -1123,14 +1138,16 @@ function StorageSection() {
       .catch(() => {});
   }, []);
 
-  const save = async (days: string) => {
+  const save = async (next?: Partial<{ days: string; audioOn: boolean; audioDays: string }>) => {
     setSaving(true);
     setError("");
     try {
       // Clearing archive_old as we write a real window: leaving it set would
       // keep this org flagged as needing re-consent forever.
       await orgSettingsApi.updateStorage({
-        submission_retention_days: Number(days),
+        submission_retention_days: Number(next?.days ?? retentionDays),
+        auto_delete_audio: next?.audioOn ?? autoDeleteAudio,
+        audio_retention_days: Number(next?.audioDays ?? audioRetentionDays),
         archive_old: false,
       });
       setSaved(true);
@@ -1170,7 +1187,7 @@ function StorageSection() {
             label="Delete submissions older than"
             hint="Applies to this organisation's submissions across all projects. Deletion is permanent and cannot be undone — every purge is recorded in your erasure log."
           >
-            <select style={{ ...INPUT }} value={retentionDays} onChange={e => { setRetentionDays(e.target.value); save(e.target.value); }}>
+            <select style={{ ...INPUT }} value={retentionDays} onChange={e => { setRetentionDays(e.target.value); save({ days: e.target.value }); }}>
               {RETENTION_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </SettingsField>
@@ -1179,20 +1196,29 @@ function StorageSection() {
               Currently deleting submissions dated before {new Date(cutoff).toLocaleDateString()}.
             </div>
           )}
-          {/* Audio-specific retention isn't enforced yet — the retention sweeper
-              deletes whole submissions past the window, it does not strip audio
-              from an otherwise-kept submission. A live toggle here would let an
-              admin believe raw recordings were being purged when they aren't,
-              which is the same trap as the removed 2FA toggle (see
-              SecuritySection). Honest "coming soon" copy instead. */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8", opacity: 0.65 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Auto-delete raw audio separately</div>
-                <Badge label="Coming Soon" color="#9CA3AF" />
-              </div>
-              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Today, retention removes the whole submission. Deleting recordings while keeping the scores isn't available yet.</div>
-            </div>
+          <SectionDivider label="Recordings" />
+          {/* Now genuinely enforced by fieldscore-backend's retention sweeper
+              (retention.py::apply_audio_retention), which strips the recording
+              reference, the transcript and the voiceprint while keeping the
+              submission's scores. */}
+          <Toggle
+            value={autoDeleteAudio}
+            onChange={v => { setAutoDeleteAudio(v); save({ audioOn: v }); }}
+            label="Delete interview recordings on a shorter schedule"
+            description="Removes the recording, its transcript and its voice fingerprint, but keeps the submission and all of its verification scores. Useful when recordings are the most sensitive thing you hold but you still need the audit trail."
+          />
+          {autoDeleteAudio && (
+            <SettingsField
+              label="Delete recordings older than"
+              hint="Applies to recordings only. Scores, flags and findings are unaffected and stay valid evidence."
+            >
+              <select style={{ ...INPUT }} value={audioRetentionDays} onChange={e => { setAudioRetentionDays(e.target.value); save({ audioDays: e.target.value }); }}>
+                {AUDIO_RETENTION_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </SettingsField>
+          )}
+          <div style={{ fontSize: 11.5, color: "#6B7280", padding: "0 2px" }}>
+            The recording file itself is stored on your KoboToolbox/ODK server. This removes our copy of the transcript and voice fingerprint and our access to the file — delete the original on your own server if you need it gone there too.
           </div>
           <div style={{ fontSize: 12, color: "#6B7280", padding: "10px 2px 0" }}>
             Insight reports and AI analysis are kept indefinitely and are not affected by this setting.

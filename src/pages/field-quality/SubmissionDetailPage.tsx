@@ -972,6 +972,18 @@ export default function SubmissionDetailPage(){
                 <div style={{background:"#F8FAFF",borderRadius:10,padding:14,border:"1px solid #E8EDF5",fontSize:12,color:"#9CA3AF"}}>
                   Loading audio…
                 </div>
+              ):checks.audio?.audio_retained===false?(
+                /* The recording was removed by this org's audio retention policy
+                   (fieldscore-backend retention.py::minimise_audio), NOT lost.
+                   Without this branch the "Audio not found — check your Kobo
+                   webhook" warning below would fire and blame a data-collection
+                   failure for a deletion the org itself scheduled. */
+                <div style={{background:"#F8FAFF",border:"1px solid #E8EDF5",borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{fontSize:12.5,fontWeight:600,color:"#374151",marginBottom:4}}>Recording removed by your retention policy</div>
+                  <div style={{fontSize:11.5,color:"#6B7280",lineHeight:1.6}}>
+                    This interview's recording and transcript were permanently deleted once they passed your organisation's audio retention window (Settings → Data &amp; Storage). The verification results below were kept and remain valid evidence.
+                  </div>
+                </div>
               ):(
                 <div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"14px 16px"}}>
                   <div style={{fontSize:12.5,fontWeight:600,color:"#92400E",marginBottom:4}}>Audio not found in this submission</div>
