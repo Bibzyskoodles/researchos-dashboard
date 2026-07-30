@@ -5,6 +5,7 @@ import { projectsApi } from '../../services/api';
 import { setLocalCollectionMode } from '../../context/ProjectContext';
 import { getIndustry, StudyType } from '../../context/ResearchContext';
 import { useGamify } from '../../gamify/GamifyContext';
+import { CALLSCORE_ENABLED } from '../../features';
 
 const BLUE = '#2463EB';
 
@@ -154,7 +155,7 @@ function Step2StudyType({
   );
 }
 
-const COLLECTION_MODES = [
+const ALL_COLLECTION_MODES = [
   {
     id: 'field' as const,
     icon: '🧭',
@@ -177,6 +178,12 @@ const COLLECTION_MODES = [
     desc: 'Field and remote interviews in one project — one dashboard, one report.',
   },
 ];
+
+// CallScore is temporarily switched off: only Field mode is offered until the
+// CallScore backend is mapped to the production domain (see src/features.ts).
+const COLLECTION_MODES = ALL_COLLECTION_MODES.filter(
+  (m) => CALLSCORE_ENABLED || m.id === 'field',
+);
 
 function Step3CollectionMode({ onNext, onBack }: { onNext: (mode: 'field' | 'call' | 'hybrid') => void; onBack: () => void }) {
   const [selected, setSelected] = useState<'field' | 'call' | 'hybrid'>('field');

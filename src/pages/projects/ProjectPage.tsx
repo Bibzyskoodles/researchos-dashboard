@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Project, ProjectLifecycle, getLocalCollectionMode, setLocalCollectionMode } from '../../context/ProjectContext';
 import { getIndustry, getStudyType } from '../../context/ResearchContext';
 import { CollectionMode, MODE_META } from '../../styles/tokens';
+import { CALLSCORE_ENABLED } from '../../features';
 
 const BLUE = '#2463EB';
 const GREEN = '#059669';
@@ -216,9 +217,14 @@ export default function ProjectPage() {
 
   // Cycle field → call → hybrid. Saved locally immediately (mode-aware UI
   // works today) and PATCHed to the server, which wins once it persists it.
+  // While CallScore is switched off (see src/features.ts) the cycle collapses
+  // to Field only, so a project can't be moved into a mode whose engine isn't
+  // reachable.
   const cycleMode = async () => {
     if (!project || !projectId) return;
-    const order: CollectionMode[] = ['field', 'call', 'hybrid'];
+    const order: CollectionMode[] = CALLSCORE_ENABLED
+      ? ['field', 'call', 'hybrid']
+      : ['field'];
     const next = order[(order.indexOf((project.collection_mode as CollectionMode) || 'field') + 1) % order.length];
     setProject({ ...project, collection_mode: next });
     setLocalCollectionMode(projectId, next);
