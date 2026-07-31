@@ -22,6 +22,7 @@ import SubmissionsPage from './pages/field-quality/SubmissionsPage';
 import EnumeratorsPage from './pages/field-quality/EnumeratorsPage';
 import MapPage from './pages/field-quality/MapPage';
 import SettingsPage from './pages/settings/SettingsPage';
+import AdminPage from './pages/admin/AdminPage';
 import InsightsPage from './pages/insights/InsightsPage';
 import InsightProjectPage from './pages/insights/InsightProjectPage';
 import ReportsPage from './pages/reports/ReportsPage';
@@ -113,6 +114,10 @@ function AppRoutes() {
 
         {/* Settings */}
         <Route path="settings" element={<SettingsPage />} />
+
+        {/* Platform admin (server-gated to platform-admin emails; the page
+            itself also refuses to render for non-admins). */}
+        <Route path="admin" element={<AdminPage />} />
 
         {/* Cross-project standalone pages */}
         <Route path="overview" element={<OverviewPage />} />

@@ -110,6 +110,28 @@ export const authApi = {
   revokeSession: (sessionId: string) => api.delete(`/auth/sessions/${sessionId}`),
   changePassword: (current_password: string, new_password: string) =>
     api.post('/auth/change-password', { current_password, new_password }),
+  resendVerification: () => api.post('/auth/resend-verification'),
+};
+
+// Platform-operator only. The backend gates /admin/* on the caller's own
+// session (a platform-admin JWT) — no ADMIN_SECRET is ever sent from the
+// browser. Non-admins get a 403 from the server, so the UI gating is cosmetic
+// on top of the real enforcement (per CLAUDE.md).
+export interface AdminWorkspace {
+  org_id: string;
+  name: string;
+  email: string;
+  plan: string;
+  created_at: string;
+  verified: boolean;
+  used: number | null;
+  limit: number | null;   // null = unlimited
+  unlimited: boolean;
+}
+export const adminApi = {
+  listWorkspaces: () => api.get<{ workspaces: AdminWorkspace[]; count: number }>('/admin/workspaces'),
+  setWorkspaceLimit: (email: string, limit: number) =>
+    api.post('/admin/set-workspace-limit', { email, limit }),
 };
 
 // fieldscore-backend's /api/media/<sid>/<kind> proxy requires a Bearer
