@@ -1633,7 +1633,8 @@ interface BillingData {
   usage_this_month: { submissions_scored: number; submissions_passed: number };
   total_submissions_all_time: number;
   payment_processing_configured: boolean;
-  invoices: Array<{ ref: string; amount: number; status: string; date: string }>;
+  // Real plan-upgrade payments from GET /api/org/billing (subscriptions table).
+  payments?: Array<{ plan: string; amount_ngn: number | null; paystack_ref: string | null; started_at: string }>;
 }
 
 function BillingSection() {
@@ -1699,7 +1700,7 @@ function BillingSection() {
   const B = billing || {
     plan: "trial", status: "active", trial_ends_at: null,
     usage_this_month: { submissions_scored: 0, submissions_passed: 0 },
-    total_submissions_all_time: 0, payment_processing_configured: false, invoices: [],
+    total_submissions_all_time: 0, payment_processing_configured: false, payments: [],
   };
 
   const statusColor = B.status === "active" ? GREEN : B.status === "trial" ? AMBER : RED;
@@ -1944,23 +1945,28 @@ function BillingSection() {
         </div>
       </SettingsCard>
 
-      {/* ── Invoice history ── */}
+      {/* ── Payment history — real plan-upgrade payments (subscriptions table) ── */}
       <SettingsCard style={{ padding: 24 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 16 }}>Invoice History</div>
-        {B.invoices.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: "#9CA3AF" }}>No invoices yet.</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 16 }}>Payment History</div>
+        {!B.payments || B.payments.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: "#9CA3AF" }}>No payments yet.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {B.invoices.map((inv, i) => (
-              <div key={inv.ref} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderBottom: i < B.invoices.length - 1 ? "1px solid #F8FAFF" : "none" }}>
+            {B.payments.map((pay, i) => (
+              <div key={pay.paystack_ref || i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderBottom: i < B.payments!.length - 1 ? "1px solid #F8FAFF" : "none" }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F0FDF4", display: "grid", placeItems: "center", flexShrink: 0 }}>
                   <CreditCard size={13} color={GREEN} />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>₦{inv.amount.toLocaleString()}</div>
-                  <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: "monospace" }}>{inv.ref} · {inv.date}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
+                    {pay.amount_ngn != null ? `₦${pay.amount_ngn.toLocaleString()}` : "—"}
+                    <span style={{ fontWeight: 500, color: "#6B7280", textTransform: "capitalize" as const }}> · {pay.plan} plan</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                    {pay.paystack_ref || "—"}{pay.started_at ? ` · ${new Date(pay.started_at).toLocaleDateString()}` : ""}
+                  </div>
                 </div>
-                <Badge label={inv.status} color={inv.status === "paid" ? GREEN : AMBER} />
+                <Badge label="paid" color={GREEN} />
               </div>
             ))}
           </div>
