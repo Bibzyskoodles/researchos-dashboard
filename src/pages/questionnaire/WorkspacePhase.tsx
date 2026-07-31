@@ -158,7 +158,10 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
     setSaveState('saving');
     try {
       if (projectId) {
-        await api.post(`/projects/${projectId}/questionnaire`, { questionnaire });
+        // Backend route is /api/projects/<id>/questionnaire (project_bp's
+        // url_prefix is "/api/projects") — without the prefix this 404s and the
+        // user just sees a generic "couldn't save".
+        await api.post(`/api/projects/${projectId}/questionnaire`, { questionnaire });
       }
       setSaveState('saved');
       setShowNextStep(true);

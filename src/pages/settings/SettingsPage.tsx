@@ -15,7 +15,7 @@ import { useNavigate as useNav, useLocation } from "react-router-dom";
 import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
 import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
 import { useProject } from "../../context/ProjectContext";
-import { dashboardApi, orgSettingsApi, projectsApi, apiKeysApi, webhooksApi, API_BASE_URL } from "../../services/api";
+import { dashboardApi, orgSettingsApi, projectsApi, apiKeysApi, webhooksApi, adaApi, API_BASE_URL } from "../../services/api";
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
@@ -941,6 +941,7 @@ function IntegrationsSection() {
 
 function AdaSection() {
   const [personality, setPersonality] = useState("professional");
+  const [memoryBusy, setMemoryBusy] = useState(false);
   const [proactive, setProactive] = useState(true);
   const [brief, setBrief] = useState(true);
   const [guidance, setGuidance] = useState(true);
@@ -1010,17 +1011,43 @@ function AdaSection() {
             <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 8 }}>Ada's Learned Context</div>
             <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>Ada remembers your preferences, project context, and team patterns to provide better guidance over time.</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px" }}
-                onClick={() => window.open("/ada/memory", "_blank")}>
+              {/* Both of these went through the browser directly (a relative URL
+                  hits the dashboard's own origin, not the backend — and carried
+                  no Bearer header, so they'd 401 even pointed correctly; this
+                  backend sets no cookie, so credentials:"include" bought
+                  nothing). Route them through the authenticated api instance. */}
+              <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px", opacity: memoryBusy ? 0.6 : 1 }}
+                disabled={memoryBusy}
+                onClick={async () => {
+                  setMemoryBusy(true);
+                  try {
+                    const res = await adaApi.getMemory();
+                    const win = window.open("", "_blank");
+                    if (win) {
+                      win.document.write(
+                        `<pre style="font-family:ui-monospace,monospace;font-size:12px;padding:24px;white-space:pre-wrap">${
+                          JSON.stringify(res.data, null, 2).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string))
+                        }</pre>`
+                      );
+                      win.document.title = "Ada's learned context";
+                    }
+                  } catch {
+                    window.alert("Could not load Ada's memory — please try again.");
+                  } finally { setMemoryBusy(false); }
+                }}>
                 View Memory
               </button>
-              <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px", color: RED, borderColor: "#FEE2E2" }}
+              <button style={{ ...BTN_GHOST, fontSize: 11.5, padding: "6px 12px", color: RED, borderColor: "#FEE2E2", opacity: memoryBusy ? 0.6 : 1 }}
+                disabled={memoryBusy}
                 onClick={async () => {
                   if (!window.confirm("Clear Ada's memory for your account? This removes Ada's learned preferences and conversation history.")) return;
+                  setMemoryBusy(true);
                   try {
-                    await fetch("/ada/memory", { method: "DELETE", credentials: "include" });
+                    await adaApi.clearMemory();
                     window.location.reload();
-                  } catch { window.alert("Could not clear memory — please try again."); }
+                  } catch {
+                    window.alert("Could not clear memory — please try again.");
+                  } finally { setMemoryBusy(false); }
                 }}>
                 Clear Memory
               </button>
