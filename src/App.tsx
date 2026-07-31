@@ -115,6 +115,13 @@ function AppRoutes() {
         {/* Settings */}
         <Route path="settings" element={<SettingsPage />} />
 
+        {/* Billing lives as a section inside Settings, but platform/registry.ts
+            advertises a "/billing" nav item. Without this route that link fell
+            through to the catch-all and silently bounced the user to /projects —
+            so the one link a customer clicks to PAY went nowhere. Redirect it to
+            the real billing section. */}
+        <Route path="billing" element={<Navigate to="/settings" state={{ section: 'billing' }} replace />} />
+
         {/* Platform admin (server-gated to platform-admin emails; the page
             itself also refuses to render for non-admins). */}
         <Route path="admin" element={<AdminPage />} />
