@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { adminApi, AdminWorkspace } from '../../services/api';
+import { adminApi, AdminWorkspace, Lead, leadsApi } from '../../services/api';
 import { useAuth } from '../../store/AuthContext';
 
 const BLUE = '#2463EB';
@@ -66,6 +66,115 @@ function LimitCell({ ws, onSaved }: { ws: AdminWorkspace; onSaved: () => void })
       </button>
       {err && <span style={{ fontSize: 11.5, color: '#DC2626' }}>{err}</span>}
     </div>
+  );
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  demo_request: 'Website — demo request',
+  configurator: 'Configurator',
+};
+
+/** Everyone who has asked to hear from us. This exists because the marketing
+ *  site's form used to be a `mailto:` link that recorded nothing anywhere — so
+ *  an enquiry only counted if the visitor's own mail app opened AND they then
+ *  pressed Send. Enquiries are now stored before any email is attempted; this
+ *  table is the record, and `notified` shows whether the alert also went out. */
+function LeadsPanel() {
+  const [leads, setLeads] = useState<Lead[] | null>(null);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const load = useCallback(() => {
+    setError('');
+    leadsApi.list()
+      .then(res => setLeads(res.data.leads || []))
+      .catch(e => setError(e?.response?.data?.error || 'Could not load enquiries'));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const remove = async (id: number) => {
+    setBusyId(id);
+    try {
+      await leadsApi.remove(id);
+      setLeads(prev => (prev || []).filter(l => l.id !== id));
+    } catch (e) {
+      setError('Could not remove that enquiry');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const undelivered = (leads || []).filter(l => !l.notified).length;
+
+  return (
+    <section style={{ marginTop: 44 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: INK, margin: 0 }}>Enquiries</h2>
+        <button onClick={load} style={{ background: 'none', border: 'none', color: BLUE, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+          Refresh
+        </button>
+      </div>
+      <p style={{ color: MUTE, fontSize: 14, marginTop: 4, marginBottom: 18 }}>
+        Everyone who has asked for a demo or built a deployment plan. Saved here first,
+        so an enquiry is never lost if the notification email fails.
+      </p>
+
+      {undelivered > 0 && (
+        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16 }}>
+          {undelivered} {undelivered === 1 ? 'enquiry was' : 'enquiries were'} captured but no alert email went out —
+          usually because no sales address is configured. They&rsquo;re safe here either way.
+        </div>
+      )}
+
+      {error && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16 }}>
+          {error}
+        </div>
+      )}
+
+      {leads === null && !error && (
+        <div style={{ color: MUTE, fontSize: 14, padding: '24px 0' }}>Loading enquiries…</div>
+      )}
+
+      {leads !== null && leads.length === 0 && (
+        <div style={{ color: MUTE, fontSize: 14, padding: '24px 0' }}>No enquiries yet.</div>
+      )}
+
+      {(leads || []).length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {(leads || []).map(l => (
+            <div key={l.id} style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: 700, color: INK, fontSize: 14.5 }}>
+                  {l.name || l.email}
+                  {l.organisation && <span style={{ color: MUTE, fontWeight: 500 }}> · {l.organisation}</span>}
+                </div>
+                <div style={{ color: MUTE, fontSize: 12, whiteSpace: 'nowrap' }}>
+                  {SOURCE_LABEL[l.source] || l.source} · {fmtDate(l.created_at)}
+                  {!l.notified && <span style={{ color: '#B45309' }}> · not emailed</span>}
+                </div>
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <a href={`mailto:${l.email}`} style={{ color: BLUE, fontSize: 13.5, textDecoration: 'none' }}>{l.email}</a>
+              </div>
+              {l.message && (
+                <p style={{ color: INK, fontSize: 13.5, margin: '10px 0 0', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                  {l.message}
+                </p>
+              )}
+              <button
+                onClick={() => remove(l.id)}
+                disabled={busyId === l.id}
+                style={{ background: 'none', border: 'none', color: MUTE, fontSize: 12, cursor: 'pointer', padding: 0, marginTop: 10, fontFamily: 'Inter, sans-serif' }}
+              >
+                {busyId === l.id ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -177,6 +286,8 @@ export default function AdminPage() {
           </table>
         </div>
       )}
+
+      <LeadsPanel />
     </div>
   );
 }
