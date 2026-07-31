@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
-import { projectsApi } from '../../services/api';
+import api, { projectsApi, orgSettingsApi } from '../../services/api';
 import { Project, getLocalCollectionMode } from '../../context/ProjectContext';
 import { MODE_META } from '../../styles/tokens';
 import { getIndustry, getStudyType } from '../../context/ResearchContext';
-import { verifyKoboToken } from '../../services/kobo/koboToolboxApi';
 import HealthRing from '../../gamify/HealthRing';
 import { useGamify } from '../../gamify/GamifyContext';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
@@ -127,7 +126,6 @@ function ProjectCard({ project, onClick }: { project: Project; onClick: () => vo
   );
 }
 
-const KOBO_BASE = 'https://kf.kobotoolbox.org/api/v2';
 
 interface KoboAssetItem { uid: string; name: string; deployment_count: number; summary: { row_count: number }; date_modified: string; }
 
@@ -137,7 +135,7 @@ type ImportStep = 'platform' | 'auth' | 'pick' | 'importing' | 'done';
 function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
   const [platform, setPlatform] = useState<ImportPlatform>(null);
   const [step, setStep] = useState<ImportStep>('platform');
-  const [token, setToken] = useState(localStorage.getItem('koboToken') || '');
+  const [token, setToken] = useState('');
   const [authError, setAuthError] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [forms, setForms] = useState<KoboAssetItem[]>([]);
@@ -158,14 +156,15 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
     if (!token.trim()) return;
     setVerifying(true); setAuthError('');
     try {
-      await verifyKoboToken(token.trim());
-      localStorage.setItem('koboToken', token.trim());
+      // The token goes to the backend (stored encrypted) and every Kobo call
+      // is made server-side. It is never written to localStorage and the
+      // browser never talks to the Kobo API — same fix as ExportPanel.
+      await orgSettingsApi.saveKoboToken(token.trim());
       setLoadingForms(true); setStep('pick');
-      const res = await fetch(`${KOBO_BASE}/assets/?asset_type=survey&limit=100`, {
-        headers: { Authorization: `Token ${token.trim()}` },
-      });
-      const data = await res.json();
-      setForms(data.results || []);
+      const ping = await api.get('/kobo/ping');
+      setForms((ping.data?.forms || []).map((f: { uid: string; name: string }) => ({
+        uid: f.uid, name: f.name,
+      })));
     } catch {
       setAuthError('Invalid token — check it in KoboToolbox → Account Settings → API Token');
     } finally {

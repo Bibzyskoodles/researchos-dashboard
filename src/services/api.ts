@@ -202,8 +202,6 @@ export const dashboardApi = {
 export const questionnaireApi = {
   generate: (payload: object) =>
     api.post('/questionnaire/generate', payload),
-  save: (questionnaire: object) =>
-    api.post('/questionnaire/save', questionnaire),
   exportXlsform: (questionnaire: object, platform: string) =>
     api.post('/questionnaire/export/xlsform', { questionnaire, platform }, { responseType: 'blob' }),
   exportDocx: (questionnaire: object) =>
@@ -312,24 +310,6 @@ export const adaApi = {
     api.get('/ada/proactive-insights', { params: projectId ? { project_id: projectId } : {} }),
 };
 
-export const analyticsApi = {
-  getQuestionnaireAnalytics: (questionnaireId: string, groupBy?: string) =>
-    api.get(`/questionnaires/${questionnaireId}/analytics`, {
-      params: { group_by: groupBy },
-    }),
-  getAnalyticsSummary: (questionnaireId: string) =>
-    api.get(`/questionnaires/${questionnaireId}/analytics/summary`),
-  getSourceMetrics: (questionnaireId: string) =>
-    api.get(`/questionnaires/${questionnaireId}/analytics/sources`),
-  getDropOffAnalysis: (questionnaireId: string) =>
-    api.get(`/questionnaires/${questionnaireId}/analytics/drop-off`),
-  getQuestionAnalytics: (questionnaireId: string, source?: string) =>
-    api.get(`/questionnaires/${questionnaireId}/analytics/questions`, {
-      params: { source },
-    }),
-  getAnalyticsHealth: () =>
-    api.get('/analytics/health'),
-};
 
 // ✅ SECURITY: InsightScore is no longer called directly from the browser.
 // InsightScore's own routes now require a server-to-server X-Bridge-Key
