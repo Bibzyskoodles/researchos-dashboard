@@ -438,6 +438,14 @@ export const orgSettingsApi = {
   getSecurity: () => api.get('/api/org/security'),
   updateSecurity: (data: object) => api.put('/api/org/security', data),
   getBilling: () => api.get('/api/org/billing'),
+  // KoboToolbox form publishing — the token is stored server-side (encrypted)
+  // and never returned to the browser. `getKoboTokenStatus` reports only
+  // whether one is configured. Replaces the old localStorage-token flow that
+  // called the Kobo API directly from the browser.
+  getKoboTokenStatus: () => api.get('/kobo/token'),
+  saveKoboToken: (token: string) => api.post('/kobo/token', { token }),
+  publishToKobo: (name: string, content: Record<string, unknown>) =>
+    api.post('/kobo/publish', { name, content }),
   // Purchasable paid plans + prices (server-side source of truth) and the
   // caller's current plan.
   getPlans: () => api.get('/api/org/plans'),
