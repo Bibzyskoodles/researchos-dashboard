@@ -438,6 +438,15 @@ export const orgSettingsApi = {
   getSecurity: () => api.get('/api/org/security'),
   updateSecurity: (data: object) => api.put('/api/org/security', data),
   getBilling: () => api.get('/api/org/billing'),
+  // Purchasable paid plans + prices (server-side source of truth) and the
+  // caller's current plan.
+  getPlans: () => api.get('/api/org/plans'),
+  // Start a one-time upgrade payment; returns a Paystack checkout URL the
+  // browser redirects to. The plan only changes once the signed webhook
+  // confirms payment (see fieldscore-backend payments.py) — this call never
+  // changes state itself.
+  startPlanUpgrade: (plan: string) =>
+    api.post('/api/org/upgrade', { plan }),
   listInvites: () => api.get('/api/org/invites'),
   createInvite: (email: string, role: string, projectIds?: string[]) =>
     api.post('/api/org/invites', { email, role, ...(projectIds ? { project_ids: projectIds } : {}) }),

@@ -22,6 +22,14 @@ const GREEN = "#059669";
 const AMBER = "#D97706";
 const RED = "#DC2626";
 const PURPLE = "#7C3AED";
+
+// Display copy for the purchasable plans. Prices are NOT here — they come from
+// the backend (GET /api/org/plans) so they can never drift from what's charged.
+const PLAN_META: Record<string, { label: string; blurb: string }> = {
+  starter:      { label: "Starter",      blurb: "For small teams getting started with verified collection." },
+  professional: { label: "Professional", blurb: "Higher volume, full verification engines and reporting." },
+  enterprise:   { label: "Enterprise",   blurb: "For large programmes, procurement and multi-team rollouts." },
+};
 const CARD: React.CSSProperties = {
   background: "white",
   borderRadius: 16,
@@ -1636,13 +1644,57 @@ function BillingSection() {
   const [adaAsking, setAdaAsking] = useState(false);
   const [billing, setBilling] = useState<BillingData | null>(null);
   const [billingError, setBillingError] = useState("");
+  const [plans, setPlans] = useState<Array<{ id: string; price_ngn: number }>>([]);
+  const [paymentsConfigured, setPaymentsConfigured] = useState(false);
+  const [showPlans, setShowPlans] = useState(false);
+  const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null);
   const toast = useToast();
 
-  useEffect(() => {
+  const reloadBilling = useCallback(() => {
     orgSettingsApi.getBilling()
       .then(r => setBilling(r.data))
       .catch(() => setBillingError("Could not load billing information."));
   }, []);
+
+  useEffect(() => { reloadBilling(); }, [reloadBilling]);
+
+  // Purchasable plans + prices come from the backend (single source of truth),
+  // never hardcoded here — so a price change is a backend-only edit.
+  useEffect(() => {
+    orgSettingsApi.getPlans()
+      .then(r => { setPlans(r.data?.plans || []); setPaymentsConfigured(!!r.data?.payment_processing_configured); })
+      .catch(() => { /* upgrade UI just stays hidden if this fails */ });
+  }, []);
+
+  // Returning from Paystack checkout: fieldscore-backend's callback sends the
+  // browser back to /settings?upgrade=success. The plan flips via the signed
+  // webhook (which can lag a second or two behind the redirect), so acknowledge
+  // the payment and re-pull billing shortly after to show the new plan.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("upgrade") === "success") {
+      toast.show("Payment received — your new plan will be active in a moment.");
+      window.history.replaceState({}, "", window.location.pathname);
+      const t = setTimeout(reloadBilling, 3500);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startUpgrade = async (plan: string) => {
+    if (upgradingPlan) return;
+    setUpgradingPlan(plan);
+    try {
+      const res = await orgSettingsApi.startPlanUpgrade(plan);
+      const url = res.data?.payment_url;
+      if (url) { window.location.href = url; return; }  // hand off to Paystack
+      toast.show("Couldn't start the payment — please try again.");
+    } catch (e: any) {
+      toast.show(e?.response?.data?.error || "Couldn't start the payment — please try again.");
+    } finally {
+      setUpgradingPlan(null);
+    }
+  };
 
   const B = billing || {
     plan: "trial", status: "active", trial_ends_at: null,
@@ -1812,9 +1864,50 @@ function BillingSection() {
                 −₦{creditsBalance.toLocaleString()} rewards credit
               </span>
             )}
-            <a href="mailto:bibilade@intelligencyai.com.ng?subject=Upgrade%20request" style={{ ...BTN_PRIMARY, fontSize: 12, padding: "8px 16px", textDecoration: "none", display: "inline-block" }}>Contact us to upgrade →</a>
+            {paymentsConfigured ? (
+              <button onClick={() => setShowPlans(s => !s)} style={{ ...BTN_PRIMARY, fontSize: 12, padding: "8px 16px", cursor: "pointer" }}>
+                {showPlans
+                  ? "Hide plans"
+                  : ((B.plan || "trial").toLowerCase() === "trial" || (B.plan || "").toLowerCase() === "starter"
+                      ? "Upgrade plan →" : "Change plan →")}
+              </button>
+            ) : (
+              <a href="mailto:bibilade@intelligencyai.com.ng?subject=Upgrade%20request" style={{ ...BTN_PRIMARY, fontSize: 12, padding: "8px 16px", textDecoration: "none", display: "inline-block" }}>Contact us to upgrade →</a>
+            )}
           </div>
         </div>
+
+        {/* Plan picker — real one-time Paystack upgrade. Prices come from the
+            backend; the plan changes only once the signed webhook confirms. */}
+        {showPlans && paymentsConfigured && (
+          <div style={{ borderTop: "1px solid #F1F5F9", padding: "18px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
+            {plans.map(p => {
+              const meta = PLAN_META[p.id] || { label: p.id, blurb: "" };
+              const isCurrent = (B.plan || "trial").toLowerCase() === p.id;
+              return (
+                <div key={p.id} style={{ border: `1px solid ${isCurrent ? GREEN : "#E8EDF5"}`, borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 8, background: isCurrent ? "#F0FDF4" : "white" }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "#080D1A", textTransform: "capitalize" as const }}>{meta.label}</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: "#080D1A" }}>
+                    ₦{(p.price_ngn || 0).toLocaleString()}
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#9CA3AF" }}> /mo</span>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "#6B7280", lineHeight: 1.45, minHeight: 32 }}>{meta.blurb}</div>
+                  {isCurrent ? (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: GREEN, textAlign: "center" as const, padding: "8px 0" }}>Current plan</div>
+                  ) : (
+                    <button onClick={() => startUpgrade(p.id)} disabled={!!upgradingPlan}
+                      style={{ ...BTN_PRIMARY, fontSize: 12.5, padding: "9px 0", width: "100%", opacity: upgradingPlan && upgradingPlan !== p.id ? 0.5 : 1, cursor: upgradingPlan ? "default" : "pointer" }}>
+                      {upgradingPlan === p.id ? "Starting…" : "Pay & upgrade"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            <div style={{ gridColumn: "1 / -1", fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+              One-time payment via Paystack — your plan activates as soon as payment is confirmed. Prices shown per month.
+            </div>
+          </div>
+        )}
 
         {/* Payment status row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", flexWrap: "wrap" as const, gap: 10 }}>
