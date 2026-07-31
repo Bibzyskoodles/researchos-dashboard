@@ -134,6 +134,28 @@ export const adminApi = {
     api.post('/admin/set-workspace-limit', { email, limit }),
 };
 
+/** An enquiry from the public site or the /configure page. Stored server-side
+ *  before any email is attempted, so this list is the record of who asked —
+ *  not a copy of a notification that may never have been delivered. */
+export interface Lead {
+  id: number;
+  /** 'demo_request' (marketing site) or 'configurator' (/configure). */
+  source: string;
+  name: string;
+  email: string;
+  organisation: string;
+  message: string;
+  /** False means the enquiry was captured but the sales email didn't go out —
+   *  usually SALES_EMAIL not being set. The lead is still safe. */
+  notified: boolean;
+  created_at: string;
+}
+
+export const leadsApi = {
+  list: () => api.get<{ leads: Lead[]; total: number }>('/api/leads/list'),
+  remove: (id: number) => api.delete(`/api/leads/${id}`),
+};
+
 // fieldscore-backend's /api/media/<sid>/<kind> proxy requires a Bearer
 // token — an <img>/<audio> tag pointed straight at it will always 401
 // (this backend has no fs_token cookie; see CLAUDE.md). Fetch the bytes
