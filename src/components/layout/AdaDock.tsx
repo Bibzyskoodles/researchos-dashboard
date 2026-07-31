@@ -427,8 +427,15 @@ export default function AdaDock() {
       const projectId = projRes.data?.id || projRes.data?.project?.id || '';
       const submissions = buildSubmissionsPayload(action.rows, action.mapping, projectId);
       const res = await dashboardApi.uploadSubmissions(submissions);
-      const imported = res.data?.imported ?? submissions.length;
-      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Done — imported ${imported} submission${imported === 1 ? '' : 's'} into "${action.suggestedProjectName}".`, timestamp: new Date().toISOString() });
+      // With the durable scoring queue the backend returns `total` (the count
+      // actually accepted, already trimmed to any free-cap allowance); older
+      // synchronous backends return `imported`. Prefer the accurate figure over
+      // submissions.length so a cap-trimmed import isn't over-reported.
+      const imported = res.data?.total ?? res.data?.imported ?? submissions.length;
+      const limitNote: string = res.data?.skipped_for_limit
+        ? ` ${res.data.limit_note || `${res.data.skipped_for_limit} row(s) weren't verified — this free workspace has reached its limit.`}`
+        : '';
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Done — imported ${imported} submission${imported === 1 ? '' : 's'} into "${action.suggestedProjectName}".${limitNote}`, timestamp: new Date().toISOString() });
     } catch {
       addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `I couldn't import "${action.fileName}" — please try again, or upload it directly on the Integrations page.`, timestamp: new Date().toISOString() });
     } finally {

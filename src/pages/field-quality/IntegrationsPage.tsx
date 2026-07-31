@@ -438,6 +438,14 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
       const submissions = buildSubmissionsPayload(rows, mapping, newProjectId);
       const res = await dashboardApi.uploadSubmissions(submissions);
 
+      // Free-workspace cap: the backend may have accepted only part of the
+      // batch (trimming the rest to the remaining allowance) and tells us how
+      // many it skipped, with a ready-made explanation. Surface it on the final
+      // result so a trimmed import never looks like a silent partial success.
+      const limitNote: string = res.data?.skipped_for_limit
+        ? ` ${res.data.limit_note || `${res.data.skipped_for_limit} row(s) were not verified — this free workspace has reached its limit.`}`
+        : '';
+
       // Scoring now happens on a durable background queue rather than inline in
       // the upload request (so a large import can't stall the whole backend or
       // lose rows on a restart). The endpoint returns a batch id we poll for
@@ -445,7 +453,7 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
       // its synchronous "imported" count.
       const batchId: string | undefined = res.data?.batch_id;
       if (!batchId) {
-        setResult(`✓ ${res.data?.imported ?? submissions.length} submissions scored and imported into "${projectName.trim()}".`);
+        setResult(`✓ ${res.data?.imported ?? submissions.length} submissions scored and imported into "${projectName.trim()}".${limitNote}`);
         setStage('done');
         return;
       }
@@ -480,12 +488,12 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
         setProgress(`${done} of ${st?.total ?? total} scored…`);
         if (st?.complete) {
           const failNote = failed > 0 ? ` (${failed} could not be scored and were skipped)` : '';
-          setResult(`✓ ${done} submissions scored and imported into "${projectName.trim()}"${failNote}.`);
+          setResult(`✓ ${done} submissions scored and imported into "${projectName.trim()}"${failNote}.${limitNote}`);
           setStage('done');
           return;
         }
         if (Date.now() - started > MAX_POLL_MS) {
-          setResult(`✓ ${done} of ${total} submissions scored so far in "${projectName.trim()}". The rest are still being scored in the background — this page can be closed; results will keep appearing in the project.`);
+          setResult(`✓ ${done} of ${total} submissions scored so far in "${projectName.trim()}". The rest are still being scored in the background — this page can be closed; results will keep appearing in the project.${limitNote}`);
           setStage('done');
           return;
         }
