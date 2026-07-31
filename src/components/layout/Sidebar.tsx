@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { useProject } from '../../context/ProjectContext';
-import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard, X } from 'lucide-react';
+import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard, Shield, X } from 'lucide-react';
 import FieldScoreLogo from '../brand/FieldScoreLogo';
 import BuildInfoBadge from './BuildInfoBadge';
 import { useVerifiedReadyCount } from '../../hooks/useVerifiedReadyCount';
@@ -77,6 +77,11 @@ export default function Sidebar({ onClose }: SidebarProps) {
         ? section.items.filter(item => CLIENT_WORKSPACE_ITEMS.has(item.label))
         : section.items,
     }));
+  // Platform operators (not org roles) get an Admin section. Cosmetic only —
+  // the /admin routes are gated server-side on the caller's own session.
+  if (user?.is_platform_admin) {
+    visibleNav.push({ label: 'PLATFORM', items: [{ to: '/admin', icon: Shield, label: 'Admin' }] });
+  }
 
   return (
     <aside style={{

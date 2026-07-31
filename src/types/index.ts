@@ -252,6 +252,10 @@ export interface User {
   name: string;
   role: 'admin' | 'manager' | 'viewer' | 'client';
   last_login: string;
+  email_verified?: boolean;
+  // Platform operator (not an org role) — gates the in-app Admin screen.
+  // Server-authoritative: computed from PLATFORM_ADMIN_EMAILS in /auth/me.
+  is_platform_admin?: boolean;
 }
 
 export interface Organisation {
