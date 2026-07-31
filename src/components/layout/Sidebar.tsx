@@ -1,9 +1,9 @@
 import React from 'react';
-import { NavLink, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { useAda } from '../../ada/AdaContext';
 import { useProject } from '../../context/ProjectContext';
-import { Settings, LogOut, ChevronLeft, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard, Shield, X } from 'lucide-react';
+import { Settings, LogOut, LayoutDashboard, FileText, Users, Map, Sparkles, BookOpen, Puzzle, CreditCard, Shield, X } from 'lucide-react';
 import FieldScoreLogo from '../brand/FieldScoreLogo';
 import BuildInfoBadge from './BuildInfoBadge';
 import { useVerifiedReadyCount } from '../../hooks/useVerifiedReadyCount';
@@ -44,14 +44,19 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const { user, org, logout } = useAuth();
   const { navigatePage } = useAda();
   const navigate = useNavigate();
-  const location = useLocation();
   const { projectId } = useParams<{ projectId?: string }>();
   const { activeProject, lifecycle } = useProject();
 
-  const isProjectMode = !!projectId && projectId !== 'new' && (
-    location.pathname === `/projects/${projectId}` ||
-    location.pathname.startsWith(`/projects/${projectId}/`)
-  );
+  // Project-as-scope: the selected project (from the switcher) decides what the
+  // sidebar is scoped to — NOT the current URL. Previously this was derived from
+  // location.pathname, which meant the lifecycle stages only existed once you'd
+  // already navigated into a project, and the project nav *replaced* the main
+  // nav entirely. That made Projects a toll booth (extra clicks to reach work),
+  // hid the Design→Report lifecycle until you were two levels deep, and left two
+  // mutually exclusive navs users had to flip between. Now the stages are always
+  // visible while a project is selected, and the cross-project nav stays put.
+  const scopedProjectId = activeProject?.id || (projectId !== 'new' ? projectId : undefined);
+  const hasProjectScope = !!scopedProjectId;
 
   const getStageIcon = (stage: string): string => {
     if (!lifecycle) return '○';
@@ -102,23 +107,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
-        {isProjectMode ? (
-          /* ── PROJECT MODE ── */
+        {hasProjectScope && (
+          /* ── CURRENT PROJECT (scoped by the switcher, not the URL) ── */
           <>
-            {/* Back to projects */}
-            <button
-              onClick={() => navigate('/projects')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'rgba(255,255,255,.4)', fontSize: 11, fontFamily: 'Inter, sans-serif',
-                padding: '6px 8px', borderRadius: 6, marginBottom: 8, textAlign: 'left',
-              }}
-            >
-              <ChevronLeft size={12} />
-              Projects
-            </button>
-
             {/* Project name + mode */}
             <div style={{
               padding: '6px 8px', marginBottom: 2,
@@ -149,7 +140,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
               return (
                 <NavLink
                   key={stage}
-                  to={`/projects/${projectId}/${stage}`}
+                  to={`/projects/${scopedProjectId}/${stage}`}
                   style={({ isActive: stageActive }) => ({
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '7px 10px', borderRadius: 7, marginBottom: 1,
@@ -171,7 +162,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
 
             {/* Framework + project settings */}
             <button
-              onClick={() => navigate(`/projects/${projectId}`)}
+              onClick={() => navigate(`/projects/${scopedProjectId}`)}
               title="View project overview and research framework"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
@@ -196,9 +187,14 @@ export default function Sidebar({ onClose }: SidebarProps) {
                 Project Settings
               </button>
             )}
+
+            <div style={{ height: 1, background: 'rgba(255,255,255,.07)', margin: '12px 8px' }} />
           </>
-        ) : (
-          /* ── BROWSING MODE ── */
+        )}
+
+        {/* ── CROSS-PROJECT NAV — always present, so the workspace views are
+             never more than one click away regardless of project scope ── */}
+        {(
           <>
             {visibleNav.map(section => (
               <div key={section.label} style={{ marginBottom: 8 }}>
