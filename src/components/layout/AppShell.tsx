@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import AdaDock from "./AdaDock";
+import VerifyEmailBanner from "./VerifyEmailBanner";
 import { useAda } from "../../ada/AdaContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
 
@@ -338,6 +339,7 @@ export default function AppShell() {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Topbar onRefresh={handleRefresh} onMenuToggle={isMobile ? () => setDrawerOpen(o => !o) : undefined} />
+        <VerifyEmailBanner />
         <AnimatePresence mode="wait">
           <motion.main
             key={location.pathname}
