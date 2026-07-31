@@ -442,6 +442,10 @@ export const orgSettingsApi = {
   // and never returned to the browser. `getKoboTokenStatus` reports only
   // whether one is configured. Replaces the old localStorage-token flow that
   // called the Kobo API directly from the browser.
+  // Live fieldwork alerts — off by default; a supervisor opts in and chooses
+  // channels. PUT is admin-only server-side.
+  getFieldAlerts: () => api.get('/api/org/field-alerts'),
+  updateFieldAlerts: (data: object) => api.put('/api/org/field-alerts', data),
   getKoboTokenStatus: () => api.get('/kobo/token'),
   saveKoboToken: (token: string) => api.post('/kobo/token', { token }),
   publishToKobo: (name: string, content: Record<string, unknown>) =>
