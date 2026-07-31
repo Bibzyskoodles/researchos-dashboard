@@ -1526,6 +1526,15 @@ function SecuritySection() {
   );
 }
 
+// Mirrors field_alerts.DEFAULT_ALERT_SETTINGS in fieldscore-backend.
+interface FieldAlertSettings {
+  enabled: boolean;
+  email: boolean;
+  whatsapp: boolean;
+  recipient_email: string;
+  recipient_phone: string;
+}
+
 function NotificationsSection() {
   const channels = [{id:"email",label:"Email"},{id:"slack",label:"Slack"},{id:"inapp",label:"In-App"}];
   const events = [
@@ -1547,11 +1556,39 @@ function NotificationsSection() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
+  // Live fieldwork alerts — separate from the event/channel matrix above
+  // because these interrupt a real person mid-fieldwork. Off until opted in.
+  const [alerts, setAlerts] = useState<FieldAlertSettings>({
+    enabled: false, email: true, whatsapp: false, recipient_email: "", recipient_phone: "",
+  });
+  const [alertsSaving, setAlertsSaving] = useState(false);
+  const [alertsSaved, setAlertsSaved] = useState(false);
+  const [alertsError, setAlertsError] = useState("");
+
   useEffect(() => {
     orgSettingsApi.getNotifications()
       .then(r => { if (r.data && Object.keys(r.data).length > 0) setPrefs(r.data); })
       .catch(() => {});
+    orgSettingsApi.getFieldAlerts()
+      .then(r => { if (r.data) setAlerts(a => ({ ...a, ...r.data })); })
+      .catch(() => {});
   }, []);
+
+  const saveAlerts = async (next: FieldAlertSettings) => {
+    setAlerts(next);
+    setAlertsSaving(true);
+    setAlertsError("");
+    try {
+      const r = await orgSettingsApi.updateFieldAlerts(next);
+      if (r.data) setAlerts(a => ({ ...a, ...r.data }));
+      setAlertsSaved(true);
+      setTimeout(() => setAlertsSaved(false), 2000);
+    } catch (e: any) {
+      setAlertsError(e?.response?.data?.error || "Could not save — admin access is required.");
+    } finally {
+      setAlertsSaving(false);
+    }
+  };
 
   const toggle = (event: string, channel: string) => {
     setPrefs(p => ({...p,[event]:{...p[event],[channel]:!p[event][channel]}}));
@@ -1572,6 +1609,66 @@ function NotificationsSection() {
   };
 
   return (
+    <>
+    {/* ── Live fieldwork alerts ── interrupts a real person, so it's opt-in ── */}
+    <SettingsCard style={{ padding: 24, marginBottom: 16 }}>
+      <div style={{ ...LABEL, marginBottom: 4 }}>Live Fieldwork Alerts</div>
+      <div style={{ fontSize: 12.5, color: "#6B7280", lineHeight: 1.5, marginBottom: 14 }}>
+        Get told <strong>during</strong> fieldwork when something looks wrong — an enumerator
+        submitting far too fast, or a sudden spike in flagged interviews — instead of finding out
+        in the final report. Off by default. Each alert is sent once, never repeated.
+      </div>
+
+      <Toggle
+        value={alerts.enabled}
+        onChange={v => saveAlerts({ ...alerts, enabled: v })}
+        label="Send me fieldwork alerts"
+        description="When off, nothing is sent — the observations still appear in the dashboard."
+      />
+
+      {alerts.enabled && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F1F5F9", display: "flex", flexDirection: "column", gap: 14 }}>
+          <Toggle
+            value={alerts.email}
+            onChange={v => saveAlerts({ ...alerts, email: v })}
+            label="Email"
+            description="Sent to the address below, or your workspace email if blank."
+          />
+          {alerts.email && (
+            <input
+              value={alerts.recipient_email}
+              onChange={e => setAlerts(a => ({ ...a, recipient_email: e.target.value }))}
+              onBlur={() => saveAlerts(alerts)}
+              placeholder="supervisor@organisation.org"
+              style={{ ...INPUT, maxWidth: 340 }}
+            />
+          )}
+          <Toggle
+            value={alerts.whatsapp}
+            onChange={v => saveAlerts({ ...alerts, whatsapp: v })}
+            label="WhatsApp"
+            description="For supervisors who aren't checking email during fieldwork."
+          />
+          {alerts.whatsapp && (
+            <input
+              value={alerts.recipient_phone}
+              onChange={e => setAlerts(a => ({ ...a, recipient_phone: e.target.value }))}
+              onBlur={() => saveAlerts(alerts)}
+              placeholder="+234 801 234 5678"
+              style={{ ...INPUT, maxWidth: 340 }}
+            />
+          )}
+        </div>
+      )}
+
+      {alertsError && <div style={{ fontSize: 12, color: RED, marginTop: 10 }}>{alertsError}</div>}
+      {(alertsSaving || alertsSaved) && (
+        <div style={{ fontSize: 11.5, color: alertsSaved ? GREEN : "#9CA3AF", marginTop: 10 }}>
+          {alertsSaving ? "Saving…" : "Saved"}
+        </div>
+      )}
+    </SettingsCard>
+
     <SettingsCard style={{ padding: 24, overflowX: "auto" }}>
       <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 14 }}>
         Only Email delivery is currently wired up. Slack and In-App toggles save your preference for when those channels are built, but won't send anything yet.
@@ -1598,6 +1695,7 @@ function NotificationsSection() {
         <button onClick={save} disabled={saving} style={{ ...BTN_PRIMARY, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : saved ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Check size={13} /> Saved</span> : "Save Notifications"}</button>
       </div>
     </SettingsCard>
+    </>
   );
 }
 
