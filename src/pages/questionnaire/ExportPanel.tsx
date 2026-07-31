@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Download, Save, X, Upload, CheckCircle, ExternalLink } from 'lucide-react';
 import api from '../../services/api';
-import { publishToKoboToolbox } from '../../services/kobo/koboToolboxApi';
+import { questionnaireToKoboContent } from '../../services/kobo/koboToolboxApi';
+import { orgSettingsApi } from '../../services/api';
 import { GeneratedQuestionnaire } from './types';
 
 interface Props {
@@ -85,9 +86,10 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
   const [koboState, setKoboState] = useState<
     'idle' | 'prompt' | 'publishing' | 'done' | 'error'
   >('idle');
-  const [koboToken, setKoboToken] = useState(
-    () => localStorage.getItem('koboToken') || ''
-  );
+  // Never seeded from (or written to) localStorage — the token goes straight to
+  // the backend, which stores it encrypted. It lives in component state only
+  // for the duration of the form submit.
+  const [koboToken, setKoboToken] = useState('');
   const [koboResult, setKoboResult] = useState<{ shareLink?: string; assetUid?: string } | null>(null);
 
   const exportQuestionnaire = async (format: string) => {
@@ -152,22 +154,18 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
     setKoboState('publishing');
     setError(null);
     try {
-      localStorage.setItem('koboToken', token);
+      // The token is handed to the backend once and stored encrypted there —
+      // it is never written to localStorage and never used to call Kobo from
+      // the browser (that put a live third-party credential in browser storage).
+      if (token) await orgSettingsApi.saveKoboToken(token);
       const koboQ = toKoboQuestionnaire(questionnaire);
-      const result = await publishToKoboToolbox(token, koboQ, {
-        projectName: questionnaire.title,
-        description: questionnaire.methodology_notes || '',
-        isPublic: false,
-      });
-
-      if (result.success) {
-        setKoboResult({ shareLink: result.shareLink, assetUid: result.assetUid });
-        setKoboState('done');
-      } else {
-        throw new Error(result.error || 'Publish failed');
-      }
+      const content = questionnaireToKoboContent(koboQ) as Record<string, unknown>;
+      const res = await orgSettingsApi.publishToKobo(questionnaire.title, content);
+      setKoboResult({ shareLink: res.data?.edit_url || '', assetUid: res.data?.asset_uid || '' });
+      setKoboState('done');
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Unknown error';
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || (e instanceof Error ? e.message : 'Unknown error');
       setError(`KoboToolbox deploy failed: ${msg}`);
       setKoboState('error');
     }
