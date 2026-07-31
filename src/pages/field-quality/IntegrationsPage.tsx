@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, DragEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, AlertCircle } from "lucide-react";
+import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, AlertCircle, ArrowUpRight } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { dashboardApi, projectsApi, API_BASE_URL } from "../../services/api";
@@ -11,6 +12,15 @@ import { FIELD_MAP, autoMap, loadSpreadsheetFile, buildSubmissionsPayload } from
 
 const BLUE = "#2463EB";
 const GREEN = "#059669";
+
+// Prominent "Upgrade" call-to-action shown when an upload hits the free cap —
+// the highest-intent moment to convert a free workspace to a paid plan.
+const UPGRADE_BTN: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '8px 16px', borderRadius: 8, border: 'none', background: BLUE,
+  color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+  fontFamily: 'Inter, sans-serif', width: 'fit-content',
+};
 const AMBER = "#D97706";
 const CARD: React.CSSProperties = {
   background: "white",
@@ -390,7 +400,13 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
   const [result, setResult] = useState('');
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
+  // True once this upload hit the free-verification cap (fully blocked, or
+  // partially trimmed) — surfaces a one-click "Upgrade" nudge at the exact
+  // moment of highest intent instead of a dead-end message.
+  const [limitReached, setLimitReached] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const goToBilling = () => navigate('/settings', { state: { section: 'billing' } });
 
   const loadFile = (file: File) => {
     if (!/\.(csv|tsv|txt|xlsx|xls)$/i.test(file.name)) {
@@ -445,6 +461,7 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
       const limitNote: string = res.data?.skipped_for_limit
         ? ` ${res.data.limit_note || `${res.data.skipped_for_limit} row(s) were not verified — this free workspace has reached its limit.`}`
         : '';
+      if (res.data?.skipped_for_limit) setLimitReached(true);
 
       // Scoring now happens on a durable background queue rather than inline in
       // the upload request (so a large import can't stall the whole backend or
@@ -500,6 +517,7 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
       }
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || 'Upload failed';
+      if (e?.response?.data?.limit_reached) setLimitReached(true);
       setError(msg);
       setStage('error');
     }
@@ -508,6 +526,7 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
   const reset = () => {
     setStage('idle'); setFileName(''); setProjectName(''); setCreatedProjectId('');
     setHeaders([]); setRows([]); setMapping({}); setResult(''); setProgress(''); setError('');
+    setLimitReached(false);
   };
 
   return (
@@ -641,6 +660,11 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
             <Check size={15} style={{ flexShrink: 0, marginTop: 1 }} />{result}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {limitReached && (
+              <button onClick={goToBilling} style={UPGRADE_BTN}>
+                Upgrade to verify more <ArrowUpRight size={14} />
+              </button>
+            )}
             {createdProjectId && (
               <a href={`/projects/${createdProjectId}`} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: BLUE, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
                 Open project →
@@ -656,7 +680,14 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '12px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, fontSize: 13, color: '#DC2626' }}>
             <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />{error}
           </div>
-          <button onClick={() => setStage('mapping')} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif', width: 'fit-content' }}>Try again</button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {limitReached && (
+              <button onClick={goToBilling} style={UPGRADE_BTN}>
+                Upgrade to verify more <ArrowUpRight size={14} />
+              </button>
+            )}
+            <button onClick={() => setStage('mapping')} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif', width: 'fit-content' }}>Try again</button>
+          </div>
         </div>
       )}
     </div>
