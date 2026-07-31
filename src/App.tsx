@@ -41,6 +41,10 @@ import CallCapturePage from './pages/call/CallCapturePage';
 // tour machinery never weigh down the main app bundle.
 const DemoPage = React.lazy(() => import('./demo/DemoPage'));
 
+// Public Ada-guided deployment configurator (replaces the traditional pricing
+// page). Lazy — a visitor who never opens it shouldn't pay for its bundle.
+const ConfiguratorPage = React.lazy(() => import('./pages/configure/ConfiguratorPage'));
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return (
@@ -70,6 +74,14 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+
+      {/* Public deployment configurator — no auth, no API calls until the
+          visitor chooses to send their configuration. */}
+      <Route path="/configure" element={
+        <React.Suspense fallback={<div style={{ height: '100vh', background: '#F7F9FC' }} />}>
+          <ConfiguratorPage />
+        </React.Suspense>
+      } />
 
       {/* Public interactive demo — zero auth, zero API calls, fully scripted */}
       <Route path="/demo" element={
