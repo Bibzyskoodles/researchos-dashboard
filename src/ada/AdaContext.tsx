@@ -31,6 +31,7 @@ export type AdaCommand =
   | { type: 'RESCORE_SUBMISSION'; submission_id: string; level?: 'full' | 'recompute' }
   | { type: 'BRIDGE_SYNC'; project_id: string }
   | { type: 'CONFIRM_DELETE_PROJECT'; project_id: string; project_name: string }
+  | { type: 'CONFIRM_WORKSPACE_LIMIT'; org_id: string; workspace_name: string; current_limit: number | null; new_limit: number }
   | { type: 'CONFIRM_ERASURE'; project_id?: string; submission_ids?: string[]; reason: string; label: string };
 
 // Map a natural-language message to a command intent, or null if none.

@@ -220,6 +220,23 @@ export default function AppShell() {
         break;
       }
 
+      case 'CONFIRM_WORKSPACE_LIMIT': {
+        // Never changes anything here — surfaces a confirmation card. AdaDock
+        // makes the real /admin/set-workspace-limit call on the click, and
+        // that route independently re-verifies the caller is a platform
+        // operator. Mirrors CONFIRM_DELETE_PROJECT.
+        const curText = cmd.current_limit === null ? 'unlimited' : String(cmd.current_limit);
+        const newText = cmd.new_limit === 0 ? 'unlimited' : String(cmd.new_limit);
+        addMessage({
+          id: `wslimit-${cmd.org_id}-${cmd.seq}`,
+          role: 'assistant',
+          content: `Change "${cmd.workspace_name}"'s verification limit from ${curText} to ${newText}? Confirm to apply.`,
+          timestamp: new Date().toISOString(),
+          confirmAction: { type: 'workspace_limit', org_id: cmd.org_id, workspace_name: cmd.workspace_name, new_limit: cmd.new_limit },
+        });
+        break;
+      }
+
       case 'CONFIRM_DELETE_PROJECT':
         // Never deletes anything here — just surfaces a confirmation card
         // in the chat. AdaDock renders the card and makes the actual
