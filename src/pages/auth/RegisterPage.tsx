@@ -7,6 +7,11 @@ import api from '../../services/api';
 
 const BLUE = '#2463EB';
 
+/** Mirrors the server's `FREE_SUBMISSION_LIMIT` (usage_limits.py), which is
+ *  the enforcing copy. Shown here only so the offer is visible at the moment
+ *  someone decides whether to sign up. */
+const FREE_SUBMISSIONS = 50;
+
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -76,13 +81,18 @@ export default function RegisterPage() {
         {step === 1 && (
           <div style={{ background: 'white', borderRadius: 16, padding: 36, boxShadow: '0 4px 24px rgba(8,13,26,.10)' }}>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: '#080D1A', marginBottom: 6 }}>Create your account</h1>
-            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Set up ResearchOS for your organisation.</p>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>Set up ResearchOS for your organisation.</p>
+            <div style={{ background: '#F0F5FF', border: '1px solid #DBE6FF', borderRadius: 8, padding: '10px 13px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#1E40AF' }}>Your first {FREE_SUBMISSIONS} submissions are free</div>
+              <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>Fully verified, no card required. Upgrade when you need more.</div>
+            </div>
             {error && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '9px 12px', borderRadius: 7, fontSize: 12.5, marginBottom: 14 }}>{error}</div>}
             <form onSubmit={handleStep1}>
               {[
                 { label: 'Your name', value: name, set: setName, placeholder: 'Jane Smith', type: 'text' },
                 { label: 'Organisation name', value: orgName, set: setOrgName, placeholder: 'Acme Research Ltd', type: 'text' },
-                { label: 'Email address', value: email, set: setEmail, placeholder: 'you@organisation.com', type: 'email' },
+                { label: 'Work email address', value: email, set: setEmail, placeholder: 'you@organisation.com', type: 'email',
+                  hint: 'Your organisation’s address — personal and temporary mailboxes aren’t accepted.' },
                 { label: 'Password', value: password, set: setPassword, placeholder: '••••••••', type: 'password' },
               ].map(f => (
                 <div key={f.label} style={{ marginBottom: 14 }}>
@@ -91,6 +101,7 @@ export default function RegisterPage() {
                     type={f.type} value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.placeholder}
                     style={{ width: '100%', border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '10px 13px', fontSize: 13.5, fontFamily: 'Inter, sans-serif', color: '#080D1A', outline: 'none', boxSizing: 'border-box' }}
                   />
+                  {f.hint && <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 4 }}>{f.hint}</div>}
                 </div>
               ))}
               <button type="submit" style={{
