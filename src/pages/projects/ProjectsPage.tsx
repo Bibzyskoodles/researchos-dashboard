@@ -400,7 +400,7 @@ export default function ProjectsPage() {
 
   let adaMessage = `Welcome back, ${user?.name?.split(' ')[0] || 'there'}.`;
   if (projectCount === 0) {
-    adaMessage = `Welcome to ResearchOS. Every research project you run lives here — from the questionnaire you design to the report your client receives. Let me help you set up your first project.`;
+    adaMessage = `Welcome to FieldScore. Every research project you run lives here — from the questionnaire you design to the report your client receives. Let me help you set up your first project.`;
   } else if (attentionCount > 0) {
     adaMessage = `You have ${projectCount} project${projectCount !== 1 ? 's' : ''}. ${attentionCount} need${attentionCount === 1 ? 's' : ''} your attention — there are flagged submissions to review.`;
   } else if (collectingCount > 0) {

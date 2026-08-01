@@ -22,12 +22,12 @@ export const TOURS: GuidedTour[] = [
     id: 'executive',
     name: 'Executive Tour',
     durationLabel: '5 minutes',
-    description: 'The essential overview — what ResearchOS does and why it matters.',
+    description: 'The essential overview — what FieldScore does and why it matters.',
 
     demoIntro: {
       id: 'demo-exec-intro',
       route: '/overview',
-      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — the AI Research Partner inside ResearchOS. FieldScore is the engine underneath all of this — the verification and scoring layer that I understand brought you to the table. Today I want to show you the full picture: what FieldScore does, and the intelligence platform built around it. Live, real data, no slides. Stop me whenever you like. Let's begin.",
+      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — the AI Research Partner inside FieldScore. FieldScore is the engine underneath all of this — the verification and scoring layer that I understand brought you to the table. Today I want to show you the full picture: what FieldScore does, and the intelligence platform built around it. Live, real data, no slides. Stop me whenever you like. Let's begin.",
       waitForUser: true,
     },
 
@@ -35,7 +35,7 @@ export const TOURS: GuidedTour[] = [
       {
         id: 'exec-welcome',
         route: '/overview',
-        speech: "Hey, welcome! I'm Ada — your research intelligence layer. I'm really glad you're here. Over the next five minutes, I'm going to show you exactly what ResearchOS can do — and I promise, no slides, no videos. We're doing this live, right inside the real application. Ready? Let's go.",
+        speech: "Hey, welcome! I'm Ada — your research intelligence layer. I'm really glad you're here. Over the next five minutes, I'm going to show you exactly what FieldScore can do — and I promise, no slides, no videos. We're doing this live, right inside the real application. Ready? Let's go.",
         waitForUser: true,
       },
       {
@@ -51,7 +51,7 @@ export const TOURS: GuidedTour[] = [
         route: '/submissions',
         target: 'submissions-table',
         targetLabel: 'Verified Submissions',
-        speech: "Every interview your team collects lands right here. What I love about this view is that ResearchOS doesn't just store the data — it actually verifies it. Audio integrity, image quality, GPS consistency, interview duration — all checked automatically. Each submission gets a Trust Score from zero to a hundred. Amber means it needs a second look. Red means it's been rejected. Simple as that.",
+        speech: "Every interview your team collects lands right here. What I love about this view is that FieldScore doesn't just store the data — it actually verifies it. Audio integrity, image quality, GPS consistency, interview duration — all checked automatically. Each submission gets a Trust Score from zero to a hundred. Amber means it needs a second look. Red means it's been rejected. Simple as that.",
         waitForUser: true,
       },
       {
@@ -88,7 +88,7 @@ export const TOURS: GuidedTour[] = [
     demoIntro: {
       id: 'demo-full-intro',
       route: '/overview',
-      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — the AI Research Partner inside ResearchOS. FieldScore is what you heard about — it's the verification and trust scoring engine at the heart of this platform. What I'm going to show you today is everything built around it: from live field monitoring to AI analysis to client-ready reporting. Fifteen minutes, live, real data. Please stop me at any point — this is a conversation, not a presentation. Let's start with the dashboard.",
+      speech: "Good afternoon, Tayo. Good afternoon, Alexan. I'm Ada — the AI Research Partner inside FieldScore. FieldScore is what you heard about — it's the verification and trust scoring engine at the heart of this platform. What I'm going to show you today is everything built around it: from live field monitoring to AI analysis to client-ready reporting. Fifteen minutes, live, real data. Please stop me at any point — this is a conversation, not a presentation. Let's start with the dashboard.",
       waitForUser: true,
     },
 
@@ -96,7 +96,7 @@ export const TOURS: GuidedTour[] = [
       {
         id: 'full-welcome',
         route: '/overview',
-        speech: "Welcome — I'm so glad you're taking the time for this. I'm Ada, and I'm going to walk you through every capability ResearchOS has to offer. Not as a product demo, but as a real working session inside the actual platform. We'll go at whatever pace works for you, and please — ask me anything along the way. Let's start with the overview.",
+        speech: "Welcome — I'm so glad you're taking the time for this. I'm Ada, and I'm going to walk you through every capability FieldScore has to offer. Not as a product demo, but as a real working session inside the actual platform. We'll go at whatever pace works for you, and please — ask me anything along the way. Let's start with the overview.",
         waitForUser: true,
       },
       {
@@ -183,7 +183,7 @@ export const TOURS: GuidedTour[] = [
       {
         id: 'full-integrations',
         route: '/integrations',
-        speech: "Finally, ResearchOS connects to the tools your team already uses. KoboToolbox integration means submissions flow in automatically — no manual uploads. Webhooks let you push data to your own systems. More platforms are being added all the time. You're not locked into a walled garden, and your existing workflows don't have to change.",
+        speech: "Finally, FieldScore connects to the tools your team already uses. KoboToolbox integration means submissions flow in automatically — no manual uploads. Webhooks let you push data to your own systems. More platforms are being added all the time. You're not locked into a walled garden, and your existing workflows don't have to change.",
         waitForUser: true,
       },
       {

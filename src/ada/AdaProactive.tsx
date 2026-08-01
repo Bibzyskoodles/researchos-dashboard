@@ -209,7 +209,7 @@ function CelebrationModal({ milestone, onClose }: CelebrationProps) {
             <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
               <img src="/ada-avatar.jpg" alt="Ada" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 15%' }} />
             </div>
-            <div style={{ fontSize: 11, color: '#9CA3AF' }}>Ada · ResearchOS</div>
+            <div style={{ fontSize: 11, color: '#9CA3AF' }}>Ada · FieldScore</div>
             <button onClick={onClose}
               style={{ marginLeft: 'auto', padding: '5px 14px', borderRadius: 7, background: milestone.color, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'white', fontFamily: 'Inter,sans-serif' }}>
               Got it

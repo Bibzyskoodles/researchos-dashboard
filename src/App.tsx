@@ -53,7 +53,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       height: '100vh', background: '#F0F4FF', fontFamily: 'Inter, sans-serif',
       color: '#6B7280', fontSize: 14,
     }}>
-      Loading ResearchOS...
+      Loading FieldScore...
     </div>
   );
   if (!isAuthenticated) return <Navigate to="/login" replace />;

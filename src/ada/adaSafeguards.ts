@@ -109,7 +109,7 @@ function checkInjection(text: string): GuardResult {
       return {
         safe: false,
         reason: 'injection',
-        reply: "I'm Ada, ResearchOS's research assistant. I'm not able to change my identity, override my guidelines, or discuss my underlying configuration. Is there something about your research I can help you with?",
+        reply: "I'm Ada, FieldScore's research assistant. I'm not able to change my identity, override my guidelines, or discuss my underlying configuration. Is there something about your research I can help you with?",
       };
     }
   }

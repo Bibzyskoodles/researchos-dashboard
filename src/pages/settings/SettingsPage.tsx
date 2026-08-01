@@ -729,7 +729,7 @@ function BrandingSection() {
   const [primaryColor, setPrimaryColor] = React.useState("#2463EB");
   const [accentColor, setAccentColor] = React.useState("#7C3AED");
   const [font, setFont] = React.useState("Inter");
-  const [footer, setFooter] = React.useState("Confidential · ResearchOS");
+  const [footer, setFooter] = React.useState("Confidential · FieldScore");
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -3111,9 +3111,9 @@ const SECTION_META: Record<string,{title:string;description:string}> = {
   organization:{title:"Organisation",description:"Core identity and contact information for your organisation"},
   workspace:{title:"Workspace",description:"Configure your active research workspace and projects"},
   users:{title:"Users & Teams",description:"Manage team members, invitations, and access"},
-  roles:{title:"Roles & Permissions",description:"Control what each role can see and do in ResearchOS"},
+  roles:{title:"Roles & Permissions",description:"Control what each role can see and do in FieldScore"},
   branding:{title:"Branding",description:"Customise logos, colours, fonts, and report templates"},
-  integrations:{title:"Integrations",description:"Connect ResearchOS to your data collection and productivity tools"},
+  integrations:{title:"Integrations",description:"Connect FieldScore to your data collection and productivity tools"},
   ada:{title:"AI & Ada",description:"Configure Ada's behaviour, personality, and AI model settings"},
   research:{title:"Research Defaults",description:"Default thresholds and parameters for FieldScore and InsightScore"},
   engine:{title:"Engine Configuration",description:"Score weights, engine gating rules, and AI detection penalties for FieldScore"},

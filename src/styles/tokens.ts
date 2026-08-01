@@ -1,7 +1,7 @@
 import React from "react";
 
 // ─────────────────────────────────────────────────────────────────────────
-// ResearchOS design tokens — single source of truth for colours, card styles,
+// FieldScore design tokens — single source of truth for colours, card styles,
 // typography and score/verdict colour logic. Import from here instead of
 // redefining the same constants in every page.
 // ─────────────────────────────────────────────────────────────────────────

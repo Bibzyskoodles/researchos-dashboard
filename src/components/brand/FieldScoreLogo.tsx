@@ -51,7 +51,7 @@ interface LogoProps {
   casing?: string;
   /** Show "VERIFY. ANALYZE. DECIDE." under the wordmark. */
   tagline?: boolean;
-  /** Small uppercase line under the wordmark (e.g. "ResearchOS"). */
+  /** Small uppercase line under the wordmark (e.g. "FieldScore"). */
   sub?: string;
   style?: React.CSSProperties;
 }

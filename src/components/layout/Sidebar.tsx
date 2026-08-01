@@ -98,7 +98,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         padding: '18px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <FieldScoreLogo height={17} mode="dark" casing="#080D1A" sub="ResearchOS" />
+        <FieldScoreLogo height={17} mode="dark" casing="#080D1A" sub="by Intelligency" />
         {onClose && (
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.4)', padding: 4, display: 'grid', placeItems: 'center', borderRadius: 5 }}>
             <X size={15} />

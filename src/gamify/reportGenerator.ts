@@ -113,7 +113,7 @@ function generateHtml(reportId: string, ctx: ReportContext, date: string): strin
   const F  = ctx.brandFont
     ? `'${ctx.brandFont}', Inter, 'Helvetica Neue', Arial, sans-serif`
     : "Inter, 'Helvetica Neue', Arial, sans-serif";
-  const footerLine = ctx.brandFooter || 'Confidential · ResearchOS · FieldScore';
+  const footerLine = ctx.brandFooter || 'Confidential · FieldScore';
 
   const TITLES: Record<string, string> = {
     executive: 'Executive Summary',
@@ -367,7 +367,7 @@ function generateHtml(reportId: string, ctx: ReportContext, date: string): strin
 
   const logoHtml = ctx.logoDataUrl
     ? `<div class="cover-logo"><img src="${ctx.logoDataUrl}" alt="${ctx.orgName}"></div>`
-    : `<div class="cover-logo"><div class="cover-logo-text">FIELDSC◉RE</div><div class="cover-logo-tag">ResearchOS · Verify · Analyze · Decide</div></div>`;
+    : `<div class="cover-logo"><div class="cover-logo-text">FIELDSC◉RE</div><div class="cover-logo-tag">FieldScore · Verify · Analyze · Decide</div></div>`;
 
   const runningHeader = `
     <div class="doc-header">

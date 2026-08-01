@@ -1,5 +1,5 @@
 /**
- * ResearchOS Design Tokens
+ * FieldScore Design Tokens
  * Apple + Notion inspired design system
  * Color palette: White, Deep Blue, Light Blue
  */
