@@ -8,6 +8,9 @@ import FieldScoreLogo from "../components/brand/FieldScoreLogo";
 const BLUE = "#2463EB", GREEN = "#059669", AMBER = "#D97706", RED = "#DC2626", PURPLE = "#7C3AED", CYAN = "#06B6D4";
 const DARK = "#1A1F3E";
 const SALES = "mailto:bibilade@intelligencyai.com.ng";
+/** Mirrors the server's `FREE_SUBMISSION_LIMIT` (usage_limits.py), which is
+ *  the enforcing copy. Shown here so the free tier states a real number. */
+const FREE_SUBMISSIONS = 50;
 const NGN_PER_USD = 1600;
 
 const LABEL: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.8 };
@@ -37,13 +40,13 @@ const PLANS: Record<PlanName, { price_ngn: number; price_usd: number; riu: numbe
     price_ngn: 150000, price_usd: 94, riu: 1000, popular: false,
     caps: { fieldscore: 500, interviews: 50, reports: 5, presentations: 3, questionnaires: 2 },
     features: ["Up to 500 FieldScore verifications", "50 qualitative interviews", "5 executive reports", "3 presentations", "2 questionnaires", "1,000 Research Intelligence Units", "Email support"],
-    support: "Email support", cta: "Start Free Trial",
+    support: "Email support", cta: "Choose Starter",
   },
   Professional: {
     price_ngn: 350000, price_usd: 219, riu: 5000, popular: true,
     caps: { fieldscore: 2000, interviews: 200, reports: 20, presentations: 10, questionnaires: 5 },
     features: ["Up to 2,000 FieldScore verifications", "200 qualitative interviews", "20 executive reports", "10 presentations", "5 questionnaires", "5,000 Research Intelligence Units", "Priority support"],
-    support: "Priority support", cta: "Start Free Trial",
+    support: "Priority support", cta: "Choose Professional",
   },
   Enterprise: {
     price_ngn: 800000, price_usd: 500, riu: Infinity, popular: false,
@@ -477,7 +480,7 @@ export default function PricingPage() {
               <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: 0.8 }}>Estimated Monthly Investment</div>
               <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: -1.5, marginTop: 6 }}>{money(p.price_ngn, currency, plan === "Enterprise")}</div>
               <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.5)" }}>Billed monthly. Cancel anytime.</div>
-              <Link to="/login" style={{ display: "block", textAlign: "center", marginTop: 14, padding: "12px", borderRadius: 10, background: BLUE, color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Start Free Trial</Link>
+              <Link to="/login" style={{ display: "block", textAlign: "center", marginTop: 14, padding: "12px", borderRadius: 10, background: BLUE, color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Start free · 50 submissions</Link>
               <a href={SALES} style={{ display: "block", textAlign: "center", marginTop: 8, fontSize: 12.5, color: "rgba(255,255,255,.6)", textDecoration: "none" }}>Talk to Sales Team →</a>
 
               <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
@@ -493,8 +496,28 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* PLAN CARDS */}
+        {/* FREE TIER — the entry point every paid plan is measured against.
+            Deliberately not a PlanCard: it has no configurable volumes, so it
+            would render three empty meters and read as a downgrade. */}
         <div style={{ marginTop: 40 }}>
+          <div style={{ background: "white", borderRadius: 16, border: `1.5px solid ${BLUE}`, padding: "22px 24px", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <div style={{ minWidth: 260, flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 18, fontWeight: 800, color: "#080D1A", letterSpacing: -0.4 }}>Free</span>
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: BLUE, background: "#EFF5FF", borderRadius: 20, padding: "3px 9px", textTransform: "uppercase", letterSpacing: 0.6 }}>No card required</span>
+              </div>
+              <div style={{ fontSize: 13.5, color: "#4B5563", lineHeight: 1.6 }}>
+                Your first {FREE_SUBMISSIONS} submissions, fully verified — every fraud check, every engine, the same as a paid plan. Nothing expires.
+              </div>
+            </div>
+            <Link to="/register" style={{ textAlign: "center", padding: "12px 22px", borderRadius: 10, background: BLUE, color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
+              Start free
+            </Link>
+          </div>
+        </div>
+
+        {/* PLAN CARDS */}
+        <div style={{ marginTop: 20 }}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {(["Starter", "Professional", "Enterprise"] as PlanName[]).map(name => (
               <PlanCard key={name} name={name} currency={currency} recommended={plan === name} />

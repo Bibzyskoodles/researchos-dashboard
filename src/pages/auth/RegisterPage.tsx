@@ -74,14 +74,14 @@ export default function RegisterPage() {
       <div style={{ width: '100%', maxWidth: step === 2 ? 680 : step === 3 ? 600 : 420 }}>
         {/* Logo */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
-          <FieldScoreLogo height={22} mode="light" casing="#F0F4FF" sub="ResearchOS" style={{ alignItems: 'center' }} />
+          <FieldScoreLogo height={22} mode="light" casing="#F0F4FF" sub="by Intelligency" style={{ alignItems: 'center' }} />
         </div>
 
         {/* Step 1: Account details */}
         {step === 1 && (
           <div style={{ background: 'white', borderRadius: 16, padding: 36, boxShadow: '0 4px 24px rgba(8,13,26,.10)' }}>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: '#080D1A', marginBottom: 6 }}>Create your account</h1>
-            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>Set up ResearchOS for your organisation.</p>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>Set up FieldScore for your organisation.</p>
             <div style={{ background: '#F0F5FF', border: '1px solid #DBE6FF', borderRadius: 8, padding: '10px 13px', marginBottom: 20 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: '#1E40AF' }}>Your first {FREE_SUBMISSIONS} submissions are free</div>
               <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>Fully verified, no card required. Upgrade when you need more.</div>
@@ -123,7 +123,7 @@ export default function RegisterPage() {
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: '#080D1A', marginBottom: 6, textAlign: 'center' }}>What industry are you in?</h1>
             <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: 24, textAlign: 'center' }}>
-              This helps ResearchOS adapt to your context — labels, quality checks, and reporting all change.
+              This helps FieldScore adapt to your context — labels, quality checks, and reporting all change.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
               {INDUSTRY_PROFILES.map(ind => (

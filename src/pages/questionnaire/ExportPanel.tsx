@@ -398,7 +398,7 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
           {saved ? '✓ Saved to project' : (
             <>
               <Save size={16} />
-              Save to ResearchOS project
+              Save to FieldScore project
             </>
           )}
         </motion.button>

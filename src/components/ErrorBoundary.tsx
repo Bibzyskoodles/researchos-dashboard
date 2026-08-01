@@ -11,7 +11,7 @@ export default class ErrorBoundary extends React.Component<ErrorProps, ErrorStat
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("ResearchOS crash:", error, info);
+    console.error("FieldScore crash:", error, info);
   }
 
   // Reset when the route changes (resetKey = location.pathname)

@@ -20,7 +20,7 @@ const BLUE = '#2463EB';
 const AMBER = '#D97706';
 const GREEN = '#059669';
 
-const REVIEW_SYSTEM = `You are Ada, a world-class research methodologist. You are helping a researcher refine their questionnaire in the ResearchOS workspace.
+const REVIEW_SYSTEM = `You are Ada, a world-class research methodologist. You are helping a researcher refine their questionnaire in the FieldScore workspace.
 
 When focused on a specific question, provide concise, actionable methodology advice:
 - Identify biases (leading, acquiescence, social desirability, double-barrelled)

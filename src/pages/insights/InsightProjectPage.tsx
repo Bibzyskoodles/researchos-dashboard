@@ -153,7 +153,7 @@ function IntelligenceTab({ projectId, project }: { projectId: string; project: I
       const url = URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ResearchOS_Report_${projectId}.${format}`;
+      a.download = `FieldScore_Report_${projectId}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -376,7 +376,7 @@ export default function InsightProjectPage() {
         if (contentType.includes('application/json')) return;
         const url = URL.createObjectURL(new Blob([res.data]));
         const a = document.createElement('a'); a.href = url;
-        a.download = `ResearchOS_${id}.${format}`;
+        a.download = `FieldScore_${id}.${format}`;
         document.body.appendChild(a); a.click();
         document.body.removeChild(a); URL.revokeObjectURL(url);
       } catch {}
@@ -485,7 +485,7 @@ export default function InsightProjectPage() {
                     }
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a"); a.href = url;
-                    a.download = `ResearchOS_${id}.${fmt}`; document.body.appendChild(a);
+                    a.download = `FieldScore_${id}.${fmt}`; document.body.appendChild(a);
                     a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
                   } catch {
                     setDownloadError(`Could not download ${fmt.toUpperCase()} report — please try again.`);

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────
-// ResearchOS — AI model configuration
+// FieldScore — AI model configuration
 //
 // Single source of truth for which model handles which task. Backend endpoints
 // that call OpenAI should reference the same task keys so the model used is

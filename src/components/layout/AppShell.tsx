@@ -313,7 +313,7 @@ export default function AppShell() {
   }, []);
 
   const handleRefresh = REFRESHABLE.includes(location.pathname)
-    ? () => window.dispatchEvent(new Event("researchos:refresh"))
+    ? () => window.dispatchEvent(new Event("fieldscore:refresh"))
     : undefined;
 
   return (

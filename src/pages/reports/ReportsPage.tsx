@@ -331,7 +331,7 @@ export default function ReportsPage() {
   // Create-then-copy a public link, same UX pattern as DataIntegrityCard.tsx's
   // copyLink()/certificateApi.verifyUrl(). The share URL points at THIS app's
   // own /shared-report/:token route (not the backend host directly) so the
-  // link a stakeholder receives looks like a normal ResearchOS link and
+  // link a stakeholder receives looks like a normal FieldScore link and
   // renders through SharedReportPage.tsx rather than a bare API response.
   const doShare = async (r: typeof REPORT_TYPES[0]) => {
     if (!selectedProject) return;

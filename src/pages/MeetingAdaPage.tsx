@@ -14,7 +14,7 @@ interface Message {
   timestamp: Date;
 }
 
-const INTRO_MESSAGE = "Good afternoon. I'm Ada — the AI Research Partner inside ResearchOS. FieldScore is what brought you here today, and rightly so — it's the verification and trust scoring engine at the core of everything. What I'd love to do is show you the full picture around it: live field monitoring, enumerator performance, AI-driven analysis, and reporting — all connected. But first, what's the specific challenge on your mind? I'd rather start with what matters to you than walk through slides.";
+const INTRO_MESSAGE = "Good afternoon. I'm Ada — the AI Research Partner inside FieldScore. FieldScore is what brought you here today, and rightly so — it's the verification and trust scoring engine at the core of everything. What I'd love to do is show you the full picture around it: live field monitoring, enumerator performance, AI-driven analysis, and reporting — all connected. But first, what's the specific challenge on your mind? I'd rather start with what matters to you than walk through slides.";
 
 export default function MeetingAdaPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -49,7 +49,7 @@ export default function MeetingAdaPage() {
 
     try {
       const res = await adaApi.chat(q, 'overview', {
-        context: 'Ada is in a live meeting with Tayo Salami (Country Manager, Nigeria) and Alexan Carrilo (Regional Ops Director, Sub-Saharan Africa) from Ipsos. Ada is the AI Research Partner for ResearchOS. She should speak to senior research operations leaders — confident, specific, no fluff. She understands the pressures of managing field quality across Sub-Saharan Africa: enumerator consistency, GPS verification, interview fabrication, client confidence. Keep answers to 2-3 sentences unless a longer answer is clearly warranted. Warm but direct.',
+        context: 'Ada is in a live meeting with Tayo Salami (Country Manager, Nigeria) and Alexan Carrilo (Regional Ops Director, Sub-Saharan Africa) from Ipsos. Ada is the AI Research Partner for FieldScore. She should speak to senior research operations leaders — confident, specific, no fluff. She understands the pressures of managing field quality across Sub-Saharan Africa: enumerator consistency, GPS verification, interview fabrication, client confidence. Keep answers to 2-3 sentences unless a longer answer is clearly warranted. Warm but direct.',
       });
       const answer: string = res.data?.reply || res.data?.message || "That's a great question. Let me come back to that — I want to make sure I give you the most accurate answer.";
       addMessage('ada', answer);
@@ -79,7 +79,7 @@ export default function MeetingAdaPage() {
         padding: '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: 'white', letterSpacing: -0.4 }}>researchOS</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: 'white', letterSpacing: -0.4 }}>FieldScore</div>
           <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>Meeting Mode</div>
         </div>
@@ -160,7 +160,7 @@ export default function MeetingAdaPage() {
 
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'white', letterSpacing: -0.5, marginBottom: 6 }}>Ada</div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>AI Research Partner · ResearchOS</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>AI Research Partner · FieldScore</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>Sub-Saharan Africa Field Intelligence</div>
           </div>
 

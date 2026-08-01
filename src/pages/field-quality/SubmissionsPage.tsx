@@ -283,8 +283,8 @@ export default function SubmissionsPage(){
         setTimeout(()=>setState("idle"),3000);
       },600);
     };
-    window.addEventListener("researchos:refresh",handler);
-    return ()=>window.removeEventListener("researchos:refresh",handler);
+    window.addEventListener("fieldscore:refresh",handler);
+    return ()=>window.removeEventListener("fieldscore:refresh",handler);
   },[load,setState,addMessage]);
 
   useEffect(()=>{

@@ -26,7 +26,7 @@ export default function WelcomeModal({ onDismiss }: WelcomeModalProps) {
   const steps: Step[] = [
     {
       icon: <Sparkles size={32} color={BLUE} />,
-      title: 'Welcome to ResearchOS',
+      title: 'Welcome to FieldScore',
       body: 'Your intelligent field research platform. Ada — your AI research assistant — is here to guide you through everything, from setting up your first project to generating insights from your data.',
       cta: 'Get Started',
       action: () => setStep(1),
@@ -34,7 +34,7 @@ export default function WelcomeModal({ onDismiss }: WelcomeModalProps) {
     {
       icon: <Upload size={32} color={BLUE} />,
       title: 'Connect Your Data',
-      body: 'Upload submissions from KoboToolbox, ODK, or your own API. ResearchOS automatically scores each response across five quality engines: GPS, Image, Audio, Duration, and Duplicate detection.',
+      body: 'Upload submissions from KoboToolbox, ODK, or your own API. FieldScore automatically scores each response across five quality engines: GPS, Image, Audio, Duration, and Duplicate detection.',
       cta: 'Go to Integrations',
       action: () => { onDismiss(); nav('/integrations'); },
     },

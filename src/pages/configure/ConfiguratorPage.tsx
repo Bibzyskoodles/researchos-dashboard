@@ -129,7 +129,7 @@ function Header() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
       <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: -0.3 }}>FIELDSC<span style={{ color: BLUE }}>◎</span>RE</span>
-      <span style={{ fontSize: 11, color: MUTE, letterSpacing: 1, textTransform: 'uppercase' }}>ResearchOS</span>
+      <span style={{ fontSize: 11, color: MUTE, letterSpacing: 1, textTransform: 'uppercase' }}>FieldScore</span>
     </div>
   );
 }
