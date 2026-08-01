@@ -21,6 +21,7 @@ export interface AdaContext {
 export type AdaConfirmAction =
   | { type: 'delete_project'; project_id: string; project_name: string }
   | { type: 'erasure'; project_id?: string; submission_ids?: string[]; reason: string; label: string }
+  | { type: 'workspace_limit'; org_id: string; workspace_name: string; new_limit: number }
   | {
       type: 'upload_submissions';
       fileName: string;

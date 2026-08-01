@@ -199,6 +199,7 @@ export function validateCommand(cmd: unknown): cmd is AdaCommand {
         ...Array.from(ALLOWED_SETTING_KEYS),
         'passScoreThreshold','flagScoreThreshold','minDurationMins','maxDurationMins',
         'gpsToleranceMeters','weight_gps','weight_duration','weight_image','weight_audio','weight_duplicate',
+        'weight_text_ai','weight_voice_diversity','weight_roaming_pair','weight_response_quality','weight_cross_question_consistency','weight_submission_burst','weight_after_hours',
       ]);
       if (!allSettingKeys.has(c.key as string)) return false;
       const v = c.value;
@@ -207,7 +208,8 @@ export function validateCommand(cmd: unknown): cmd is AdaCommand {
       if (boolKeys.includes(c.key as string)) return typeof v === 'boolean';
       const numKeys = ['gpsAccuracy','dupThreshold','passThreshold','minDuration','maxDuration',
         'passScoreThreshold','flagScoreThreshold','minDurationMins','maxDurationMins',
-        'gpsToleranceMeters','weight_gps','weight_duration','weight_image','weight_audio','weight_duplicate'];
+        'gpsToleranceMeters','weight_gps','weight_duration','weight_image','weight_audio','weight_duplicate',
+        'weight_text_ai','weight_voice_diversity','weight_roaming_pair','weight_response_quality','weight_cross_question_consistency','weight_submission_burst','weight_after_hours'];
       if (numKeys.includes(c.key as string)) return typeof v === 'number' && isFinite(v as number);
       return typeof v === 'string' && (v as string).length < 64;
     }
@@ -224,6 +226,16 @@ export function validateCommand(cmd: unknown): cmd is AdaCommand {
 
     case 'GENERATE_REPORT':
       return typeof c.project_id === 'string' && ['docx','pptx','xlsx'].includes(c.format as string);
+
+    case 'CONFIRM_WORKSPACE_LIMIT':
+      // Platform-operator only on the server; here it only ever surfaces a
+      // confirmation card (AdaDock makes the real /admin/set-workspace-limit
+      // call on click, and that route re-verifies operator status). Still
+      // validated as AI-returned input.
+      return typeof c.org_id === 'string' && c.org_id.length > 0 && c.org_id.length < 128
+        && typeof c.workspace_name === 'string' && c.workspace_name.length > 0 && c.workspace_name.length < 200
+        && typeof c.new_limit === 'number' && Number.isInteger(c.new_limit) && c.new_limit >= 0 && c.new_limit <= 1000000
+        && (c.current_limit === null || (typeof c.current_limit === 'number' && isFinite(c.current_limit)));
 
     case 'CONFIRM_DELETE_PROJECT':
       // Only ever surfaces a confirmation card — see AppShell/AdaDock. Still

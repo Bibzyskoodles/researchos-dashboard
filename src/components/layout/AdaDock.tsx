@@ -367,6 +367,38 @@ export default function AdaDock() {
     }
   };
 
+  // Platform-operator workspace limit change ("change Ipsos to 100"). Ada
+  // never applies this herself: the click calls /admin/set-workspace-limit,
+  // whose gate independently re-verifies the caller is a platform operator
+  // (normal Bearer token — no secret in the browser). A non-operator who
+  // somehow saw this card gets a 403 from the server.
+  const handleConfirmWorkspaceLimit = async (
+    messageId: string,
+    action: { org_id: string; workspace_name: string; new_limit: number },
+    confirmed: boolean
+  ) => {
+    setResolvedConfirms(prev => new Set(prev).add(messageId));
+    if (!confirmed) {
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Okay — "${action.workspace_name}" keeps its current limit.`, timestamp: new Date().toISOString() });
+      return;
+    }
+    setConfirmBusy(messageId);
+    try {
+      const api = (await import('../../services/api')).default;
+      await api.post('/admin/set-workspace-limit', { org_id: action.org_id, limit: action.new_limit });
+      const limitText = action.new_limit === 0 ? 'unlimited' : String(action.new_limit);
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: `Done — "${action.workspace_name}" can now verify ${limitText === 'unlimited' ? 'without a cap' : `up to ${limitText} submissions`}.`, timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      const msg = err?.response?.status === 403
+        ? `The server declined that — this account isn't authorised to change workspace limits.`
+        : `I couldn't update "${action.workspace_name}" — please try again, or use the Admin screen.`;
+      addMessage({ id: `${messageId}-outcome`, role: "assistant", content: msg, timestamp: new Date().toISOString() });
+    } finally {
+      setConfirmBusy(null);
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  };
+
   // Permanent right-to-erasure. Like project deletion, Ada never finalizes
   // this herself: AppShell's CONFIRM_ERASURE handler added the card this
   // responds to, and only this click runs the real flow. The server's own
@@ -529,6 +561,8 @@ export default function AdaDock() {
                   ? msg.confirmAction : null;
                 const pendingErasure = msg.confirmAction?.type === 'erasure' && !resolvedConfirms.has(msg.id)
                   ? msg.confirmAction : null;
+                const pendingLimit = msg.confirmAction?.type === 'workspace_limit' && !resolvedConfirms.has(msg.id)
+                  ? msg.confirmAction : null;
                 const busy = confirmBusy === msg.id;
                 return (
                   <div key={msg.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
@@ -568,6 +602,24 @@ export default function AdaDock() {
                           </button>
                           <button
                             onClick={() => handleConfirmUpload(msg.id, pendingUpload, false)}
+                            disabled={busy}
+                            style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #E2E8F0", background: "white", color: "#6B7280", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                      {pendingLimit && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                          <button
+                            onClick={() => handleConfirmWorkspaceLimit(msg.id, pendingLimit, true)}
+                            disabled={busy}
+                            style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: "#2463EB", color: "white", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
+                          >
+                            Apply limit
+                          </button>
+                          <button
+                            onClick={() => handleConfirmWorkspaceLimit(msg.id, pendingLimit, false)}
                             disabled={busy}
                             style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #E2E8F0", background: "white", color: "#6B7280", fontSize: 11.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}
                           >
