@@ -1752,9 +1752,21 @@ function useToast() {
   return { msg, show };
 }
 
+/** Plan ids are stored lowercase (`professional`); this renders them for
+ *  humans without a CSS text-transform, since the value is interpolated
+ *  into a sentence rather than rendered as a standalone element. */
+const capitalise = (v: string) => v.charAt(0).toUpperCase() + v.slice(1);
+
 // ─── BillingSection ───────────────────────────────────────────────────────────
 interface BillingData {
   plan: string; status: string; trial_ends_at?: string | null;
+  // The paid period. `plan` above is the *effective* plan (the server downgrades
+  // it once the period lapses), while `plan_on_record` is the stored value —
+  // showing the effective one keeps this panel consistent with what the upload
+  // cap actually enforces.
+  plan_on_record?: string;
+  plan_expires_at?: string | null;
+  plan_expired?: boolean;
   usage_this_month: { submissions_scored: number; submissions_passed: number };
   total_submissions_all_time: number;
   payment_processing_configured: boolean;
@@ -1977,7 +1989,16 @@ function BillingSection() {
               <span style={{ fontSize: 20, fontWeight: 900, color: "#080D1A", letterSpacing: -0.5, textTransform: "capitalize" as const }}>{B.plan}</span>
               <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: `${statusColor}14`, color: statusColor, border: `1px solid ${statusColor}30` }}>{statusLabel}</span>
             </div>
-            {B.trial_ends_at && (
+            {B.plan_expires_at ? (
+              <>
+                <div style={{ width: 1, height: 24, background: "#E8EDF5" }} />
+                <span style={{ fontSize: 12.5, color: B.plan_expired ? RED : "#6B7280" }}>
+                  {B.plan_expired
+                    ? `${B.plan_on_record ? capitalise(B.plan_on_record) : "Plan"} expired ${new Date(B.plan_expires_at).toLocaleDateString()} — renew to lift the limit`
+                    : `Renews ${new Date(B.plan_expires_at).toLocaleDateString()}`}
+                </span>
+              </>
+            ) : B.trial_ends_at && (
               <>
                 <div style={{ width: 1, height: 24, background: "#E8EDF5" }} />
                 <span style={{ fontSize: 12.5, color: "#6B7280" }}>Trial ends {new Date(B.trial_ends_at).toLocaleDateString()}</span>
