@@ -56,6 +56,10 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
+        <p style={{fontSize:13,color:"#6B7280",marginTop:20,textAlign:"center"}}>
+          New to FieldScore?{" "}
+          <a href="/register" style={{color:"#2463EB",fontWeight:600,textDecoration:"none"}}>Create an account</a>
+        </p>
       </div>
     </div>
   );
