@@ -470,6 +470,17 @@ export const orgSettingsApi = {
   // changes state itself.
   startPlanUpgrade: (plan: string) =>
     api.post('/api/org/upgrade', { plan }),
+  // Per-project ingest token — the credential a form platform uses to write
+  // submissions into THIS project and no other. Replaces the old shared
+  // webhook secret + ?project_id=, which let any FieldScore customer write into
+  // any project (see fieldscore-backend webhook_tokens.py). Only the hash is
+  // stored server-side, so `get` reports whether one exists and its prefix but
+  // can never return the token itself — `rotate` mints a new one and returns it
+  // exactly once, invalidating the previous URL immediately.
+  getIngestToken: (projectId: string) =>
+    api.get(`/api/projects/${projectId}/ingest-token`),
+  rotateIngestToken: (projectId: string) =>
+    api.post(`/api/projects/${projectId}/ingest-token`),
   listInvites: () => api.get('/api/org/invites'),
   createInvite: (email: string, role: string, projectIds?: string[]) =>
     api.post('/api/org/invites', { email, role, ...(projectIds ? { project_ids: projectIds } : {}) }),
