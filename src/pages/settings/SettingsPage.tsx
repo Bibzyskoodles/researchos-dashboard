@@ -2445,20 +2445,117 @@ function ApiSection() {
   );
 }
 
+/** Plain-English label for each audited action, and who the "target" is.
+ *  The backend's vocabulary is a closed set (security_audit.AUDITED_ACTIONS);
+ *  anything not listed here still renders, using the raw name, so a newly
+ *  audited action is never silently dropped from the customer's view. */
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  PROJECT_ACCESS_GRANTED: "Project access granted",
+  PROJECT_ACCESS_REVOKED: "Project access revoked",
+  USER_INVITED: "Person invited",
+  PASSWORD_RESET_BY_ADMIN: "Password reset by FieldScore support",
+  ORG_PLAN_CHANGED: "Plan changed",
+  WORKSPACE_LIMIT_CHANGED: "Verification allowance changed",
+  API_KEY_CREATED: "API key created",
+  API_KEY_REVOKED: "API key revoked",
+  RETENTION_POLICY_CHANGED: "Data retention policy changed",
+};
+
+interface AuditEvent {
+  id: number;
+  action: string;
+  actor_email: string | null;
+  actor_role: string | null;
+  target: string | null;
+  detail?: Record<string, unknown> | null;
+  occurred_at: string;
+  signature_valid: boolean;
+}
+
 function AuditSection() {
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [actions, setActions] = useState<string[]>([]);
+  const [filter, setFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    orgSettingsApi.getAuditEvents(100, filter || undefined)
+      .then(r => {
+        setEvents(r.data?.events || []);
+        if (r.data?.actions) setActions(r.data.actions);
+        setError("");
+      })
+      // Server-side gate is admin-only (manage_users). Say so plainly rather
+      // than showing a generic failure to someone who simply isn't an admin.
+      .catch((e: any) => setError(e?.response?.status === 403
+        ? "Only workspace administrators can view the security activity log."
+        : "Could not load the security activity log."))
+      .finally(() => setLoading(false));
+  }, [filter]);
+
   return (
     <SettingsCard style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Audit Log</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Security Activity</div>
+        {actions.length > 0 && (
+          <select
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            style={{ ...INPUT, width: "auto", minWidth: 200, padding: "7px 10px", fontSize: 12 }}
+          >
+            <option value="">All activity</option>
+            {actions.map(a => (
+              <option key={a} value={a}>{AUDIT_ACTION_LABELS[a] || a}</option>
+            ))}
+          </select>
+        )}
       </div>
-      <div style={{ padding: "20px 24px", background: "#F8FAFF", borderRadius: 12, border: "1px solid #EEF2F8", textAlign: "center" as const }}>
-        <ClipboardList size={28} color="#CBD5E1" style={{ marginBottom: 10 }} />
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Audit logging isn't enabled yet</div>
-        <div style={{ fontSize: 12.5, color: "#9CA3AF", lineHeight: 1.6, maxWidth: 400, margin: "0 auto" }}>
-          When audit logging is turned on, every login, export, settings change, and data deletion will be recorded here with the user, timestamp, and IP address.
-          Contact <a href="mailto:bibilade@intelligencyai.com.ng" style={{ color: BLUE, textDecoration: "none" }}>bibilade@intelligencyai.com.ng</a> to enable audit logging for your organisation.
+
+      <div style={{ fontSize: 12.5, color: "#6B7280", lineHeight: 1.6, marginBottom: 18, maxWidth: 620 }}>
+        A permanent record of who changed access, permissions, plans and data-retention
+        settings in this workspace. Each entry is cryptographically signed when it is
+        written, so an entry that was altered afterwards shows as <strong>Altered</strong>
+        {" "}instead of quietly reading as genuine. Records cannot be edited or deleted from
+        here — including by us. Everyday activity (logins, viewing data, exports) is not
+        recorded here; this is the security trail, kept short enough to be read.
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 12, color: "#9CA3AF" }}>Loading…</div>
+      ) : error ? (
+        <div style={{ fontSize: 12.5, color: RED }}>{error}</div>
+      ) : events.length === 0 ? (
+        <div style={{ padding: "20px 24px", background: "#F8FAFF", borderRadius: 12, border: "1px solid #EEF2F8", textAlign: "center" as const }}>
+          <ClipboardList size={28} color="#CBD5E1" style={{ marginBottom: 10 }} />
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+            {filter ? "Nothing of this kind has happened yet" : "No security activity yet"}
+          </div>
+          <div style={{ fontSize: 12.5, color: "#9CA3AF", lineHeight: 1.6, maxWidth: 420, margin: "0 auto" }}>
+            Entries appear here the moment someone invites a person, grants or removes
+            access to a project, changes the retention policy, or creates an API key.
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {events.map(e => (
+            <div key={e.id} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "10px 14px", background: "#F8FAFF", border: "1px solid #EEF2F8", borderRadius: 10 }}>
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: "#111827" }}>
+                  {AUDIT_ACTION_LABELS[e.action] || e.action}
+                  {e.target ? <span style={{ fontWeight: 400, color: "#6B7280" }}> — {e.target}</span> : null}
+                </div>
+                <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
+                  {new Date(e.occurred_at).toLocaleString()} · {e.actor_email || (e.actor_role ? `automatic (${e.actor_role})` : "system")}
+                  {e.actor_email && e.actor_role ? ` (${e.actor_role})` : ""}
+                </div>
+              </div>
+              <Badge label={e.signature_valid ? "Verified" : "Altered"} color={e.signature_valid ? GREEN : RED} />
+            </div>
+          ))}
+        </div>
+      )}
     </SettingsCard>
   );
 }

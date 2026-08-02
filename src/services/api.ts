@@ -438,6 +438,14 @@ export const orgSettingsApi = {
   performErasure: (target: { project_id?: string; submission_ids?: string[] }, confirm_token: string, reason: string) =>
     api.post('/api/retention/erase', { ...target, confirm_token, reason }),
   getErasureLog: (limit = 50) => api.get('/api/retention/log', { params: { limit } }),
+  // Security activity: who granted or revoked project access, who invited
+  // someone, who changed the plan, retention policy or API keys. Admin-only
+  // and scoped to the caller's own workspace server-side (the org comes from
+  // the token, never from a parameter). Each row is HMAC-signed and carries
+  // signature_valid, so a record altered in the database shows as altered
+  // rather than silently reading as genuine — same contract as the erasure log.
+  getAuditEvents: (limit = 100, action?: string) =>
+    api.get('/api/org/audit-events', { params: { limit, ...(action ? { action } : {}) } }),
   getSecurity: () => api.get('/api/org/security'),
   updateSecurity: (data: object) => api.put('/api/org/security', data),
   getBilling: () => api.get('/api/org/billing'),
