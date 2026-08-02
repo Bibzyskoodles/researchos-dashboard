@@ -1471,25 +1471,36 @@ function ErasureCard() {
   );
 }
 
+/** Session-length choices, in the minutes the backend actually stores.
+ *  "No limit" maps to 0, which the server reads as the refresh token's own
+ *  30-day lifetime — the behaviour every workspace had before this setting
+ *  did anything. */
+const SESSION_TIMEOUT_CHOICES: [number, string][] = [
+  [60, "1 hour"],
+  [240, "4 hours"],
+  [480, "8 hours"],
+  [1440, "24 hours"],
+  [10080, "7 days"],
+  [0, "No limit (30 days)"],
+];
+
 function SecuritySection() {
   const [sso, setSso] = useState(false);
-  const [sessionTimeout, setSessionTimeout] = useState("24h");
-  const [ipRestrict, setIpRestrict] = useState(false);
+  const [sessionTimeout, setSessionTimeout] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
-
-  const _mapMinsToCode = (mins: number) => mins <= 60 ? "1h" : mins <= 240 ? "4h" : mins <= 480 ? "8h" : mins <= 1440 ? "24h" : "7d";
-  const _mapCodeToMins = (code: string): number => ({ "1h": 60, "4h": 240, "8h": 480, "24h": 1440, "7d": 10080 }[code] || 1440);
 
   useEffect(() => {
     orgSettingsApi.getSecurity()
       .then(r => {
         const d = r.data || {};
         setSso(!!d.sso_enabled);
-        if (d.session_timeout_mins) setSessionTimeout(_mapMinsToCode(d.session_timeout_mins));
-        setIpRestrict(!!(d.ip_allowlist && d.ip_allowlist.length > 0));
+        // Only treat the stored value as a real setting if the server says it
+        // is being enforced — otherwise the dropdown would show "1 hour" for a
+        // workspace whose sessions actually last 30 days.
+        setSessionTimeout(d.session_timeout_enforced ? Number(d.session_timeout_mins_effective) : 0);
       })
       .catch(() => {});
   }, []);
@@ -1498,11 +1509,12 @@ function SecuritySection() {
     setSaving(true);
     setError("");
     try {
+      // ip_allowlist is deliberately not sent: nothing enforces it server-side,
+      // and the server drops it rather than storing a protection that doesn't
+      // exist. Same treatment as the removed 2FA toggle.
       const r = await orgSettingsApi.updateSecurity({
         sso_enabled: sso,
-        session_timeout_mins: _mapCodeToMins(sessionTimeout),
-        ip_restrict_enabled: ipRestrict,
-        ip_allowlist: [],
+        session_timeout_mins: sessionTimeout,
       });
       setSaved(true);
       setNote(r.data?.note || "");
@@ -1536,12 +1548,29 @@ function SecuritySection() {
         </SettingsGroup>
         <SectionDivider label="Session Management" />
         <SettingsGroup>
-          <SettingsField label="Session Timeout" hint="How long a login stays valid before requiring re-authentication">
-            <select style={{ ...INPUT }} value={sessionTimeout} onChange={e => setSessionTimeout(e.target.value)}>
-              {[["1h","1 hour"],["4h","4 hours"],["8h","8 hours"],["24h","24 hours"],["7d","7 days"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+          <SettingsField
+            label="Session Timeout"
+            hint="How long a login stays valid before your team has to sign in again. Checked when the session renews, so a session ends within about 30 minutes of the time you choose."
+          >
+            <select style={{ ...INPUT }} value={sessionTimeout} onChange={e => setSessionTimeout(Number(e.target.value))}>
+              {SESSION_TIMEOUT_CHOICES.map(([mins, label]) => <option key={mins} value={mins}>{label}</option>)}
             </select>
           </SettingsField>
-          <Toggle value={ipRestrict} onChange={setIpRestrict} label="IP Restriction" description="Restrict logins to approved IP address ranges. Configure your allowlist after enabling." />
+          {/* IP restriction enforces nothing today — nothing server-side reads
+              the allowlist. A working toggle here would tell an admin their
+              workspace was locked to their office when it wasn't, the same
+              false signal the 2FA toggle above was removed for. Honest copy
+              until it is built, because building it safely for field teams on
+              mobile networks needs a break-glass path, not just a list. */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#F8FAFF", borderRadius: 10, border: "1px solid #EEF2F8", opacity: 0.65 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>IP Restriction</div>
+                <Badge label="Coming Soon" color="#9CA3AF" />
+              </div>
+              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Not enforced yet — talk to us if your organisation needs logins locked to specific networks.</div>
+            </div>
+          </div>
         </SettingsGroup>
         {error && <div style={{ fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
         {note && <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8 }}>{note}</div>}
@@ -2454,6 +2483,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   PROJECT_ACCESS_REVOKED: "Project access revoked",
   USER_INVITED: "Person invited",
   PASSWORD_RESET_BY_ADMIN: "Password reset by FieldScore support",
+  SESSION_POLICY_CHANGED: "Session timeout changed",
   ORG_PLAN_CHANGED: "Plan changed",
   WORKSPACE_LIMIT_CHANGED: "Verification allowance changed",
   API_KEY_CREATED: "API key created",
