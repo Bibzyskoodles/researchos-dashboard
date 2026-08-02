@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Check, ChevronDown, ChevronUp, Bell, Zap, Upload, FileText, X, AlertCircle, ArrowUpRight } from "lucide-react";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { dashboardApi, projectsApi, API_BASE_URL } from "../../services/api";
+import { dashboardApi, projectsApi, orgSettingsApi, API_BASE_URL } from "../../services/api";
 import { loadEngineConfig } from "../../services/engineConfig";
 import { computeTrustIndex } from "../../services/trustEngine";
 import { useProject } from "../../context/ProjectContext";
@@ -699,12 +699,46 @@ export default function IntegrationsPage() {
   const { activeProject, setActiveProject } = useProject();
   // Webhook host = the same backend the dashboard talks to (never hardcoded:
   // a stale host here silently routes client data to the wrong server).
-  const webhookBase = `${API_BASE_URL.replace(/\/$/, "")}/webhook/${orgId || "your-org-id"}`;
-  // A webhook URL is only ever issued WITH a project binding. Without one,
-  // submissions would arrive org-level and could land in the wrong project.
-  const webhookUrl = activeProject?.id
-    ? `${webhookBase}?project_id=${activeProject.id}`
-    : null;
+  // The URL now carries a per-project token instead of the org id plus a
+  // ?project_id= parameter. That old shape let any FieldScore customer write
+  // submissions into any project: the secret was shared by everyone and the
+  // destination came from the query string. The token IS the destination now,
+  // so there is nothing in the URL a sender can change to redirect the data.
+  // Only the hash is stored server-side, so the token can never be re-read —
+  // it is shown once when issued, and lost URLs are replaced by rotating.
+  const [ingestToken, setIngestToken] = useState<string | null>(null);
+  const [tokenConfigured, setTokenConfigured] = useState<boolean | null>(null);
+  const [rotating, setRotating] = useState(false);
+  const [tokenError, setTokenError] = useState("");
+
+  React.useEffect(() => {
+    setIngestToken(null);
+    setTokenError("");
+    if (!activeProject?.id) { setTokenConfigured(null); return; }
+    orgSettingsApi.getIngestToken(activeProject.id)
+      .then(r => setTokenConfigured(!!r.data?.configured))
+      .catch(() => setTokenConfigured(null));
+  }, [activeProject?.id]);
+
+  const rotateToken = async () => {
+    if (!activeProject?.id) return;
+    setRotating(true);
+    setTokenError("");
+    try {
+      const r = await orgSettingsApi.rotateIngestToken(activeProject.id);
+      setIngestToken(r.data?.token || null);
+      setTokenConfigured(true);
+    } catch (e: any) {
+      setTokenError(e?.response?.status === 403
+        ? "Only workspace administrators can issue a submission URL."
+        : "Could not issue a submission URL — please try again.");
+    } finally {
+      setRotating(false);
+    }
+  };
+
+  const apiRoot = API_BASE_URL.replace(/\/$/, "");
+  const webhookUrl = ingestToken ? `${apiRoot}/webhook/t/${ingestToken}` : null;
   // Real integration status + activity feed from the project's actual submissions
   const [koboStats, setKoboStats] = useState<{ count: number; last: string } | null>(null);
   const [recentEvents, setRecentEvents] = useState<ActivityEvent[]>([]);
@@ -876,6 +910,12 @@ export default function IntegrationsPage() {
                   <div style={{ flex:1,background:"#F8FAFF",border:"1px solid #E2E8F0",borderRadius:8,padding:"9px 14px",fontFamily:"monospace",fontSize:12.5,color:"#374151",wordBreak:"break-all" as const }}>{webhookUrl}</div>
                   <CopyButton text={webhookUrl} onCopy={handleCopyUrl} />
                 </div>
+                {/* The URL contains a secret and is only ever shown once, so
+                    say that here rather than letting someone navigate away and
+                    lose it. */}
+                <div style={{ marginTop:8,fontSize:11.5,color:"#92400E",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,padding:"8px 12px" }}>
+                  Copy this now — it is shown only once. It contains a secret unique to this project, so treat it like a password. If you lose it, issue a new one below.
+                </div>
                 {/* Form ↔ project link — powers routing verification and claims
                     historical submissions written before URL-based routing */}
                 <div style={{ marginTop:12,padding:"10px 14px",borderRadius:8,background:"#F8FAFF",border:"1px solid #EEF2F8" }}>
@@ -950,9 +990,31 @@ export default function IntegrationsPage() {
                 </div>
                 {!orgId && <div style={{ marginTop:10,fontSize:11.5,color:AMBER }}>⚠ Organisation ID not found — log in to see your personalised URL.</div>}
               </>
-            ) : (
+            ) : !activeProject?.id ? (
               <div style={{ padding:"16px 18px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,fontSize:12.5,color:"#92400E",lineHeight:1.7 }}>
                 <strong>Select a project first.</strong> Webhook URLs are issued per project so every form's submissions land in exactly one project. Use the project switcher in the top bar (or the Projects page) to choose the project this form belongs to, then come back here to copy its URL.
+              </div>
+            ) : (
+              /* A token exists but cannot be displayed: only its hash is
+                 stored, so there is genuinely nothing to show. Say that
+                 plainly and offer the one action that works, rather than
+                 implying the URL is retrievable. */
+              <div style={{ padding:"16px 18px",background:"#F8FAFF",border:"1px solid #E2E8F0",borderRadius:10,fontSize:12.5,color:"#374151",lineHeight:1.7 }}>
+                <div style={{ marginBottom:10 }}>
+                  {tokenConfigured
+                    ? <>This project already has a submission URL, but it can't be shown again — FieldScore stores only a one-way fingerprint of it, so nobody (including us) can read it back. If you still have it in your form platform, keep using it. If not, issue a new one below.</>
+                    : <>This project doesn't have a submission URL yet. Issue one to start receiving data from KoboToolbox, ODK, or any tool that can send a webhook.</>}
+                </div>
+                <button onClick={rotateToken} disabled={rotating}
+                  style={{ padding:"9px 16px",borderRadius:8,background:BLUE,border:"none",color:"white",fontSize:12.5,fontWeight:600,cursor:rotating?"wait":"pointer",fontFamily:"Inter,sans-serif",opacity:rotating?0.6:1 }}>
+                  {rotating ? "Issuing…" : tokenConfigured ? "Issue a new URL (replaces the old one)" : "Issue submission URL"}
+                </button>
+                {tokenConfigured && (
+                  <div style={{ marginTop:8,fontSize:11.5,color:"#92400E" }}>
+                    Issuing a new URL stops the current one working immediately — update your form platform straight after, or submissions will stop arriving.
+                  </div>
+                )}
+                {tokenError && <div style={{ marginTop:8,fontSize:12,color:"#DC2626" }}>{tokenError}</div>}
               </div>
             )}
           </div>
