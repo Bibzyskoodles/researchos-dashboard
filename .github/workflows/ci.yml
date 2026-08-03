@@ -28,6 +28,18 @@ jobs:
       # exists and fail spuriously, so the build is the single check.
       - name: Build (CI=true — type-check + warnings-as-errors, exactly like Vercel)
         run: CI=true npm run build
+      # The CORS contract with the backend. A build cannot catch this: asking
+      # for credentialed CORS while the API refuses to grant it compiles
+      # perfectly and then breaks every request in a real browser, which is how
+      # sign-in was dead for a day with CI green throughout.
+      #
+      # Scoped to this file rather than the whole suite because three unrelated
+      # suites (App, KoboAuthModal, demoData) currently fail; running everything
+      # would make this step red for reasons that have nothing to do with the
+      # invariant it guards, and a step that is always red guards nothing. Widen
+      # the pattern once those are fixed.
+      - name: CORS contract test
+        run: CI=true npx react-scripts test --watchAll=false --testPathPattern="api.cors"
       # Advisory dependency scan — surfaced in the log, not blocking (xlsx/CRA
       # have known advisories; tighten once triaged).
       - name: Dependency audit
