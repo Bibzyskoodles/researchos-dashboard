@@ -69,7 +69,9 @@ describe('KoboAuthModal', () => {
     test('renders Connect button', () => {
       render(<KoboAuthModal {...defaultProps} />);
 
-      expect(screen.getByRole('button', { name: /Connect/ })).toBeInTheDocument();
+      // Exact name: /Connect/ also matches "Test Connection", so the loose
+      // pattern matched two buttons and threw rather than asserting anything.
+      expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
     });
 
     test('renders Cancel button', () => {
@@ -80,15 +82,18 @@ describe('KoboAuthModal', () => {
   });
 
   describe('Form Validation', () => {
-    test('shows validation error for empty token', async () => {
+    test('cannot submit an empty token', () => {
       render(<KoboAuthModal {...defaultProps} />);
 
-      const testButton = screen.getByText('Test Connection');
-      fireEvent.click(testButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/API token is required/)).toBeInTheDocument();
-      });
+      // This asserted that clicking with an empty token surfaced "API token is
+      // required". It cannot: both actions are disabled while the token is
+      // blank, so the click never reaches the handler and that branch of
+      // validateToken is unreachable from the UI. The guard stays in the
+      // component as defence for any future caller, but the behaviour a user
+      // actually gets — and what this test should therefore pin — is that
+      // there is nothing to click until a token is entered.
+      expect(screen.getByRole('button', { name: 'Connect' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /Test Connection/ })).toBeDisabled();
     });
 
     test('shows validation error for short token', async () => {

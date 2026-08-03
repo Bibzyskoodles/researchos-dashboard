@@ -28,18 +28,22 @@ jobs:
       # exists and fail spuriously, so the build is the single check.
       - name: Build (CI=true — type-check + warnings-as-errors, exactly like Vercel)
         run: CI=true npm run build
-      # The CORS contract with the backend. A build cannot catch this: asking
-      # for credentialed CORS while the API refuses to grant it compiles
-      # perfectly and then breaks every request in a real browser, which is how
-      # sign-in was dead for a day with CI green throughout.
+      # The test suite. This repo had 60 tests that CI never ran, so none of
+      # them were protecting anything — App.test.tsx had been failing since the
+      # project was scaffolded and nobody knew. A build cannot catch what these
+      # catch: the CORS contract with the backend (asking for credentialed CORS
+      # while the API refuses it compiles perfectly, then breaks every request
+      # in a real browser — that is how sign-in was dead for a day with CI
+      # green), or a provider that throws on mount.
       #
-      # Scoped to this file rather than the whole suite because three unrelated
-      # suites (App, KoboAuthModal, demoData) currently fail; running everything
-      # would make this step red for reasons that have nothing to do with the
-      # invariant it guards, and a step that is always red guards nothing. Widen
-      # the pattern once those are fixed.
-      - name: CORS contract test
-        run: CI=true npx react-scripts test --watchAll=false --testPathPattern="api.cors"
+      # trustEngine.test.ts is excluded and is NOT passing. Two of its cases
+      # encode docs/15_TRUST_INTELLIGENCE_BIBLE.md §9 faithfully; the engine
+      # diverged from §9 in d9545e2 and the Bible was never updated. Which side
+      # is right is a product decision about how submissions get judged, not a
+      # test-hygiene one, so it is deliberately left open rather than settled by
+      # editing whichever side was easier. Remove this exclusion once decided.
+      - name: Tests
+        run: CI=true npx react-scripts test --watchAll=false --testPathIgnorePatterns="trustEngine"
       # Advisory dependency scan — surfaced in the log, not blocking (xlsx/CRA
       # have known advisories; tighten once triaged).
       - name: Dependency audit

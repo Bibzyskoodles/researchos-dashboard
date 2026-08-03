@@ -70,7 +70,13 @@ const KoboAuthModal: React.FC<KoboAuthModalProps> = ({
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState<boolean>(false);
   const [disconnecting, setDisconnecting] = useState<boolean>(false);
   const [validationError, setValidationError] = useState<string>('');
-  const [showAutoSync, setShowAutoSync] = useState<boolean>(false);
+  // Seeded from the status passed in, not hardcoded false. Previously this only
+  // became true after a connection test succeeded *in this session*, so opening
+  // the modal on an account that was already connected hid the auto-sync option
+  // until the user re-tested a connection that was already working.
+  const [showAutoSync, setShowAutoSync] = useState<boolean>(
+    currentStatus?.state === 'connected',
+  );
 
   const isConnected = connectionStatus.state === 'connected';
   const currentServer = KOBO_SERVERS.find((s) => s.id === selectedServer);
