@@ -291,7 +291,8 @@ describe("§6.7 Assigned-zone verification (haversine)", () => {
     expect(r.audit.join(" ")).toMatch(/Presence corroborated/);
   });
 
-  it("outside the radius: OUTSIDE_ASSIGNED_ZONE hard gate → REJECT", () => {
+  it("far outside the radius: still REJECT, and the score reflects the distance", () => {
+    // >10 km out, which is beyond the 2 km reject boundary — Bible §7.
     const r = computeTrustIndex(FULL_HOUSE,
       cfg({ assignedZone: { lat: 6.6, lon: 3.3, radiusM: 250, label: "Akoka PHC" } }));
     expect(r.zoneCheck!.withinZone).toBe(false);
@@ -300,7 +301,25 @@ describe("§6.7 Assigned-zone verification (haversine)", () => {
     expect(r.risk).toBe("CRITICAL");
     const gps = r.breakdown.find(b => b.key === "gps")!;
     expect(gps.flagOverride).toBe("OUTSIDE_ASSIGNED_ZONE");
-    expect(gps.effectiveScore).toBe(15);
+    // Was a flat 15 regardless of distance. Now max(0, 100 - km*10), which at
+    // this range is 0 — the point being that it is no longer the same number a
+    // submission 673 m out would get.
+    expect(gps.effectiveScore).toBe(0);
+  });
+
+  it("just outside the radius: FLAG for review, not REJECT — Bible §7", () => {
+    // The live case that prompted the change: 673 m from an assigned pin at the
+    // other end of the same road. Previously an unconditional hard gate, which
+    // made it indistinguishable from a submission in another state.
+    const near = { ...FULL_HOUSE, gps: { lat: 6.5, lon: 3.3, accuracy_m: 8 } };
+    const r = computeTrustIndex(near as any,
+      cfg({ assignedZone: { lat: 6.5054, lon: 3.3, radiusM: 250, label: "Kusenla Road" } }));
+    expect(r.zoneCheck!.withinZone).toBe(false);
+    expect(r.zoneCheck!.distanceM).toBeGreaterThan(250);
+    expect(r.zoneCheck!.distanceM).toBeLessThan(2000);
+    expect(r.verdict).toBe("FLAG");
+    const gps = r.breakdown.find(b => b.key === "gps")!;
+    expect(gps.effectiveScore).toBeGreaterThan(80);
   });
 
   it("no zone configured: verification skipped, coordinates simply reported", () => {

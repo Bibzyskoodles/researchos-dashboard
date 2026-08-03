@@ -2812,6 +2812,20 @@ function EngineSection() {
   };
 
   const save = () => {
+    // The flag slider RENDERS a clamped value — Math.min(flagScoreThreshold,
+    // passScoreThreshold - 5) — but the raw state was what got saved. Lower the
+    // pass threshold to 30 while flag sat at 50 and the screen showed 25 while
+    // the payload carried 50, so the server rejected the whole request with
+    // "flag_threshold must be lower than pass_threshold". The pass threshold
+    // reverted to 70, and because the request is atomic the image context, the
+    // audio context and the zone settings never saved either — which is why the
+    // AI checks appeared to ignore every description written for them.
+    //
+    // Clamp once, here, and use the same number everywhere: on screen, in
+    // localStorage and in the request. A UI that shows one value and sends
+    // another cannot be reasoned about by anyone.
+    const effectiveFlagThreshold = Math.min(flagScoreThreshold, passScoreThreshold - 5);
+
     // Persist to localStorage so SubmissionDetailPage can read it
     const current = loadEngineConfig();
     saveEngineConfig({
@@ -2819,7 +2833,7 @@ function EngineSection() {
       weights: { ...weights } as EngineConfig["weights"],
       requirements: { ...requirements },
       passScoreThreshold,
-      flagScoreThreshold,
+      flagScoreThreshold: effectiveFlagThreshold,
       imageContentHint: imageContentHint.trim(),
       audioContentHint: audioContentHint.trim(),
       assignedZone: {
@@ -2850,7 +2864,7 @@ function EngineSection() {
         image_context: imageContentHint.trim(),
         audio_context: audioContentHint.trim(),
         pass_threshold: passScoreThreshold,
-        flag_threshold: flagScoreThreshold,
+        flag_threshold: effectiveFlagThreshold,
         zone_lat: zoneLat.trim() !== "" && !isNaN(Number(zoneLat)) ? Number(zoneLat) : null,
         zone_lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
         zone_radius_m: zoneRadius,
@@ -2859,9 +2873,21 @@ function EngineSection() {
         // Best-effort rescore — if it fails, the config is already saved and
         // will apply to future submissions. Don't surface this as a save error.
         dashboardApi.rescoreProject(activeProject.id, 'recompute').catch(() => {});
-      }).catch(() => setBackendSaveError(
-        "Saved locally, but couldn't save to the server — the AI checks won't see this context until it's retried."
-      ));
+      }).catch((err: any) => {
+        // Say what the server said. This used to discard the response entirely
+        // and show a generic sentence, so a precise, actionable message —
+        // "flag_threshold must be lower than pass_threshold" — was thrown away
+        // unread while the user re-entered the same settings repeatedly with no
+        // way to find out why they would not stick.
+        const serverMessage = err?.response?.data?.error;
+        setBackendSaveError(
+          typeof serverMessage === "string" && serverMessage
+            ? `Couldn't save to the server: ${serverMessage} — the AI checks won't see this context until it saves.`
+            : !err?.response
+              ? "Couldn't reach the server, so this is saved on this device only — the AI checks won't see it until it saves."
+              : `Couldn't save to the server (error ${err.response.status}) — the AI checks won't see this context until it saves.`
+        );
+      });
     } else {
       setBackendSaveError("Select a project first — choose a project from the dropdown above before saving context to the scoring engine.");
       return;
