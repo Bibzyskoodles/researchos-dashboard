@@ -1,17 +1,38 @@
 import axios from 'axios';
 import { GetEnumeratorsResponse, GetLeaderboardResponse } from '../types';
 
-const BASE_URL = process.env.REACT_APP_API_URL || 'https://web-production-f5bab.up.railway.app';
+// Fall back to the production domain, not Railway's auto-generated one. The
+// previous fallback (web-production-f5bab.up.railway.app) is the hostname
+// Railway generates for a service; the backend has since moved to the custom
+// domain below, and a generated hostname is not a stable address — it can stop
+// resolving when a service is stopped, restarted or given a custom domain.
+// When that happened the dashboard called an address that no longer existed,
+// which surfaces as a bare "Login failed" with a perfectly healthy server,
+// because the browser never gets a response to hand back to the app.
+// REACT_APP_API_URL still overrides this and is what Vercel should set; this
+// is only the value used when it is missing, so it should be the real one.
+const BASE_URL = process.env.REACT_APP_API_URL || 'https://fieldscore.intelligencyai.com.ng';
 
 // Single source of truth for the backend host — the Integrations page builds
 // webhook URLs from this so they always point at the same server the
 // dashboard talks to.
 export const API_BASE_URL = BASE_URL;
 
+// No withCredentials. This used to be set with a comment claiming it sent
+// httpOnly cookies — there are none. The server sets no cookie and reads none;
+// auth is a Bearer token on the Authorization header, attached by the request
+// interceptor below (see the backend's bearer.py, which is deliberately the
+// only way a credential is read off a request, with no cookie fallback).
+//
+// It was not merely redundant, it broke every request. Asking for credentialed
+// CORS makes the browser *require* `Access-Control-Allow-Credentials: true` on
+// the response; the backend deliberately does not send it, so the browser threw
+// away responses the server had answered correctly. curl and a plain fetch()
+// both succeeded against the same endpoint from the same origin, because
+// neither enforces that rule — only the dashboard failed, and it failed with a
+// bare "Login failed" that looked like a rejected password.
 const api = axios.create({
   baseURL: BASE_URL,
-  // ✅ SECURITY: Send httpOnly cookies automatically
-  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
