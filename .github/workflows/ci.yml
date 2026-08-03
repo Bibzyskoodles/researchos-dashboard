@@ -28,22 +28,22 @@ jobs:
       # exists and fail spuriously, so the build is the single check.
       - name: Build (CI=true — type-check + warnings-as-errors, exactly like Vercel)
         run: CI=true npm run build
-      # The test suite. This repo had 60 tests that CI never ran, so none of
-      # them were protecting anything — App.test.tsx had been failing since the
-      # project was scaffolded and nobody knew. A build cannot catch what these
-      # catch: the CORS contract with the backend (asking for credentialed CORS
-      # while the API refuses it compiles perfectly, then breaks every request
-      # in a real browser — that is how sign-in was dead for a day with CI
-      # green), or a provider that throws on mount.
+      # The whole test suite, no exclusions.
       #
-      # trustEngine.test.ts is excluded and is NOT passing. Two of its cases
-      # encode docs/15_TRUST_INTELLIGENCE_BIBLE.md §9 faithfully; the engine
-      # diverged from §9 in d9545e2 and the Bible was never updated. Which side
-      # is right is a product decision about how submissions get judged, not a
-      # test-hygiene one, so it is deliberately left open rather than settled by
-      # editing whichever side was easier. Remove this exclusion once decided.
+      # This repo had 60 tests CI never ran, so none of them protected anything —
+      # App.test.tsx had been failing since the project was scaffolded and nobody
+      # knew. trustEngine.test.ts was then excluded because two of its cases
+      # encoded Trust Intelligence Bible §9 faithfully while the engine had
+      # diverged from it, which was a product decision about how submissions get
+      # judged rather than test hygiene.
+      #
+      # That decision is now made: the engine implements §9 as written. A
+      # submission clearing the pass threshold while carrying flags is FLAG /
+      # REVIEW rather than silently APPROVED, and the 50-69 band is HIGH risk.
+      # Nothing is excluded any more, and nothing should be again — an excluded
+      # suite reads as a passing one.
       - name: Tests
-        run: CI=true npx react-scripts test --watchAll=false --testPathIgnorePatterns="trustEngine"
+        run: CI=true npx react-scripts test --watchAll=false
       # Advisory dependency scan — surfaced in the log, not blocking (xlsx/CRA
       # have known advisories; tighten once triaged).
       - name: Dependency audit

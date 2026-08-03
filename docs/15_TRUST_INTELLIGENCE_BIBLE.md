@@ -297,7 +297,7 @@ Worst (lowest) override wins per engine. Deterministic, auditable, versioned her
 | `NO_GPS` | gps | 0 | high |
 | `GPS_PARSE_ERROR` | gps | 5 | high |
 | `GPS_OUTSIDE_NIGERIA` | gps | 10 | **hard gate** |
-| `OUTSIDE_ASSIGNED_ZONE` | gps | 15 | **hard gate** |
+| `OUTSIDE_ASSIGNED_ZONE` | gps | *distance-proportional* (§7) | FLAG, or REJECT beyond `zone_reject_km` |
 | `LOW_GPS_ACCURACY` / `GPS_POOR_ACCURACY` | gps | 35 | medium |
 | `DURATION_NEGATIVE` | duration | 0 | **hard gate** |
 | `BACK_TO_BACK` | duration | 5 | **hard gate** |
@@ -333,9 +333,30 @@ d = 2R·asin(√(sin²(Δφ/2) + cosφ₁·cosφ₂·sin²(Δλ/2)))       R = 6
 
 - **d ≤ radius** → presence corroborated; the distance is recorded in the audit trail and
   displayed on the submission ("312 m from Akoka PHC — within the 500 m radius").
-- **d > radius** → the engine raises `OUTSIDE_ASSIGNED_ZONE` itself, which flows through the
-  standard machinery: GPS override to 15 (§6.5) **and** a hard gate (§9) — the submission is
-  rejected for review with the measured distance stated.
+- **d > radius** → the engine raises `OUTSIDE_ASSIGNED_ZONE`, and **the distance decides the
+  severity**. The GPS score is proportional — `max(0, 100 − km × 10)` — and the verdict is
+  `FLAG` (supervisor review) up to `zone_reject_km` beyond the radius, `REJECT` past it. The
+  boundary defaults to 2 km and is configurable per project; setting it to `0` restores
+  reject-at-any-distance.
+
+  | Distance outside | Verdict | GPS score |
+  |---|---|---|
+  | 100 m | FLAG | 99 |
+  | 673 m | FLAG | 94 |
+  | 1.5 km | FLAG | 85 |
+  | 5 km | REJECT | 50 |
+  | 50 km | REJECT | 0 |
+
+  **Revised 2026-08-04.** This was previously a flat override to 15 plus an unconditional hard
+  gate, which made 673 m and 50 km indistinguishable in both score and verdict — a submission
+  captured at one end of a Lagos road, with its assigned pin at the other, was rejected exactly
+  as one captured in another state would have been. A modest overshoot has innocent
+  explanations (GPS drift, a respondent met just past a boundary, a pin dropped at one end of a
+  road that runs for a kilometre); kilometres do not. The change follows this document's own
+  asymmetry in §9 — a wrongly rejected honest enumerator is a person unpaid for real work,
+  while a wrongly flagged one is simply looked at.
+
+  This is a deliberate loosening of a fraud control and is reversible per project.
 - **No zone configured** → verification is skipped entirely and the platform simply reports
   where enumeration happened: coordinates, map, and reverse-geocoded address. Absence of a
   client expectation is never a penalty.
@@ -485,7 +506,7 @@ Every case below has defined behavior and (where marked ✓) a scenario test.
 | E23 ✓ | Weights that don't sum to 1 | Normalization makes only ratios matter |
 | E24 ✓ | Consistency delta would exceed bounds | Clamped to [−10, +3] before application |
 | E25 ✓ | Assigned zone set, enumeration inside radius | Presence corroborated, distance recorded, no penalty |
-| E26 ✓ | Assigned zone set, enumeration outside radius | `OUTSIDE_ASSIGNED_ZONE` raised → GPS override 15 + hard gate → REJECT |
+| E26 ✓ | Assigned zone set, enumeration outside radius | `OUTSIDE_ASSIGNED_ZONE` raised → GPS score proportional to distance; FLAG within `zone_reject_km`, REJECT beyond (§7) |
 | E27 ✓ | No assigned zone configured | Verification skipped; coordinates + address simply reported |
 
 ---

@@ -94,7 +94,13 @@ const FLAG_ENGINE_OVERRIDES: Record<string, { engine: EngineKey; score: number }
   NO_GPS:                  { engine: "gps",       score: 0 },
   GPS_PARSE_ERROR:         { engine: "gps",       score: 5 },
   GPS_OUTSIDE_NIGERIA:     { engine: "gps",       score: 10 },
-  OUTSIDE_ASSIGNED_ZONE:   { engine: "gps",       score: 15 },
+  // OUTSIDE_ASSIGNED_ZONE is deliberately absent. A flat override here made
+  // 673 m and 50 km score identically — 15/100, which renders as 1 out of the
+  // 6 available GPS points — while the server had already computed a
+  // distance-proportional score (max(0, 100 - km*10) → 94 at 673 m) and sent
+  // it on the submission. Overriding it discarded the only number that carried
+  // the distance, and left the dashboard unable to answer "how far outside?"
+  // at all. The server's gps score is used as-is; see zone_severity() there.
   LOW_GPS_ACCURACY:        { engine: "gps",       score: 35 },
   GPS_POOR_ACCURACY:       { engine: "gps",       score: 35 },
   DURATION_NEGATIVE:       { engine: "duration",  score: 0 },
@@ -120,7 +126,15 @@ const FLAG_ENGINE_OVERRIDES: Record<string, { engine: EngineKey; score: number }
 // classification as the scoring math, instead of drifting out of sync.
 export const HARD_GATE_FLAGS = new Set([
   "DUPLICATE_SUBMISSION", "DUPLICATE_IMAGE", "DUPLICATE_AUDIO",
-  "GPS_OUTSIDE_NIGERIA", "OUTSIDE_ASSIGNED_ZONE",
+  "GPS_OUTSIDE_NIGERIA",
+  // OUTSIDE_ASSIGNED_ZONE is deliberately NOT a hard gate any more. Hard gates
+  // bypass the arithmetic entirely — "CRITICAL / REJECT regardless" — so a
+  // project that set its pass threshold to 30 still saw every out-of-zone
+  // submission rejected, with no setting anywhere that could change it.
+  //
+  // The server now decides this by distance (FLAG near, REJECT far, boundary
+  // configurable per project via zone_reject_km) and sends a real verdict. A
+  // second, cruder veto in the browser can only contradict it.
   "DURATION_NEGATIVE", "BACK_TO_BACK", "AUDIO_EMPTY",
   "AI_GENERATED_IMAGE", "DOWNLOADED_IMAGE",
   "SINGLE_VOICE_DETECTED", "ROAMING_PAIR_DETECTED",
@@ -223,6 +237,20 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
     const ovr = FLAG_ENGINE_OVERRIDES[flag];
     if (ovr && (overrideByEngine[ovr.engine] === undefined || ovr.score < overrideByEngine[ovr.engine]!.score)) {
       overrideByEngine[ovr.engine] = { score: ovr.score, flag };
+    }
+  }
+
+  // OUTSIDE_ASSIGNED_ZONE has no fixed entry in the table above because its
+  // penalty depends on how far outside the submission was — Bible §7. The same
+  // formula the server uses (max(0, 100 - km*10)) is applied here so the two
+  // agree; a flat 15 made 673 m and 50 km identical, which is what this
+  // replaces. Distance is already known: zoneCheck was computed above.
+  if (zoneCheck && !zoneCheck.withinZone) {
+    const km = zoneCheck.distanceM / 1000;
+    const zoneScore = Math.max(0, 100 - Math.trunc(km * 10));
+    const existing = overrideByEngine.gps;
+    if (existing === undefined || zoneScore < existing.score) {
+      overrideByEngine.gps = { score: zoneScore, flag: "OUTSIDE_ASSIGNED_ZONE" };
     }
   }
 
@@ -475,23 +503,49 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   }
 
   // ── L6 Risk & Recommendation (Bible §9) ──
-  const hasHardGate = flags.some(f => HARD_GATE_FLAGS.has(f));
+  // A zone breach far enough out is still a veto — Bible §7. Near ones are not,
+  // which is the whole point of the change: distance decides. Mirrors the
+  // server's zone_reject_km so both halves reach the same verdict.
+  const zoneRejectKm = config.zoneRejectKm ?? 2;
+  const zoneBreachRejects = !!zoneCheck && !zoneCheck.withinZone
+    && (zoneCheck.distanceM / 1000) > zoneRejectKm;
+
+  const hasHardGate = flags.some(f => HARD_GATE_FLAGS.has(f)) || zoneBreachRejects;
   const pt = config.passScoreThreshold ?? 60;
   let risk: RiskLevel; let recommendation: Recommendation; let verdict: Verdict;
   if (hasHardGate) {
     risk = "CRITICAL"; recommendation = "REJECT"; verdict = "REJECT";
-    audit.push(`Hard gate: ${flags.filter(f => HARD_GATE_FLAGS.has(f)).join(", ")} → CRITICAL / REJECT regardless of arithmetic.`);
+    const gateNames = flags.filter(f => HARD_GATE_FLAGS.has(f));
+    if (zoneBreachRejects) {
+      gateNames.push(
+        `OUTSIDE_ASSIGNED_ZONE (${(zoneCheck!.distanceM / 1000).toFixed(2)} km out, beyond the ${zoneRejectKm} km reject boundary)`,
+      );
+    }
+    audit.push(`Hard gate: ${gateNames.join(", ")} → CRITICAL / REJECT regardless of arithmetic.`);
+  } else if (trustIndex >= pt && flags.length > 0) {
+    // Bible §9: "T ≥ passThreshold, flags present → MEDIUM / REVIEW / FLAG".
+    //
+    // This branch did not exist. A submission that cleared the threshold was
+    // APPROVED even carrying fraud flags, so a flagged submission could pass
+    // unseen — the false-approval direction, on a platform whose product is
+    // verification. It became urgent with §7's distance-aware zones: without
+    // it, a submission 673 m outside its assigned area scores highly on
+    // everything else and disappears silently instead of reaching a supervisor.
+    risk = "MEDIUM"; recommendation = "REVIEW"; verdict = "FLAG";
+    audit.push(`Trust ${trustIndex} ≥ pass threshold ${pt}, but ${flags.length} flag(s) present (${flags.join(", ")}) → FLAG for review, not automatic approval.`);
   } else if (trustIndex >= pt) {
-    risk = flags.length > 0 ? "LOW" : trustIndex >= 85 && completeness >= 0.9 ? "VERY_LOW" : "LOW";
+    risk = trustIndex >= 85 && completeness >= 0.9 ? "VERY_LOW" : "LOW";
     recommendation = "APPROVE"; verdict = "PASS";
-    audit.push(`Trust ${trustIndex} ≥ pass threshold ${pt} → PASS.`);
-  } else if (trustIndex >= 30) {
-    risk = trustIndex < pt * 0.6 ? "HIGH" : "MEDIUM";
-    recommendation = "REVIEW"; verdict = "FLAG";
-    audit.push(`Trust ${trustIndex} is below the pass threshold (${pt}) → FLAG for review.`);
+    audit.push(`Trust ${trustIndex} ≥ pass threshold ${pt}, no flags → PASS.`);
+  } else if (trustIndex >= 50) {
+    // Bible §9: the 50–69 band is HIGH risk and REVIEW — never auto-REJECT.
+    // The engine had been computing HIGH only below 60% of the threshold, so
+    // most of this band reported MEDIUM and understated the risk.
+    risk = "HIGH"; recommendation = "REVIEW"; verdict = "FLAG";
+    audit.push(`Trust ${trustIndex} is below the pass threshold (${pt}) → HIGH risk, FLAG for review.`);
   } else {
     risk = "CRITICAL"; recommendation = "REJECT"; verdict = "REJECT";
-    audit.push(`Trust ${trustIndex} is critically low → REJECT.`);
+    audit.push(`Trust ${trustIndex} is below 50 → REJECT (Bible §9).`);
   }
 
   return {

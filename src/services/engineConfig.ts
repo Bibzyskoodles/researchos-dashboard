@@ -86,6 +86,11 @@ export interface EngineConfig {
   weights: EngineWeights;
   enabled: EngineEnabled;          // legacy boolean map, kept in sync with requirements
   requirements: EngineRequirements; // Bible §4 — the authoritative per-engine policy
+  // How far outside the radius stops being "review this" and becomes "reject
+  // this" — Bible §7. Mirrors the server's zone_reject_km so the dashboard and
+  // the engine that issues the real verdict agree. 0 restores the old
+  // reject-at-any-distance rule.
+  zoneRejectKm: number;
   assignedZone: AssignedZone;       // Bible §6.7 — single zone (legacy / simple projects)
   zoneList: ZoneList;               // Bible §16 — many named field sites; overrides assignedZone when non-empty
   gating: GatingConfig;
@@ -114,6 +119,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   weights: { gps: 0.25, duration: 0.22, image: 0.20, audio: 0.13, duplicate: 0.10, text_ai: 0.10 },
   enabled: { gps: true, duration: true, image: true, audio: true, duplicate: true, text_ai: true },
   requirements: { ...DEFAULT_REQUIREMENTS },
+  zoneRejectKm: 2,
   assignedZone: { lat: null, lon: null, radiusM: 250, label: "" },
   zoneList: [],
   gating: {
