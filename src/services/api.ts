@@ -18,10 +18,21 @@ const BASE_URL = process.env.REACT_APP_API_URL || 'https://fieldscore.intelligen
 // dashboard talks to.
 export const API_BASE_URL = BASE_URL;
 
+// No withCredentials. This used to be set with a comment claiming it sent
+// httpOnly cookies — there are none. The server sets no cookie and reads none;
+// auth is a Bearer token on the Authorization header, attached by the request
+// interceptor below (see the backend's bearer.py, which is deliberately the
+// only way a credential is read off a request, with no cookie fallback).
+//
+// It was not merely redundant, it broke every request. Asking for credentialed
+// CORS makes the browser *require* `Access-Control-Allow-Credentials: true` on
+// the response; the backend deliberately does not send it, so the browser threw
+// away responses the server had answered correctly. curl and a plain fetch()
+// both succeeded against the same endpoint from the same origin, because
+// neither enforces that rule — only the dashboard failed, and it failed with a
+// bare "Login failed" that looked like a rejected password.
 const api = axios.create({
   baseURL: BASE_URL,
-  // ✅ SECURITY: Send httpOnly cookies automatically
-  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
