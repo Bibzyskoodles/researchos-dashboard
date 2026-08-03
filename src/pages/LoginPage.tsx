@@ -3,6 +3,33 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../store/AuthContext";
 import FieldScoreLogo from "../components/brand/FieldScoreLogo";
 
+/**
+ * Turn an axios failure into something that tells the user which of two very
+ * different things went wrong.
+ *
+ * This previously fell back to a flat "Login failed" for everything, which is
+ * the message a user also sees when the API is unreachable or returned a 5xx —
+ * so a backend that refuses to boot (it fails closed if a required secret is
+ * missing) is indistinguishable from a mistyped password. That sends the user
+ * to reset a password that was never wrong. The server always sends a JSON
+ * `error` for a real credential rejection; its absence means we never got a
+ * usable response at all, and the message should say so.
+ */
+function describeLoginError(err: any): string {
+  const serverMessage = err?.response?.data?.error;
+  if (typeof serverMessage === "string" && serverMessage) return serverMessage;
+
+  if (!err?.response) {
+    return "Can't reach the FieldScore server. This is not your password — the service is unavailable or still starting up. Try again shortly; if it persists it needs an administrator.";
+  }
+
+  const status = err.response.status;
+  if (status >= 500) {
+    return `The FieldScore server returned an error (${status}). This is not your password. Please try again shortly; if it persists it needs an administrator.`;
+  }
+  return `Sign-in failed (${status}). Please check your email and password.`;
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,7 +53,7 @@ export default function LoginPage() {
       await login(email, password);
       navigate("/projects");
     } catch (err: any) {
-      setError(err.response?.data?.error || "Login failed");
+      setError(describeLoginError(err));
     } finally {
       setLoading(false);
     }
