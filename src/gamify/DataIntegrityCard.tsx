@@ -19,6 +19,7 @@ export default function DataIntegrityCard() {
   const [hasSubmissions, setHasSubmissions] = useState<boolean | null>(null);
   const [issuing, setIssuing] = useState(false);
   const [justIssued, setJustIssued] = useState<Certificate | null>(null);
+  const [policyNote, setPolicyNote] = useState('');
   const [issueError, setIssueError] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -43,11 +44,18 @@ export default function DataIntegrityCard() {
     if (!canIssue || issuing) return;
     setIssuing(true);
     setIssueError('');
+    setPolicyNote('');
     try {
       const res = await certificateApi.issue(projectId);
       const cert: Certificate = { id: res.data.cert_id, projectId, issuedAt: res.data.issued_at };
       recordCertificateIssued(cert);
       setJustIssued(cert);
+      // Learning that a certificate spans two sets of scoring rules is only
+      // useful before it is sent to a client. The server decides; this only
+      // repeats what it said.
+      setPolicyNote(res.data.policy_stable === false
+        ? `The scoring rules for this project changed ${res.data.policy_changes} time(s) during collection. The certificate says so, and states the rules in force at issue.`
+        : '');
       await openCertificate(projectId);
     } catch (e: any) {
       setIssueError(e?.response?.data?.error || 'Could not issue a certificate — please try again.');
@@ -113,6 +121,12 @@ export default function DataIntegrityCard() {
       {justIssued && !issueError && (
         <div style={{ marginTop: 10, fontSize: 11.5, color: '#059669', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '8px 12px' }}>
           ✓ Certificate <strong style={{ fontFamily: 'monospace' }}>{justIssued.id}</strong> issued — opened in a new tab for printing. Credit applied toward your next payment.
+        </div>
+      )}
+
+      {policyNote && !issueError && (
+        <div style={{ marginTop: 8, fontSize: 11.5, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', lineHeight: 1.55 }}>
+          {policyNote}
         </div>
       )}
 

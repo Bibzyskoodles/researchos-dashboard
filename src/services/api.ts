@@ -330,7 +330,14 @@ export const reportScheduleApi = {
 // instance's baseURL still resolves them correctly.
 export const certificateApi = {
   issue: (projectId: string) =>
-    api.post<{ ok: boolean; cert_id: string; issued_at: string; verify_url: string }>(`/certificate/${projectId}/issue`),
+    // policy_stable/policy_changes say whether the scoring rules moved while
+    // this project was collecting — so the certificate's figures span more
+    // than one set of criteria. Surfaced at issue time because that is the
+    // last moment before it goes to a client.
+    api.post<{
+      ok: boolean; cert_id: string; issued_at: string; verify_url: string;
+      policy_stable?: boolean; policy_changes?: number;
+    }>(`/certificate/${projectId}/issue`),
   // Certificate HTML/PDF need the same Bearer auth as everything else, so a
   // plain <a href> or window.open(url) won't work (no cookie session is set
   // by this backend — auth is header-only). Fetch through axios instead and
