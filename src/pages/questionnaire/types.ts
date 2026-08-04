@@ -52,6 +52,14 @@ export interface QualityIssue {
 export interface GeneratedQuestionnaire {
   id?: string;
   title: string;
+  // The consultation that produced this questionnaire, saved alongside it.
+  //
+  // Without it a saved questionnaire cannot say what it is for or how long the
+  // interview was meant to take — and those are exactly what Ada's project
+  // configuration derives research_purpose and the duration bounds from. It
+  // also makes a reopened questionnaire self-describing rather than a form
+  // with no memory of the study it belongs to.
+  consultation?: ConsultationState;
   estimated_duration_mins: number;
   methodology_notes?: string;
   sections: Section[];

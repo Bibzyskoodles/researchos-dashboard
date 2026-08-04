@@ -259,6 +259,13 @@ export const projectsApi = {
   delete: (id: string, verifyEmpty = false) =>
     api.delete(`/api/projects/${id}`, verifyEmpty ? { params: { verify_empty: 'true' } } : undefined),
   lifecycle: (id: string) => api.get(`/api/projects/${id}/lifecycle`),
+  // What the project's saved questionnaire implies about verifying it.
+  // Apply deliberately sends no settings: the server re-derives them from the
+  // stored questionnaire, because the card the user just read is a
+  // client-side object a caller could edit.
+  configProposal: (id: string) => api.get(`/api/projects/${id}/config-proposal`),
+  applyConfigProposal: (id: string) => api.post(`/api/projects/${id}/config-proposal/apply`, {}),
+  declineConfigProposal: (id: string) => api.post(`/api/projects/${id}/config-proposal/decline`, {}),
   framework: (id: string, data: object) => api.post(`/api/projects/${id}/framework`, data),
 };
 

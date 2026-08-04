@@ -187,7 +187,7 @@ describe('a saved questionnaire is reopened, not re-asked for', () => {
     // This is the case that matters most: everything saved before today has no
     // title, so reopening one without backfilling would reproduce the exact
     // export crash the server fix just closed.
-    expect(src).toContain('backfillMissingFields(saved)');
+    expect(src).toMatch(/backfillMissingFields\(saved[,)]/);
   });
 
   it('does not treat "no saved questionnaire" as an error', () => {
@@ -210,7 +210,14 @@ describe('a failed save says why', () => {
   it('does not clear the failure after a few seconds', () => {
     // The old handler reset to 'idle' on a timer, so a failed save ended up
     // looking identical to a successful one while the work was still unstored.
+    //
+    // Scoped to the catch block specifically. The success path legitimately
+    // clears itself on a timer, and the happy path now also contains a
+    // `.catch(() => {})` for the config-proposal fetch — a looser search
+    // matches both and fails against correct code.
     const handler = src.slice(src.indexOf('const handleSave'), src.indexOf('return (', src.indexOf('const handleSave')));
-    expect(handler).not.toMatch(/catch[\s\S]*setTimeout\(\(\) => setSaveState\('idle'\)/);
+    const catchBlock = handler.slice(handler.indexOf('} catch (e: unknown) {'));
+    expect(catchBlock.length).toBeGreaterThan(0);
+    expect(catchBlock).not.toContain("setSaveState('idle')");
   });
 });
