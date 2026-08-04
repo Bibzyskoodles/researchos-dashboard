@@ -480,8 +480,13 @@ export const orgSettingsApi = {
   updateFieldAlerts: (data: object) => api.put('/api/org/field-alerts', data),
   getKoboTokenStatus: () => api.get('/kobo/token'),
   saveKoboToken: (token: string) => api.post('/kobo/token', { token }),
-  publishToKobo: (name: string, content: Record<string, unknown>) =>
-    api.post('/kobo/publish', { name, content }),
+  // The questionnaire goes over as-is and the server converts it to a Kobo
+  // asset (questionnaire_routes.build_kobo_content). The browser used to do
+  // that conversion with its own copy of the question-type mapping, which knew
+  // only ODK's names — so a FieldScore "gps"/"image"/"audio" question matched
+  // nothing and silently deployed as a plain text box. One mapping, server-side.
+  publishToKobo: (name: string, questionnaire: Record<string, unknown>) =>
+    api.post('/kobo/publish', { name, questionnaire }),
   // Purchasable paid plans + prices (server-side source of truth) and the
   // caller's current plan.
   getPlans: () => api.get('/api/org/plans'),

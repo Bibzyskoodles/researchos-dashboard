@@ -130,6 +130,23 @@ export default function QuestionnairePage() {
       const data = res.data;
       const questionnaire: GeneratedQuestionnaire = data.questionnaire || data;
 
+      // The server now always sends a title and a duration. It did not until
+      // today — it returned { sections, model } only — and everything
+      // downstream assumed otherwise: the exports named their files after the
+      // title and threw on it, and the methodology panel rendered "~ min" with
+      // the number missing. Filled in here as well, because a questionnaire
+      // saved before that fix is still out there and must still export.
+      if (!questionnaire.title || !String(questionnaire.title).trim()) {
+        const decision = consultation.decision?.trim();
+        questionnaire.title = decision
+          ? `${decision.slice(0, 80)} — Questionnaire`
+          : 'Research Questionnaire';
+      }
+      if (!Number.isFinite(questionnaire.estimated_duration_mins)
+        || questionnaire.estimated_duration_mins <= 0) {
+        questionnaire.estimated_duration_mins = consultation.duration_mins || 20;
+      }
+
       if (questionnaire.sections) {
         questionnaire.sections = questionnaire.sections.map((sec, si) => ({
           ...sec,
