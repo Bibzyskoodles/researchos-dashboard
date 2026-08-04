@@ -156,3 +156,61 @@ describe('the panel no longer builds Kobo assets in the browser', () => {
     expect(src).not.toMatch(/}\s*catch\s*{\s*\n\s*setError\(`Export failed/);
   });
 });
+
+/**
+ * The saved questionnaire that never came back.
+ *
+ * WorkspacePhase has always POSTed to /api/projects/<id>/questionnaire, and the
+ * backend has always served the matching GET. Nothing ever called it. So the
+ * designer opened at the consultation every time — you could design a
+ * questionnaire, save it, walk to Collect and back, and be asked to describe
+ * your study from scratch while the saved copy sat on the server untouched.
+ *
+ * Losing work you were explicitly told was saved is worse than never offering
+ * to save it.
+ */
+describe('a saved questionnaire is reopened, not re-asked for', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const src: string = fs.readFileSync(path.join(__dirname, 'QuestionnairePage.tsx'), 'utf8');
+
+  it('asks the server for the project"s saved questionnaire', () => {
+    expect(src).toContain('/questionnaire`)');
+    expect(src).toContain('api.get(');
+  });
+
+  it('opens straight into the workspace when one exists', () => {
+    expect(src).toContain("phase: 'workspace'");
+  });
+
+  it('backfills a saved questionnaire that predates the title fix', () => {
+    // This is the case that matters most: everything saved before today has no
+    // title, so reopening one without backfilling would reproduce the exact
+    // export crash the server fix just closed.
+    expect(src).toContain('backfillMissingFields(saved)');
+  });
+
+  it('does not treat "no saved questionnaire" as an error', () => {
+    // A new project has none. Showing a failure banner there would make a
+    // working project look broken.
+    expect(src).toContain('.catch(() => {})');
+  });
+});
+
+describe('a failed save says why', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const src: string = fs.readFileSync(path.join(__dirname, 'WorkspacePhase.tsx'), 'utf8');
+
+  it('reads the server"s explanation instead of discarding it', () => {
+    expect(src).toContain('err?.response?.data?.error');
+    expect(src).not.toMatch(/}\s*catch\s*{\s*\n\s*setSaveState\('error'\)/);
+  });
+
+  it('does not clear the failure after a few seconds', () => {
+    // The old handler reset to 'idle' on a timer, so a failed save ended up
+    // looking identical to a successful one while the work was still unstored.
+    const handler = src.slice(src.indexOf('const handleSave'), src.indexOf('return (', src.indexOf('const handleSave')));
+    expect(handler).not.toMatch(/catch[\s\S]*setTimeout\(\(\) => setSaveState\('idle'\)/);
+  });
+});
