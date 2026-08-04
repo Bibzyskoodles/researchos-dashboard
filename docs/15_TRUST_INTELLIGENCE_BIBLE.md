@@ -404,6 +404,32 @@ d = 2R·asin(√(sin²(Δφ/2) + cosφ₁·cosφ₂·sin²(Δλ/2)))       R = 6
 - **No zone configured** → verification is skipped entirely and the platform simply reports
   where enumeration happened: coordinates, map, and reverse-geocoded address. Absence of a
   client expectation is never a penalty.
+#### Finding the zone
+
+**Added 2026-08-04.** A zone can be searched for by name rather than typed in
+coordinate by coordinate. OpenStreetMap holds the geometry, and it maps onto
+these shapes directly: a road search returns the road's own centreline (a
+corridor), a ward search returns its boundary (a polygon), a clinic returns a
+point with a bounding box that suggests a radius.
+
+Three rules govern it, and they follow from the same asymmetry as everything
+else in this section:
+
+- **The platform never picks a match.** Every result is listed with the full
+  address OSM holds for it, and a person chooses. "Kusenla Road" matches more
+  than one road on earth; a silent lookup taking the first hit would be a
+  fabricated geofence with extra steps.
+- **Choosing fills the form; it does not save.** The write stays on the single
+  scoring-config save, which validates the zone and records the change. A second
+  writer would let a searched zone be overwritten by stale form state.
+- **A boundary too detailed to enforce is evenly sampled, not truncated, and
+  says so.** An OSM administrative boundary can carry thousands of vertices.
+  Keeping the first thousand would leave a boundary with a hole in it that
+  nobody drew; sampling keeps the shape and loses only detail finer than GPS
+  resolves. Either way the user is told the boundary was simplified, because a
+  boundary the platform quietly redrew surfaces later as an unexplained
+  rejection.
+
 - **A zone the platform cannot read** (a corridor with no points, a polygon with two corners, a
   boundary beyond the 1 000-vertex cap) → verification is skipped and the submission says so.
   It is **never** a rejection: a configuration error belongs to whoever set the project up, and

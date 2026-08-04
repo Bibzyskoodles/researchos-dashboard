@@ -263,6 +263,12 @@ export const projectsApi = {
   // Apply deliberately sends no settings: the server re-derives them from the
   // stored questionnaire, because the card the user just read is a
   // client-side object a caller could edit.
+  // Find a place on OpenStreetMap and get back candidate zones — a road comes
+  // back as its centreline, a ward as its boundary. Read-only: it offers
+  // candidates and picks none, and the write still goes through the scoring
+  // config save so there is exactly one path that sets a zone.
+  zoneSearch: (id: string, q: string) =>
+    api.get(`/api/projects/${id}/zone-search`, { params: { q } }),
   configProposal: (id: string) => api.get(`/api/projects/${id}/config-proposal`),
   applyConfigProposal: (id: string) => api.post(`/api/projects/${id}/config-proposal/apply`, {}),
   declineConfigProposal: (id: string) => api.post(`/api/projects/${id}/config-proposal/decline`, {}),

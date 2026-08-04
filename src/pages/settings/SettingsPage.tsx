@@ -15,6 +15,8 @@ import { useNavigate as useNav, useLocation } from "react-router-dom";
 import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
 import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
 import { evaluateZone, formatPointsText, parsePointsText } from "../../services/zoneGeometry";
+import ZonePlaceSearch from "./ZonePlaceSearch";
+import type { ChosenZone } from "./ZonePlaceSearch";
 import type { ZoneShape } from "../../services/zoneGeometry";
 import { useProject } from "../../context/ProjectContext";
 import { dashboardApi, orgSettingsApi, projectsApi, apiKeysApi, webhooksApi, adaApi, API_BASE_URL } from "../../services/api";
@@ -3153,6 +3155,23 @@ function EngineSection() {
             No active project selected — this will only be saved to this browser, not to the scoring engine.
           </div>
         )}
+
+        {/* Search OpenStreetMap for the place. Fills the fields below; saves
+            nothing — the write stays on the single Save handler so a zone
+            chosen here cannot be overwritten by stale form state. */}
+        <ZonePlaceSearch
+          projectId={activeProject?.id}
+          onChoose={(z: ChosenZone) => {
+            setZoneShape(z.shape);
+            setZoneLabel(z.label);
+            setZoneLat(z.lat);
+            setZoneLon(z.lon);
+            setZoneRadius(z.radiusM);
+            setZonePointsText(z.pointsText);
+            setZoneWidth(z.widthM);
+            setZoneBuffer(z.bufferM);
+          }}
+        />
 
         {/* Shape. A road is a line and a ward is an area; a circle is only the
             right shape for a single site like a clinic or a school. */}
