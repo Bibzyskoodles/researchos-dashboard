@@ -72,6 +72,12 @@ export interface SubmissionLike {
 
 // ─── Constants (Bible §3, §6.5, §8, §9) ──────────────────────────────────────
 
+// Out-of-zone scoring — must equal scorer.py's ZONE_BREACH_CEILING and
+// ZONE_UNCERTAIN_SCORE. A confirmed breach can score at best half; a reading
+// too coarse to place cannot be scored as a breach at all.
+export const ZONE_BREACH_CEILING = 50;
+export const ZONE_UNCERTAIN_SCORE = 70;
+
 export const ENGINE_KEYS: EngineKey[] = ["gps", "duration", "image", "audio", "duplicate", "text_ai"];
 
 export const ENGINE_LABELS: Record<EngineKey, string> = {
@@ -297,8 +303,28 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   // the pin rejects a submission 100 m outside the boundary as though it were
   // 5 km adrift. Overshoot is also the only one of the two that a polygon has.
   if (zoneCheck && !zoneCheck.withinZone) {
-    const km = zoneCheck.overshootM / 1000;
-    const zoneScore = Math.max(0, 100 - Math.trunc(km * 10));
+    // Mirrors scorer.py's zone_severity exactly — same constants, same shape.
+    // Accuracy decides whether we can *tell* the submission was outside, not
+    // how much grace it gets for being outside: a 10 m fix 297 m past the
+    // boundary is not ambiguous, while a 300 m fix at the same distance cannot
+    // be separated from standing on the line.
+    const acc = accuracy != null && accuracy > 0 ? accuracy : 0;
+    const confidentM = zoneCheck.overshootM - acc;
+    let zoneScore: number;
+    if (confidentM <= 0) {
+      // Neither exonerated nor condemned — the reading cannot place it.
+      zoneScore = ZONE_UNCERTAIN_SCORE;
+      audit.push(
+        `Assigned zone: ${Math.round(zoneCheck.overshootM)} m outside, but the GPS fix is ` +
+        `±${Math.round(acc)} m — too coarse to place this submission either side of the boundary.`);
+    } else {
+      // The ceiling is the point. The previous curve began at 100 and lost ten
+      // points per kilometre, so 297 m outside scored 98 and contributed full
+      // marks beside a flag saying the enumerator was not where they were sent.
+      const rejectM = Math.max(1, (config.zoneRejectKm ?? 2) * 1000);
+      zoneScore = Math.max(0, Math.round(
+        ZONE_BREACH_CEILING * Math.max(0, 1 - confidentM / rejectM)));
+    }
     const existing = overrideByEngine.gps;
     if (existing === undefined || zoneScore < existing.score) {
       overrideByEngine.gps = { score: zoneScore, flag: "OUTSIDE_ASSIGNED_ZONE" };
