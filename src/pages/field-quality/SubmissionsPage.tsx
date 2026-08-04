@@ -690,7 +690,13 @@ export default function SubmissionsPage(){
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7,marginBottom:8,display:"flex",alignItems:"center",gap:5}}><Mic size={11}/>Audio Quality</div>
                     <div style={{background:"#F8FAFF",borderRadius:10,padding:"12px 14px",border:"1px solid #E8EDF5"}}>
-                      {selected.checks.audio.score > 0 ? (
+                      {/* A score of 0 is a real result — audio that failed every
+                          check — not an absence. Testing `> 0` collapsed three
+                          different states ("none submitted", "not scored here",
+                          "scored zero") into one sentence that was wrong for two
+                          of them, and contradicted the full submission page,
+                          which showed the same recording playing. */}
+                      {typeof selected.checks.audio.score === "number" ? (
                         <>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                             <span style={{fontSize:12,color:"#374151",fontWeight:500,textTransform:"capitalize"}}>{selected.checks.audio.status}</span>
@@ -702,7 +708,10 @@ export default function SubmissionsPage(){
                           {selected.checks.audio.finding&&<div style={{fontSize:11.5,color:"#6B7280",fontStyle:"italic"}}>"{selected.checks.audio.finding}"</div>}
                         </>
                       ) : (
-                        <div style={{fontSize:12,color:"#9CA3AF"}}>No audio submitted or engine did not score this submission.</div>
+                        <div style={{fontSize:12,color:"#9CA3AF"}}>
+                          Audio was not scored in this view — open the full
+                          submission to see whether a recording was submitted.
+                        </div>
                       )}
                     </div>
                   </div>
