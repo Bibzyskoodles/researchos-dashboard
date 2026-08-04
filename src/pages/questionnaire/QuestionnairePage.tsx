@@ -159,7 +159,8 @@ export default function QuestionnairePage() {
           // No consultation to draw defaults from — this questionnaire was
           // designed in an earlier session. backfillMissingFields covers the
           // case that matters: anything saved before the title fix has none.
-          questionnaire: backfillMissingFields(saved),
+          questionnaire: backfillMissingFields(saved, saved.consultation),
+          consultation: saved.consultation || prev.consultation,
           unsavedChanges: false,
         }));
       })
@@ -202,6 +203,7 @@ export default function QuestionnairePage() {
       const questionnaire: GeneratedQuestionnaire = data.questionnaire || data;
 
       backfillMissingFields(questionnaire, consultation);
+      questionnaire.consultation = consultation;
 
       setState(prev => ({ ...prev, phase: 'workspace', questionnaire, unsavedChanges: false }));
     } catch {

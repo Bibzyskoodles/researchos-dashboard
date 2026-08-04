@@ -2,11 +2,13 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Download, RotateCcw, Save, Check, ArrowRight } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../../services/api';
+import api, { projectsApi } from '../../services/api';
 import SectionNav from './SectionNav';
 import QuestionCard from './QuestionCard';
 import AdaMethodologyPanel from './AdaMethodologyPanel';
 import ExportPanel from './ExportPanel';
+import AdaConfigProposal from './AdaConfigProposal';
+import type { ConfigProposal } from './AdaConfigProposal';
 import { GeneratedQuestionnaire, Question, QualityIssue, Section } from './types';
 
 interface Props {
@@ -76,6 +78,11 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
   // was thrown away and replaced with two words that fit any cause.
   const [saveError, setSaveError] = useState('');
   const [showNextStep, setShowNextStep] = useState(false);
+  // Ada's verification proposal. Fetched after a successful save rather than
+  // on generation: the apply route re-derives from the STORED questionnaire,
+  // so offering it before there is one to store would propose settings for a
+  // questionnaire the server has never seen.
+  const [configProposal, setConfigProposal] = useState<ConfigProposal | null>(null);
   const { projectId } = useParams<{ projectId?: string }>();
   const navigate = useNavigate();
 
@@ -170,6 +177,22 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
       setSaveState('saved');
       setSaveError('');
       setShowNextStep(true);
+      if (projectId) {
+        projectsApi.configProposal(projectId)
+          .then(res => {
+            const p = res.data?.proposal;
+            // already_handled: the user has applied or dismissed this before.
+            // Offered automatically means it has to take "not now" for an
+            // answer — a card that returns on every save is one people learn
+            // to click past without reading, and one click applies all of it.
+            if (p && !res.data?.already_handled && (p.settings?.length || p.asks?.length)) {
+              setConfigProposal(p);
+            }
+          })
+          // Not surfaced. The save succeeded, which is what the user asked
+          // for; a failed suggestion is not a failed save.
+          .catch(() => {});
+      }
       setTimeout(() => setSaveState('idle'), 3000);
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { error?: string } } };
@@ -266,6 +289,15 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
             </motion.button>
           </div>
         </div>
+
+        {configProposal && projectId && (
+          <AdaConfigProposal
+            projectId={projectId}
+            proposal={configProposal}
+            onApplied={() => setTimeout(() => setConfigProposal(null), 4000)}
+            onDismissed={() => setConfigProposal(null)}
+          />
+        )}
 
         {/* Save failure — stays until the next save attempt, because it is the
             only thing on screen saying the work is not stored. */}
