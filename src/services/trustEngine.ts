@@ -110,7 +110,17 @@ const FLAG_ENGINE_OVERRIDES: Record<string, { engine: EngineKey; score: number }
   DURATION_PARSE_ERROR:    { engine: "duration",  score: 5 },
   DURATION_TOO_SHORT:      { engine: "duration",  score: 10 },
   DURATION_TOO_LONG:       { engine: "duration",  score: 20 },
-  DURATION_NOT_CALCULABLE: { engine: "duration",  score: 20 },
+  // DURATION_NOT_CALCULABLE deliberately has no entry. The server already
+  // scores this case 50 — "we could not measure it", not "this was wrong" —
+  // and overriding it to 20 here made the dashboard disagree with the engine,
+  // the same divergence that once showed a flat 15 for a submission scored 94.
+  //
+  // It mattered more than a normal disagreement: until the XLSForm builders
+  // started emitting start/end metadata, NO generated form collected times, so
+  // this flag was on essentially every submission and quietly cost each one 8
+  // of its 10 duration points for an omission of the platform's. The flag
+  // still shows on the submission; it just no longer invents a penalty the
+  // server did not ask for.
   DUPLICATE_SUBMISSION:    { engine: "duplicate", score: 0 },
   DUPLICATE_IMAGE:         { engine: "duplicate", score: 5 },
   DUPLICATE_AUDIO:         { engine: "duplicate", score: 5 },
@@ -186,6 +196,12 @@ export interface ZoneCheck {
   radiusM: number;
   shape: ZoneShape;
   withinZone: boolean;
+  /** Whether being this far out is actually a rejection, i.e. the overshoot
+   *  passed `zoneRejectKm`. Decided here rather than in the UI: the detail page
+   *  used to call every breach "a critical violation" while the engine scored a
+   *  297 m overshoot at 98/100, so the screen contradicted itself in adjacent
+   *  lines. Distance decides the penalty; distance decides the wording too. */
+  isCriticalBreach: boolean;
   label?: string;
   matchedZoneIndex?: number; // index into zoneList when matching from a list
 }
@@ -242,6 +258,8 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
         radiusM: ev.toleranceM,
         shape: ev.shape,
         withinZone: ev.inZone,
+        isCriticalBreach: !ev.inZone
+          && (ev.overshootM / 1000) > (config.zoneRejectKm ?? 2),
         label: zone.label,
         matchedZoneIndex: config.zoneList && config.zoneList.length > 0 ? closestIdx : undefined,
       };
@@ -540,8 +558,10 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   // which is the whole point of the change: distance decides. Mirrors the
   // server's zone_reject_km so both halves reach the same verdict.
   const zoneRejectKm = config.zoneRejectKm ?? 2;
-  const zoneBreachRejects = !!zoneCheck && !zoneCheck.withinZone
-    && (zoneCheck.overshootM / 1000) > zoneRejectKm;
+  // Read the flag set when zoneCheck was built rather than recomputing the
+  // comparison — two copies of this rule is how the banner and the score came
+  // to disagree in the first place.
+  const zoneBreachRejects = !!zoneCheck && zoneCheck.isCriticalBreach;
 
   const hasHardGate = flags.some(f => HARD_GATE_FLAGS.has(f)) || zoneBreachRejects;
   const pt = config.passScoreThreshold ?? 60;

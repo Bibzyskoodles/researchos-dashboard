@@ -852,7 +852,9 @@ export default function SubmissionDetailPage(){
                     <div style={{fontSize:12,color:trust.zoneCheck.withinZone?"#166534":"#991B1B",lineHeight:1.5}}>
                       {trust.zoneCheck.withinZone
                         ?<>Enumeration happened <strong>{trust.zoneCheck.distanceM.toLocaleString()} m</strong> from the assigned location{trust.zoneCheck.label?<> (<strong>{trust.zoneCheck.label}</strong>)</>:null} — within the {trust.zoneCheck.radiusM.toLocaleString()} m radius. Presence verified.</>
-                        :<>Enumeration happened <strong>{trust.zoneCheck.distanceM.toLocaleString()} m</strong> from the assigned location{trust.zoneCheck.label?<> (<strong>{trust.zoneCheck.label}</strong>)</>:null} — outside the {trust.zoneCheck.radiusM.toLocaleString()} m radius. This is treated as a critical violation.</>}
+                        :<>Enumeration happened <strong>{trust.zoneCheck.distanceM.toLocaleString()} m</strong> from the assigned location{trust.zoneCheck.label?<> (<strong>{trust.zoneCheck.label}</strong>)</>:null} — <strong>{trust.zoneCheck.overshootM.toLocaleString()} m</strong> outside the {trust.zoneCheck.radiusM.toLocaleString()} m radius. {trust.zoneCheck.isCriticalBreach
+                            ?<>That is beyond this project's reject boundary, so it is treated as a critical violation.</>
+                            :<>The location score falls in proportion to that distance; it is not treated as a critical violation at this range.</>}</>}
                     </div>
                   </div>
                 ):(

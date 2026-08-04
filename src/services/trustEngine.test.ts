@@ -343,3 +343,73 @@ describe("Explainability contract (§10)", () => {
     expect(a).toEqual(b);
   });
 });
+
+// ─── Near misses are not violations, and unmeasured is not wrong ─────────────
+// Both of these came off a real submission screen: GPS showed "Outside
+// Assigned Zone" and 6/6 points in the same panel, and duration showed 2/10
+// for timestamps the form had never been built to collect.
+
+describe("a breach is judged by how far outside it was", () => {
+  const zoned = (lat: number, lon: number) => computeTrustIndex(
+    { ...FULL_HOUSE, gps: { lat, lon, accuracy_m: 8 } },
+    cfg({
+      assignedZone: { lat: 6.441140, lon: 3.490772, radiusM: 250, label: "Kusenla Road" },
+      zoneRejectKm: 2,
+    }),
+  );
+
+  it("does not call a 300 m overshoot a critical violation", () => {
+    // ~547 m from the pin, 250 m radius — the case on screen. The engine
+    // scores it 98/100; the banner used to call it critical regardless, so the
+    // page contradicted itself in adjacent lines.
+    const r = zoned(6.44606, 3.490772);
+    expect(r.zoneCheck).not.toBeNull();
+    expect(r.zoneCheck!.withinZone).toBe(false);
+    expect(r.zoneCheck!.isCriticalBreach).toBe(false);
+    expect(r.verdict).not.toBe("REJECT");
+  });
+
+  it("still calls a breach past the reject boundary critical", () => {
+    // ~5 km out, well past the 2 km reject boundary.
+    const r = zoned(6.486, 3.490772);
+    expect(r.zoneCheck!.isCriticalBreach).toBe(true);
+    expect(r.verdict).toBe("REJECT");
+  });
+
+  it("never calls an in-zone submission a breach", () => {
+    const r = zoned(6.441140, 3.490772);
+    expect(r.zoneCheck!.withinZone).toBe(true);
+    expect(r.zoneCheck!.isCriticalBreach).toBe(false);
+  });
+
+  it("scores the near miss far above the far one", () => {
+    // Distance decides. If these came out equal the whole zone model would be
+    // back to treating 300 m and 5 km the same.
+    expect(zoned(6.44606, 3.490772).trustIndex)
+      .toBeGreaterThan(zoned(6.486, 3.490772).trustIndex);
+  });
+});
+
+describe("duration that could not be measured is not scored as a failure", () => {
+  it("does not override the server's score for DURATION_NOT_CALCULABLE", () => {
+    // The server scores this 50 — "not measurable" — and the dashboard used to
+    // force it to 20. No generated form collected start/end until the XLSForm
+    // builders started emitting the metadata, so this flag was on nearly every
+    // submission and quietly cost each one 8 of its 10 duration points.
+    const withFlag = computeTrustIndex(
+      { ...FULL_HOUSE, duration_mins: null, flags: ["DURATION_NOT_CALCULABLE"] },
+      cfg(),
+    );
+    const durationRow = withFlag.breakdown.find(e => e.key === "duration");
+    expect(durationRow).toBeDefined();
+    expect(durationRow!.effectiveScore).not.toBe(20);
+  });
+
+  it("still penalises durations that were measured and were wrong", () => {
+    // The forgiving path must not become a way to escape the duration check.
+    const tooShort = computeTrustIndex(
+      { ...FULL_HOUSE, duration_mins: 1, flags: ["DURATION_TOO_SHORT"] }, cfg());
+    const row = tooShort.breakdown.find(e => e.key === "duration");
+    expect(row!.effectiveScore).toBeLessThanOrEqual(10);
+  });
+});
