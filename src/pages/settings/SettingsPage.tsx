@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Layers, Users, Shield, Palette, Puzzle, Brain,
@@ -14,6 +14,8 @@ import { orgAdminApi } from "../../services/api";
 import { useNavigate as useNav, useLocation } from "react-router-dom";
 import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
 import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
+import { evaluateZone, formatPointsText, parsePointsText } from "../../services/zoneGeometry";
+import type { ZoneShape } from "../../services/zoneGeometry";
 import { useProject } from "../../context/ProjectContext";
 import { dashboardApi, orgSettingsApi, projectsApi, apiKeysApi, webhooksApi, adaApi, API_BASE_URL } from "../../services/api";
 
@@ -25,6 +27,19 @@ const PURPLE = "#7C3AED";
 
 // Display copy for the purchasable plans. Prices are NOT here — they come from
 // the backend (GET /api/org/plans) so they can never drift from what's charged.
+// The three shapes a field area can be. Described in the language of the work
+// rather than the geometry — a client knows whether their enumerators are
+// visiting one site, walking a road, or covering a ward; they do not
+// necessarily know what a polygon is.
+const ZONE_SHAPE_OPTIONS: Array<{ value: ZoneShape; label: string; icon: string; help: string }> = [
+  { value: "circle", label: "One place", icon: "📍",
+    help: "A single site — a clinic, a school, a household. A pin and a radius around it." },
+  { value: "corridor", label: "A road or route", icon: "🛣",
+    help: "A street, highway or river bank. Points along the way, and how wide the route is." },
+  { value: "polygon", label: "An area", icon: "🗺",
+    help: "A ward, camp, market or district. Corner points tracing the boundary." },
+];
+
 const PLAN_META: Record<string, { label: string; blurb: string }> = {
   starter:      { label: "Starter",      blurb: "For small teams getting started with verified collection." },
   professional: { label: "Professional", blurb: "Higher volume, full verification engines and reporting." },
@@ -2756,6 +2771,21 @@ function EngineSection() {
   const [zoneLon, setZoneLon] = useState<string>(_cfg.assignedZone.lon != null ? String(_cfg.assignedZone.lon) : "");
   const [zoneRadius, setZoneRadius] = useState<number>(_cfg.assignedZone.radiusM);
   const [zoneLabel, setZoneLabel] = useState<string>(_cfg.assignedZone.label || "");
+  // A zone is a shape, not only a pin. A road is a line and a ward is an area,
+  // and forcing either into a circle means choosing between rejecting honest
+  // work at the far end and accepting a submission from the next street.
+  const [zoneShape, setZoneShape] = useState<ZoneShape>(_cfg.assignedZone.shape || "circle");
+  const [zonePointsText, setZonePointsText] = useState<string>(
+    formatPointsText(_cfg.assignedZone.points || []),
+  );
+  const [zoneWidth, setZoneWidth] = useState<number>(_cfg.assignedZone.widthM ?? 60);
+  const [zoneBuffer, setZoneBuffer] = useState<number>(_cfg.assignedZone.bufferM ?? 25);
+  // How far outside stops being "a supervisor should look at this" and becomes
+  // "reject it". Previously fixed at 2 km with no way to change it.
+  const [zoneRejectKm, setZoneRejectKm] = useState<number>(_cfg.zoneRejectKm ?? 2);
+  // Parsed once, used by the save handler and the live summary alike, so what
+  // the screen tells you it will enforce is exactly what gets sent.
+  const zonePoints = useMemo(() => parsePointsText(zonePointsText), [zonePointsText]);
   // Multi-zone list — overrides the single zone when non-empty
   const [zoneList, setZoneList] = useState<AssignedZone[]>([..._cfg.zoneList]);
   const [newZoneLat, setNewZoneLat] = useState("");
@@ -2797,6 +2827,24 @@ function EngineSection() {
         if (c.zone_lon != null && c.zone_lon !== "") setZoneLon(String(c.zone_lon));
         if (c.zone_radius_m) setZoneRadius(Number(c.zone_radius_m));
         if (c.zone_label) setZoneLabel(c.zone_label);
+        if (c.zone_shape === "corridor" || c.zone_shape === "polygon") setZoneShape(c.zone_shape);
+        if (c.zone_points) {
+          // Stored as JSON by this page; tolerated as pasted text because a
+          // spreadsheet-loaded project config can carry either.
+          const stored = typeof c.zone_points === "string"
+            ? (() => { try { return JSON.parse(c.zone_points); } catch { return c.zone_points; } })()
+            : c.zone_points;
+          setZonePointsText(
+            Array.isArray(stored)
+              ? formatPointsText(stored.map((p: any) => Array.isArray(p)
+                  ? { lat: Number(p[0]), lon: Number(p[1]) }
+                  : { lat: Number(p.lat), lon: Number(p.lon) }))
+              : String(stored),
+          );
+        }
+        if (c.zone_width_m) setZoneWidth(Number(c.zone_width_m));
+        if (c.zone_buffer_m != null && c.zone_buffer_m !== "") setZoneBuffer(Number(c.zone_buffer_m));
+        if (c.zone_reject_km != null && c.zone_reject_km !== "") setZoneRejectKm(Number(c.zone_reject_km));
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2841,7 +2889,12 @@ function EngineSection() {
         lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
         radiusM: zoneRadius,
         label: zoneLabel.trim(),
+        shape: zoneShape,
+        points: zonePoints,
+        widthM: zoneWidth,
+        bufferM: zoneBuffer,
       },
+      zoneRejectKm,
       zoneList: [...zoneList],
       gating: {
         gps_reject_skips: [...gating.gps_reject_skips],
@@ -2869,6 +2922,14 @@ function EngineSection() {
         zone_lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
         zone_radius_m: zoneRadius,
         zone_label: zoneLabel.trim(),
+        // Sent as [[lat, lon], ...] so the server's parse_points reads it
+        // without having to guess a text format. The server rejects a shape it
+        // could not enforce and says why — see _zone_config_error.
+        zone_shape: zoneShape,
+        zone_points: zoneShape === "circle" ? "" : JSON.stringify(zonePoints.map(p => [p.lat, p.lon])),
+        zone_width_m: zoneWidth,
+        zone_buffer_m: zoneBuffer,
+        zone_reject_km: zoneRejectKm,
       }).then(() => {
         // Best-effort rescore — if it fails, the config is already saved and
         // will apply to future submissions. Don't surface this as a save error.
@@ -3085,40 +3146,171 @@ function EngineSection() {
       <SettingsCard style={{ padding: 24 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>📍 Assigned Zone Verification</div>
         <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
-          Tell FieldScore where enumeration should happen and it verifies every submission's GPS against that location using great-circle (haversine) distance. Inside the radius corroborates presence; outside it is treated as a critical violation and the submission is rejected for review. <strong>Leave the coordinates empty to skip verification</strong> — the platform will simply show where each enumeration actually happened (coordinates and address). If an individual enumerator has their own assigned zone set, it always takes priority over this project-level one.
+          Tell FieldScore where enumeration should happen and it verifies every submission's GPS against that location. Inside the zone corroborates presence; outside it is flagged for a supervisor, and far outside is rejected. <strong>Leave the zone empty to skip verification</strong> — the platform will simply show where each enumeration actually happened (coordinates and address). If an individual enumerator has their own assigned zone set, it always takes priority over this project-level one.
         </div>
         {!activeProject?.id && (
           <div style={{ fontSize: 11.5, color: "#D97706", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "8px 12px", marginBottom: 14 }}>
             No active project selected — this will only be saved to this browser, not to the scoring engine.
           </div>
         )}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {[
-            { label: "Latitude", value: zoneLat, set: setZoneLat, placeholder: "e.g. 6.5158" },
-            { label: "Longitude", value: zoneLon, set: setZoneLon, placeholder: "e.g. 3.3898" },
-          ].map(f => (
-            <div key={f.label}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>{f.label}</div>
-              <input value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.placeholder}
+
+        {/* Shape. A road is a line and a ward is an area; a circle is only the
+            right shape for a single site like a clinic or a school. */}
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 7 }}>What shape is this project's field area?</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+          {ZONE_SHAPE_OPTIONS.map(opt => {
+            const active = zoneShape === opt.value;
+            return (
+              <button key={opt.value} onClick={() => setZoneShape(opt.value)}
+                style={{
+                  textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
+                  border: `1px solid ${active ? BLUE : "#E2E8F0"}`,
+                  background: active ? "#F5F8FF" : "#FFF",
+                  fontFamily: "Inter,sans-serif", transition: "all 220ms ease",
+                }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: active ? BLUE : "#111827" }}>{opt.icon} {opt.label}</div>
+                <div style={{ fontSize: 10.5, color: "#6B7280", marginTop: 3, lineHeight: 1.5 }}>{opt.help}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {zoneShape === "circle" ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {[
+              { label: "Latitude", value: zoneLat, set: setZoneLat, placeholder: "e.g. 6.5158" },
+              { label: "Longitude", value: zoneLon, set: setZoneLon, placeholder: "e.g. 3.3898" },
+            ].map(f => (
+              <div key={f.label}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>{f.label}</div>
+                <input value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.placeholder}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }} />
+              </div>
+            ))}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>Radius (metres)</div>
+              <input type="number" min={10} value={zoneRadius} onChange={e => setZoneRadius(Math.max(10, Number(e.target.value) || 10))}
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }} />
             </div>
-          ))}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>Radius (metres)</div>
-            <input type="number" min={10} value={zoneRadius} onChange={e => setZoneRadius(Math.max(10, Number(e.target.value) || 10))}
-              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }} />
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>Location name (optional)</div>
+              <input value={zoneLabel} onChange={e => setZoneLabel(e.target.value)} placeholder="e.g. Akoka Primary Health Centre"
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box" }} />
+            </div>
           </div>
+        ) : (
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>Location name (optional)</div>
-            <input value={zoneLabel} onChange={e => setZoneLabel(e.target.value)} placeholder="e.g. Akoka Primary Health Centre"
-              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box" }} />
-          </div>
-        </div>
-        {zoneLat.trim() !== "" && zoneLon.trim() !== "" && (
-          <div style={{ marginTop: 12, fontSize: 11.5, color: GREEN, fontWeight: 600 }}>
-            ✓ Zone verification active — submissions more than {zoneRadius} m from {zoneLabel || `${zoneLat}, ${zoneLon}`} will be rejected for review.
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>
+              {zoneShape === "corridor" ? "Points along the route" : "Corner points of the area"}
+              <span style={{ fontWeight: 400, color: "#9CA3AF" }}>
+                {" "}— one per line, as <span style={{ fontFamily: "monospace" }}>latitude, longitude</span>
+              </span>
+            </div>
+            <div style={{ fontSize: 10.5, color: "#6B7280", marginBottom: 6, lineHeight: 1.55 }}>
+              In Google Maps, right-click any spot and click the coordinates to copy them, then paste one per line here.
+              {zoneShape === "corridor"
+                ? " Follow the road in order — start, any bends, end. Two points is enough for a straight stretch."
+                : " Walk the boundary in order, either direction. Three corners minimum; the shape closes itself."}
+            </div>
+            <textarea value={zonePointsText} onChange={e => setZonePointsText(e.target.value)}
+              rows={zoneShape === "corridor" ? 5 : 6}
+              placeholder={zoneShape === "corridor"
+                ? "6.4400, 3.4700\n6.4450, 3.4780\n6.4480, 3.4860"
+                : "6.4400, 3.4700\n6.4400, 3.4800\n6.4500, 3.4800\n6.4500, 3.4700"}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12.5, fontFamily: "monospace", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7 }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>
+                  {zoneShape === "corridor" ? "Route width (metres, total)" : "Boundary allowance (metres)"}
+                </div>
+                {zoneShape === "corridor" ? (
+                  <input type="number" min={10} value={zoneWidth} onChange={e => setZoneWidth(Math.max(10, Number(e.target.value) || 10))}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }} />
+                ) : (
+                  <input type="number" min={0} value={zoneBuffer} onChange={e => setZoneBuffer(Math.max(0, Number(e.target.value) || 0))}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }} />
+                )}
+                <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 4, lineHeight: 1.5 }}>
+                  {zoneShape === "corridor"
+                    ? `Covers ${Math.round(zoneWidth / 2)} m either side of the line — the road plus its frontages.`
+                    : "How far past the boundary still counts as inside. GPS itself is rarely better than 5 m, so a little room here prevents flagging honest work at the edge."}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>Area name (optional)</div>
+                <input value={zoneLabel} onChange={e => setZoneLabel(e.target.value)}
+                  placeholder={zoneShape === "corridor" ? "e.g. Kusenla Road" : "e.g. Ward 7, Eti-Osa"}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+            </div>
           </div>
         )}
+
+        {/* How far outside stops being "look at this" and becomes "reject it".
+            This was fixed at 2 km with no way to change it, so a corridor study
+            and a market survey had the same tolerance. */}
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>
+            Reject when a submission is more than this far outside the zone
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <input type="number" min={0} step={0.5} value={zoneRejectKm}
+              onChange={e => setZoneRejectKm(Math.max(0, Number(e.target.value) || 0))}
+              style={{ width: 110, padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }} />
+            <span style={{ fontSize: 12, color: "#6B7280" }}>km</span>
+          </div>
+          <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 5, lineHeight: 1.55 }}>
+            Anything outside the zone but closer than this is flagged for a supervisor to judge rather than rejected outright — a modest overshoot has innocent explanations, kilometres do not. Set it to <strong>0</strong> to reject any submission outside the zone at all.
+          </div>
+        </div>
+
+        {/* What is actually configured right now, computed by the same code
+            that will score the submissions — not a description of it. */}
+        {(() => {
+          const spec = zoneShape === "circle"
+            ? {
+                shape: "circle" as const, label: zoneLabel.trim(), radiusM: zoneRadius,
+                lat: zoneLat.trim() !== "" && !isNaN(Number(zoneLat)) ? Number(zoneLat) : null,
+                lon: zoneLon.trim() !== "" && !isNaN(Number(zoneLon)) ? Number(zoneLon) : null,
+              }
+            : { shape: zoneShape, label: zoneLabel.trim(), points: zonePoints, widthM: zoneWidth, bufferM: zoneBuffer };
+          // evaluateZone at the zone's own first point: it returns null for
+          // exactly the configurations the server will refuse, so this preview
+          // cannot claim a zone is active when the engine would ignore it.
+          const probe = zonePoints[0] || { lat: Number(zoneLat), lon: Number(zoneLon) };
+          const usable = evaluateZone(probe.lat, probe.lon, spec) !== null;
+          const empty = zoneShape === "circle"
+            ? zoneLat.trim() === "" && zoneLon.trim() === ""
+            : zonePointsText.trim() === "";
+          if (empty) {
+            return (
+              <div style={{ marginTop: 14, fontSize: 11.5, color: "#6B7280" }}>
+                No zone set — FieldScore will report where each submission was captured without judging it.
+              </div>
+            );
+          }
+          if (!usable) {
+            return (
+              <div style={{ marginTop: 14, fontSize: 11.5, color: RED, fontWeight: 600, lineHeight: 1.6 }}>
+                ⚠ This zone can't be enforced yet — {zoneShape === "corridor"
+                  ? `a route needs at least two valid points (${zonePoints.length} read so far)`
+                  : zoneShape === "polygon"
+                    ? `an area needs at least three valid corners (${zonePoints.length} read so far)`
+                    : "a point zone needs a valid latitude, longitude and radius"}. Saving now would leave location unverified.
+              </div>
+            );
+          }
+          return (
+            <div style={{ marginTop: 14, fontSize: 11.5, color: GREEN, fontWeight: 600, lineHeight: 1.6 }}>
+              ✓ {zoneShape === "circle"
+                ? `Zone active — submissions more than ${zoneRadius} m from ${zoneLabel || `${zoneLat}, ${zoneLon}`} are flagged for review`
+                : zoneShape === "corridor"
+                  ? `Route active — ${zonePoints.length} points, ${zoneWidth} m wide. Submissions more than ${Math.round(zoneWidth / 2)} m from ${zoneLabel || "the route"} are flagged for review`
+                  : `Area active — ${zonePoints.length} corners. Submissions outside ${zoneLabel || "the boundary"} by more than ${zoneBuffer} m are flagged for review`}
+              {zoneRejectKm > 0 ? `, and rejected beyond ${zoneRejectKm} km.` : ", and rejected however small the overshoot."}
+            </div>
+          );
+        })()}
       </SettingsCard>
 
       {/* Multi-site zone list */}

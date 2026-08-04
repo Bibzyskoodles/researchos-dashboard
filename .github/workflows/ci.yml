@@ -9,6 +9,17 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual re-run. PR #61 was opened and GitHub created no run for its head
+  # commit at all — the same silence backend PR #86 hit, and the reason
+  # workflow_dispatch was added there. With only push/pull_request triggers
+  # there is no way to ask for one, so the only remaining lever is pushing a
+  # commit purely to provoke CI. A PR showing no checks reads as "nothing to
+  # report" when it means "nothing was checked", which is the more dangerous
+  # of the two — and this repo's whole reason for having CI is that a
+  # CI=true-only failure used to be caught by Vercel in production. A green
+  # Vercel preview is not that check: it deploys the build, it does not run
+  # the test suite.
+  workflow_dispatch:
 
 jobs:
   build:

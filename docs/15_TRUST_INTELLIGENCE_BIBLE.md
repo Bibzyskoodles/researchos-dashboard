@@ -297,7 +297,7 @@ Worst (lowest) override wins per engine. Deterministic, auditable, versioned her
 | `NO_GPS` | gps | 0 | high |
 | `GPS_PARSE_ERROR` | gps | 5 | high |
 | `GPS_OUTSIDE_NIGERIA` | gps | 10 | **hard gate** |
-| `OUTSIDE_ASSIGNED_ZONE` | gps | *distance-proportional* (§7) | FLAG, or REJECT beyond `zone_reject_km` |
+| `OUTSIDE_ASSIGNED_ZONE` | gps | *proportional to the overshoot* (§6.7) | FLAG, or REJECT beyond `zone_reject_km` |
 | `LOW_GPS_ACCURACY` / `GPS_POOR_ACCURACY` | gps | 35 | medium |
 | `DURATION_NEGATIVE` | duration | 0 | **hard gate** |
 | `BACK_TO_BACK` | duration | 5 | **hard gate** |
@@ -319,27 +319,64 @@ skipped (`gated`) — excluded from synthesis and marked in the breakdown. Purpo
 saving and principle 3 (a submission already disqualified by GPS fraud is not additionally
 dragged through image penalties for the same root cause). Defaults: no gating.
 
-### 6.7 Assigned-zone verification (haversine)
+### 6.7 Assigned-zone verification
 
-The client may declare **where enumeration should happen**: a coordinate pair, a radius in
-metres (default 250), and an optional location name — per project, in Engine Settings.
+The client may declare **where enumeration should happen** — per project, in Engine Settings.
+A zone is a **shape with a tolerance around it**, not only a pin:
 
-When a zone is configured and the submission carries usable GPS, the engine computes the
-great-circle distance:
+| Shape | Core geometry | Tolerance | The work it fits |
+|---|---|---|---|
+| `circle` | one coordinate (the pin) | `zone_radius_m` (default 250) | a clinic, a school, a household |
+| `corridor` | an ordered polyline | `zone_width_m / 2` (default 60 m wide) | a street, highway, river bank, transect |
+| `polygon` | the enclosed area | `zone_buffer_m` (may be 0) | a ward, camp, market, district |
+
+**Added 2026-08-04.** Zones were circles only, and a circle is the right shape for exactly one
+kind of field site. For street-level work it forces a choice between two wrong answers: a
+radius small enough to reject honest work at the far end of the road, or one large enough to
+accept a submission from a different neighbourhood. A 1.2 km road covered as a circle needs a
+~600 m radius, which also covers ~1.1 km² of surrounding city; the same road as a 60 m
+corridor covers 0.07 km². Sixteen times less room in which a fabricated submission is
+indistinguishable from a real one — and it stops rejecting the far end.
+
+A zone configured before this existed carries no shape and **is a circle**, unchanged.
+
+#### The two distances
+
+Every shape produces the same two numbers, and they are not interchangeable:
+
+- **`distance_m`** — distance to the core geometry. Zero anywhere inside a polygon; distance
+  to the pin for a circle; distance to the centreline for a corridor. This describes *where
+  someone was*, and is what the submission displays.
+- **`overshoot_m`** — distance past the tolerance; **zero whenever inside the zone**. This is
+  the only number a verdict may be built on, because it is the only one that means the same
+  thing for every shape and every size.
+
+Corridor and polygon distances are computed on a local equirectangular projection centred on
+the point being judged, not by spherical trigonometry. The error is under 2 m out to 22 km —
+well below GPS's own accuracy — and the arithmetic is simple enough that the server
+(`zone_geometry.py`) and the dashboard (`zoneGeometry.ts`) implement it identically and are
+asserted to agree to the metre on a shared fixture set. Two engines that agree beat one engine
+that is more precise while the other is not: the platform has already shipped a submission the
+server scored proportionally and the dashboard scored as a flat 15.
+
+Circle distance is still plain haversine, unprojected, so no already-configured project moves:
 
 ```
 d = 2R·asin(√(sin²(Δφ/2) + cosφ₁·cosφ₂·sin²(Δλ/2)))       R = 6 371 000 m
 ```
 
-- **d ≤ radius** → presence corroborated; the distance is recorded in the audit trail and
-  displayed on the submission ("312 m from Akoka PHC — within the 500 m radius").
-- **d > radius** → the engine raises `OUTSIDE_ASSIGNED_ZONE`, and **the distance decides the
-  severity**. The GPS score is proportional — `max(0, 100 − km × 10)` — and the verdict is
-  `FLAG` (supervisor review) up to `zone_reject_km` beyond the radius, `REJECT` past it. The
+#### The verdict
+
+- **Inside the zone** (`distance_m ≤ tolerance`) → presence corroborated; the distance is
+  recorded in the audit trail and displayed on the submission ("312 m from Akoka PHC — within
+  the 500 m tolerance", or "inside the Ward 7 boundary").
+- **Outside the zone** → the engine raises `OUTSIDE_ASSIGNED_ZONE`, and **the overshoot decides
+  the severity**. The GPS score is proportional — `max(0, 100 − km × 10)` — and the verdict is
+  `FLAG` (supervisor review) up to `zone_reject_km` past the tolerance, `REJECT` beyond it. The
   boundary defaults to 2 km and is configurable per project; setting it to `0` restores
   reject-at-any-distance.
 
-  | Distance outside | Verdict | GPS score |
+  | Overshoot | Verdict | GPS score |
   |---|---|---|
   | 100 m | FLAG | 99 |
   | 673 m | FLAG | 94 |
@@ -347,19 +384,31 @@ d = 2R·asin(√(sin²(Δφ/2) + cosφ₁·cosφ₂·sin²(Δλ/2)))       R = 6
   | 5 km | REJECT | 50 |
   | 50 km | REJECT | 0 |
 
-  **Revised 2026-08-04.** This was previously a flat override to 15 plus an unconditional hard
-  gate, which made 673 m and 50 km indistinguishable in both score and verdict — a submission
-  captured at one end of a Lagos road, with its assigned pin at the other, was rejected exactly
-  as one captured in another state would have been. A modest overshoot has innocent
-  explanations (GPS drift, a respondent met just past a boundary, a pin dropped at one end of a
-  road that runs for a kilometre); kilometres do not. The change follows this document's own
-  asymmetry in §9 — a wrongly rejected honest enumerator is a person unpaid for real work,
-  while a wrongly flagged one is simply looked at.
+  **Revised 2026-08-04 (severity).** This was previously a flat override to 15 plus an
+  unconditional hard gate, which made 673 m and 50 km indistinguishable in both score and
+  verdict — a submission captured at one end of a Lagos road, with its assigned pin at the
+  other, was rejected exactly as one captured in another state would have been. A modest
+  overshoot has innocent explanations (GPS drift, a respondent met just past a boundary, a pin
+  dropped at one end of a road that runs for a kilometre); kilometres do not. The change
+  follows this document's own asymmetry in §9 — a wrongly rejected honest enumerator is a
+  person unpaid for real work, while a wrongly flagged one is simply looked at.
 
   This is a deliberate loosening of a fraud control and is reversible per project.
+
+  **Revised 2026-08-04 (measured from the boundary).** Severity was computed from the distance
+  to the zone's *centre*, which stopped being defensible once a zone could be a road or an
+  area. A polygon has no centre, and a 5 km project-area circle judged on distance-to-pin
+  rejected a submission 100 m outside its own edge as though it were 5 km adrift. Severity is
+  now computed from the overshoot for every shape. The effect on existing circular zones is
+  strictly leniency-ward and bounded by the zone's radius: nothing that passed can now fail.
 - **No zone configured** → verification is skipped entirely and the platform simply reports
   where enumeration happened: coordinates, map, and reverse-geocoded address. Absence of a
   client expectation is never a penalty.
+- **A zone the platform cannot read** (a corridor with no points, a polygon with two corners, a
+  boundary beyond the 1 000-vertex cap) → verification is skipped and the submission says so.
+  It is **never** a rejection: a configuration error belongs to whoever set the project up, and
+  an enumerator must not be marked as fraudulent for it. The settings route refuses such a zone
+  at save time with a reason, so the silent-failure case should not arise in the first place.
 
 ---
 
@@ -505,9 +554,10 @@ Every case below has defined behavior and (where marked ✓) a scenario test.
 | E22 | GPS spoofing beyond flag detection | Phase 2 (velocity checks, device attestation) — same provider interface |
 | E23 ✓ | Weights that don't sum to 1 | Normalization makes only ratios matter |
 | E24 ✓ | Consistency delta would exceed bounds | Clamped to [−10, +3] before application |
-| E25 ✓ | Assigned zone set, enumeration inside radius | Presence corroborated, distance recorded, no penalty |
-| E26 ✓ | Assigned zone set, enumeration outside radius | `OUTSIDE_ASSIGNED_ZONE` raised → GPS score proportional to distance; FLAG within `zone_reject_km`, REJECT beyond (§7) |
+| E25 ✓ | Assigned zone set (any shape), enumeration inside it | Presence corroborated, distance recorded, no penalty |
+| E26 ✓ | Assigned zone set, enumeration outside it | `OUTSIDE_ASSIGNED_ZONE` raised → GPS score proportional to the overshoot past the zone's tolerance; FLAG within `zone_reject_km`, REJECT beyond (§6.7) |
 | E27 ✓ | No assigned zone configured | Verification skipped; coordinates + address simply reported |
+| E28 ✓ | A zone configured but unreadable (no points, two-corner area, over the vertex cap) | Verification skipped and said so — never a rejection; the settings route refuses it at save time (§6.7) |
 
 ---
 

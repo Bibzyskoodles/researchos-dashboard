@@ -11,6 +11,8 @@
 // consumer already listens for. saveEngineConfig() writes locally AND pushes
 // to the backend so the change becomes visible to every other session.
 
+import type { ZonePoint, ZoneShape } from "./zoneGeometry";
+
 export interface EngineWeights {
   gps: number;
   duration: number;
@@ -53,13 +55,25 @@ export const DEFAULT_REQUIREMENTS: EngineRequirements = {
 };
 
 // Bible §6.7 — client-assigned enumeration location. When set, the engine
-// verifies presence by haversine distance; when unset, the platform simply
-// reports where enumeration happened (coordinates + reverse-geocoded address).
+// verifies presence against it; when unset, the platform simply reports where
+// enumeration happened (coordinates + reverse-geocoded address).
+//
+// A zone is a shape, not only a pin (Bible §6.7, zoneGeometry.ts). The shape
+// field is optional and absent means "circle", so every zone configured before
+// shapes existed is exactly what it was: lat/lon/radiusM, unchanged.
 export interface AssignedZone {
   lat: number | null;
   lon: number | null;
   radiusM: number;
   label?: string;
+  /** Absent = "circle". */
+  shape?: ZoneShape;
+  /** Corridor (a road centreline) and polygon (an area boundary). */
+  points?: ZonePoint[];
+  /** Corridor — total width across the road, in metres. */
+  widthM?: number;
+  /** Polygon — GPS drift allowance outside the boundary, in metres. May be 0. */
+  bufferM?: number;
 }
 
 // Bible §16 (new) — a project may have many named field sites.
@@ -87,7 +101,7 @@ export interface EngineConfig {
   enabled: EngineEnabled;          // legacy boolean map, kept in sync with requirements
   requirements: EngineRequirements; // Bible §4 — the authoritative per-engine policy
   // How far outside the radius stops being "review this" and becomes "reject
-  // this" — Bible §7. Mirrors the server's zone_reject_km so the dashboard and
+  // this" — Bible §6.7. Mirrors the server's zone_reject_km so the dashboard and
   // the engine that issues the real verdict agree. 0 restores the old
   // reject-at-any-distance rule.
   zoneRejectKm: number;
