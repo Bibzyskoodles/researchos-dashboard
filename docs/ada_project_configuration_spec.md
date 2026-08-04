@@ -1,7 +1,8 @@
 # Ada configures the project, not just the questionnaire
 
-**Status:** all three phases built and merged. Every decision this document
-raised is recorded below with the reasoning that settled it.
+**Status:** all three phases built and merged, and the audit gap this work
+surfaced is closed. Every decision this document raised is recorded below with
+the reasoning that settled it.
 
 **Date:** 2026-08-04
 
@@ -169,22 +170,47 @@ a user shows their client to explain what they bought.
 - **Enumerator instructions and supervisor checklists** (both suggested in the
   external review). Good ideas, separate features, no dependency on this one.
 
-## A gap this surfaces
+## A gap this surfaced — now closed
 
-**Project scoring-config changes are not audited.** `security_audit.py` covers
+**Project scoring-config changes were not audited.** `security_audit.py` covers
 changes to *who can do what* — its `AUDITED_ACTIONS` whitelist is deliberately
-closed — and a scoring-policy change is not that, so today there is no record of
-who changed a project's pass threshold, image context or zone, or when.
+closed — and a scoring-policy change is not that, so there was no record of who
+changed a project's pass threshold, image context or zone, or when.
 
-That is already a real gap: `certificate.py` issues a signed attestation about
-submissions scored under a policy that can be changed afterwards with no trace.
-It becomes more pointed if Ada can change the policy too — "Ada suggested it" is
-not an audit trail.
+That was already a real gap: `certificate.py` issues a signed attestation about
+submissions scored under a policy that can be changed afterwards. It became more
+pointed once Ada could propose the policy too — "Ada suggested it" is not an
+audit trail.
 
-Not part of this feature, but it should be decided before Phase 1 ships rather
-than after. The likely answer is a `project_config_history` table, not an
-addition to `security_audit` (different question, different retention, different
-audience).
+**Decided and built as `project_config_history`**, not an addition to
+`security_audit`: different question, different retention, different audience.
+`security_audit` answers a security reviewer asking who was granted access;
+this answers a customer asking why last week's numbers were different.
+
+Two things went wrong on the way there, both worth recording because both are
+easy to repeat:
+
+- **The table shipped with only Ada writing to it.** The ordinary Settings save
+  — the route almost every real change goes through — recorded nothing for a
+  day. That is worse than having no history: a table holding a fraction of the
+  changes reads as complete, so "who changed the pass threshold?" answered
+  "nobody" while displaying two tidy rows about Ada. **A new audit table is not
+  done when the table exists; it is done when every writer to the thing being
+  audited writes to it.**
+- **The obvious storage shape would have broken Ada.** Folding the before-state
+  into `changes_json` as `{key: {from, to}}` is tidier, but
+  `changed_since_applied()` reads that column as flat key→value to decide
+  whether a proposal is stale. Nested, every key reads as changed forever and
+  Ada re-offers a proposal that was already applied. The before-state went in
+  its own `previous_json` column for that reason.
+
+Only what actually moved is recorded — one changed slider is one line. Recording
+the whole configuration on every save would make every row identical, and a
+history nobody can skim is a history nobody reads, which fails the same way as
+having none. Values are compared as text, because `project_configs` stores them
+that way: `70` and `"70"` are not a change, and neither is `None` versus `""`.
+
+Shown at `GET /api/projects/<id>/config-history` and in Settings.
 
 ## Decisions taken (2026-08-04)
 
