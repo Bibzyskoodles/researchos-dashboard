@@ -272,6 +272,8 @@ export const projectsApi = {
   // What the project collects and what will actually check it. Assembled
   // server-side: the browser renders this, it does not decide any of it.
   summary: (id: string) => api.get(`/api/projects/${id}/summary`),
+  // Who changed how this project's submissions are judged, and when.
+  configHistory: (id: string) => api.get(`/api/projects/${id}/config-history`),
   configProposal: (id: string) => api.get(`/api/projects/${id}/config-proposal`),
   applyConfigProposal: (id: string) => api.post(`/api/projects/${id}/config-proposal/apply`, {}),
   declineConfigProposal: (id: string) => api.post(`/api/projects/${id}/config-proposal/decline`, {}),
