@@ -297,7 +297,7 @@ Worst (lowest) override wins per engine. Deterministic, auditable, versioned her
 | `NO_GPS` | gps | 0 | high |
 | `GPS_PARSE_ERROR` | gps | 5 | high |
 | `GPS_OUTSIDE_NIGERIA` | gps | 10 | **hard gate** |
-| `OUTSIDE_ASSIGNED_ZONE` | gps | *proportional to the overshoot* (§6.7) | FLAG, or REJECT beyond `zone_reject_km` |
+| `OUTSIDE_ASSIGNED_ZONE` | gps | *capped at 50, proportional to the confident overshoot* (§6.7) | FLAG, or REJECT beyond `zone_reject_km` |
 | `LOW_GPS_ACCURACY` / `GPS_POOR_ACCURACY` | gps | 35 | medium |
 | `DURATION_NEGATIVE` | duration | 0 | **hard gate** |
 | `BACK_TO_BACK` | duration | 5 | **hard gate** |
@@ -370,19 +370,36 @@ d = 2R·asin(√(sin²(Δφ/2) + cosφ₁·cosφ₂·sin²(Δλ/2)))       R = 6
 - **Inside the zone** (`distance_m ≤ tolerance`) → presence corroborated; the distance is
   recorded in the audit trail and displayed on the submission ("312 m from Akoka PHC — within
   the 500 m tolerance", or "inside the Ward 7 boundary").
-- **Outside the zone** → the engine raises `OUTSIDE_ASSIGNED_ZONE`, and **the overshoot decides
-  the severity**. The GPS score is proportional — `max(0, 100 − km × 10)` — and the verdict is
-  `FLAG` (supervisor review) up to `zone_reject_km` past the tolerance, `REJECT` beyond it. The
-  boundary defaults to 2 km and is configurable per project; setting it to `0` restores
-  reject-at-any-distance.
+- **Outside the zone** → the engine raises `OUTSIDE_ASSIGNED_ZONE`. Two things then decide the
+  score, and they answer different questions.
 
-  | Overshoot | Verdict | GPS score |
-  |---|---|---|
-  | 100 m | FLAG | 99 |
-  | 673 m | FLAG | 94 |
-  | 1.5 km | FLAG | 85 |
-  | 5 km | REJECT | 50 |
-  | 50 km | REJECT | 0 |
+  **GPS accuracy decides whether we can tell.** The overshoot is reduced by the fix's own error
+  before anything is concluded from it: `confident_m = overshoot_m − accuracy_m`. A 10 m fix
+  297 m past a boundary is not ambiguous; a 300 m fix at the same distance cannot be separated
+  from standing on the line. Where `confident_m ≤ 0` the submission is **not scored as a
+  breach** — it takes `ZONE_UNCERTAIN_SCORE` (70) and still flags for review. Uncertain is not
+  innocent, and it is not guilty either.
+
+  **The overshoot decides how bad it is.** A confirmed breach is capped at
+  `ZONE_BREACH_CEILING` (50) and falls to zero at `zone_reject_km`:
+  `round(50 × max(0, 1 − confident_m / reject_m))`. The verdict is `FLAG` up to
+  `zone_reject_km` past the tolerance, `REJECT` beyond it. The boundary defaults to 2 km and is
+  configurable per project; setting it to `0` restores reject-at-any-distance.
+
+  | Overshoot | Accuracy | Verdict | GPS score |
+  |---|---|---|---|
+  | 5 m | 10 m | FLAG | 70 (unplaceable) |
+  | 297 m | 300 m | FLAG | 70 (unplaceable) |
+  | 297 m | 10 m | FLAG | 43 |
+  | 1 km | 8 m | FLAG | 25 |
+  | 2.5 km | 8 m | REJECT | 0 |
+
+  **Revised 2026-08-04 (ceiling).** The curve below started at 100 and lost ten points per
+  kilometre, so a submission 297 m outside its assigned area scored 98 and contributed
+  near-full GPS marks *beside a flag saying the enumerator was not where they were sent*. The
+  submission panel showed "Outside Assigned Zone" and 6/6 points together, which reads as
+  broken scoring rather than deliberate leniency. Proportionality was right; the starting point
+  was not. Outside is outside — once we can be confident of it.
 
   **Revised 2026-08-04 (severity).** This was previously a flat override to 15 plus an
   unconditional hard gate, which made 673 m and 50 km indistinguishable in both score and
@@ -581,7 +598,8 @@ Every case below has defined behavior and (where marked ✓) a scenario test.
 | E23 ✓ | Weights that don't sum to 1 | Normalization makes only ratios matter |
 | E24 ✓ | Consistency delta would exceed bounds | Clamped to [−10, +3] before application |
 | E25 ✓ | Assigned zone set (any shape), enumeration inside it | Presence corroborated, distance recorded, no penalty |
-| E26 ✓ | Assigned zone set, enumeration outside it | `OUTSIDE_ASSIGNED_ZONE` raised → GPS score proportional to the overshoot past the zone's tolerance; FLAG within `zone_reject_km`, REJECT beyond (§6.7) |
+| E26 ✓ | Assigned zone set, enumeration outside it | `OUTSIDE_ASSIGNED_ZONE` raised → GPS score capped at 50 and proportional to the overshoot past the zone's tolerance; FLAG within `zone_reject_km`, REJECT beyond (§6.7) |
+| E29 ✓ | Outside the zone by less than the GPS fix's own error | Not scored as a breach — 70, flagged for review. The reading cannot place the submission either side of the line, and asserting otherwise would claim more than the evidence supports (§6.7) |
 | E27 ✓ | No assigned zone configured | Verification skipped; coordinates + address simply reported |
 | E28 ✓ | A zone configured but unreadable (no points, two-corner area, over the vertex cap) | Verification skipped and said so — never a rejection; the settings route refuses it at save time (§6.7) |
 

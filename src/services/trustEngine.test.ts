@@ -319,7 +319,13 @@ describe("§6.7 Assigned-zone verification (haversine)", () => {
     expect(r.zoneCheck!.distanceM).toBeLessThan(2000);
     expect(r.verdict).toBe("FLAG");
     const gps = r.breakdown.find(b => b.key === "gps")!;
-    expect(gps.effectiveScore).toBeGreaterThan(80);
+    // This used to assert > 80. Proportional was right; starting the curve at
+    // 100 was not — being outside your assigned area cost almost nothing, so
+    // the panel showed a breach flag beside full GPS marks. A confirmed breach
+    // is now capped, and the verdict staying FLAG is what this scenario is
+    // actually about: 673 m is not 50 km.
+    expect(gps.effectiveScore).toBeLessThanOrEqual(50);
+    expect(gps.effectiveScore).toBeGreaterThan(0);
   });
 
   it("no zone configured: verification skipped, coordinates simply reported", () => {
@@ -411,5 +417,56 @@ describe("duration that could not be measured is not scored as a failure", () =>
       { ...FULL_HOUSE, duration_mins: 1, flags: ["DURATION_TOO_SHORT"] }, cfg());
     const row = tooShort.breakdown.find(e => e.key === "duration");
     expect(row!.effectiveScore).toBeLessThanOrEqual(10);
+  });
+});
+
+// ─── Outside is outside ──────────────────────────────────────────────────────
+// The values below are produced by scorer.py's zone_severity for the same
+// inputs. The two implementations score the same submission, so a divergence
+// here is the dashboard disagreeing with the engine — the failure this whole
+// file exists to prevent.
+
+describe("a confirmed breach cannot score like a clean submission", () => {
+  const atDistance = (overshootM: number, accuracyM: number) => {
+    // 250 m radius; place the point overshootM beyond it, due north.
+    const metresPerDegLat = 111_320;
+    const lat = 6.441140 + (250 + overshootM) / metresPerDegLat;
+    return computeTrustIndex(
+      { ...FULL_HOUSE, gps: { lat, lon: 3.490772, accuracy_m: accuracyM } },
+      cfg({
+        assignedZone: { lat: 6.441140, lon: 3.490772, radiusM: 250, label: "Kusenla Road" },
+        zoneRejectKm: 2,
+      }),
+    );
+  };
+  const gpsScore = (r: ReturnType<typeof computeTrustIndex>) =>
+    r.breakdown.find(e => e.key === "gps")!.effectiveScore;
+
+  it("caps a 297 m breach on a 10 m fix at half marks", () => {
+    // The submission from the screenshot: it scored 98 and rendered 6/6.
+    expect(gpsScore(atDistance(297, 10))).toBeLessThanOrEqual(50);
+  });
+
+  it("matches scorer.py exactly at 297 m on a 10 m fix", () => {
+    // python: zone_severity(0.297, 2.0, 10) -> ("FLAG", 43)
+    expect(gpsScore(atDistance(297, 10))).toBe(43);
+  });
+
+  it("matches scorer.py exactly at 1 km on an 8 m fix", () => {
+    // python: zone_severity(1.0, 2.0, 8) -> ("FLAG", 25)
+    expect(gpsScore(atDistance(1000, 8))).toBe(25);
+  });
+
+  it("still lets distance separate a near breach from a far one", () => {
+    expect(gpsScore(atDistance(297, 10))!).toBeGreaterThan(gpsScore(atDistance(1500, 10))!);
+  });
+
+  it("does not call a submission outside when the fix cannot place it", () => {
+    // python: zone_severity(0.297, 2.0, 300) -> ("FLAG", 70)
+    expect(gpsScore(atDistance(297, 300))).toBe(70);
+  });
+
+  it("judges a precise fix more harshly than a vague one at the same distance", () => {
+    expect(gpsScore(atDistance(297, 10))!).toBeLessThan(gpsScore(atDistance(297, 300))!);
   });
 });
