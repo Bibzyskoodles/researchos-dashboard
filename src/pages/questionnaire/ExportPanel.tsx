@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Download, Save, X, Upload, CheckCircle, ExternalLink } from 'lucide-react';
 import api from '../../services/api';
-import { questionnaireToKoboContent } from '../../services/kobo/koboToolboxApi';
 import { orgSettingsApi } from '../../services/api';
 import { GeneratedQuestionnaire } from './types';
 
@@ -59,24 +58,66 @@ const EXPORT_OPTIONS = [
   },
 ];
 
-// Convert GeneratedQuestionnaire to the flat Questionnaire shape koboToolboxApi expects
-function toKoboQuestionnaire(q: GeneratedQuestionnaire) {
-  const questions = q.sections.flatMap(sec =>
-    sec.questions.map(question => ({
-      id: question.id,
-      type: question.type,
-      label: question.text,
-      required: question.required ?? true,
-      options: (question.options || []).map((o: string) => ({ value: o, label: o })),
-      condition: question.skip_logic,
-    }))
-  );
-  return {
-    id: q.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
-    name: q.title,
-    version: new Date().getTime().toString(),
-    questions,
-  };
+// The questionnaire's display name, guaranteed to be a string.
+//
+// GeneratedQuestionnaire.title is typed as required, but it arrives from
+// `res.data` — which TypeScript cannot check — and the generate endpoint used
+// to return only { sections, model }. So every `questionnaire.title.replace(...)`
+// in this file threw "Cannot read properties of undefined (reading 'replace')":
+// the Kobo deploy showed it, and both download paths hit the same crash and
+// reported it as a missing export endpoint.
+//
+// The server now always sends a title. This is the second half of that fix:
+// a questionnaire saved before today, or hand-built, still must not be able to
+// break the export it is being handed to.
+export function questionnaireTitle(q: Pick<GeneratedQuestionnaire, 'title'>): string {
+  const title = typeof q?.title === 'string' ? q.title.trim() : '';
+  return title || 'Research Questionnaire';
+}
+
+// A filesystem-safe stem for a download name. Never empty — an empty stem
+// produces a file called ".json", which most browsers silently refuse to save.
+export function safeFileStem(q: Pick<GeneratedQuestionnaire, 'title'>): string {
+  const stem = questionnaireTitle(q).replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return stem || 'questionnaire';
+}
+
+// Hand the browser a blob as a download. Kept in one place so every format
+// releases its object URL — a leaked one pins the whole file in memory for the
+// life of the tab, and an export panel is somewhere people click repeatedly.
+function download(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Firefox cancels an in-flight download if the URL is revoked synchronously.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+// What went wrong, in terms that point at the right place to look.
+export function describeExportError(e: unknown, format: string): string {
+  const label = format.toUpperCase();
+  const err = e as { response?: { status?: number; data?: unknown }; message?: string };
+
+  if (err?.response) {
+    const status = err.response.status;
+    if (status === 401 || status === 403) {
+      return `${label} export was refused — your session may have expired. Reload and sign in again.`;
+    }
+    return `${label} export failed on the server (error ${status}). The questionnaire is unchanged.`;
+  }
+  if (e instanceof TypeError) {
+    // A fault in this browser, not the server. Blaming the backend for these
+    // is what sent a whole evening of debugging to the wrong repository.
+    return `${label} export hit a problem in the browser: ${e.message}. Nothing was sent to the server.`;
+  }
+  if (err?.message) {
+    return `${label} export failed: ${err.message}`;
+  }
+  return `${label} export failed for an unknown reason.`;
 }
 
 export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
@@ -97,14 +138,13 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
     setError(null);
 
     try {
+      const stem = safeFileStem(questionnaire);
+
       if (format === 'json') {
-        const blob = new Blob([JSON.stringify(questionnaire, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${questionnaire.title.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        download(
+          new Blob([JSON.stringify(questionnaire, null, 2)], { type: 'application/json' }),
+          `${stem}.json`,
+        );
         return;
       }
 
@@ -117,15 +157,13 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
         platform: format,
       }, { responseType: 'blob' });
 
-      const ext = format === 'docx' ? '.docx' : '.xlsx';
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${questionnaire.title.replace(/[^a-zA-Z0-9]/g, '_')}${ext}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setError(`Export failed. The ${format.toUpperCase()} export endpoint may not be set up yet.`);
+      download(res.data, `${stem}${format === 'docx' ? '.docx' : '.xlsx'}`);
+    } catch (e: unknown) {
+      // Say what actually failed. The old handler caught without binding the
+      // error and blamed the server every time — including for JSON, which
+      // makes no network call at all, so the one message it could never be
+      // right about was the one it always gave.
+      setError(describeExportError(e, format));
     } finally {
       setExporting(null);
     }
@@ -158,9 +196,10 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
       // it is never written to localStorage and never used to call Kobo from
       // the browser (that put a live third-party credential in browser storage).
       if (token) await orgSettingsApi.saveKoboToken(token);
-      const koboQ = toKoboQuestionnaire(questionnaire);
-      const content = questionnaireToKoboContent(koboQ) as Record<string, unknown>;
-      const res = await orgSettingsApi.publishToKobo(questionnaire.title, content);
+      const res = await orgSettingsApi.publishToKobo(
+        questionnaireTitle(questionnaire),
+        questionnaire as unknown as Record<string, unknown>,
+      );
       setKoboResult({ shareLink: res.data?.edit_url || '', assetUid: res.data?.asset_uid || '' });
       setKoboState('done');
     } catch (e: unknown) {
@@ -193,7 +232,7 @@ export default function ExportPanel({ questionnaire, onClose, onSave }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111827' }}>Export Questionnaire</h2>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6B7280' }}>{questionnaire.title}</p>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6B7280' }}>{questionnaireTitle(questionnaire)}</p>
           </div>
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#9CA3AF' }}>
             <X size={20} />

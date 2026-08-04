@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams } from 'react-router-dom';
 import api from '../../services/api';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 import ConsultationPhase from './ConsultationPhase';
@@ -82,6 +83,39 @@ function GeneratingPhase({ consultation }: { consultation: ConsultationState }) 
   );
 }
 
+// The server now always sends a title and a duration. It did not until today —
+// /questionnaire/generate returned { sections, model } and nothing else — and
+// everything downstream assumed otherwise: the exports name their file after
+// the title and threw on it ("Cannot read properties of undefined (reading
+// 'replace')"), and the workspace header rendered "~ min" with the number
+// missing.
+//
+// Applied on every path a questionnaire can enter this page by, not just the
+// one that was reported: a questionnaire SAVED before that fix is sitting in a
+// project right now with no title, and reopening it must not reproduce the bug
+// the server fix already closed.
+function backfillMissingFields(
+  q: GeneratedQuestionnaire,
+  consultation?: ConsultationState,
+): GeneratedQuestionnaire {
+  if (!q.title || !String(q.title).trim()) {
+    const decision = consultation?.decision?.trim();
+    q.title = decision ? `${decision.slice(0, 80)} — Questionnaire` : 'Research Questionnaire';
+  }
+  if (!Number.isFinite(q.estimated_duration_mins) || q.estimated_duration_mins <= 0) {
+    q.estimated_duration_mins = consultation?.duration_mins || 20;
+  }
+  q.sections = (q.sections || []).map((sec, si) => ({
+    ...sec,
+    id: sec.id || `sec_${si}`,
+    questions: (sec.questions || []).map((question, qi) => ({
+      ...question,
+      id: question.id || `q_${si}_${qi}`,
+    })),
+  }));
+  return q;
+}
+
 const initialState: QuestionnaireState = {
   phase: 'consultation',
   consultation: {
@@ -99,7 +133,44 @@ const initialState: QuestionnaireState = {
 
 export default function QuestionnairePage() {
   useAdaGreeting({ page: "questionnaire" });
+  const { projectId } = useParams<{ projectId?: string }>();
   const [state, setState] = useState<QuestionnaireState>(initialState);
+  const [loadingSaved, setLoadingSaved] = useState(!!projectId);
+
+  // Reopen the project's saved questionnaire.
+  //
+  // WorkspacePhase has always POSTed to /api/projects/<id>/questionnaire, and
+  // the backend has always served the matching GET — but nothing ever called
+  // it. So the designer opened at the consultation every single time: you could
+  // design a questionnaire, save it, navigate to Collect and back, and be asked
+  // to describe your study from scratch while the saved copy sat on the server
+  // untouched. Losing work you were explicitly told was saved is worse than
+  // never offering to save it.
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    api.get(`/api/projects/${projectId}/questionnaire`)
+      .then(res => {
+        const saved = res.data?.questionnaire;
+        if (cancelled || !saved?.sections?.length) return;
+        setState(prev => ({
+          ...prev,
+          phase: 'workspace',
+          // No consultation to draw defaults from — this questionnaire was
+          // designed in an earlier session. backfillMissingFields covers the
+          // case that matters: anything saved before the title fix has none.
+          questionnaire: backfillMissingFields(saved),
+          unsavedChanges: false,
+        }));
+      })
+      // A questionnaire that cannot be loaded is not an error worth a banner —
+      // the consultation is a complete way to start, and it is what this page
+      // did for every project until now. Failing loudly here would make a new
+      // project look broken.
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingSaved(false); });
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -130,16 +201,7 @@ export default function QuestionnairePage() {
       const data = res.data;
       const questionnaire: GeneratedQuestionnaire = data.questionnaire || data;
 
-      if (questionnaire.sections) {
-        questionnaire.sections = questionnaire.sections.map((sec, si) => ({
-          ...sec,
-          id: sec.id || `sec_${si}`,
-          questions: sec.questions.map((q, qi) => ({
-            ...q,
-            id: q.id || `q_${si}_${qi}`,
-          })),
-        }));
-      }
+      backfillMissingFields(questionnaire, consultation);
 
       setState(prev => ({ ...prev, phase: 'workspace', questionnaire, unsavedChanges: false }));
     } catch {
@@ -162,7 +224,20 @@ export default function QuestionnairePage() {
   return (
     <div data-ada-target="questionnaire-builder" style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <AnimatePresence mode="wait">
-        {state.phase === 'consultation' && (
+        {loadingSaved && (
+          <motion.div key="loading-saved" style={{ flex: 1 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div style={{
+              height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: '#F8FAFF', fontFamily: 'Inter, sans-serif',
+              color: '#6B7280', fontSize: 13,
+            }}>
+              Opening this project's questionnaire…
+            </div>
+          </motion.div>
+        )}
+
+        {!loadingSaved && state.phase === 'consultation' && (
           <motion.div key="consultation" style={{ flex: 1, overflow: 'auto' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <ConsultationPhase onReady={handleConsultationReady} />

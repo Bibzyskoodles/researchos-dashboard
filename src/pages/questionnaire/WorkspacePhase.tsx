@@ -71,6 +71,10 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
   const [showExport, setShowExport] = useState(false);
   const [adaFocusQuestion, setAdaFocusQuestion] = useState<Question | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // "Save failed" on its own is not a report. Same discarded-error pattern that
+  // made the export bug take an evening to find: the server's own explanation
+  // was thrown away and replaced with two words that fit any cause.
+  const [saveError, setSaveError] = useState('');
   const [showNextStep, setShowNextStep] = useState(false);
   const { projectId } = useParams<{ projectId?: string }>();
   const navigate = useNavigate();
@@ -164,11 +168,25 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
         await api.post(`/api/projects/${projectId}/questionnaire`, { questionnaire });
       }
       setSaveState('saved');
+      setSaveError('');
       setShowNextStep(true);
       setTimeout(() => setSaveState('idle'), 3000);
-    } catch {
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number; data?: { error?: string } } };
+      const serverMessage = err?.response?.data?.error;
+      setSaveError(
+        !projectId
+          ? 'No project is selected, so there is nowhere to save this. Open the questionnaire from a project.'
+          : typeof serverMessage === 'string' && serverMessage
+            ? `Couldn't save: ${serverMessage}`
+            : !err?.response
+              ? "Couldn't reach the server. Your questionnaire is still on screen — try again in a moment."
+              : `Couldn't save (error ${err.response.status}). Your questionnaire is still on screen.`
+      );
       setSaveState('error');
-      setTimeout(() => setSaveState('idle'), 3000);
+      // Deliberately not auto-cleared. The message is the only record that the
+      // work is unsaved, and clearing it after three seconds leaves the screen
+      // looking exactly like a successful save.
     }
   };
 
@@ -231,7 +249,7 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
             >
               {saveState === 'saved' ? <><Check size={14} /> Saved</> :
                saveState === 'saving' ? 'Saving...' :
-               saveState === 'error' ? 'Save failed' :
+               saveState === 'error' ? 'Save failed — see below' :
                <><Save size={14} /> Save</>}
             </motion.button>
             <motion.button
@@ -248,6 +266,18 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
             </motion.button>
           </div>
         </div>
+
+        {/* Save failure — stays until the next save attempt, because it is the
+            only thing on screen saying the work is not stored. */}
+        {saveState === 'error' && saveError && (
+          <div style={{
+            marginBottom: 20, padding: '12px 16px', borderRadius: 10,
+            background: '#FEF2F2', border: '1px solid #FECACA',
+            fontSize: 12.5, color: '#DC2626', lineHeight: 1.55,
+          }}>
+            ⚠ {saveError}
+          </div>
+        )}
 
         {/* Post-save next step banner */}
         {showNextStep && (
