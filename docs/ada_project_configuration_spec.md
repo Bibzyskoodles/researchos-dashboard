@@ -1,7 +1,7 @@
 # Ada configures the project, not just the questionnaire
 
-**Status:** scoped, not built. Nothing in this document ships until the open
-questions at the end are answered.
+**Status:** scoped, not built. The two decisions that gate Phase 1 are taken
+(see "Decisions taken"); the remaining open questions do not block it.
 
 **Date:** 2026-08-04
 
@@ -186,24 +186,40 @@ than after. The likely answer is a `project_config_history` table, not an
 addition to `security_audit` (different question, different retention, different
 audience).
 
+## Decisions taken (2026-08-04)
+
+**Ada offers it automatically, when the questionnaire is finished.** Not on
+request. The reasoning that decided it: the people who most need the
+configuration are exactly the ones who would not know to ask for it, and a first
+project running on defaults is the case this feature exists to prevent.
+
+The cost is being presumptuous on the tenth project, so the card must be
+dismissible and must not reappear for a questionnaire that has already been
+configured or explicitly declined. "Not now" means not now, not "ask me again
+on the next save".
+
+**Apply is all-or-nothing, one click.** No per-line checkboxes. Every setting
+proposed is one a user can already change by hand and every one is reversible,
+so the card carries a plain line pointing at Settings rather than reproducing
+Settings inside a chat card. A per-line approval would slow down every use —
+including the majority of uses where the answer is "yes, all of it".
+
+This raises the bar on the card itself rather than lowering it: if one click
+accepts everything, every line has to be individually defensible on sight, with
+its evidence next to it. A line the user cannot check in a glance does not
+belong on a card they approve in one action.
+
 ## Open questions — for the founder, not for engineering
 
-1. **When does Ada offer this?** Automatically when the questionnaire is
-   finished, or only when asked? Automatic is more impressive on a demo and
-   more presumptuous in daily use.
+Neither of these gates Phase 1.
 
-2. **Does Apply mean "all of it"?** All-or-nothing is one click and one decision.
-   Per-line checkboxes are more honest and slower. My inclination is
-   all-or-nothing with a "change these in Settings" line, because the settings
-   page exists and is where someone would go anyway.
-
-3. **What happens when the questionnaire changes afterwards?** If a photo
+1. **What happens when the questionnaire changes afterwards?** If a photo
    question is deleted a week later, does Ada notice the image context now
    describes a question that no longer exists? Proposing again is easy;
    proposing *unprompted* is a judgement call about how much Ada should
    interrupt.
 
-4. **Is this a paid-plan feature?** It is the strongest differentiator in the
+2. **Is this a paid-plan feature?** It is the strongest differentiator in the
    product and also the thing that makes a first project succeed rather than
    fail. Those pull in opposite directions.
 
