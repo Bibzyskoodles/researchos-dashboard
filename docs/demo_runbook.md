@@ -49,12 +49,17 @@ Each step below is real and currently working.
 | 8 | Fraud catches | Submissions / Verify | Duplicate photo, out-of-zone, rushed interview |
 | 9 | Change history | Settings → Change history | Who changed the scoring rules, and when |
 | 10 | Issue the certificate | Project → Data Integrity | Criteria block + QR + `/verify/<id>` |
-| 11 | Verify publicly | `/verify/<cert_id>` | Open in a private window — it needs no login. This is the moment |
+| 11 | Verify publicly | `/verify/<cert_id>` | Open in a private window, or scan the QR on the certificate. No login. This is the moment |
 
-**The strongest 90 seconds** is 10 → 11: issue a certificate, then open the
-verify link in a private browser window and show that a third party with no
-account can confirm it is genuine, see how strictly the data was checked, and
-see that the rules did not move mid-project.
+**The strongest 90 seconds** is 10 → 11: issue a certificate, then scan its QR
+code with a phone — or open the verify link in a private window — and show that
+a third party with no account gets a clean verification page confirming it is
+genuine, showing how strictly the data was checked, and stating whether the
+rules moved mid-project.
+
+Until 4 August that link answered a browser with raw JSON, which is what a
+phone camera would have shown the room. It now renders a proper page; the JSON
+is still there for API callers at `?format=json`.
 
 ---
 
