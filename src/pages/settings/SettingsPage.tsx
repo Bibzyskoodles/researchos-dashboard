@@ -16,6 +16,7 @@ import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig"
 import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
 import { evaluateZone, formatPointsText, parsePointsText } from "../../services/zoneGeometry";
 import ZonePlaceSearch from "./ZonePlaceSearch";
+import ConfigHistory from "./ConfigHistory";
 import type { ChosenZone } from "./ZonePlaceSearch";
 import type { ZoneShape } from "../../services/zoneGeometry";
 import { useProject } from "../../context/ProjectContext";
@@ -3330,6 +3331,8 @@ function EngineSection() {
             </div>
           );
         })()}
+
+        <ConfigHistory projectId={activeProject?.id} />
       </SettingsCard>
 
       {/* Multi-site zone list */}
