@@ -8,6 +8,7 @@ import QuestionCard from './QuestionCard';
 import AdaMethodologyPanel from './AdaMethodologyPanel';
 import ExportPanel from './ExportPanel';
 import AdaConfigProposal from './AdaConfigProposal';
+import ProjectSummary from './ProjectSummary';
 import type { ConfigProposal } from './AdaConfigProposal';
 import { GeneratedQuestionnaire, Question, QualityIssue, Section } from './types';
 
@@ -83,6 +84,9 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
   // so offering it before there is one to store would propose settings for a
   // questionnaire the server has never seen.
   const [configProposal, setConfigProposal] = useState<ConfigProposal | null>(null);
+  // Bumped after a save or an applied proposal so the summary refetches — it
+  // reports what the server has, and the server has just changed.
+  const [summaryNonce, setSummaryNonce] = useState(0);
   const { projectId } = useParams<{ projectId?: string }>();
   const navigate = useNavigate();
 
@@ -177,6 +181,7 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
       setSaveState('saved');
       setSaveError('');
       setShowNextStep(true);
+      setSummaryNonce(n => n + 1);
       if (projectId) {
         projectsApi.configProposal(projectId)
           .then(res => {
@@ -290,11 +295,19 @@ export default function WorkspacePhase({ questionnaire, onUpdate, onRestart }: P
           </div>
         </div>
 
+        {/* The state of the project, refreshed whenever it is saved or the
+            configuration changes. Sits under Ada's proposal card rather than
+            above it: the proposal is an offer, this is what is true now. */}
+        <ProjectSummary key={summaryNonce} projectId={projectId} />
+
         {configProposal && projectId && (
           <AdaConfigProposal
             projectId={projectId}
             proposal={configProposal}
-            onApplied={() => setTimeout(() => setConfigProposal(null), 4000)}
+            onApplied={() => {
+              setSummaryNonce(n => n + 1);
+              setTimeout(() => setConfigProposal(null), 4000);
+            }}
             onDismissed={() => setConfigProposal(null)}
           />
         )}

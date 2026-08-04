@@ -1,7 +1,7 @@
 # Ada configures the project, not just the questionnaire
 
-**Status:** scoped, not built. The two decisions that gate Phase 1 are taken
-(see "Decisions taken"); the remaining open questions do not block it.
+**Status:** all three phases built and merged. Every decision this document
+raised is recorded below with the reasoning that settled it.
 
 **Date:** 2026-08-04
 
@@ -209,19 +209,61 @@ accepts everything, every line has to be individually defensible on sight, with
 its evidence next to it. A line the user cannot check in a glance does not
 belong on a card they approve in one action.
 
-## Open questions — for the founder, not for engineering
+## The remaining two questions, decided (2026-08-04)
 
-Neither of these gates Phase 1.
+**When the questionnaire changes, Ada re-offers — but only when it would
+actually change something.**
 
-1. **What happens when the questionnaire changes afterwards?** If a photo
-   question is deleted a week later, does Ada notice the image context now
-   describes a question that no longer exists? Proposing again is easy;
-   proposing *unprompted* is a judgement call about how much Ada should
-   interrupt.
+Delete the photo question a week later and the image description still tells
+the AI check to look for a landmark nobody is photographing. Never re-offering
+leaves that in place silently; re-offering on every save is noise people learn
+to click past, which matters more than usual here because one click applies
+everything.
 
-2. **Is this a paid-plan feature?** It is the strongest differentiator in the
-   product and also the thing that makes a first project succeed rather than
-   fail. Those pull in opposite directions.
+So the comparison is against the settings that were actually applied, held in
+`project_config_history`. Freshly derive, diff against what was applied, and
+offer again only on a real difference — carrying `questionnaire_changed` and
+the list of keys that moved, so the card can say what changed rather than
+appearing again with no explanation. Nothing changed, nothing to say.
+
+**It is not a paid-plan feature, and should not become one.**
+
+The argument for gating is that it is the strongest differentiator in the
+product. That argument is exactly backwards. The users most likely to
+misconfigure a project — new, evaluating, on a free workspace — are the ones a
+gate would leave running on platform defaults, which is the specific failure
+this feature exists to prevent. A first project that produces meaningless
+verification is not a customer who upgrades later; it is a customer who
+concludes the platform does not work.
+
+It is also the thing that demonstrates what the platform is *for*. Hiding it
+until after purchase means nobody experiences the differentiator before
+deciding whether to buy.
+
+Volume is the right thing to charge for, and `usage_limits.allowance()` already
+does it. Configuration quality is not.
+
+## Phase 3 — the project summary (built 2026-08-04)
+
+`project_summary.py` + `ProjectSummary.tsx`. One panel under the questionnaire:
+what this project collects, and what will actually check it.
+
+The design constraint that shaped it: **it must be as willing to say "will not
+run, and here is why" as it is to say "will run".** Whether a check runs depends
+on the questionnaire *and* the configuration — an image check with no
+description does nothing useful, a zone rule does nothing without a zone — and
+no screen in the platform said so. The 3rd of August went into a setting that
+had silently failed to save, and this is the screen that would have caught it in
+a glance.
+
+So gaps render first, in amber, each with the specific fix. Checks that cannot
+run because the questionnaire does not collect that evidence are a quiet
+footnote rather than a complaint — a text-only questionnaire has no photo
+description to be missing.
+
+Every judgement is made server-side. The component renders and decides nothing:
+a second opinion about whether a check will run is precisely how the dashboard
+came to show a flat 15 for a submission the engine had scored 94.
 
 ## Effort
 
