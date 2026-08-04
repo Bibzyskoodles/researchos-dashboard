@@ -3,7 +3,9 @@
 // points into that document. The engine is a pure function: no I/O, no clock,
 // no randomness. Same submission + same config = same Trust Index, everywhere.
 
-import type { EngineConfig, EngineRequirement } from "./engineConfig";
+import type { AssignedZone, EngineConfig, EngineRequirement } from "./engineConfig";
+import type { ZoneEvaluation, ZoneShape } from "./zoneGeometry";
+import { describeZone, evaluateZone, readableDistance } from "./zoneGeometry";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,8 +175,16 @@ export function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: 
 }
 
 export interface ZoneCheck {
+  /** Distance to the zone's core geometry: the pin, the road centreline, or
+   *  the area (zero inside it). Describes where enumeration happened. */
   distanceM: number;
+  /** How far past the zone's own tolerance — zero whenever inside. This is the
+   *  number the penalty is built on; see zoneGeometry.ts for why the two
+   *  stopped being interchangeable once a zone could be a road or an area. */
+  overshootM: number;
+  /** radiusM for a circle, half-width for a corridor, buffer for a polygon. */
   radiusM: number;
+  shape: ZoneShape;
   withinZone: boolean;
   label?: string;
   matchedZoneIndex?: number; // index into zoneList when matching from a list
@@ -192,40 +202,57 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   const accuracy = numOrNull(sub.gps?.accuracy_m);
 
   // ── Assigned-zone verification (Bible §6.7 / §16) ──
-  // When the client tells us where the enumerator should be, we verify by
-  // haversine distance. Outside the radius acts exactly like the backend's
-  // OUTSIDE_ASSIGNED_ZONE flag (override + hard gate). When no zone is set,
-  // the platform simply reports where enumeration happened.
+  // When the client tells us where the enumerator should be, we verify against
+  // it. A zone may be a pin and a radius, a road corridor, or an area
+  // boundary — zoneGeometry resolves all three to the same two numbers, using
+  // the identical formulas the server runs, so the screen and the record
+  // cannot disagree about the same submission. When no zone is set, the
+  // platform simply reports where enumeration happened.
   //
   // If zoneList is non-empty, we pick the CLOSEST zone and verify against it.
   // This lets one config serve many field sites (e.g. 40 PHCs in a state).
   let zoneCheck: ZoneCheck | null = null;
-  const effectiveZones: (typeof config.assignedZone)[] =
+  const effectiveZones: AssignedZone[] =
     (config.zoneList && config.zoneList.length > 0)
       ? config.zoneList
-      : (config.assignedZone?.lat != null && config.assignedZone?.lon != null ? [config.assignedZone] : []);
+      : (config.assignedZone ? [config.assignedZone] : []);
 
   if (effectiveZones.length > 0 && lat != null && lon != null) {
-    // Find the closest zone
-    let closestIdx = 0;
-    let closestDist = Infinity;
+    // Closest by distance to the zone itself, not to a centre — a corridor and
+    // a polygon do not have one, and for a large circle the centre is the
+    // wrong thing to rank by anyway.
+    let best: { index: number; evaluation: ZoneEvaluation } | null = null;
     effectiveZones.forEach((z, i) => {
-      if (z.lat == null || z.lon == null) return;
-      const d = haversineMeters(lat, lon, z.lat, z.lon);
-      if (d < closestDist) { closestDist = d; closestIdx = i; }
+      const ev = evaluateZone(lat, lon, z);
+      if (!ev) return;   // unusable zone config: verify nothing, accuse nobody
+      if (!best || ev.distanceM < best.evaluation.distanceM) {
+        best = { index: i, evaluation: ev };
+      }
     });
-    const zone = effectiveZones[closestIdx];
-    if (zone && zone.lat != null && zone.lon != null) {
-      const distanceM = Math.round(haversineMeters(lat, lon, zone.lat, zone.lon));
-      const withinZone = distanceM <= zone.radiusM;
+
+    if (best) {
+      // TypeScript narrows `best` to null inside the closure above, so the
+      // assignment is invisible to it; the guard on this line is the proof.
+      const { index: closestIdx, evaluation: ev } = best as { index: number; evaluation: ZoneEvaluation };
+      const zone = effectiveZones[closestIdx];
+      const named = ev.label ? ` "${ev.label}"` : ` the assigned ${describeZone(ev.shape)}`;
       zoneCheck = {
-        distanceM, radiusM: zone.radiusM, withinZone, label: zone.label,
+        distanceM: Math.round(ev.distanceM),
+        overshootM: Math.round(ev.overshootM),
+        radiusM: ev.toleranceM,
+        shape: ev.shape,
+        withinZone: ev.inZone,
+        label: zone.label,
         matchedZoneIndex: config.zoneList && config.zoneList.length > 0 ? closestIdx : undefined,
       };
-      if (withinZone) {
-        audit.push(`Assigned zone: enumeration was ${distanceM} m from${zone.label ? ` "${zone.label}"` : " the assigned location"} — within the ${zone.radiusM} m radius. Presence corroborated.`);
+      if (ev.inZone) {
+        // "0 m from the boundary" reads as though the enumerator were standing
+        // on the line, which is the opposite of what being inside an area means.
+        audit.push(ev.shape === "polygon"
+          ? `Assigned zone: enumeration was inside${named}. Presence corroborated.`
+          : `Assigned zone: enumeration was ${Math.round(ev.distanceM)} m from${named} — within the ${ev.toleranceM} m tolerance. Presence corroborated.`);
       } else {
-        audit.push(`Assigned zone: enumeration was ${distanceM} m from${zone.label ? ` "${zone.label}"` : " the assigned location"} — OUTSIDE the ${zone.radiusM} m radius.`);
+        audit.push(`Assigned zone: enumeration was ${readableDistance(ev.overshootM)} OUTSIDE${named} (${Math.round(ev.distanceM)} m away, tolerance ${ev.toleranceM} m).`);
         if (!flags.includes("OUTSIDE_ASSIGNED_ZONE")) flags.push("OUTSIDE_ASSIGNED_ZONE");
       }
     }
@@ -241,12 +268,18 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   }
 
   // OUTSIDE_ASSIGNED_ZONE has no fixed entry in the table above because its
-  // penalty depends on how far outside the submission was — Bible §7. The same
+  // penalty depends on how far outside the submission was — Bible §6.7. The same
   // formula the server uses (max(0, 100 - km*10)) is applied here so the two
   // agree; a flat 15 made 673 m and 50 km identical, which is what this
-  // replaces. Distance is already known: zoneCheck was computed above.
+  // replaces.
+  //
+  // The distance is the OVERSHOOT — how far past the zone's own tolerance —
+  // not the distance to its centre. Those are the same thing for a small
+  // circle and nothing like it for a 5 km project area, where measuring from
+  // the pin rejects a submission 100 m outside the boundary as though it were
+  // 5 km adrift. Overshoot is also the only one of the two that a polygon has.
   if (zoneCheck && !zoneCheck.withinZone) {
-    const km = zoneCheck.distanceM / 1000;
+    const km = zoneCheck.overshootM / 1000;
     const zoneScore = Math.max(0, 100 - Math.trunc(km * 10));
     const existing = overrideByEngine.gps;
     if (existing === undefined || zoneScore < existing.score) {
@@ -503,12 +536,12 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   }
 
   // ── L6 Risk & Recommendation (Bible §9) ──
-  // A zone breach far enough out is still a veto — Bible §7. Near ones are not,
+  // A zone breach far enough out is still a veto — Bible §6.7. Near ones are not,
   // which is the whole point of the change: distance decides. Mirrors the
   // server's zone_reject_km so both halves reach the same verdict.
   const zoneRejectKm = config.zoneRejectKm ?? 2;
   const zoneBreachRejects = !!zoneCheck && !zoneCheck.withinZone
-    && (zoneCheck.distanceM / 1000) > zoneRejectKm;
+    && (zoneCheck.overshootM / 1000) > zoneRejectKm;
 
   const hasHardGate = flags.some(f => HARD_GATE_FLAGS.has(f)) || zoneBreachRejects;
   const pt = config.passScoreThreshold ?? 60;
@@ -518,7 +551,7 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
     const gateNames = flags.filter(f => HARD_GATE_FLAGS.has(f));
     if (zoneBreachRejects) {
       gateNames.push(
-        `OUTSIDE_ASSIGNED_ZONE (${(zoneCheck!.distanceM / 1000).toFixed(2)} km out, beyond the ${zoneRejectKm} km reject boundary)`,
+        `OUTSIDE_ASSIGNED_ZONE (${(zoneCheck!.overshootM / 1000).toFixed(2)} km beyond the ${describeZone(zoneCheck!.shape)}, past the ${zoneRejectKm} km reject boundary)`,
       );
     }
     audit.push(`Hard gate: ${gateNames.join(", ")} → CRITICAL / REJECT regardless of arithmetic.`);

@@ -292,7 +292,7 @@ describe("§6.7 Assigned-zone verification (haversine)", () => {
   });
 
   it("far outside the radius: still REJECT, and the score reflects the distance", () => {
-    // >10 km out, which is beyond the 2 km reject boundary — Bible §7.
+    // >10 km out, which is beyond the 2 km reject boundary — Bible §6.7.
     const r = computeTrustIndex(FULL_HOUSE,
       cfg({ assignedZone: { lat: 6.6, lon: 3.3, radiusM: 250, label: "Akoka PHC" } }));
     expect(r.zoneCheck!.withinZone).toBe(false);
@@ -307,7 +307,7 @@ describe("§6.7 Assigned-zone verification (haversine)", () => {
     expect(gps.effectiveScore).toBe(0);
   });
 
-  it("just outside the radius: FLAG for review, not REJECT — Bible §7", () => {
+  it("just outside the radius: FLAG for review, not REJECT — Bible §6.7", () => {
     // The live case that prompted the change: 673 m from an assigned pin at the
     // other end of the same road. Previously an unconditional hard gate, which
     // made it indistinguishable from a submission in another state.
