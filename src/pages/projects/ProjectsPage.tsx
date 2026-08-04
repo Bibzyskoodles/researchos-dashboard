@@ -133,6 +133,7 @@ type ImportPlatform = 'kobo' | 'odk' | 'surveycto' | 'csv' | null;
 type ImportStep = 'platform' | 'auth' | 'pick' | 'importing' | 'done';
 
 function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const navigate = useNavigate();
   const [platform, setPlatform] = useState<ImportPlatform>(null);
   const [step, setStep] = useState<ImportStep>('platform');
   const [token, setToken] = useState('');
@@ -145,11 +146,17 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
   const [importError, setImportError] = useState('');
   const overlayRef = useRef<HTMLDivElement>(null);
 
+  // `live` means the flow runs inline in this modal. `goto` means it is built
+  // and working, just set up on Integrations — this screen used to label both
+  // ODK and CSV "Coming soon", which is the natural place someone looks to
+  // answer "how do I get my data in?" and understated the answer by two of
+  // three. Only SurveyCTO has no backend (see fieldscore-backend's route list;
+  // a platform is real once a *_routes.py exists for it).
   const PLATFORMS = [
-    { id: 'kobo', label: 'KoboToolbox', icon: '🗂', desc: 'Import a form and its submissions', live: true },
-    { id: 'odk', label: 'ODK Central', icon: '📱', desc: 'Coming soon', live: false },
-    { id: 'surveycto', label: 'SurveyCTO', icon: '📋', desc: 'Coming soon', live: false },
-    { id: 'csv', label: 'CSV / Excel', icon: '📊', desc: 'Upload a submission export', live: false },
+    { id: 'kobo', label: 'KoboToolbox', icon: '🗂', desc: 'Import a form and its submissions', live: true, goto: '' },
+    { id: 'odk', label: 'ODK Central', icon: '📱', desc: 'Connect your ODK Central server', live: false, goto: '/integrations' },
+    { id: 'csv', label: 'CSV / Excel', icon: '📊', desc: 'Upload a submission export', live: false, goto: '/integrations' },
+    { id: 'surveycto', label: 'SurveyCTO', icon: '📋', desc: 'Not connected yet — talk to us if you need it', live: false, goto: '' },
   ] as const;
 
   const connectKobo = async () => {
@@ -216,19 +223,25 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: .7, marginBottom: 4 }}>Select platform</div>
               {PLATFORMS.map(p => (
-                <button key={p.id} onClick={() => { if (!p.live) return; setPlatform(p.id); setStep('auth'); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: `1px solid ${p.live ? '#E8EDF5' : '#F1F5F9'}`, background: p.live ? 'white' : '#FAFAFA', cursor: p.live ? 'pointer' : 'default', textAlign: 'left', transition: 'border .15s', opacity: p.live ? 1 : 0.55 }}
-                  onMouseEnter={e => { if (p.live) (e.currentTarget as HTMLButtonElement).style.borderColor = BLUE; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = p.live ? '#E8EDF5' : '#F1F5F9'; }}
+                <button key={p.id} onClick={() => {
+                  if (p.live) { setPlatform(p.id); setStep('auth'); return; }
+                  if (p.goto) navigate(p.goto);
+                }}
+                  disabled={!p.live && !p.goto}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: `1px solid ${p.live || p.goto ? '#E8EDF5' : '#F1F5F9'}`, background: p.live || p.goto ? 'white' : '#FAFAFA', cursor: p.live || p.goto ? 'pointer' : 'default', textAlign: 'left', transition: 'border .15s', opacity: p.live || p.goto ? 1 : 0.55 }}
+                  onMouseEnter={e => { if (p.live || p.goto) (e.currentTarget as HTMLButtonElement).style.borderColor = BLUE; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = p.live || p.goto ? '#E8EDF5' : '#F1F5F9'; }}
                 >
                   <span style={{ fontSize: 26 }}>{p.icon}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: p.live ? '#080D1A' : '#9CA3AF' }}>{p.label}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: p.live || p.goto ? '#080D1A' : '#9CA3AF' }}>{p.label}</div>
                     <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{p.desc}</div>
                   </div>
                   {p.live
                     ? <span style={{ fontSize: 12, color: BLUE, fontWeight: 600 }}>→</span>
-                    : <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#F1F5F9', color: '#9CA3AF' }}>SOON</span>}
+                    : p.goto
+                      ? <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#EFF6FF', color: BLUE }}>SET UP</span>
+                      : <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#F1F5F9', color: '#9CA3AF' }}>SOON</span>}
                 </button>
               ))}
             </div>
