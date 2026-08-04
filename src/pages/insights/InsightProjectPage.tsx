@@ -4,7 +4,7 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
-import { insightScoreApi, insightSyncApi, API_BASE_URL } from "../../services/api";
+import api, { insightScoreApi, insightSyncApi } from "../../services/api";
 import { useProject } from "../../context/ProjectContext";
 import { InsightProject, InsightReport, InsightSubmission } from "../../types";
 import { ChevronLeft, Download, AlertCircle, RefreshCw } from "lucide-react";
@@ -394,19 +394,11 @@ export default function InsightProjectPage() {
     setConnecting(true);
     setConnectError(null);
     try {
-      const token = localStorage.getItem("fs_token") || "";
-      const res = await fetch(`${API_BASE_URL}/api/projects/${fsProjectId}/ai-upload`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        body: JSON.stringify({}),
-      });
-      let json: any = {};
-      try { json = await res.json(); } catch {}
-      if (!res.ok) { setConnectError(json.error || `Failed (HTTP ${res.status})`); return; }
+      // See InsightsPage: raw fetch with credentials:"include" made the browser
+      // reject a perfectly good response as "Failed to fetch", because this
+      // backend authenticates by Bearer header and not by cookie.
+      const res = await api.post(`/api/projects/${fsProjectId}/ai-upload`, {});
+      const json: any = res.data || {};
       // Navigate to the newly assigned ISC project ID
       const newIscId = json.insightscore_project_id;
       if (newIscId) navigate(`/insights/${newIscId}`);

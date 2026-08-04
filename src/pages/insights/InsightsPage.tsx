@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { notifyInsightsSeen } from "../../hooks/useVerifiedReadyCount";
-import { insightScoreApi, adaApi, bridgeApi, API_BASE_URL } from "../../services/api";
+import api, { insightScoreApi, adaApi, bridgeApi } from "../../services/api";
 import { useProject } from "../../context/ProjectContext";
 import { InsightProject } from "../../types";
 import { ChevronRight, Clock, ArrowRight, BarChart2, Users, Zap, BookOpen, MessageSquare, Download, Sparkles, Target, ChevronDown } from "lucide-react";
@@ -441,24 +441,19 @@ function AiUploadCard({
     setConnecting(true);
     setConnectError(null);
     try {
-      const token = localStorage.getItem("fs_token") || "";
-      const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/ai-upload`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          research_context: researchContext.trim() || undefined,
-        }),
-      });
-      let json: any = {};
-      try { json = await res.json(); } catch { /* empty body */ }
-      if (!res.ok) {
-        setConnectError(json.error || `Connection failed (HTTP ${res.status})`);
-        return;
-      }
+      // Through the api instance, not raw fetch. `credentials: "include"`
+      // required the server to answer with Access-Control-Allow-Credentials
+      // and a non-wildcard origin — and this backend deliberately uses Bearer
+      // headers rather than cookies, so the browser rejected the response and
+      // reported "Failed to fetch" even when the server had answered fine.
+      // The axios instance also carries auth and the refresh-token retry,
+      // which a hand-rolled fetch silently skipped.
+      const res = await api.post(
+        `/api/projects/${projectId}/ai-upload`,
+        { research_context: researchContext.trim() || undefined },
+      );
+      const json: any = res.data || {};
+      void json;
       onLinked();
     } catch (err: any) {
       setConnectError(err?.message || "Connection failed — please try again.");
