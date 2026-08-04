@@ -543,9 +543,18 @@ export default function SubmissionDetailPage(){
     const checks = sub.checks || {};
     if (checks.audio?.is_genuine_interview !== undefined) {
       const genuine = checks.audio.is_genuine_interview;
+      // Use the server's own score and wording. Substituting a flat 85/20 threw
+      // away a measured number, and the fixed copy asserted "not a genuine
+      // interview" on projects that never set out to collect interviews — the
+      // engine judges the audio against the project's own description, so the
+      // screen must not overrule it with a claim about a format nobody chose.
+      const serverScore = typeof checks.audio.score === "number" ? checks.audio.score : null;
       results.audio = {
-        score: genuine ? 85 : 20,
-        finding: genuine ? "Audio engine verified this as a genuine interview." : "Audio engine flagged this as not a genuine interview — may be scripted or AI-generated speech.",
+        score: serverScore ?? (genuine ? 85 : 20),
+        finding: checks.audio.finding
+          || (genuine
+            ? "Audio matches what this project expects to collect."
+            : "Audio does not match what this project expects to collect — it may be scripted or AI-generated."),
         status: genuine ? "PASS" : "FAIL",
       };
     } else if (checks.audio?.transcript) {
@@ -999,7 +1008,7 @@ export default function SubmissionDetailPage(){
               )}
               {checks.audio?.transcript&&(
                 <div>
-                  <div style={{fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>Interview Transcript</div>
+                  <div style={{fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>Audio Transcript</div>
                   <div style={{maxHeight:180,overflowY:"auto",fontSize:12.5,color:"#374151",lineHeight:1.7,background:"#F8FAFF",padding:12,borderRadius:10,border:"1px solid #E8EDF5"}}>
                     {checks.audio.transcript}
                   </div>
@@ -1007,7 +1016,7 @@ export default function SubmissionDetailPage(){
                     {checks.audio.word_count&&<span style={{fontSize:11,color:"#9CA3AF"}}>{checks.audio.word_count} words</span>}
                     {checks.audio.is_genuine_interview!==undefined&&(
                       <span style={{fontSize:11,fontWeight:600,color:checks.audio.is_genuine_interview?GREEN:RED}}>
-                        {checks.audio.is_genuine_interview?"✓ Genuine interview":"✗ Not a genuine interview"}
+                        {checks.audio.is_genuine_interview?"✓ Matches expected audio":"✗ Does not match expected audio"}
                       </span>
                     )}
                   </div>
