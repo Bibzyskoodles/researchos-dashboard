@@ -269,6 +269,9 @@ export const projectsApi = {
   // config save so there is exactly one path that sets a zone.
   zoneSearch: (id: string, q: string) =>
     api.get(`/api/projects/${id}/zone-search`, { params: { q } }),
+  // What the project collects and what will actually check it. Assembled
+  // server-side: the browser renders this, it does not decide any of it.
+  summary: (id: string) => api.get(`/api/projects/${id}/summary`),
   configProposal: (id: string) => api.get(`/api/projects/${id}/config-proposal`),
   applyConfigProposal: (id: string) => api.post(`/api/projects/${id}/config-proposal/apply`, {}),
   declineConfigProposal: (id: string) => api.post(`/api/projects/${id}/config-proposal/decline`, {}),
