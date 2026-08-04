@@ -11,9 +11,9 @@ gets claimed on stage that cannot be shown.
 
 ## Before you start (10 minutes, not on stage)
 
-1. **Log in and load every screen you plan to show, once.** The backend runs
-   two workers, so the first request after an idle period can be slow. Warming
-   the path removes the only pause the audience would read as "it's broken".
+1. **Log in and load every screen you plan to show, once.** A container that
+   has been idle is cold, and the first request pays for that. Warming the path
+   removes the only pause an audience reads as "it's broken".
 
 2. **Issue a fresh certificate on the project you will demo.** This matters
    more than it sounds. Certificates now state the scoring rules they were
@@ -44,12 +44,20 @@ Each step below is real and currently working.
 | 3 | Ada proposes the verification config | Questionnaire, below the draft | Ada proposes, **you accept**. Say this out loud; it is the governance story |
 | 4 | Project summary | Same screen | Shows checks that will *not* run and why — lead with this, not past it |
 | 5 | Set the collection zone | Settings | Search a road or an area by name; circle / corridor / polygon |
-| 6 | Deploy to KoboToolbox | Questionnaire → Export | Also JSON / ODK XLSForm download |
+| 6 | Deploy to KoboToolbox | Questionnaire → Export | Also JSON / ODK XLSForm download. **Deploy a fresh form** — see the note below |
 | 7 | Submissions arrive and are scored | Submissions | Per-engine breakdown per submission |
 | 8 | Fraud catches | Submissions / Verify | Duplicate photo, out-of-zone, rushed interview |
 | 9 | Change history | Settings → Change history | Who changed the scoring rules, and when |
 | 10 | Issue the certificate | Project → Data Integrity | Criteria block + QR + `/verify/<id>` |
 | 11 | Verify publicly | `/verify/<cert_id>` | Open in a private window, or scan the QR on the certificate. No login. This is the moment |
+
+**Interview times need a freshly deployed form.** Forms built before 4 August
+carry no `start`/`end` metadata, so KoboToolbox never recorded interview length
+for them and duration still reads "not calculable" on submissions collected
+through an old form. Redeploy the questionnaire and collect at least one new
+submission if you want to show duration being verified rather than skipped.
+Submissions already in the project cannot be repaired — the times were never
+captured.
 
 **The strongest 90 seconds** is 10 → 11: issue a certificate, then scan its QR
 code with a phone — or open the verify link in a private window — and show that
@@ -135,8 +143,10 @@ human clicking, and the record shows which of the two it was.
 
 ## Known rough edges (not blockers)
 
-- **First request after idle is slow.** Two sync workers, so the whole backend
-  handles two concurrent requests. Warm it first (step 1 above).
+- **First request after idle is slow.** Cold start, not concurrency — the
+  deployment runs `gunicorn --workers 2 --threads 4 --worker-class gthread`, so
+  it serves up to eight concurrent requests, and the work is I/O-bound waiting
+  on OpenAI and the database. Warm it first (step 1 above).
 - **A large CSV import shows progress but takes real time** — it is scoring
   each row with a model call. Start it before you need it, or use a small file.
 - **Ada's questionnaires are good, not yet excellent.** An external review put
