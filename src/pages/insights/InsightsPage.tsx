@@ -691,6 +691,7 @@ function BridgeStatusPanel({
 export default function InsightsPage() {
   const { activeProject, refreshActiveProject } = useProject();
   const [projects, setProjects] = useState<InsightProject[]>([]);
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<InsightsTab>("analysis");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -711,9 +712,17 @@ export default function InsightsPage() {
       .then(r => {
         const list: InsightProject[] = r.data || [];
         setProjects(list);
+        setLoadError("");
       })
-      .catch(() => {
+      .catch((e: unknown) => {
+        // An empty list and an unreachable service look identical on screen,
+        // and one of them tells the user they have no projects. Say which.
+        const err = e as { response?: { status?: number; data?: { error?: string } } };
         setProjects([]);
+        setLoadError(err?.response?.data?.error
+          || (!err?.response
+            ? "Couldn't reach the analysis service — your projects are safe, this view just can't load them."
+            : `Couldn't load analysis projects (error ${err.response.status}).`));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -846,9 +855,13 @@ export default function InsightsPage() {
               </div>
             ) : projects.length === 0 ? (
               <div style={{ background: "white", borderRadius: 14, padding: "32px 24px", border: "1px solid #E8EDF5", textAlign: "center" }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 4 }}>No projects yet</div>
-                <div style={{ fontSize: 12.5, color: "#9CA3AF" }}>Ada will brief you here once interviews are ready for analysis.</div>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>{loadError ? "⚠" : "📂"}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: loadError ? "#B45309" : "#374151", marginBottom: 4 }}>
+                  {loadError ? "Couldn't load analysis projects" : "No projects yet"}
+                </div>
+                <div style={{ fontSize: 12.5, color: "#9CA3AF" }}>
+                  {loadError || "Ada will brief you here once interviews are ready for analysis."}
+                </div>
               </div>
             ) : (
               <div data-ada-target="insights-projects" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
