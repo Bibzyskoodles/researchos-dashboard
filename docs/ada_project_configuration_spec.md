@@ -1,0 +1,218 @@
+# Ada configures the project, not just the questionnaire
+
+**Status:** scoped, not built. Nothing in this document ships until the open
+questions at the end are answered.
+
+**Date:** 2026-08-04
+
+---
+
+## The gap
+
+Ada finishes designing a questionnaire and stops. The user is handed a form.
+
+But a form containing a GPS question, a photograph and an audio recording is a
+statement about how the fieldwork will be verified — and Ada says nothing about
+it. The user then goes to Settings and configures, by hand, the things her own
+questionnaire already implied.
+
+Every one of those settings exists and works today. None of them are proposed.
+
+That is the difference between *"an AI wrote me a form"* and *"an AI set up my
+fieldwork"*, and it is the only part of this that is genuinely hard for a
+competitor to copy: Kobo and SurveyCTO have questionnaire designers. Neither has
+a verification engine on the other side of one.
+
+## What Ada already knows when the questionnaire is done
+
+Everything below is present in the questionnaire or the consultation that
+produced it. None of it requires new data collection.
+
+| Evidence Ada already has | What it implies |
+|---|---|
+| a `gps` question exists | location is being captured, so it can be verified |
+| an `image` question, and its wording | photos are evidence; the wording says what they should show |
+| an `audio` question, and its wording | audio is evidence; the wording says what it should capture |
+| how many image/audio questions | whether duplicate-media detection is worth the cost |
+| the consultation's target duration | a plausible interview length |
+| the consultation's decision + audience | what "relevant to this study" means to the AI checks |
+| the question count and types | a rough expected interview length to sanity-check against |
+
+## What she proposes
+
+One card, at the end of the design phase, with each line carrying its own
+evidence — the questionnaire is on screen next to it, so every claim is
+checkable in one glance.
+
+```
+Your questionnaire implies a verification setup. I can apply it.
+
+  Photo checks          REQUIRED
+                        Q5 asks for a photograph of a landmark.
+  What the photo
+  should show           "An outdoor landmark — a road, building or permanent
+                        structure, at the location of the interview."
+                        From Q5's own wording and your study context.
+
+  Audio checks          REQUIRED
+                        Q6 asks for an ambient audio sample.
+  What the audio
+  should capture        "Ambient environmental sound at the interview
+                        location. One speaker or none."
+                        From Q6's wording. Confirm the speaker count —
+                        it decides whether impersonation checks apply.
+
+  Interview length      6-25 minutes
+                        You told me to target 15. This allows for a fast
+                        interview and a slow one without flagging either.
+
+  Duplicate detection   ON
+                        Two media questions means the same photo could be
+                        submitted twice. Worth catching.
+
+  Location zone         NOT SET — I need you to tell me where.
+                        Q3 captures GPS, so location can be verified. I
+                        don't know where your enumerators are working and
+                        I will not guess.
+
+                                          [ Apply ]   [ Not now ]
+```
+
+## The rules this must not break
+
+**Ada never guesses a geofence.** This is the hard line in the whole feature.
+She has no idea where the fieldwork is. A fabricated zone rejects honest
+enumerators and withholds their pay, and it would arrive wearing the authority
+of a recommendation. She reports that GPS is capturable and asks. This is the
+same call made on 4 August about single-speaker audio: the platform was
+deliberately not made to infer it from vague wording, because guessing wrong
+silently disables — or in this case silently arms — a fraud control on a project
+that never asked for it.
+
+**Ada does not choose thresholds.** `pass_threshold` and `flag_threshold` encode
+how strict a client wants to be with their own enumerators. That is a commercial
+and ethical decision belonging to whoever pays for the work, and nothing in a
+questionnaire implies it. The platform default stands until a human changes it.
+
+**Nothing is self-executing.** `AI_SECURITY.md`: tool call → confirmation card →
+explicit user click → independent server-side re-verification. The existing
+`propose_delete_project` / `propose_erasure` / `propose_workspace_limit` shape,
+followed exactly. Ada says she has *asked*, never that it is *done*.
+
+**Confidence is generated, not authored.** Per the Ada Bible §, every utterance
+goes through `build_ada_utterance()` with a numeric level. A proposal Ada is
+unsure of must read as unsure — "I recommend checking whether…" — not as a
+recommendation with a hedge stapled on.
+
+**Every line carries its evidence.** A proposal a supervisor cannot check is a
+proposal they have to take on faith, and the whole platform is an argument
+against taking research on faith.
+
+## How it works
+
+### Backend
+
+- `ada/project_config_proposal.py` — **pure**, no model call. Takes a
+  questionnaire dict plus the consultation, returns a list of proposed settings,
+  each with `{key, value, evidence, confidence, question_ids}`. Pure because the
+  derivation rules are the product: they must be testable without a network, and
+  a supervisor asking "why did it suggest that?" deserves an answer that is the
+  same every time.
+
+  The prose in `evidence` and the `image_context`/`audio_context` values are the
+  one part that benefits from the model — but they are generated from the
+  question's own text, and the *structure* of the proposal is not.
+
+- New Ada tool `propose_project_configuration(project_id)`. Emits
+  `CONFIRM_PROJECT_CONFIG` with the proposal.
+
+- `POST /api/projects/<id>/apply-config-proposal` — admin/manager only,
+  org-scoped, **re-derives the proposal server-side from the stored
+  questionnaire** rather than trusting the card's contents, then writes through
+  the existing `PUT /scoring-config` validation (which already refuses a zone it
+  could not enforce). A card is a client-side object; a caller could edit it.
+
+### Frontend
+
+- `CONFIRM_PROJECT_CONFIG` case in `AppShell.tsx`, matching the three that
+  already exist.
+- A proposal card component: one row per setting, evidence beneath, question
+  chips that scroll the questionnaire to the question being cited.
+- After Apply: the "Project Summary" this makes possible — questionnaire *and*
+  configuration in one view, which is what the user actually built.
+
+## Phases
+
+**Phase 1 — the derivation and the card.** Contexts, engine requirements,
+duration bounds, duplicate detection. Everything above except the zone. This is
+the bulk of the value and carries no new risk: every setting is one a user can
+already set by hand, and each is reversible in Settings.
+
+**Phase 2 — the zone conversation.** Ada asks where the work is happening and
+turns an answer into a zone. Now genuinely useful because zones can be roads and
+areas (Trust Bible §6.7), so "we're working along Kusenla Road" has a real
+shape to become. Needs care: the answer is free text and becoming coordinates
+means geocoding it, which means Ada could geocode the wrong place. Probably
+"here are the three places I found, pick one" rather than a silent lookup.
+
+**Phase 3 — the project summary.** One screen: questionnaire, verification
+configuration, estimated interview time, what each engine will check. The thing
+a user shows their client to explain what they bought.
+
+## Deliberately not in scope
+
+- **Auto-applying anything.** Even the safe settings. A configuration that
+  appeared without a click is one nobody remembers agreeing to.
+- **Ada inferring speaker count from wording.** Refused on 4 August for the
+  impersonation check and refused again here, for the same reason.
+- **Ada setting thresholds.** See above.
+- **Enumerator instructions and supervisor checklists** (both suggested in the
+  external review). Good ideas, separate features, no dependency on this one.
+
+## A gap this surfaces
+
+**Project scoring-config changes are not audited.** `security_audit.py` covers
+changes to *who can do what* — its `AUDITED_ACTIONS` whitelist is deliberately
+closed — and a scoring-policy change is not that, so today there is no record of
+who changed a project's pass threshold, image context or zone, or when.
+
+That is already a real gap: `certificate.py` issues a signed attestation about
+submissions scored under a policy that can be changed afterwards with no trace.
+It becomes more pointed if Ada can change the policy too — "Ada suggested it" is
+not an audit trail.
+
+Not part of this feature, but it should be decided before Phase 1 ships rather
+than after. The likely answer is a `project_config_history` table, not an
+addition to `security_audit` (different question, different retention, different
+audience).
+
+## Open questions — for the founder, not for engineering
+
+1. **When does Ada offer this?** Automatically when the questionnaire is
+   finished, or only when asked? Automatic is more impressive on a demo and
+   more presumptuous in daily use.
+
+2. **Does Apply mean "all of it"?** All-or-nothing is one click and one decision.
+   Per-line checkboxes are more honest and slower. My inclination is
+   all-or-nothing with a "change these in Settings" line, because the settings
+   page exists and is where someone would go anyway.
+
+3. **What happens when the questionnaire changes afterwards?** If a photo
+   question is deleted a week later, does Ada notice the image context now
+   describes a question that no longer exists? Proposing again is easy;
+   proposing *unprompted* is a judgement call about how much Ada should
+   interrupt.
+
+4. **Is this a paid-plan feature?** It is the strongest differentiator in the
+   product and also the thing that makes a first project succeed rather than
+   fail. Those pull in opposite directions.
+
+## Effort
+
+Phase 1 is roughly a day: the derivation module and its tests are most of it,
+the card and the route are small, and the pattern it follows already exists
+three times over. Phase 2 is a day and carries the geocoding judgement above.
+Phase 3 is presentation over data that will by then all exist.
+
+The derivation rules are the part worth spending real time on, and the part
+worth arguing about — they are the product opinion. Everything else is wiring.
