@@ -43,13 +43,13 @@ export function parseCsv(text: string): { headers: string[]; rows: Record<string
 
 export const FIELD_MAP: { key: string; label: string; hints: string[] }[] = [
   { key: 'enumerator_id', label: 'Enumerator ID', hints: ['enumerator', 'interviewer', 'agent', 'collector', 'field_agent'] },
-  { key: 'respondent_id', label: 'Respondent ID', hints: ['respondent', 'household', 'hh_id', 'case_id', 'subject'] },
+  { key: 'respondent_id', label: 'Respondent ID', hints: ['respondent', 'respno', 'household', 'hh_id', 'case_id', 'subject'] },
   { key: 'gps_lat',       label: 'GPS Latitude',  hints: ['lat', 'latitude', 'gps_lat', '_gps_latitude'] },
   { key: 'gps_lon',       label: 'GPS Longitude', hints: ['lon', 'lng', 'longitude', 'gps_lon', '_gps_longitude'] },
   { key: 'submitted_at',  label: 'Submission Date', hints: ['date', 'submitted', 'start', 'end', 'timestamp', 'submission_time'] },
   { key: 'overall_score', label: 'Trust Score (0-100)', hints: ['score', 'trust', 'quality', 'overall_score'] },
   { key: 'verdict',       label: 'Verdict (PASS/FLAG/REJECT)', hints: ['verdict', 'status', 'result', 'outcome'] },
-  { key: 'duration',      label: 'Duration (minutes)', hints: ['duration', 'interview_duration', 'minutes', 'elapsed'] },
+  { key: 'duration',      label: 'Duration (minutes)', hints: ['duration', 'interview_duration', 'length', 'minutes', 'elapsed'] },
   { key: 'location',      label: 'Location / Address', hints: ['location', 'address', 'lga', 'state', 'region', 'area'] },
   // Media URLs. Without these the importer had no way to say "this column is
   // the photo", so a spreadsheet carrying image and audio links was scored

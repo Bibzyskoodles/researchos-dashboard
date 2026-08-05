@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import AdaDock from "./AdaDock";
+import ErrorBoundary from "../ErrorBoundary";
 import VerifyEmailBanner from "./VerifyEmailBanner";
 import { useAda } from "../../ada/AdaContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -149,7 +150,6 @@ export default function AppShell() {
     switch (cmd.type) {
       case 'NAVIGATE_TO':
         navigate(cmd.path, cmd.state ? { state: cmd.state } : undefined);
-        setOpen(false);
         break;
 
       case 'OPEN_SETTINGS_SECTION':
@@ -370,7 +370,7 @@ export default function AppShell() {
           </motion.main>
         </AnimatePresence>
       </div>
-      <AdaDock />
+      <ErrorBoundary><AdaDock /></ErrorBoundary>
 
       {/* Ada command toast */}
       <AnimatePresence>
