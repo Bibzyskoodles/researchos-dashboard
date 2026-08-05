@@ -38,6 +38,14 @@ describe("media URL columns are mappable", () => {
     expect(m.image_url).toBe("store_photo");
     expect(m.audio_url).toBe("interview_audio");
   });
+
+  it("auto-detects Afrobarometer-style columns", () => {
+    const m = autoMap(["RESPNO", "DATEINTR", "LENGTH", "REGION", "LOCATION.LEVEL.1"]);
+    expect(m.respondent_id).toBe("RESPNO");
+    expect(m.submitted_at).toBe("DATEINTR");
+    expect(m.duration).toBe("LENGTH");
+    expect(m.location).toBe("REGION");
+  });
 });
 
 describe("the mapped URLs reach the payload", () => {
@@ -92,6 +100,7 @@ describe("several URLs in one cell", () => {
 
   it("handles an empty or missing cell without throwing", () => {
     expect(splitMediaUrls("")).toEqual([]);
-    expect(splitMediaUrls(undefined as unknown as string)).toEqual([]);
+    // @ts-expect-error — testing runtime defence against a missing cell
+    expect(splitMediaUrls(undefined)).toEqual([]);
   });
 });
