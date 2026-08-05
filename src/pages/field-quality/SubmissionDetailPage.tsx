@@ -801,12 +801,23 @@ export default function SubmissionDetailPage(){
           <div style={{flex:1}}>
             <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.7,marginBottom:6}}>Ada · Assessment</div>
             <div style={{fontSize:14,color:"rgba(255,255,255,.85)",lineHeight:1.7}}>{adaBriefing(sub, displayVerdict, trust)}</div>
-            {sub.supervisor_action&&(
-              <div style={{marginTop:12,display:"inline-flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"6px 12px"}}>
-                <span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.5}}>Recommended action:</span>
-                <span style={{fontSize:12,fontWeight:600,color:"white"}}>{sub.supervisor_action}</span>
-              </div>
-            )}
+            {sub.supervisor_action&&(()=>{
+              // Rows scored before flagged-PASS wording existed can carry
+              // "No action required. Submission verified." next to a visible
+              // flag list — the exact contradiction Ada's assessment names.
+              // Show the flag-aware wording instead; anything else displays
+              // the server string verbatim (one source of truth otherwise).
+              const stale = flags.length>0 && /no action required/i.test(sub.supervisor_action);
+              const actionText = stale
+                ? `Verified above threshold. Review ${flags.length} advisory flag${flags.length>1?"s":""} before approving.`
+                : sub.supervisor_action;
+              return (
+                <div style={{marginTop:12,display:"inline-flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",borderRadius:8,padding:"6px 12px"}}>
+                  <span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.5}}>Recommended action:</span>
+                  <span style={{fontSize:12,fontWeight:600,color:"white"}}>{actionText}</span>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>

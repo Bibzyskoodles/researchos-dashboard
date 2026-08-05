@@ -575,12 +575,16 @@ export default function SubmissionsPage(){
                     : selFlags.length > 0
                     ? `Needs review — ${selFlags.length} flag${selFlags.length>1?"s":""}: ${selFlags.slice(0,2).join(", ")}${selFlags.length>2?"…":""}`
                     : `${selVerdict} — needs supervisor review`;
+                  // A stored "No action required" beside a non-empty flag list is
+                  // stale pre-flagged-PASS wording — prefer the flag-aware message.
+                  const staleAction = selFlags.length > 0 && /no action required/i.test(selected.supervisor_action || "");
+                  const actionMsg = !selected.supervisor_action || staleAction ? defaultMsg : selected.supervisor_action;
                   return (
                     <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,background:vbg(selVerdict),border:`1px solid ${vc(selVerdict)}22`}}>
                       <div style={{width:8,height:8,borderRadius:"50%",background:vc(selVerdict),flexShrink:0}}/>
                       <div>
                         <div style={{fontSize:12.5,fontWeight:700,color:vc(selVerdict)}}>{selVerdict}</div>
-                        <div style={{fontSize:11,color:"#6B7280",marginTop:1}}>{selected.supervisor_action||defaultMsg}</div>
+                        <div style={{fontSize:11,color:"#6B7280",marginTop:1}}>{actionMsg}</div>
                       </div>
                     </div>
                   );
