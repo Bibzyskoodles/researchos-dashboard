@@ -177,16 +177,25 @@ const ALL_COLLECTION_MODES = [
     engine: 'Both engines',
     desc: 'Field and remote interviews in one project — one dashboard, one report.',
   },
+  {
+    id: 'historic' as const,
+    icon: '📂',
+    title: 'Historic',
+    engine: 'Verification only',
+    desc: 'Exported data from KoboToolbox, SurveyCTO, ODK or other platforms — quality verification on existing records.',
+  },
 ];
 
 // CallScore is temporarily switched off: only Field mode is offered until the
 // CallScore backend is mapped to the production domain (see src/features.ts).
 const COLLECTION_MODES = ALL_COLLECTION_MODES.filter(
-  (m) => CALLSCORE_ENABLED || m.id === 'field',
+  (m) => CALLSCORE_ENABLED || m.id === 'field' || m.id === 'historic',
 );
 
-function Step3CollectionMode({ onNext, onBack }: { onNext: (mode: 'field' | 'call' | 'hybrid') => void; onBack: () => void }) {
-  const [selected, setSelected] = useState<'field' | 'call' | 'hybrid'>('field');
+type CollectionModeId = 'field' | 'call' | 'hybrid' | 'historic';
+
+function Step3CollectionMode({ onNext, onBack }: { onNext: (mode: CollectionModeId) => void; onBack: () => void }) {
+  const [selected, setSelected] = useState<CollectionModeId>('field');
 
   return (
     <div style={{ maxWidth: 580, margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
@@ -301,7 +310,7 @@ export default function CreateProjectPage() {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [studyTypeId, setStudyTypeId] = useState('');
-  const [collectionMode, setCollectionMode] = useState<'field' | 'call' | 'hybrid'>('field');
+  const [collectionMode, setCollectionMode] = useState<CollectionModeId>('field');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

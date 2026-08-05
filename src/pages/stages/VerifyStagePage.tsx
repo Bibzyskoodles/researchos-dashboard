@@ -14,7 +14,7 @@ export default function VerifyStagePage() {
   const { activeProject } = useProject();
   const mode = activeProject?.collection_mode || 'field';
 
-  const showField = mode === 'field' || mode === 'hybrid';
+  const showField = mode === 'field' || mode === 'hybrid' || mode === 'historic';
   const showCall = mode === 'call' || mode === 'hybrid';
 
   return (

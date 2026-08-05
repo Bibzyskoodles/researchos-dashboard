@@ -16,7 +16,7 @@ export interface Project {
   questionnaire_id?: string;
   kobo_asset_uid?: string;
   insightscore_project_id?: string;
-  collection_mode?: 'field' | 'call' | 'hybrid';
+  collection_mode?: 'field' | 'call' | 'hybrid' | 'historic';
   created_at?: string;
   updated_at?: string;
   // Real stats from the submissions table — null if the backend couldn't
@@ -31,11 +31,11 @@ export interface Project {
 // Per-project collection mode fallback (key = fs_mode_<projectId>).
 // The create wizard writes it so mode-aware UI works even before the
 // backend persists collection_mode; a server value always wins.
-export function getLocalCollectionMode(projectId: string): 'field' | 'call' | 'hybrid' | null {
+export function getLocalCollectionMode(projectId: string): 'field' | 'call' | 'hybrid' | 'historic' | null {
   const v = localStorage.getItem(`fs_mode_${projectId}`);
-  return v === 'field' || v === 'call' || v === 'hybrid' ? v : null;
+  return v === 'field' || v === 'call' || v === 'hybrid' || v === 'historic' ? v : null;
 }
-export function setLocalCollectionMode(projectId: string, mode: 'field' | 'call' | 'hybrid'): void {
+export function setLocalCollectionMode(projectId: string, mode: 'field' | 'call' | 'hybrid' | 'historic'): void {
   localStorage.setItem(`fs_mode_${projectId}`, mode);
 }
 
