@@ -230,6 +230,7 @@ export default function AdaDock() {
         detectAndNavigate(reply);
       }
     } catch {
+      addMessage({ id: (Date.now() + 2).toString(), role: "assistant", content: "I couldn't reach my knowledge base right now. Please try again in a moment.", timestamp: new Date().toISOString() });
       setState("idle");
     } finally {
       setSending(false);

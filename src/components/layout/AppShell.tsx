@@ -149,7 +149,6 @@ export default function AppShell() {
     switch (cmd.type) {
       case 'NAVIGATE_TO':
         navigate(cmd.path, cmd.state ? { state: cmd.state } : undefined);
-        setOpen(false);
         break;
 
       case 'OPEN_SETTINGS_SECTION':
