@@ -46,6 +46,8 @@ export const FIELD_MAP: { key: string; label: string; hints: string[] }[] = [
   { key: 'respondent_id', label: 'Respondent ID', hints: ['respondent', 'respno', 'household', 'hh_id', 'case_id', 'subject'] },
   { key: 'gps_lat',       label: 'GPS Latitude',  hints: ['lat', 'latitude', 'gps_lat', '_gps_latitude'] },
   { key: 'gps_lon',       label: 'GPS Longitude', hints: ['lon', 'lng', 'longitude', 'gps_lon', '_gps_longitude'] },
+  { key: 'gps_alt',       label: 'GPS Altitude',  hints: ['alt', 'altitude', 'gps_alt', '_gps_altitude', 'elevation'] },
+  { key: 'gps_acc',       label: 'GPS Accuracy (m)', hints: ['acc', 'accuracy', 'gps_accuracy', '_gps_accuracy', 'precision'] },
   { key: 'submitted_at',  label: 'Submission Date', hints: ['date', 'submitted', 'start', 'end', 'timestamp', 'submission_time'] },
   { key: 'overall_score', label: 'Trust Score (0-100)', hints: ['score', 'trust', 'quality', 'overall_score'] },
   { key: 'verdict',       label: 'Verdict (PASS/FLAG/REJECT)', hints: ['verdict', 'status', 'result', 'outcome'] },
@@ -126,10 +128,12 @@ export function buildSubmissionsPayload(
     const s: Record<string, any> = { _raw: row, project_id: projectId };
     FIELD_MAP.forEach(f => {
       if (mapping[f.key] && row[mapping[f.key]] !== undefined) {
-        if (f.key === 'gps_lat' || f.key === 'gps_lon') {
+        if (f.key === 'gps_lat' || f.key === 'gps_lon' || f.key === 'gps_alt' || f.key === 'gps_acc') {
           if (!s.gps) s.gps = {};
           if (f.key === 'gps_lat') s.gps.lat = parseFloat(row[mapping[f.key]]) || null;
           if (f.key === 'gps_lon') s.gps.lon = parseFloat(row[mapping[f.key]]) || null;
+          if (f.key === 'gps_alt') s.gps.alt = parseFloat(row[mapping[f.key]]) || null;
+          if (f.key === 'gps_acc') s.gps.acc = parseFloat(row[mapping[f.key]]) || null;
         } else if (f.key === 'overall_score') {
           s.overall_score = parseFloat(row[mapping[f.key]]) || null;
         } else if (f.key === 'image_url' || f.key === 'audio_url') {
