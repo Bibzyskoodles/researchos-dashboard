@@ -51,7 +51,25 @@ export const FIELD_MAP: { key: string; label: string; hints: string[] }[] = [
   { key: 'verdict',       label: 'Verdict (PASS/FLAG/REJECT)', hints: ['verdict', 'status', 'result', 'outcome'] },
   { key: 'duration',      label: 'Duration (minutes)', hints: ['duration', 'interview_duration', 'minutes', 'elapsed'] },
   { key: 'location',      label: 'Location / Address', hints: ['location', 'address', 'lga', 'state', 'region', 'area'] },
+  // Media URLs. Without these the importer had no way to say "this column is
+  // the photo", so a spreadsheet carrying image and audio links was scored
+  // with the image and audio engines reporting "no image field in this
+  // submission" — silently skipping the two checks the product is best at.
+  // The fetching side always worked (media.py handles Google Drive share
+  // links, KoboToolbox attachments and direct file URLs); only the mapping
+  // was missing. Several URLs in one cell are supported, comma- or
+  // semicolon-separated.
+  { key: 'image_url',     label: 'Photo URL(s)', hints: ['photo', 'image', 'picture', 'img', 'store_photo', 'photo_url', 'image_url'] },
+  { key: 'audio_url',     label: 'Audio URL(s)', hints: ['audio', 'recording', 'voice', 'interview_audio', 'audio_url', 'mp3'] },
 ];
+
+/** Splits a spreadsheet cell that may hold several URLs into a clean list. */
+export function splitMediaUrls(cell: string): string[] {
+  return String(cell || '')
+    .split(/[,;\s]+/)
+    .map(u => u.trim())
+    .filter(u => /^https?:\/\//i.test(u));
+}
 
 export function autoMap(headers: string[]): Record<string, string> {
   const mapping: Record<string, string> = {};
@@ -114,6 +132,12 @@ export function buildSubmissionsPayload(
           if (f.key === 'gps_lon') s.gps.lon = parseFloat(row[mapping[f.key]]) || null;
         } else if (f.key === 'overall_score') {
           s.overall_score = parseFloat(row[mapping[f.key]]) || null;
+        } else if (f.key === 'image_url' || f.key === 'audio_url') {
+          // Sent as a list even when there is one URL — the backend maps it
+          // onto the field the engines read, and scoring already supports
+          // several photos or recordings per submission.
+          const urls = splitMediaUrls(row[mapping[f.key]]);
+          if (urls.length) s[f.key === 'image_url' ? 'image_urls' : 'audio_urls'] = urls;
         } else {
           s[f.key] = row[mapping[f.key]];
         }
