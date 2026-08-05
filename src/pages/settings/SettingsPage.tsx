@@ -2742,7 +2742,7 @@ const ENGINE_LABELS: Record<string, { label: string; icon: string; desc: string 
   image:     { label: "Image Quality",   icon: "🖼",  desc: "Verifies photos are real, unedited, and from the field" },
   audio:     { label: "Audio Quality",   icon: "🎙",  desc: "Checks for background noise, muted responses, and authenticity" },
   duplicate: { label: "Duplicate Check", icon: "🔁",  desc: "Detects copy-paste or suspiciously similar submissions" },
-  text_ai:   { label: "AI Detection",    icon: "🤖",  desc: "Identifies AI-written or auto-generated text responses" },
+  text_ai:   { label: "AI Text Detection", icon: "🤖", desc: "Identifies AI-written or auto-generated text responses. Photos are checked separately by the image engine." },
 };
 const ENGINE_ORDER = ["gps","duration","image","audio","duplicate","text_ai"];
 
