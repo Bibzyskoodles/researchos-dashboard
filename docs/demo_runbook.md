@@ -27,7 +27,16 @@ gets claimed on stage that cannot be shown.
    checks as *not configured*, which is the right behaviour and the wrong
    slide.
 
-4. **Have the Project Summary in view before the questionnaire.** It reads
+4. **Re-score the project you will demo** (Project → re-score, or per submission).
+   Rejected submissions used to be stored with a score of **0** — not just a
+   REJECT verdict, the number itself was erased. That is why a project whose
+   submissions individually showed 63–67 read an **average trust score of 6**:
+   the average was counting how many rows got rejected, not measuring quality.
+   A rejected submission now keeps its measured score, capped at 30. **Stored
+   scores do not change until a submission is re-scored**, so a project you
+   demo without re-scoring will still show the old zeros and the old average.
+
+5. **Have the Project Summary in view before the questionnaire.** It reads
    "what this project collects and what will actually check it" — it is the
    single clearest statement of what the product does.
 

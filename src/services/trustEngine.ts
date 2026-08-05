@@ -163,6 +163,18 @@ export const HARD_GATE_FLAGS = new Set([
   "SINGLE_VOICE_DETECTED", "ROAMING_PAIR_DETECTED",
 ]);
 
+// The best Trust Index a hard-gated submission can reach — must equal
+// score_engine.py's HARD_GATE_CEILING.
+//
+// The two halves disagreed here in the least visible way possible: the server
+// zeroed a gated submission's score outright, this engine left it untouched,
+// so the same submission could read 82 on the detail page and 0 in the
+// workspace average. Neither was right. Zero erases the difference between one
+// fabricated photo and a submission that failed everything; leaving it alone
+// lets fabricated evidence report as high-quality data. A ceiling says both
+// things at once — never trustworthy, still measured.
+export const HARD_GATE_CEILING = 30;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseFlags(flags: string | string[] | undefined): string[] {
@@ -577,13 +589,6 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   consistency.forEach(c => audit.push(`Consistency ${c.rule} (${c.delta > 0 ? "+" : ""}${c.delta}): ${c.reading}`));
   if (rawDelta !== consistencyDelta) audit.push(`Consistency total clamped from ${rawDelta} to ${consistencyDelta}.`);
 
-  const trustIndex = totalWeight > 0
-    ? Math.round(Math.min(100, Math.max(0, Q + consistencyDelta)))
-    : Math.round(backendScore ?? 0);
-  if (totalWeight > 0) {
-    audit.push(`Trust Index = ${Q.toFixed(1)}${consistencyDelta !== 0 ? ` ${consistencyDelta > 0 ? "+" : "−"} ${Math.abs(consistencyDelta)} (consistency)` : ""} → ${trustIndex}`);
-  }
-
   // ── L6 Risk & Recommendation (Bible §9) ──
   // A zone breach far enough out is still a veto — Bible §6.7. Near ones are not,
   // which is the whole point of the change: distance decides. Mirrors the
@@ -594,7 +599,21 @@ export function computeTrustIndex(sub: SubmissionLike, config: EngineConfig): Tr
   // to disagree in the first place.
   const zoneBreachRejects = !!zoneCheck && zoneCheck.isCriticalBreach;
 
+  // Resolved before the Trust Index rather than after it, because the gate now
+  // caps the number as well as setting the verdict.
   const hasHardGate = flags.some(f => HARD_GATE_FLAGS.has(f)) || zoneBreachRejects;
+
+  const uncappedIndex = totalWeight > 0
+    ? Math.round(Math.min(100, Math.max(0, Q + consistencyDelta)))
+    : Math.round(backendScore ?? 0);
+  const trustIndex = hasHardGate ? Math.min(uncappedIndex, HARD_GATE_CEILING) : uncappedIndex;
+  if (totalWeight > 0) {
+    audit.push(`Trust Index = ${Q.toFixed(1)}${consistencyDelta !== 0 ? ` ${consistencyDelta > 0 ? "+" : "−"} ${Math.abs(consistencyDelta)} (consistency)` : ""} → ${uncappedIndex}`);
+  }
+  if (hasHardGate && trustIndex < uncappedIndex) {
+    audit.push(`Hard gate caps the Trust Index at ${HARD_GATE_CEILING}: ${uncappedIndex} → ${trustIndex}.`);
+  }
+
   const pt = config.passScoreThreshold ?? 60;
   let risk: RiskLevel; let recommendation: Recommendation; let verdict: Verdict;
   if (hasHardGate) {

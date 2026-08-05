@@ -2,7 +2,7 @@
 // One-to-one with docs/15_TRUST_INTELLIGENCE_BIBLE.md §13 and the edge-case
 // ledger in §12. A change to either side without the other is a build-breaking event.
 
-import { computeTrustIndex, gpsScoreFromAccuracy, haversineMeters } from "./trustEngine";
+import { computeTrustIndex, gpsScoreFromAccuracy, haversineMeters, HARD_GATE_CEILING } from "./trustEngine";
 import { DEFAULT_ENGINE_CONFIG } from "./engineConfig";
 import type { EngineConfig } from "./engineConfig";
 
@@ -126,6 +126,69 @@ describe("S5b The ChatGPT photo — AI-generated image is a hard gate, not a nud
     const image = r.breakdown.find(b => b.key === "image")!;
     expect(image.effectiveScore).toBe(5);
     expect(image.flagOverride).toBe("AI_GENERATED_IMAGE");
+  });
+});
+
+// A hard gate used to set the verdict here and the verdict *and* the score on
+// the server, so the same submission could read 82 on the detail page and 0 in
+// the workspace average. Both halves cap at HARD_GATE_CEILING now.
+describe("S5c The gate caps the Trust Index — it neither erases it nor ignores it", () => {
+  it("caps a gated submission at the ceiling instead of leaving it high", () => {
+    const clean = computeTrustIndex(FULL_HOUSE, cfg());
+    const gated = computeTrustIndex({ ...FULL_HOUSE, flags: ["DUPLICATE_SUBMISSION"] }, cfg());
+    expect(clean.trustIndex).toBeGreaterThan(HARD_GATE_CEILING);
+    expect(gated.trustIndex).toBe(HARD_GATE_CEILING);
+    expect(gated.verdict).toBe("REJECT");
+  });
+
+  it("matches score_engine.py's ceiling exactly — the two must not drift", () => {
+    // The server-side twin is engines/score_engine.py::HARD_GATE_CEILING. This
+    // pins the number a reviewer would otherwise have to check by eye; the
+    // last pair of "keep these in sync" lists silently disagreed for months.
+    expect(HARD_GATE_CEILING).toBe(30);
+  });
+
+  it("never raises a score: a submission already below the ceiling keeps its own", () => {
+    const r = computeTrustIndex(
+      {
+        checks: fullChecks({ gps: 5, duration: 5, image: 5, audio: 5, duplicate: 5, text_ai: 5 }),
+        gps: { lat: 6.5, lon: 3.3, accuracy_m: 8 }, duration_mins: 25,
+        image_url: "https://x/img.jpg", audio_url: "https://x/aud.mp3",
+        flags: ["DUPLICATE_SUBMISSION"],
+      },
+      cfg(),
+    );
+    expect(r.trustIndex).toBeLessThan(HARD_GATE_CEILING);
+  });
+
+  it("still orders gated submissions by how much else was wrong", () => {
+    // The reason for a ceiling rather than a zero: one fabricated photo beside
+    // otherwise clean evidence is not the same data as a submission that failed
+    // every check. Both reject; they are not equally bad.
+    const onlyPhoto = computeTrustIndex({ ...FULL_HOUSE, flags: ["AI_GENERATED_IMAGE"] }, cfg());
+    const everything = computeTrustIndex(
+      {
+        checks: fullChecks({ gps: 3, duration: 3, image: 3, audio: 3, duplicate: 3, text_ai: 3 }),
+        gps: { lat: 6.5, lon: 3.3, accuracy_m: 8 }, duration_mins: 25,
+        image_url: "https://x/img.jpg", audio_url: "https://x/aud.mp3",
+        flags: ["AI_GENERATED_IMAGE"],
+      },
+      cfg(),
+    );
+    expect(onlyPhoto.verdict).toBe("REJECT");
+    expect(everything.verdict).toBe("REJECT");
+    expect(onlyPhoto.trustIndex).toBeGreaterThan(everything.trustIndex);
+  });
+
+  it("says in the audit trail that the cap was applied, and by how much", () => {
+    const r = computeTrustIndex({ ...FULL_HOUSE, flags: ["DUPLICATE_SUBMISSION"] }, cfg());
+    expect(r.audit.some(a => a.includes(`caps the Trust Index at ${HARD_GATE_CEILING}`))).toBe(true);
+  });
+
+  it("leaves an ungated submission's index untouched", () => {
+    const r = computeTrustIndex(FULL_HOUSE, cfg());
+    expect(r.trustIndex).toBe(92);
+    expect(r.audit.some(a => a.includes("caps the Trust Index"))).toBe(false);
   });
 });
 
