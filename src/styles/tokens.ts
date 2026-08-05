@@ -63,7 +63,7 @@ export const DARK_GRADIENT = "linear-gradient(135deg,#1A1F3E 0%,#0F172A 40%,#1E1
 // ─────────────────────────────────────────────────────────────────────────
 
 export type StageId = "design" | "collect" | "verify" | "analyse" | "report";
-export type CollectionMode = "field" | "call" | "hybrid";
+export type CollectionMode = "field" | "call" | "hybrid" | "historic";
 
 export interface StageDef {
   id: StageId;
@@ -91,7 +91,8 @@ export const stageDef = (id: StageId): StageDef =>
   STAGES.find((s) => s.id === id) as StageDef;
 
 export const MODE_META: Record<CollectionMode, { icon: string; label: string; engine: string }> = {
-  field:  { icon: "🧭", label: "Field",  engine: "FieldScore" },
-  call:   { icon: "📞", label: "Call",   engine: "CallScore" },
-  hybrid: { icon: "🔀", label: "Hybrid", engine: "FieldScore + CallScore" },
+  field:    { icon: "🧭", label: "Field",    engine: "FieldScore" },
+  call:     { icon: "📞", label: "Call",     engine: "CallScore" },
+  hybrid:   { icon: "🔀", label: "Hybrid",   engine: "FieldScore + CallScore" },
+  historic: { icon: "📂", label: "Historic", engine: "FieldScore (verification only)" },
 };

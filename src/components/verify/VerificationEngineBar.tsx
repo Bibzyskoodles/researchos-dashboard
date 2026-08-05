@@ -28,7 +28,7 @@ const CALL_CHECKS: Check[] = [
   { icon: '🧬', name: 'Patterns', what: 'Similarity and voice-fingerprint checks across interviews' },
 ];
 
-export default function VerificationEngineBar({ mode }: { mode: 'field' | 'call' | 'hybrid' }) {
+export default function VerificationEngineBar({ mode }: { mode: 'field' | 'call' | 'hybrid' | 'historic' }) {
   const [open, setOpen] = useState(false);
   const groups: { label: string; checks: Check[] }[] =
     mode === 'hybrid'
