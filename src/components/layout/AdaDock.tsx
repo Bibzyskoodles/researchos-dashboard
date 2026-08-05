@@ -34,7 +34,7 @@ function loadShownInsightIds(): Set<string> {
 // Sanitise Ada message content — strip all HTML tags, then apply safe bold only.
 // This prevents XSS from backend-injected markup.
 function sanitiseMessage(raw: string): string {
-  const text = raw.replace(/<[^>]*>/g, "");
+  const text = (raw || "").replace(/<[^>]*>/g, "");
   return text;
 }
 
@@ -212,7 +212,7 @@ export default function AdaDock() {
       const settingsSection = settingsSectionEl?.getAttribute('data-settings-section');
       const effectivePage = settingsSection ? `settings-${settingsSection}` : store.currentPage;
       const res = await adaApi.chat(msg, effectivePage, adaContext);
-      const reply: string = res.data.reply;
+      const reply: string = res.data?.reply || "I wasn't able to process that. Please try again.";
       addMessage({ id: (Date.now() + 1).toString(), role: "assistant", content: reply, timestamp: new Date().toISOString() });
       setState("speaking");
       setTimeout(() => setState("idle"), 3000);
