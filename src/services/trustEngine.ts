@@ -86,7 +86,12 @@ export const ENGINE_LABELS: Record<EngineKey, string> = {
   image: "Image Evidence",
   audio: "Audio Evidence",
   duplicate: "Duplicate Check",
-  text_ai: "AI Detection",
+  // "AI Detection" read as covering every AI check, so a submission could
+  // show "AI Detection: analysis did not run" beside "AI-Generated Image —
+  // the photo shows signs of being AI-generated". Both were true: this
+  // engine reads *text*, and the image engine is a different check. The
+  // label has to say which, or the panel contradicts itself.
+  text_ai: "AI Text Detection",
 };
 
 const PRIMARY_ENGINES = new Set<EngineKey>(["gps", "duration", "image", "audio"]);
