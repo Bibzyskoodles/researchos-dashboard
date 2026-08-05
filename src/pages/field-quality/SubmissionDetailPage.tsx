@@ -463,16 +463,21 @@ export default function SubmissionDetailPage(){
         // Kobo-hosted image regardless of what the image actually contains).
         (imgCheck && imgCheck.status !== "NOT_AVAILABLE")
           ? (() => {
-              // A single weak signal (e.g. missing EXIF alone) is inconclusive —
-              // ordinary re-shared/re-encoded photos lose EXIF too. Only 2+
-              // converging signals actually indicate something suspicious;
-              // matches the threshold ai_detection.py uses for the same data.
+              // This used to fail the check on `metaSigs.length >= 2`, mirroring
+              // a threshold ai_detection.py has since removed. Counting cannot
+              // tell "XMP names Midjourney" from "no EXIF" + "format is PNG" —
+              // and the second pair is what any photo sent through WhatsApp
+              // looks like, so genuine fieldwork failed its metadata check.
+              //
+              // The server now says which signals actually prove something.
+              // Absences are still shown; they no longer condemn.
               const metaSigs: string[] = imgCheck.ai_metadata_signals || [];
-              if (metaSigs.length >= 2) {
-                return { score: 15, finding: `Metadata signals: ${metaSigs.join("; ")}.`, status: "FAIL" as const };
+              const conclusive: string[] = imgCheck.ai_metadata_conclusive || [];
+              if (conclusive.length > 0) {
+                return { score: 5, finding: `Metadata names an AI generator or stock agency: ${conclusive.join("; ")}.`, status: "FAIL" as const };
               }
-              if (metaSigs.length === 1) {
-                return { score: 70, finding: `One weak metadata signal (inconclusive on its own): ${metaSigs[0]}.`, status: "FLAG" as const };
+              if (metaSigs.length > 0) {
+                return { score: 70, finding: `Nothing in the metadata names a generator. Weaker observations, each with ordinary explanations: ${metaSigs.join("; ")}.`, status: "FLAG" as const };
               }
               return { score: 90, finding: "No AI tool signatures or missing-camera-metadata patterns found.", status: "PASS" as const };
             })()
