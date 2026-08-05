@@ -507,7 +507,7 @@ Hard gates first, arithmetic second:
 | Condition (first match wins) | Risk | Recommendation | Verdict (UI) |
 |---|---|---|---|
 | INELIGIBLE | CRITICAL | REJECT | REJECT |
-| Any hard-gate flag (§6.5) | CRITICAL | REJECT | REJECT |
+| Any hard-gate flag (§6.5) | CRITICAL | REJECT | REJECT — **and T is capped at `HARD_GATE_CEILING` = 30** (§9.1) |
 | T < 50 | CRITICAL | REJECT | REJECT |
 | 50 ≤ T < passThreshold (70) | HIGH | REVIEW | FLAG |
 | T ≥ passThreshold, flags present | MEDIUM | REVIEW | FLAG |
@@ -520,6 +520,44 @@ automatic rejection is reserved for critical-risk conditions. This is the correc
 false-rejection / false-approval asymmetry for paid field work: a wrongly-rejected honest
 enumerator is a person unpaid for real work, while a wrongly-passed submission still faces
 supervisor review.
+
+### 9.1 A hard gate caps the Trust Index — it does not erase it
+
+`HARD_GATE_CEILING = 30`, in both `trustEngine.ts` and `engines/score_engine.py`.
+
+The two halves used to disagree about this in the least visible way available. The server
+set the score to **0** on any hard gate; this engine left the score untouched and changed
+only the verdict. The same submission could therefore read 82 on its detail page and 0 in
+the workspace average.
+
+Neither was right:
+
+- **Zero erases the measurement.** A submission with clean GPS, a sound duration, a real
+  recording and one fabricated photo scored 0 — *identically* to a submission that failed
+  every check. Both are rejected; they are not equally bad data, and a supervisor deciding
+  which enumerator to retrain cannot tell them apart.
+- **It made the workspace average uninterpretable.** The average stopped measuring data
+  quality and started counting gates. A real project with eleven submissions scoring in the
+  sixties averaged **6**, because nine were gated and contributed nothing but their count.
+- **Leaving the score alone is the opposite failure.** Fabricated evidence would report as
+  high-quality data everywhere the number appears, including the certificate.
+
+A ceiling says both things at once. The gated submission can never read as trustworthy —
+30 sits below the D boundary (§6, `GRADE_THRESHOLDS`) so a gate always grades F, and below
+the default `flagThreshold` of 45 so it always lands in the reject band — while the
+arithmetic underneath still orders gated submissions by how much else was wrong.
+
+Three properties the implementation must keep, each pinned by test on both sides:
+
+1. **`min`, never assignment.** A submission already scoring below the ceiling keeps its
+   own worse number. A gate can only ever cost points.
+2. **The verdict is forced to REJECT independently of the score.** The cap makes the number
+   honest; it is not what excludes the row from the dataset. A project with a pass threshold
+   of 30 must not see a gated submission pass on arithmetic.
+3. **The grade is re-derived from the capped score**, not pinned to `"F"` — so the letter
+   stays a function of the number shown beside it, and cannot drift from it.
+
+This is the same idiom as §6.7's `ZONE_BREACH_CEILING`: disqualifying, still measured.
 
 ---
 
@@ -602,6 +640,8 @@ Every case below has defined behavior and (where marked ✓) a scenario test.
 | E29 ✓ | Outside the zone by less than the GPS fix's own error | Not scored as a breach — 70, flagged for review. The reading cannot place the submission either side of the line, and asserting otherwise would claim more than the evidence supports (§6.7) |
 | E27 ✓ | No assigned zone configured | Verification skipped; coordinates + address simply reported |
 | E28 ✓ | A zone configured but unreadable (no points, two-corner area, over the vertex cap) | Verification skipped and said so — never a rejection; the settings route refuses it at save time (§6.7) |
+| E30 ✓ | A hard-gate flag on an otherwise near-perfect submission | REJECT, and T capped at 30 — not zeroed. The submission still outscores one that failed every check, so the workspace average measures data quality rather than counting gates (§9.1) |
+| E31 ✓ | A hard-gate flag on a submission already scoring below 30 | Keeps its own lower score. The ceiling is a `min`, never an assignment — a gate can only cost points (§9.1) |
 
 ---
 
@@ -620,6 +660,7 @@ Selected core scenarios (full set in the test file):
 | S3 The hard wall | Same as S2 but image HARD_REQUIRED | INELIGIBLE, T = 0, REJECT |
 | S4 Platform's fault | image_url present, no image check score | Image excluded, no penalty, completeness credits 50% |
 | S5 The duplicate | All engines 90+, `DUPLICATE_SUBMISSION` flag | CRITICAL, REJECT, duplicate row shows 0 with flag attribution |
+| S5c The gate caps, it does not erase | All engines 90+, one hard-gate flag | REJECT, T = 30 exactly (not 0, not 92); audit names the cap; a gated submission that also failed everything else scores lower still (§9.1) |
 | S6 Rushed & silent | `DURATION_TOO_SHORT` + `AUDIO_EMPTY` | Overrides force both engines down; R1 fires −5; audit shows the pattern |
 | S7 Legacy row | Only `overall_score: 77` on the record | UNVERIFIED, T = 77, confidence 0.30 |
 | S8 The gray zone | Measured evidence averaging ≈ 60, no hard flags | FLAG / REVIEW / HIGH risk — never auto-REJECT |
