@@ -44,6 +44,7 @@ const ZONE_SHAPE_OPTIONS: Array<{ value: ZoneShape; label: string; icon: string;
 ];
 
 const PLAN_META: Record<string, { label: string; blurb: string }> = {
+  solo:         { label: "Solo",         blurb: "For individual researchers — 600 verifications per month, full platform." },
   starter:      { label: "Starter",      blurb: "For small teams getting started with verified collection." },
   professional: { label: "Professional", blurb: "Higher volume, full verification engines and reporting." },
   enterprise:   { label: "Enterprise",   blurb: "For large programmes, procurement and multi-team rollouts." },
