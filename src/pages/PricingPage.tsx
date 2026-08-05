@@ -17,7 +17,7 @@ const LABEL: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: "#9
 
 type MetricKey = "fieldscore" | "interviews" | "reports" | "presentations" | "questionnaires";
 type Volumes = Record<MetricKey, number>;
-type PlanName = "Starter" | "Professional" | "Enterprise";
+type PlanName = "Solo" | "Starter" | "Professional" | "Enterprise";
 
 const GOALS = [
   { key: "verify", label: "Verify Fieldwork", desc: "Ensure data quality in the field", icon: "🔍", metrics: ["fieldscore"] },
@@ -36,6 +36,14 @@ const METRICS: { key: MetricKey; label: string; desc: string; min: number; max: 
 ];
 
 const PLANS: Record<PlanName, { price_ngn: number; price_usd: number; riu: number; popular: boolean; caps: Record<MetricKey, number>; features: string[]; support: string; cta: string }> = {
+  // Solo's verification cap mirrors the server's enforcing copy
+  // (usage_limits.PLAN_PERIOD_CAPS["solo"] = 600 per 30-day period).
+  Solo: {
+    price_ngn: 50000, price_usd: 31, riu: 800, popular: false,
+    caps: { fieldscore: 600, interviews: 20, reports: 2, presentations: 1, questionnaires: 1 },
+    features: ["Up to 600 FieldScore verifications", "20 qualitative interviews", "2 executive reports", "1 presentation", "1 questionnaire", "800 Research Intelligence Units", "Email support"],
+    support: "Email support", cta: "Choose Solo",
+  },
   Starter: {
     price_ngn: 150000, price_usd: 94, riu: 1000, popular: false,
     caps: { fieldscore: 500, interviews: 50, reports: 5, presentations: 3, questionnaires: 2 },
@@ -57,6 +65,7 @@ const PLANS: Record<PlanName, { price_ngn: number; price_usd: number; riu: numbe
 };
 
 const PLAN_DESC: Record<PlanName, string> = {
+  Solo: "For individual researchers and consultants working alone.",
   Starter: "For small teams running focused studies.",
   Professional: "For active research teams running multiple projects.",
   Enterprise: "For organisations with large-scale or continuous research.",
@@ -71,6 +80,8 @@ function recommend(v: Volumes): PlanName {
   const highs = [v.fieldscore > 3000, v.interviews > 500, v.reports > 50, v.presentations > 30].filter(Boolean).length;
   if (v.fieldscore > 3000 || highs >= 2) return "Enterprise";
   if (v.fieldscore >= 500 || v.interviews > 50 || v.reports > 5 || v.presentations > 3 || v.questionnaires > 2) return "Professional";
+  // A genuinely one-person workload fits Solo; anything wider is Starter.
+  if (v.interviews <= 20 && v.reports <= 2 && v.presentations <= 1 && v.questionnaires <= 1) return "Solo";
   return "Starter";
 }
 
@@ -134,6 +145,7 @@ function buildAdaAdvice(goals: Record<string, boolean>, ev: Volumes, activeKeys:
   }
 
   const why: Record<PlanName, string> = {
+    Solo: "that's a one-person workload — Solo covers it at an individual price, not a team one",
     Starter: "that's a focused workload that fits comfortably in Starter without overpaying",
     Professional: "that's an active, multi-project pace — Professional gives you room to grow",
     Enterprise: "that's large-scale, continuous research where unlimited capacity pays for itself",
@@ -519,7 +531,7 @@ export default function PricingPage() {
         {/* PLAN CARDS */}
         <div style={{ marginTop: 20 }}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            {(["Starter", "Professional", "Enterprise"] as PlanName[]).map(name => (
+            {(["Solo", "Starter", "Professional", "Enterprise"] as PlanName[]).map(name => (
               <PlanCard key={name} name={name} currency={currency} recommended={plan === name} />
             ))}
           </div>
