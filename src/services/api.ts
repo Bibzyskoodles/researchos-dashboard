@@ -132,6 +132,13 @@ export const authApi = {
   changePassword: (current_password: string, new_password: string) =>
     api.post('/auth/change-password', { current_password, new_password }),
   resendVerification: () => api.post('/auth/resend-verification'),
+  // Self-serve password reset. The request route answers identically whether
+  // or not the address has an account (no existence oracle), so the UI shows
+  // the same confirmation either way. Confirm spends the emailed single-use
+  // token and signs the user out of every other device server-side.
+  requestPasswordReset: (email: string) => api.post('/auth/reset', { email }),
+  confirmPasswordReset: (token: string, password: string) =>
+    api.post('/auth/reset/confirm', { token, password }),
 };
 
 // Platform-operator only. The backend gates /admin/* on the caller's own

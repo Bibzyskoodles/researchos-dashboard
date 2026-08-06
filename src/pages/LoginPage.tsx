@@ -75,7 +75,10 @@ export default function LoginPage() {
           <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Email address</label>
           <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@organisation.com"
             style={{width:"100%",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 13px",fontSize:13.5,fontFamily:"Inter,sans-serif",color:"#080D1A",outline:"none",marginBottom:16,boxSizing:"border-box"}} />
-          <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Password</label>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:5}}>
+            <label style={{fontSize:12,fontWeight:600,color:"#374151"}}>Password</label>
+            <a href="/reset-password" style={{fontSize:12,color:"#2463EB",fontWeight:600,textDecoration:"none"}}>Forgot password?</a>
+          </div>
           <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••"
             style={{width:"100%",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 13px",fontSize:13.5,fontFamily:"Inter,sans-serif",color:"#080D1A",outline:"none",marginBottom:20,boxSizing:"border-box"}} />
           <button type="submit" disabled={loading}

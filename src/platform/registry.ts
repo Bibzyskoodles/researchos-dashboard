@@ -78,7 +78,11 @@ export const ALL_CAPABILITY_IDS = CAPABILITIES.map(c => c.id);
 const TIER_RANK: Record<LicenseTier, number> = { starter: 0, professional: 1, enterprise: 2 };
 
 export function capabilitiesForPlan(plan?: string | null): CapabilityId[] {
-  if (!plan || plan === "trial" || plan === "enterprise") return ALL_CAPABILITY_IDS;
+  // `solo` is deliberately full-access: it is sold as "the whole platform,
+  // volume-capped" — its 600-per-period ceiling is enforced server-side by
+  // usage_limits, never by hiding features here. Named explicitly so it stops
+  // riding the unknown-plan fallback by accident.
+  if (!plan || plan === "trial" || plan === "solo" || plan === "enterprise") return ALL_CAPABILITY_IDS;
   const rank = TIER_RANK[plan as LicenseTier];
   if (rank === undefined) return ALL_CAPABILITY_IDS; // unknown → don't hide anything
   return CAPABILITIES.filter(c => TIER_RANK[c.requiredLicense] <= rank).map(c => c.id);

@@ -10,6 +10,7 @@ import { PlatformProvider } from './platform/PlatformProvider';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import ProjectsPage from './pages/projects/ProjectsPage';
 import CreateProjectPage from './pages/projects/CreateProjectPage';
 import ProjectPage from './pages/projects/ProjectPage';
@@ -45,6 +46,13 @@ const DemoPage = React.lazy(() => import('./demo/DemoPage'));
 // page). Lazy — a visitor who never opens it shouldn't pay for its bundle.
 const ConfiguratorPage = React.lazy(() => import('./pages/configure/ConfiguratorPage'));
 
+// Public pricing page and the live "meet Ada" voice session. Both were fully
+// built and never routed — the marketing site links to /pricing and /meeting,
+// and until these routes existed those links bounced prospects to the login
+// form. Lazy for the same bundle reason as the configurator.
+const PricingPage = React.lazy(() => import('./pages/PricingPage'));
+const MeetingAdaPage = React.lazy(() => import('./pages/MeetingAdaPage'));
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return (
@@ -74,6 +82,9 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* Public: request a reset link, and the emailed link's landing page
+          (?token=…). See ResetPasswordPage for the no-existence-oracle rule. */}
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* Public deployment configurator — no auth, no API calls until the
           visitor chooses to send their configuration. */}
@@ -87,6 +98,23 @@ function AppRoutes() {
       <Route path="/demo" element={
         <React.Suspense fallback={<div style={{ height: '100vh', background: '#0A0F1F', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,.5)', fontFamily: 'Inter,sans-serif', fontSize: 14 }}>Loading FieldScore demo…</div>}>
           <DemoPage />
+        </React.Suspense>
+      } />
+
+      {/* Public pricing — every plan including Solo, NGN/USD toggle. The free
+          card links to /register; a visitor never needs an account to see a
+          price. */}
+      <Route path="/pricing" element={
+        <React.Suspense fallback={<div style={{ height: '100vh', background: '#F7F9FC' }} />}>
+          <PricingPage />
+        </React.Suspense>
+      } />
+
+      {/* Public live Ada voice session — the marketing site's "Talk to Ada"
+          links point here. */}
+      <Route path="/meeting" element={
+        <React.Suspense fallback={<div style={{ height: '100vh', background: '#0A0F1F' }} />}>
+          <MeetingAdaPage />
         </React.Suspense>
       } />
 

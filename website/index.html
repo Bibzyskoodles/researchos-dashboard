@@ -353,7 +353,8 @@ textarea.form-input{resize:vertical;min-height:88px}
 .pb-title em{font-style:italic;color:var(--blue)}
 .pb-body{font-size:16px;color:var(--slate);margin:20px auto 0;max-width:520px;line-height:1.8}
 .pb-currency-note{display:inline-flex;align-items:center;gap:6px;margin-top:16px;font-size:12.5px;color:var(--slate);background:var(--mist-2);padding:5px 12px;border-radius:999px}
-.pb-plans{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:52px;text-align:left}
+.pb-plans{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:52px;text-align:left}
+@media(max-width:980px){.pb-plans{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:680px){.pb-plans{grid-template-columns:1fr}}
 .pb-plan{padding:28px;border-radius:16px;background:var(--white);border:1.5px solid var(--mist);transition:border-color .2s,transform .2s,box-shadow .2s}
 .pb-plan:hover{border-color:rgba(36,99,235,.3);transform:translateY(-3px);box-shadow:0 16px 40px rgba(12,14,21,.06)}
@@ -868,18 +869,25 @@ textarea.form-input{resize:vertical;min-height:88px}
     </div>
     <div class="pb-plans">
       <div class="pb-plan arrive d2">
+        <div class="pb-plan-name">Solo</div>
+        <div class="pb-plan-price">₦50,000 <span>/ mo</span></div>
+        <div class="pb-plan-price-usd">≈ $31 USD / month</div>
+        <div class="pb-plan-desc">600 verifications a month, full platform. For independent researchers and consultants.</div>
+        <a href="https://app.intelligencyai.com.ng/register" class="pb-plan-cta">Start free trial</a>
+      </div>
+      <div class="pb-plan arrive d2">
         <div class="pb-plan-name">Starter</div>
         <div class="pb-plan-price">₦150,000 <span>/ mo</span></div>
         <div class="pb-plan-price-usd">≈ $90 USD / month</div>
         <div class="pb-plan-desc">500 verifications, 50 interviews analysed, 5 reports. For small teams running focused studies.</div>
-        <a href="https://app.intelligencyai.com.ng" class="pb-plan-cta">Start free trial</a>
+        <a href="https://app.intelligencyai.com.ng/register" class="pb-plan-cta">Start free trial</a>
       </div>
       <div class="pb-plan featured arrive d3">
         <div class="pb-plan-name">Professional</div>
         <div class="pb-plan-price">₦350,000 <span>/ mo</span></div>
         <div class="pb-plan-price-usd">≈ $210 USD / month</div>
         <div class="pb-plan-desc">2,000 verifications, 200 interviews, 20 reports. For active teams running multiple projects.</div>
-        <a href="https://app.intelligencyai.com.ng" class="pb-plan-cta">Start free trial</a>
+        <a href="https://app.intelligencyai.com.ng/register" class="pb-plan-cta">Start free trial</a>
       </div>
       <div class="pb-plan arrive d4">
         <div class="pb-plan-name">Enterprise</div>
@@ -890,7 +898,7 @@ textarea.form-input{resize:vertical;min-height:88px}
       </div>
     </div>
     <div class="arrive d5" style="margin-top:28px">
-      <a href="https://app.intelligencyai.com.ng/billing" style="font-size:14px;font-weight:600;color:var(--blue);border-bottom:1px solid rgba(36,99,235,.3);padding-bottom:2px">See full pricing and feature comparison →</a>
+      <a href="https://app.intelligencyai.com.ng/pricing" style="font-size:14px;font-weight:600;color:var(--blue);border-bottom:1px solid rgba(36,99,235,.3);padding-bottom:2px">See full pricing and feature comparison →</a>
     </div>
   </div>
 </section>
@@ -943,7 +951,7 @@ textarea.form-input{resize:vertical;min-height:88px}
     <div>
       <div class="footer-col-title">Get started</div>
       <div class="footer-links">
-        <a href="https://app.intelligencyai.com.ng">Free trial</a>
+        <a href="https://app.intelligencyai.com.ng/register">Free trial</a>
         <a href="#" onclick="openModal();return false;">Request demo</a>
         <a href="https://app.intelligencyai.com.ng">Log in</a>
       </div>
