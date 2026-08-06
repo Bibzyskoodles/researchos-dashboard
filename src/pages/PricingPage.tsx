@@ -199,7 +199,7 @@ function PlanCard({ name, currency, recommended }: { name: PlanName; currency: "
       </div>
       {isEnt
         ? <a href={SALES} style={{ marginTop: 18, textAlign: "center", padding: "11px", borderRadius: 9, background: "white", border: "1px solid #E2E8F0", color: "#374151", fontSize: 13.5, fontWeight: 700, textDecoration: "none" }}>{p.cta}</a>
-        : <Link to="/login" style={{ marginTop: 18, textAlign: "center", padding: "11px", borderRadius: 9, background: p.popular ? BLUE : "#0F172A", color: "white", fontSize: 13.5, fontWeight: 700, textDecoration: "none" }}>{p.cta}</Link>}
+        : <Link to="/register" style={{ marginTop: 18, textAlign: "center", padding: "11px", borderRadius: 9, background: p.popular ? BLUE : "#0F172A", color: "white", fontSize: 13.5, fontWeight: 700, textDecoration: "none" }}>{p.cta}</Link>}
     </div>
   );
 }
@@ -492,7 +492,7 @@ export default function PricingPage() {
               <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: 0.8 }}>Estimated Monthly Investment</div>
               <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: -1.5, marginTop: 6 }}>{money(p.price_ngn, currency, plan === "Enterprise")}</div>
               <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.5)" }}>Billed monthly. Cancel anytime.</div>
-              <Link to="/login" style={{ display: "block", textAlign: "center", marginTop: 14, padding: "12px", borderRadius: 10, background: BLUE, color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Start free · 50 submissions</Link>
+              <Link to="/register" style={{ display: "block", textAlign: "center", marginTop: 14, padding: "12px", borderRadius: 10, background: BLUE, color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Start free · 50 submissions</Link>
               <a href={SALES} style={{ display: "block", textAlign: "center", marginTop: 8, fontSize: 12.5, color: "rgba(255,255,255,.6)", textDecoration: "none" }}>Talk to Sales Team →</a>
 
               <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>

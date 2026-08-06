@@ -1808,6 +1808,13 @@ const capitalise = (v: string) => v.charAt(0).toUpperCase() + v.slice(1);
 // ─── BillingSection ───────────────────────────────────────────────────────────
 interface BillingData {
   plan: string; status: string; trial_ends_at?: string | null;
+  // The verification allowance for capped plans (free tier, solo). Comes from
+  // the same server-side source the upload cap enforces with; null limit or
+  // unlimited=true means no ceiling to show.
+  allowance?: {
+    limit: number | null; used: number | null;
+    remaining: number | null; unlimited: boolean;
+  } | null;
   // The paid period. `plan` above is the *effective* plan (the server downgrades
   // it once the period lapses), while `plan_on_record` is the stored value —
   // showing the effective one keeps this panel consistent with what the upload
@@ -1888,8 +1895,11 @@ function BillingSection() {
     total_submissions_all_time: 0, payment_processing_configured: false, payments: [],
   };
 
-  const statusColor = B.status === "active" ? GREEN : B.status === "trial" ? AMBER : RED;
-  const statusLabel = B.status === "active" ? "Active" : B.status === "trial" ? "Trial" : B.status;
+  const statusColor = B.status === "active" ? GREEN : RED;
+  const statusLabel = B.status === "active" ? "Active" : B.status;
+  // The internal plan value for the free tier is still 'trial'; customers see
+  // "Free" — there is no countdown, only the verification allowance below.
+  const displayPlan = (B.plan || "trial").toLowerCase() === "trial" ? "Free" : B.plan;
   const scored = B.usage_this_month.submissions_scored;
 
   const adaMsg = billing
@@ -2034,7 +2044,7 @@ function BillingSection() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: "1px solid #F1F5F9", flexWrap: "wrap" as const, gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 20, fontWeight: 900, color: "#080D1A", letterSpacing: -0.5, textTransform: "capitalize" as const }}>{B.plan}</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: "#080D1A", letterSpacing: -0.5, textTransform: "capitalize" as const }}>{displayPlan}</span>
               <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: `${statusColor}14`, color: statusColor, border: `1px solid ${statusColor}30` }}>{statusLabel}</span>
             </div>
             {B.plan_expires_at ? (
@@ -2046,10 +2056,14 @@ function BillingSection() {
                     : `Renews ${new Date(B.plan_expires_at).toLocaleDateString()}`}
                 </span>
               </>
-            ) : B.trial_ends_at && (
+            ) : B.allowance && !B.allowance.unlimited && B.allowance.limit != null && (
               <>
                 <div style={{ width: 1, height: 24, background: "#E8EDF5" }} />
-                <span style={{ fontSize: 12.5, color: "#6B7280" }}>Trial ends {new Date(B.trial_ends_at).toLocaleDateString()}</span>
+                <span style={{ fontSize: 12.5, color: (B.allowance.remaining ?? 0) <= 0 ? RED : "#6B7280" }}>
+                  {(B.allowance.remaining ?? 0) <= 0
+                    ? `All ${B.allowance.limit.toLocaleString()} included verifications used — upgrade to keep verifying`
+                    : `${(B.allowance.used ?? 0).toLocaleString()} of ${B.allowance.limit.toLocaleString()} included verifications used`}
+                </span>
               </>
             )}
           </div>

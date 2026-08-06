@@ -8,6 +8,11 @@ import { getIndustry, getStudyType } from '../../context/ResearchContext';
 import HealthRing from '../../gamify/HealthRing';
 import { useGamify } from '../../gamify/GamifyContext';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
+import WelcomeModal from '../../components/onboarding/WelcomeModal';
+
+// One welcome per browser, not per session — the modal is a first-run guide,
+// not a recurring interstitial.
+const WELCOME_DISMISSED_KEY = 'fs_welcome_dismissed';
 
 const BLUE = '#2463EB';
 const GREEN = '#059669';
@@ -386,6 +391,21 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const [showCleanup, setShowCleanup] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  // First-run onboarding: a fresh workspace (no projects, never dismissed)
+  // gets the 4-step welcome. This modal existed, fully built, and was never
+  // mounted anywhere — new users landed on an empty page with one button.
+  useEffect(() => {
+    if (!loading && projects.length === 0 && !localStorage.getItem(WELCOME_DISMISSED_KEY)) {
+      setShowWelcome(true);
+    }
+  }, [loading, projects.length]);
+
+  const dismissWelcome = () => {
+    localStorage.setItem(WELCOME_DISMISSED_KEY, '1');
+    setShowWelcome(false);
+  };
 
   const loadProjects = () => {
     projectsApi.list()
@@ -424,6 +444,7 @@ export default function ProjectsPage() {
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
+      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
       {showImport && <ImportModal onClose={() => setShowImport(false)} onImported={() => { setLoading(true); loadProjects(); }} />}
       {showCleanup && (
         <CleanupModal
@@ -522,18 +543,31 @@ export default function ProjectsPage() {
             No projects yet
           </div>
           <div style={{ fontSize: 14, color: '#6B7280', marginBottom: 24 }}>
-            Create your first project to get started.
+            Start fresh, or bring in data you already have — a spreadsheet from
+            a past survey works, and verification runs on it the moment it lands.
           </div>
-          <button
-            onClick={() => navigate('/projects/new')}
-            style={{
-              background: BLUE, color: 'white', border: 'none',
-              borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-            }}
-          >
-            Create your first project →
-          </button>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => navigate('/projects/new')}
+              style={{
+                background: BLUE, color: 'white', border: 'none',
+                borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              }}
+            >
+              Create your first project →
+            </button>
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                background: 'white', color: '#374151', border: '1px solid #E2E8F0',
+                borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              }}
+            >
+              ↓ Import existing data
+            </button>
+          </div>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>

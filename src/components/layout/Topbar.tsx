@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useGamify } from '../../gamify/GamifyContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useProject } from '../../context/ProjectContext';
+import UsageMeter from './UsageMeter';
 import type { Project } from '../../context/ProjectContext';
 import { projectsApi } from '../../services/api';
 
@@ -223,6 +224,9 @@ export default function Topbar({ onRefresh, onMenuToggle }: TopbarProps) {
 
       {/* Right */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
+        {/* Verification allowance — capped workspaces see where they stand
+            BEFORE the 402; renders nothing on unlimited plans. */}
+        {!isMobile && <UsageMeter />}
         {/* Rewards credit — ambient, only visible once credits exist */}
         {creditsBalance > 0 && (
           <button
@@ -265,10 +269,13 @@ export default function Topbar({ onRefresh, onMenuToggle }: TopbarProps) {
             title="Notifications"
           >
             <Bell size={13} />
-            {(org?.status === 'trial' || org?.status === 'expired') && (
+            {/* status 'trial' no longer exists — the free tier is a permanent
+                allowance (see UsageMeter); 'expired' is the operator
+                kill-switch and still warrants the dot. */}
+            {org?.status === 'expired' && (
               <span style={{
                 position: 'absolute', top: 4, right: 4, width: 6, height: 6,
-                borderRadius: '50%', background: org.status === 'expired' ? '#DC2626' : '#D97706',
+                borderRadius: '50%', background: '#DC2626',
                 border: '1px solid white',
               }} />
             )}
