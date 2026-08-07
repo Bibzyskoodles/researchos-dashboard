@@ -4,6 +4,9 @@ import { ShieldCheck, ExternalLink, Copy, Award } from 'lucide-react';
 import { useGamify, Certificate } from './GamifyContext';
 import { openCertificate } from './certificatePrint';
 import { certificateApi, dashboardApi } from '../services/api';
+import UpgradeNotice from '../components/billing/UpgradeNotice';
+import { upgradeRequired } from '../services/planFeatures';
+import type { UpgradeRequired } from '../services/planFeatures';
 
 const BLUE = '#2463EB';
 
@@ -21,6 +24,9 @@ export default function DataIntegrityCard() {
   const [justIssued, setJustIssued] = useState<Certificate | null>(null);
   const [policyNote, setPolicyNote] = useState('');
   const [issueError, setIssueError] = useState('');
+  // A refusal because the workspace is on the free plan is not an error —
+  // nothing went wrong, and the remedy is a link rather than a retry.
+  const [upgrade, setUpgrade] = useState<UpgradeRequired | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,6 +50,7 @@ export default function DataIntegrityCard() {
     if (!canIssue || issuing) return;
     setIssuing(true);
     setIssueError('');
+    setUpgrade(null);
     setPolicyNote('');
     try {
       const res = await certificateApi.issue(projectId);
@@ -58,7 +65,12 @@ export default function DataIntegrityCard() {
         : '');
       await openCertificate(projectId);
     } catch (e: any) {
-      setIssueError(e?.response?.data?.error || 'Could not issue a certificate — please try again.');
+      const needsUpgrade = upgradeRequired(e);
+      if (needsUpgrade) {
+        setUpgrade(needsUpgrade);
+      } else {
+        setIssueError(e?.response?.data?.error || 'Could not issue a certificate — please try again.');
+      }
     } finally {
       setIssuing(false);
     }
@@ -117,6 +129,8 @@ export default function DataIntegrityCard() {
           {issueError}
         </div>
       )}
+
+      {upgrade && <UpgradeNotice upgrade={upgrade} style={{ marginTop: 10 }} />}
 
       {justIssued && !issueError && (
         <div style={{ marginTop: 10, fontSize: 11.5, color: '#059669', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '8px 12px' }}>

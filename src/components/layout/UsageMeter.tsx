@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { orgSettingsApi } from '../../services/api';
 
 /**
- * The verification-allowance pill in the topbar: "38 / 50 verifications".
+ * The verification-allowance pill in the topbar: "38 / 500 verifications".
  *
  * Until this existed the only way a workspace discovered its cap was a 402
  * on upload — there was no meter anywhere, no warning at 80%, and Kobo

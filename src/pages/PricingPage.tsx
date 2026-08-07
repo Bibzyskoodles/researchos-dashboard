@@ -11,7 +11,13 @@ const DARK = "#1A1F3E";
 const SALES = "mailto:bibilade@intelligencyai.com.ng";
 /** Mirrors the server's `FREE_SUBMISSION_LIMIT` (usage_limits.py), which is
  *  the enforcing copy. Shown here so the free tier states a real number. */
-const FREE_SUBMISSIONS = 50;
+// Mirrors usage_limits.FREE_SUBMISSION_LIMIT. Raised from 50 to 500 when the
+// backend started bounding AI spend directly (free_tier.py) instead of using
+// this count as a proxy for the bill.
+const FREE_SUBMISSIONS = 500;
+// Mirrors free_tier.FREE_AI_SUBMISSIONS. The count above is what may be
+// verified; this is how much of it gets the checks that cost us money.
+const FREE_AI_SUBMISSIONS = 25;
 
 const LABEL: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.8 };
 
@@ -507,7 +513,7 @@ export default function PricingPage() {
               <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: 0.8 }}>Estimated Monthly Investment</div>
               <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: -1.5, marginTop: 6 }}>{money(p.price_ngn, p.price_usd, currency, plan === "Enterprise")}</div>
               <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.5)" }}>Billed monthly. Cancel anytime.</div>
-              <Link to="/register" style={{ display: "block", textAlign: "center", marginTop: 14, padding: "12px", borderRadius: 10, background: BLUE, color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Start free · 50 submissions</Link>
+              <Link to="/register" style={{ display: "block", textAlign: "center", marginTop: 14, padding: "12px", borderRadius: 10, background: BLUE, color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Start free · {FREE_SUBMISSIONS} verifications</Link>
               <a href={SALES} style={{ display: "block", textAlign: "center", marginTop: 8, fontSize: 12.5, color: "rgba(255,255,255,.6)", textDecoration: "none" }}>Talk to Sales Team →</a>
 
               <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
@@ -534,7 +540,7 @@ export default function PricingPage() {
                 <span style={{ fontSize: 10.5, fontWeight: 700, color: BLUE, background: "#EFF5FF", borderRadius: 20, padding: "3px 9px", textTransform: "uppercase", letterSpacing: 0.6 }}>No card required</span>
               </div>
               <div style={{ fontSize: 13.5, color: "#4B5563", lineHeight: 1.6 }}>
-                Your first {FREE_SUBMISSIONS} submissions, fully verified — every fraud check, every engine, the same as a paid plan. Nothing expires.
+                {FREE_SUBMISSIONS} verifications, and nothing expires. Location, impossible travel, duration, duplicates, submission bursts and answer quality run on every one. The AI checks — fake photos, staged audio, contradictions — run on your first {FREE_AI_SUBMISSIONS}. Certificates, shared report links and the analysis export come with a paid plan.
               </div>
             </div>
             <Link to="/register" style={{ textAlign: "center", padding: "12px 22px", borderRadius: 10, background: BLUE, color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
