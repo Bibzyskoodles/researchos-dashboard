@@ -529,8 +529,21 @@ export const orgSettingsApi = {
   // `currency` is a choice between the price lists the server says it can
   // collect in (GET /plans → currencies) — never a price. The amount is always
   // looked up server-side for that currency.
-  startPlanUpgrade: (plan: string, currency?: string) =>
-    api.post('/api/org/upgrade', { plan, ...(currency ? { currency } : {}) }),
+  // `auto_renew` is an opt-in that only takes effect if the payment succeeds:
+  // the card authorisation is stored by the signed Paystack webhook, never by
+  // the browser. There is deliberately no "enable" endpoint — the only way on
+  // is to tick this at checkout.
+  startPlanUpgrade: (plan: string, currency?: string, autoRenew?: boolean) =>
+    api.post('/api/org/upgrade', {
+      plan,
+      ...(currency ? { currency } : {}),
+      ...(autoRenew ? { auto_renew: true } : {}),
+    }),
+  // Whether automatic renewal is on, and which card. Never returns the stored
+  // authorisation itself.
+  getAutoRenew: () => api.get('/api/org/auto-renew'),
+  // Turning it off erases the stored card server-side, not just a flag.
+  cancelAutoRenew: () => api.delete('/api/org/auto-renew'),
   // The borrowable sample project — 15 curated submissions so a new workspace
   // isn't empty before its own data arrives. Admin-only server-side. The rows
   // carry a reserved id prefix the verification cap ignores, so loading the

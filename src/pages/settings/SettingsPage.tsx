@@ -1850,6 +1850,34 @@ function BillingSection() {
   // choice to offer, so no toggle is rendered.
   const [currencies, setCurrencies] = useState<string[]>(["NGN"]);
   const [currency, setCurrency] = useState("NGN");
+  // Automatic renewal. `autoRenew` is what the server says is active today;
+  // `renewAutomatically` is the tick box on the plan picker, which only means
+  // anything at the moment of paying — the card is stored by the signed
+  // webhook, never here.
+  const [autoRenew, setAutoRenew] = useState<{ enabled: boolean; card: string | null; currency: string | null } | null>(null);
+  const [renewAutomatically, setRenewAutomatically] = useState(true);
+  const [cancellingRenew, setCancellingRenew] = useState(false);
+
+  const reloadAutoRenew = useCallback(() => {
+    orgSettingsApi.getAutoRenew()
+      .then(r => setAutoRenew(r.data))
+      .catch(() => { /* no control rather than a wrong one */ });
+  }, []);
+
+  useEffect(() => { reloadAutoRenew(); }, [reloadAutoRenew]);
+
+  const turnOffAutoRenew = async () => {
+    setCancellingRenew(true);
+    try {
+      await orgSettingsApi.cancelAutoRenew();
+      setAutoRenew({ enabled: false, card: null, currency: null });
+      toast.show("Automatic renewal is off. Your saved card has been removed.");
+    } catch (e: any) {
+      toast.show(e?.response?.data?.error || "Couldn't turn off automatic renewal.");
+    } finally {
+      setCancellingRenew(false);
+    }
+  };
   const [showPlans, setShowPlans] = useState(false);
   const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null);
   const toast = useToast();
@@ -1885,7 +1913,7 @@ function BillingSection() {
     if (params.get("upgrade") === "success") {
       toast.show("Payment received — your new plan will be active in a moment.");
       window.history.replaceState({}, "", window.location.pathname);
-      const t = setTimeout(reloadBilling, 3500);
+      const t = setTimeout(() => { reloadBilling(); reloadAutoRenew(); }, 3500);
       return () => clearTimeout(t);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1896,7 +1924,7 @@ function BillingSection() {
     setUpgradingPlan(plan);
     track("upgrade_clicked", { plan });
     try {
-      const res = await orgSettingsApi.startPlanUpgrade(plan, currency);
+      const res = await orgSettingsApi.startPlanUpgrade(plan, currency, renewAutomatically);
       const url = res.data?.payment_url;
       if (url) { window.location.href = url; return; }  // hand off to Paystack
       toast.show("Couldn't start the payment — please try again.");
@@ -2104,7 +2132,39 @@ function BillingSection() {
           </div>
         </div>
 
-        {/* Plan picker — real one-time Paystack upgrade. Prices come from the
+        {/* Automatic renewal, when it's on. Kept visible next to the plan
+            rather than buried: a customer must always be able to see that
+            something will charge them, and stop it in one click. */}
+        {autoRenew?.enabled && (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 12, flexWrap: "wrap" as const, padding: "12px 24px",
+            borderTop: "1px solid #F1F5F9", background: "#F8FAFC",
+          }}>
+            <div style={{ fontSize: 12.5, color: "#374151" }}>
+              <b>Renews automatically.</b>{" "}
+              <span style={{ color: "#6B7280" }}>
+                {autoRenew.card ? `${autoRenew.card} · ` : ""}
+                charged {autoRenew.currency === "USD" ? "in US dollars" : "in naira"} when
+                the current period ends. We email you first.
+              </span>
+            </div>
+            <button
+              onClick={turnOffAutoRenew}
+              disabled={cancellingRenew}
+              style={{
+                background: "white", color: "#B45309", border: "1px solid #FDE68A",
+                borderRadius: 7, padding: "6px 13px", fontSize: 12.5, fontWeight: 600,
+                cursor: cancellingRenew ? "default" : "pointer",
+                fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" as const,
+              }}
+            >
+              {cancellingRenew ? "Turning off…" : "Turn off automatic renewal"}
+            </button>
+          </div>
+        )}
+
+        {/* Plan picker — real Paystack upgrade. Prices come from the
             backend; the plan changes only once the signed webhook confirms. */}
         {showPlans && paymentsConfigured && (
           <div style={{ borderTop: "1px solid #F1F5F9", padding: "18px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
@@ -2155,8 +2215,30 @@ function BillingSection() {
                 </div>
               );
             })}
+            {/* Opt-in, and off by nobody's default but the customer's choice
+                here. The card is stored by the signed payment webhook only if
+                this was ticked AND the charge succeeds. */}
+            <label style={{
+              gridColumn: "1 / -1", display: "flex", alignItems: "flex-start", gap: 9,
+              marginTop: 4, cursor: "pointer",
+            }}>
+              <input
+                type="checkbox"
+                checked={renewAutomatically}
+                onChange={e => setRenewAutomatically(e.target.checked)}
+                style={{ width: 15, height: 15, marginTop: 1, flexShrink: 0, cursor: "pointer" }}
+              />
+              <span style={{ fontSize: 12.5, color: "#374151", lineHeight: 1.5 }}>
+                <b>Renew automatically each period.</b>{" "}
+                <span style={{ color: "#6B7280" }}>
+                  We'll charge this card again when the period ends, so verification never
+                  stops mid-project. You can turn it off any time — that removes the saved
+                  card entirely — and we email you before every renewal.
+                </span>
+              </span>
+            </label>
             <div style={{ gridColumn: "1 / -1", fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
-              One-time payment via Paystack — your plan activates as soon as payment is confirmed. Prices shown per month.
+              Paid via Paystack — your plan activates as soon as payment is confirmed. Prices shown per month.
             </div>
           </div>
         )}
