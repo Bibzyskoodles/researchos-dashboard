@@ -27,7 +27,10 @@ export const CAPABILITIES: Capability[] = [
       { to: "/submissions", label: "Submissions", icon: FileText, section: WORKSPACE, order: 1 },
       { to: "/enumerators", label: "Team", icon: Users, section: WORKSPACE, order: 2, labelKey: "enumerators" },
       { to: "/map", label: "Coverage Map", icon: Map, section: WORKSPACE, order: 3 },
-      { to: "/clean", label: "Clean Room", icon: Shield, section: WORKSPACE, order: 4 },
+      // /data-cleaning is the real route (App.tsx). This said "/clean", which
+      // matched nothing and fell through the catch-all to /projects — the nav
+      // item for a paid capability silently went nowhere.
+      { to: "/data-cleaning", label: "Clean Room", icon: Shield, section: WORKSPACE, order: 4 },
     ],
   },
   {
