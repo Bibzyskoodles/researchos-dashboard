@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { INDUSTRY_PROFILES } from '../../context/ResearchContext';
 import FieldScoreLogo from '../../components/brand/FieldScoreLogo';
 import api from '../../services/api';
+import { track } from '../../services/funnel';
 
 const BLUE = '#2463EB';
 
@@ -16,6 +17,9 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [step, setStep] = useState(1);
+  // signup_started; signup_completed is recorded server-side by /auth/register,
+  // so the started→completed gap is measurable.
+  useEffect(() => { track('signup_started'); }, []);
   const [name, setName] = useState('');
   const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');

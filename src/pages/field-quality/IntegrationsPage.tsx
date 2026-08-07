@@ -6,6 +6,7 @@ import { useAda } from "../../ada/AdaContext";
 import { useAdaGreeting } from "../../hooks/useAdaGreeting";
 import { dashboardApi, projectsApi, orgSettingsApi, API_BASE_URL } from "../../services/api";
 import { loadEngineConfig } from "../../services/engineConfig";
+import { track } from "../../services/funnel";
 import { computeTrustIndex } from "../../services/trustEngine";
 import { useProject } from "../../context/ProjectContext";
 import { FIELD_MAP, autoMap, loadSpreadsheetFile, buildSubmissionsPayload } from "../../services/csvImport";
@@ -506,6 +507,7 @@ function CsvUploadCard({ projectId, insightscoreProjectId }: { projectId?: strin
         if (st?.complete) {
           const failNote = failed > 0 ? ` (${failed} could not be scored and were skipped)` : '';
           setResult(`✓ ${done} submissions scored and imported into "${projectName.trim()}"${failNote}.${limitNote}`);
+          track('data_imported', { method: 'csv' });
           setStage('done');
           return;
         }

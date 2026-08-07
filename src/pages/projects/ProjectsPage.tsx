@@ -9,6 +9,7 @@ import HealthRing from '../../gamify/HealthRing';
 import { useGamify } from '../../gamify/GamifyContext';
 import { useAdaGreeting } from '../../hooks/useAdaGreeting';
 import WelcomeModal from '../../components/onboarding/WelcomeModal';
+import { track } from '../../services/funnel';
 
 // One welcome per browser, not per session — the modal is a first-run guide,
 // not a recurring interstitial.
@@ -197,6 +198,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
         target_submissions: selected.deployment_count || undefined,
       });
       recordEvent('project_created');
+      track('project_created', { method: 'kobo' });
       setStep('done');
       setTimeout(() => { onImported(); onClose(); }, 1800);
     } catch {

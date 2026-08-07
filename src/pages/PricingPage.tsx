@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { adaApi } from "../services/api";
+import { track } from "../services/funnel";
 import FieldScoreLogo from "../components/brand/FieldScoreLogo";
 
 // ── Public marketing page — no auth, no dashboard shell ──────────────────────
@@ -206,6 +207,7 @@ function PlanCard({ name, currency, recommended }: { name: PlanName; currency: "
 
 export default function PricingPage() {
   const [currency, setCurrency] = useState<"NGN" | "USD">("NGN");
+  useEffect(() => { track("page_view", { page: "pricing" }); }, []);
   const [goals, setGoals] = useState<Record<string, boolean>>({});
   const [volumes, setVolumes] = useState<Volumes>(() => {
     const v = {} as Volumes; METRICS.forEach(m => { v[m.key] = m.def; }); return v;
