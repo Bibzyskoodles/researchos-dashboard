@@ -526,8 +526,11 @@ export const orgSettingsApi = {
   // browser redirects to. The plan only changes once the signed webhook
   // confirms payment (see fieldscore-backend payments.py) — this call never
   // changes state itself.
-  startPlanUpgrade: (plan: string) =>
-    api.post('/api/org/upgrade', { plan }),
+  // `currency` is a choice between the price lists the server says it can
+  // collect in (GET /plans → currencies) — never a price. The amount is always
+  // looked up server-side for that currency.
+  startPlanUpgrade: (plan: string, currency?: string) =>
+    api.post('/api/org/upgrade', { plan, ...(currency ? { currency } : {}) }),
   // The borrowable sample project — 15 curated submissions so a new workspace
   // isn't empty before its own data arrives. Admin-only server-side. The rows
   // carry a reserved id prefix the verification cap ignores, so loading the
