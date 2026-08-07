@@ -5,6 +5,7 @@ import { projectsApi } from '../../services/api';
 import { setLocalCollectionMode } from '../../context/ProjectContext';
 import { getIndustry, StudyType } from '../../context/ResearchContext';
 import { useGamify } from '../../gamify/GamifyContext';
+import { track } from '../../services/funnel';
 import { CALLSCORE_ENABLED } from '../../features';
 
 const BLUE = '#2463EB';
@@ -326,6 +327,7 @@ export default function CreateProjectPage() {
         target_submissions: target,
       });
       recordEvent('project_created');
+      track('project_created', { method: 'manual' });
       setLocalCollectionMode(res.data.project.id, collectionMode);
       navigate(`/projects/${res.data.project.id}`);
     } catch (err: any) {

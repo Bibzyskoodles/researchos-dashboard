@@ -11,6 +11,7 @@ import { useAda } from "../../ada/AdaContext";
 import { useGamify } from "../../gamify/GamifyContext";
 import CreditsPanel from "../../gamify/CreditsPanel";
 import { orgAdminApi } from "../../services/api";
+import { track } from "../../services/funnel";
 import { useNavigate as useNav, useLocation } from "react-router-dom";
 import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
 import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
@@ -1877,6 +1878,7 @@ function BillingSection() {
   const startUpgrade = async (plan: string) => {
     if (upgradingPlan) return;
     setUpgradingPlan(plan);
+    track("upgrade_clicked", { plan });
     try {
       const res = await orgSettingsApi.startPlanUpgrade(plan);
       const url = res.data?.payment_url;
