@@ -241,8 +241,11 @@ export default function SubmissionsPage(){
       // look like impossible travel. scored_at is only a last resort.
       submission_date: s.submission_date || s.scored_at || "",
       gps: s.gps ? { lat: s.gps.lat, lon: s.gps.lon } : null,
-    })));
-  }, [subs]);
+    // The project's own speed bands, not this file's. The server scores travel
+    // against these; reading them differently here would put "Plausible" beside
+    // a submission the engine had already rejected for the same trip.
+    })), engineCfg.travelThresholds);
+  }, [subs, engineCfg]);
 
   const load = useCallback((isRefresh=false, pageOffset=0)=>{
     if(isRefresh) setRefreshing(true);

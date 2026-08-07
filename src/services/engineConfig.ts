@@ -87,6 +87,20 @@ export interface GatingConfig {
   duplicate_reject_skips: string[];
 }
 
+/** Speed bands, km/h. Strictly increasing: suspicious < veryHigh < impossible. */
+export interface TravelThresholds {
+  suspiciousKph: number;
+  veryHighKph: number;
+  impossibleKph: number;
+}
+
+/** The server's engines/travel_engine.py defaults. Kept identical on purpose. */
+export const DEFAULT_TRAVEL_THRESHOLDS: TravelThresholds = {
+  suspiciousKph: 120,   // above realistic sustained road speed
+  veryHighKph: 350,     // faster than any land vehicle in normal use
+  impossibleKph: 900,   // faster than a commercial airliner
+};
+
 export interface EngineConfig {
   // Research defaults
   gpsToleranceMeters: number;
@@ -105,6 +119,13 @@ export interface EngineConfig {
   // the engine that issues the real verdict agree. 0 restores the old
   // reject-at-any-distance rule.
   zoneRejectKm: number;
+  // How fast an enumerator may appear to move between two of their own
+  // interviews before the verdict changes. Mirrors the server's
+  // travel_suspicious_kph / travel_very_high_kph / travel_impossible_kph so the
+  // cross-submission analysis on the Submissions page reaches the same reading
+  // as the engine that actually scored them — a browser saying "impossible"
+  // beside a server PASS is worse than not saying it.
+  travelThresholds: TravelThresholds;
   assignedZone: AssignedZone;       // Bible §6.7 — single zone (legacy / simple projects)
   zoneList: ZoneList;               // Bible §16 — many named field sites; overrides assignedZone when non-empty
   gating: GatingConfig;
@@ -134,6 +155,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   enabled: { gps: true, duration: true, image: true, audio: true, duplicate: true, text_ai: true },
   requirements: { ...DEFAULT_REQUIREMENTS },
   zoneRejectKm: 2,
+  travelThresholds: { ...DEFAULT_TRAVEL_THRESHOLDS },
   assignedZone: { lat: null, lon: null, radiusM: 250, label: "" },
   zoneList: [],
   gating: {
@@ -175,6 +197,7 @@ export function loadEngineConfig(): EngineConfig {
       enabled,
       requirements,
       assignedZone: { ...DEFAULT_ENGINE_CONFIG.assignedZone, ...(parsed.assignedZone || {}) },
+      travelThresholds: { ...DEFAULT_TRAVEL_THRESHOLDS, ...(parsed.travelThresholds || {}) },
       zoneList: Array.isArray(parsed.zoneList) ? parsed.zoneList : [],
       gating: {
         gps_reject_skips: parsed.gating?.gps_reject_skips ?? [...DEFAULT_ENGINE_CONFIG.gating.gps_reject_skips],
