@@ -95,8 +95,8 @@ export default function RegisterPage() {
               {[
                 { label: 'Your name', value: name, set: setName, placeholder: 'Jane Smith', type: 'text' },
                 { label: 'Organisation name', value: orgName, set: setOrgName, placeholder: 'Acme Research Ltd', type: 'text' },
-                { label: 'Work email address', value: email, set: setEmail, placeholder: 'you@organisation.com', type: 'email',
-                  hint: 'Your organisation’s address — personal and temporary mailboxes aren’t accepted.' },
+                { label: 'Email address', value: email, set: setEmail, placeholder: 'you@organisation.com', type: 'email',
+                  hint: 'Work or personal — we’ll send a confirmation link, so use a mailbox you can open.' },
                 { label: 'Password', value: password, set: setPassword, placeholder: '••••••••', type: 'password' },
               ].map(f => (
                 <div key={f.label} style={{ marginBottom: 14 }}>
