@@ -1827,7 +1827,10 @@ interface BillingData {
   total_submissions_all_time: number;
   payment_processing_configured: boolean;
   // Real plan-upgrade payments from GET /api/org/billing (subscriptions table).
-  payments?: Array<{ plan: string; amount_ngn: number | null; paystack_ref: string | null; started_at: string }>;
+  // `amount_ngn` is a legacy column name, not a promise the figure is naira —
+  // read it with `currency` (absent on rows written before multi-currency,
+  // all of which were naira).
+  payments?: Array<{ plan: string; amount_ngn: number | null; currency?: string; paystack_ref: string | null; started_at: string }>;
 }
 
 function BillingSection() {
@@ -1838,8 +1841,15 @@ function BillingSection() {
   const [adaAsking, setAdaAsking] = useState(false);
   const [billing, setBilling] = useState<BillingData | null>(null);
   const [billingError, setBillingError] = useState("");
-  const [plans, setPlans] = useState<Array<{ id: string; price_ngn: number }>>([]);
+  const [plans, setPlans] = useState<Array<{
+    id: string; price_ngn: number; prices?: Record<string, number>;
+  }>>([]);
   const [paymentsConfigured, setPaymentsConfigured] = useState(false);
+  // Currencies this deployment can actually collect in (server-gated: USD only
+  // appears once Paystack is configured for it). A single entry means no
+  // choice to offer, so no toggle is rendered.
+  const [currencies, setCurrencies] = useState<string[]>(["NGN"]);
+  const [currency, setCurrency] = useState("NGN");
   const [showPlans, setShowPlans] = useState(false);
   const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null);
   const toast = useToast();
@@ -1856,7 +1866,13 @@ function BillingSection() {
   // never hardcoded here — so a price change is a backend-only edit.
   useEffect(() => {
     orgSettingsApi.getPlans()
-      .then(r => { setPlans(r.data?.plans || []); setPaymentsConfigured(!!r.data?.payment_processing_configured); })
+      .then(r => {
+        setPlans(r.data?.plans || []);
+        setPaymentsConfigured(!!r.data?.payment_processing_configured);
+        const list: string[] = r.data?.currencies?.length ? r.data.currencies : ["NGN"];
+        setCurrencies(list);
+        setCurrency(c => (list.includes(c) ? c : list[0]));
+      })
       .catch(() => { /* upgrade UI just stays hidden if this fails */ });
   }, []);
 
@@ -1880,7 +1896,7 @@ function BillingSection() {
     setUpgradingPlan(plan);
     track("upgrade_clicked", { plan });
     try {
-      const res = await orgSettingsApi.startPlanUpgrade(plan);
+      const res = await orgSettingsApi.startPlanUpgrade(plan, currency);
       const url = res.data?.payment_url;
       if (url) { window.location.href = url; return; }  // hand off to Paystack
       toast.show("Couldn't start the payment — please try again.");
@@ -2092,14 +2108,39 @@ function BillingSection() {
             backend; the plan changes only once the signed webhook confirms. */}
         {showPlans && paymentsConfigured && (
           <div style={{ borderTop: "1px solid #F1F5F9", padding: "18px 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
+            {currencies.length > 1 && (
+              <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 600 }}>Pay in</span>
+                {currencies.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setCurrency(c)}
+                    style={{
+                      padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "Inter, sans-serif",
+                      border: `1px solid ${currency === c ? BLUE : "#E2E8F0"}`,
+                      background: currency === c ? "#EEF3FF" : "white",
+                      color: currency === c ? BLUE : "#6B7280",
+                    }}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
             {plans.map(p => {
               const meta = PLAN_META[p.id] || { label: p.id, blurb: "" };
               const isCurrent = (B.plan || "trial").toLowerCase() === p.id;
+              // Price for the chosen currency, from the server's own table —
+              // never converted here, so what is shown is exactly what the
+              // checkout will charge.
+              const amount = p.prices?.[currency] ?? (currency === "NGN" ? p.price_ngn : undefined);
+              const symbol = currency === "NGN" ? "₦" : currency === "USD" ? "$" : `${currency} `;
               return (
                 <div key={p.id} style={{ border: `1px solid ${isCurrent ? GREEN : "#E8EDF5"}`, borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 8, background: isCurrent ? "#F0FDF4" : "white" }}>
                   <div style={{ fontSize: 15, fontWeight: 800, color: "#080D1A", textTransform: "capitalize" as const }}>{meta.label}</div>
                   <div style={{ fontSize: 20, fontWeight: 900, color: "#080D1A" }}>
-                    ₦{(p.price_ngn || 0).toLocaleString()}
+                    {amount == null ? "—" : `${symbol}${amount.toLocaleString()}`}
                     <span style={{ fontSize: 12, fontWeight: 600, color: "#9CA3AF" }}> /mo</span>
                   </div>
                   <div style={{ fontSize: 11.5, color: "#6B7280", lineHeight: 1.45, minHeight: 32 }}>{meta.blurb}</div>
@@ -2169,7 +2210,10 @@ function BillingSection() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
-                    {pay.amount_ngn != null ? `₦${pay.amount_ngn.toLocaleString()}` : "—"}
+                    {pay.amount_ngn != null
+                      ? `${(pay.currency || "NGN") === "NGN" ? "₦"
+                          : (pay.currency === "USD" ? "$" : `${pay.currency} `)}${pay.amount_ngn.toLocaleString()}`
+                      : "—"}
                     <span style={{ fontWeight: 500, color: "#6B7280", textTransform: "capitalize" as const }}> · {pay.plan} plan</span>
                   </div>
                   <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
