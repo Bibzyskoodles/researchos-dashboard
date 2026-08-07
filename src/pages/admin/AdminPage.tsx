@@ -250,7 +250,7 @@ export default function AdminPage() {
               <tr style={{ background: '#F8FAFC', textAlign: 'left', color: MUTE }}>
                 <th style={{ padding: '11px 14px', fontWeight: 600 }}>Workspace</th>
                 <th style={{ padding: '11px 14px', fontWeight: 600 }}>Signed up</th>
-                <th style={{ padding: '11px 14px', fontWeight: 600 }}>Email</th>
+                <th style={{ padding: '11px 14px', fontWeight: 600 }}>Contact</th>
                 <th style={{ padding: '11px 14px', fontWeight: 600 }}>Used</th>
                 <th style={{ padding: '11px 14px', fontWeight: 600 }}>Limit (0 = ∞)</th>
               </tr>
@@ -269,7 +269,19 @@ export default function AdminPage() {
                     </div>
                   </td>
                   <td style={{ padding: '11px 14px', color: MUTE, whiteSpace: 'nowrap' }}>{fmtDate(w.created_at)}</td>
-                  <td style={{ padding: '11px 14px', color: INK }}>{w.email}</td>
+                  {/* Both, in one cell: the reason sign-up asks for a phone
+                      number is that some conversations do not happen over
+                      email, and a number nobody can see is one nobody rings.
+                      Both are click-to-act — mailto and tel — because the
+                      point of this screen is doing something about a row. */}
+                  <td style={{ padding: '11px 14px', color: INK }}>
+                    <a href={`mailto:${w.email}`} style={{ color: INK, textDecoration: 'none' }}>{w.email}</a>
+                    <div style={{ color: MUTE, fontSize: 12, marginTop: 2 }}>
+                      {w.phone
+                        ? <a href={`tel:${w.phone.replace(/[^+\d]/g, '')}`} style={{ color: MUTE, textDecoration: 'none' }}>{w.phone}</a>
+                        : <span title="Signed up before the phone field existed">no phone on file</span>}
+                    </div>
+                  </td>
                   <td style={{ padding: '11px 14px', color: INK }}>
                     {w.used ?? '—'}
                     {!w.unlimited && w.limit != null && (

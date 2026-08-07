@@ -149,6 +149,8 @@ export interface AdminWorkspace {
   org_id: string;
   name: string;
   email: string;
+  /** Collected at sign-up so a workspace can be phoned, not only emailed. */
+  phone: string;
   plan: string;
   created_at: string;
   verified: boolean;

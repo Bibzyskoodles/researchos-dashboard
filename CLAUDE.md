@@ -74,10 +74,18 @@ has broken production for hours. Before pushing `.ts`/`.tsx` changes:
 
 ```bash
 CI=true npm run build
+CI=true npx react-scripts test --watchAll=false
 ```
 
-Not just tsc. This is the only command that reproduces what Vercel
+Not just tsc. The first is the only command that reproduces what Vercel
 actually runs.
+
+**Run the whole test suite, not a filtered subset.** Several of these tests
+are source-reading guards that assert the UI does not claim more (or less)
+than the backend actually ships — `importSources.test.ts` is one. They fail
+in files you did not touch, precisely because the claim you changed lives
+somewhere else. Filtering by `--testPathPattern` to "the tests near my
+change" is how a real failure reached CI instead of the desk it came from.
 
 ## Decision framework
 
@@ -192,7 +200,7 @@ When given a task:
 3. Identify impacted systems across engines.
 4. Consider security and scalability implications.
 5. Implement incrementally.
-6. Verify with `CI=true npm run build`.
+6. Verify with `CI=true npm run build` **and** the full test suite.
 7. If the request conflicts with the constitution or creates
    unnecessary technical debt, explain why and propose a better
    approach.
