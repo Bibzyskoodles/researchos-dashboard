@@ -6,6 +6,9 @@ import { insightScoreApi, projectsApi, dashboardApi, orgSettingsApi, reportShare
 import { usePlatform } from "../../platform/PlatformProvider";
 import { useGamify } from "../../gamify/GamifyContext";
 import { generateLocalReport, ReportContext, EnumeratorRow, EngineRow } from "../../gamify/reportGenerator";
+import UpgradeNotice from "../../components/billing/UpgradeNotice";
+import { upgradeRequired } from "../../services/planFeatures";
+import type { UpgradeRequired } from "../../services/planFeatures";
 import { useAuth } from "../../store/AuthContext";
 import { loadEngineConfig } from "../../services/engineConfig";
 import { computeTrustIndex } from "../../services/trustEngine";
@@ -165,6 +168,10 @@ export default function ReportsPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
+  // Set when the server declines a paid deliverable. Rendered as a prompt
+  // rather than a toast: a toast disappears, and this is the one message
+  // the person needs to still be on screen when they decide what to do.
+  const [upgrade, setUpgrade] = useState<UpgradeRequired | null>(null);
   const [generated, setGenerated] = useState<Record<string, { format: string }>>({});
   const [lastGenerated, setLastGenerated] = useState<Record<string, number>>({});
   const [toast, setToast] = useState("");
@@ -305,6 +312,7 @@ export default function ReportsPage() {
 
   const download = async (r: typeof REPORT_TYPES[0]) => {
     if (!selectedProject) return;
+    setUpgrade(null);
     // Try backend first
     try {
       const res = await insightScoreApi.downloadReport(selectedProject.insightscore_project_id || selectedProject.id, r.format);
@@ -313,7 +321,20 @@ export default function ReportsPage() {
         triggerBlobDownload(new Blob([res.data]), filename);
         return;
       }
-    } catch { /* fall through */ }
+    } catch (e: any) {
+      // A plan refusal must NOT fall through to local generation. The local
+      // generator builds a basic report from counts this page already has; the
+      // backend one is the InsightScore analysis. Quietly substituting the
+      // first for the second would hand someone a different artefact while
+      // letting them believe they got the analysis they asked for — and the
+      // 402 that explains the difference would never be seen.
+      const needsUpgrade = upgradeRequired(e);
+      if (needsUpgrade) {
+        setUpgrade(needsUpgrade);
+        return;
+      }
+      /* any other failure: fall through to local generation below */
+    }
 
     // Local generation with real data
     const ctx = ctxCache.current || {
@@ -347,6 +368,7 @@ export default function ReportsPage() {
       return;
     }
     setSharing(r.id);
+    setUpgrade(null);
     try {
       const res = await reportShareApi.create(selectedProject.id, r.id);
       const token = res.data.token;
@@ -357,7 +379,12 @@ export default function ReportsPage() {
       setTimeout(() => setCopiedShare(null), 2000);
       showToast("Share link created and copied — expires in 14 days");
     } catch (e: any) {
-      showToast(e?.response?.data?.error || "Could not create a share link. Please try again.");
+      const needsUpgrade = upgradeRequired(e);
+      if (needsUpgrade) {
+        setUpgrade(needsUpgrade);
+      } else {
+        showToast(e?.response?.data?.error || "Could not create a share link. Please try again.");
+      }
     } finally {
       setSharing(null);
     }
@@ -464,6 +491,11 @@ export default function ReportsPage() {
           )}
         </div>
       </div>
+
+      {/* Sits above the cards rather than beside one button: both the share
+          link and the analysis download can raise it, and it has to stay on
+          screen while the person decides — which a toast would not. */}
+      {upgrade && <UpgradeNotice upgrade={upgrade} style={{ marginBottom: 14 }} />}
 
       {/* Report type cards */}
       <div data-ada-target="reports-list" style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14 }}>
