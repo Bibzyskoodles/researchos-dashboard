@@ -91,13 +91,26 @@ const buildSteps = (webhookUrl: string): Record<string, string[]> => ({
     "Type: Form Data",
     "Click Start Forwarding",
   ],
+  // CSPro is a desktop application, not a hosted service — there is no server
+  // for FieldScore to pull from and no webhook for it to push to. Its users
+  // export. That makes the spreadsheet importer the real, and only sensible,
+  // path, and it has worked all along. Listing CSPro as "coming soon" behind a
+  // connector that could never exist turned away the census-bureau market for
+  // no reason.
   cspro: [
-    "Open CSPro → go to your application",
-    "Go to Tools → Paradata Viewer",
-    "Enable Data Synchronization",
-    `Set the sync endpoint to: ${webhookUrl}`,
-    "Set Method: HTTP POST",
-    "Save and re-publish your application",
+    "Open CSPro → run your data-entry application",
+    "Go to Tools → Export Data",
+    "Choose CSV (or Excel) and include your GPS, photo and audio fields",
+    "In FieldScore, open Submissions → Import",
+    "Upload the exported file",
+    "FieldScore reads the columns and scores every row",
+  ],
+  spreadsheet: [
+    "Export your data from whichever platform you collect on",
+    "Save it as CSV or Excel, with your GPS, photo and audio columns included",
+    "In FieldScore, open Submissions → Import",
+    "Upload the file and map the columns if the names differ",
+    "Every row is scored the same way a live submission is",
   ],
   generic: [
     `Send a POST request to: ${webhookUrl}`,
@@ -113,11 +126,12 @@ function buildPlatforms(webhookUrl: string, koboStats: { count: number; last: st
   return [
     // Kobo status reflects REAL submissions for the active project — never a canned count.
     { id:"kobo",name:"KoboToolbox",icon:"🗂",status:koboStats && koboStats.count > 0 ? "active" : "available",category:"Data Collection",description:"The most widely used ODK-based platform for NGO fieldwork.",lastReceived:koboStats?.last || undefined,submissionCount:koboStats?.count,setupSteps:steps.kobo },
-    { id:"surveycto",name:"SurveyCTO",icon:"📋",status:"coming-soon",category:"Data Collection",description:"Enterprise-grade mobile data collection used by research firms. Not connected yet — talk to us if you need this now.",setupSteps:steps.surveycto },
+    { id:"surveycto",name:"SurveyCTO",icon:"📋",status:"coming-soon",category:"Data Collection",description:"Enterprise-grade mobile data collection used by research firms. A direct connector is being built. Until it lands, export to CSV and import the file.",setupSteps:steps.surveycto },
     { id:"odk",name:"ODK Central",icon:"📡",status:"available",category:"Data Collection",description:"Pull submissions directly from your ODK Central server for scoring.",setupSteps:steps.odk },
-    { id:"commcare",name:"CommCare",icon:"🏥",status:"coming-soon",category:"Data Collection",description:"Mobile data collection platform popular in health programmes. Not connected yet — talk to us if you need this now.",setupSteps:steps.commcare },
-    { id:"cspro",name:"CSPro",icon:"📊",status:"coming-soon",category:"Data Collection",description:"Census and Survey Processing System by the US Census Bureau. Not connected yet — talk to us if you need this now.",setupSteps:steps.cspro },
+    { id:"commcare",name:"CommCare",icon:"🏥",status:"coming-soon",category:"Data Collection",description:"Mobile data collection platform popular in health programmes. A direct connector is planned. Until then, export to CSV and import the file.",setupSteps:steps.commcare },
+    { id:"cspro",name:"CSPro",icon:"📊",status:"available",category:"Data Collection",description:"Census and Survey Processing System by the US Census Bureau. Export your data and import the file — CSPro runs on the desktop, so there is no server to connect to.",setupSteps:steps.cspro },
     { id:"generic",name:"Generic JSON Webhook",icon:"⚡",status:"available",category:"Custom",description:"Connect any platform that supports HTTP POST webhooks.",setupSteps:steps.generic },
+    { id:"spreadsheet",name:"Spreadsheet Import",icon:"📄",status:"available",category:"Custom",description:"Upload a CSV or Excel export from any platform. Every tool exports, so nothing is out of reach — this is the path when there is no API to connect to.",setupSteps:steps.spreadsheet },
     { id:"gsheets",name:"Google Sheets Export",icon:"📗",status:"coming-soon",category:"Export",description:"Auto-export scored submissions to a Google Sheet.",setupSteps:[] },
     { id:"powerbi",name:"Power BI",icon:"📊",status:"coming-soon",category:"Analytics",description:"Push scored data directly into Power BI dashboards.",setupSteps:[] },
     { id:"zapier",name:"Zapier",icon:"🔗",status:"coming-soon",category:"Automation",description:"Automate workflows when a submission is scored.",setupSteps:[] },
@@ -1060,6 +1074,14 @@ export default function IntegrationsPage() {
 
       <div>
         <div style={{ fontSize:10.5,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:0.7,marginBottom:14 }}>Platforms</div>
+        {/* The named cards below read as the limit of what we accept, and they
+            are not. Two of them are universal: anything that can POST reaches
+            the webhook, and anything that can export reaches the importer.
+            Saying so here stops someone whose platform is not in the grid from
+            concluding FieldScore cannot take their data. */}
+        <div style={{ fontSize:12.5,color:"#374151",lineHeight:1.65,marginBottom:16,padding:"12px 16px",background:"#F8FAFF",border:"1px solid #EEF2F8",borderRadius:10 }}>
+          <strong>Your platform does not have to be on this list.</strong> KoboToolbox and ODK Central connect directly, and FieldScore pulls from them. Everything else reaches us one of two ways: if your tool can send a webhook, use the URL above; if it can export a spreadsheet, upload the file. Between those two, no platform is out of reach.
+        </div>
         <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14 }}>
           {platforms.map(platform => (
             <PlatformCard key={platform.id} platform={platform} webhookUrl={webhookUrl ?? "select-a-project-first"} onSetupOpen={handleSetupOpen} isExpanded={expandedId===platform.id} onCopyUrl={handleCopyUrl} onNotify={handleNotify} />
