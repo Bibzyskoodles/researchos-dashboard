@@ -24,6 +24,7 @@ export default function RegisterPage() {
   const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [industryId, setIndustryId] = useState('');
   const [studyTypeId, setStudyTypeId] = useState('');
   const [error, setError] = useState('');
@@ -33,7 +34,7 @@ export default function RegisterPage() {
 
   const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !orgName || !email || !password) {
+    if (!name || !orgName || !email || !password || !phone) {
       setError('All fields are required');
       return;
     }
@@ -56,7 +57,7 @@ export default function RegisterPage() {
     setError('');
     try {
       await api.post('/auth/register', {
-        name, org_name: orgName, email, password,
+        name, org_name: orgName, email, password, phone,
         industry_id: industryId || 'research_agency',
         default_study_type_id: studyTypeId,
       });
@@ -95,8 +96,10 @@ export default function RegisterPage() {
               {[
                 { label: 'Your name', value: name, set: setName, placeholder: 'Jane Smith', type: 'text' },
                 { label: 'Organisation name', value: orgName, set: setOrgName, placeholder: 'Acme Research Ltd', type: 'text' },
-                { label: 'Email address', value: email, set: setEmail, placeholder: 'you@organisation.com', type: 'email',
-                  hint: 'Work or personal — we’ll send a confirmation link, so use a mailbox you can open.' },
+                { label: 'Work email address', value: email, set: setEmail, placeholder: 'you@organisation.com', type: 'email',
+                  hint: 'Your organisation’s address — Gmail, Yahoo and other personal providers aren’t accepted. We’ll send a confirmation link, so use a mailbox you can open.' },
+                { label: 'Phone number', value: phone, set: setPhone, placeholder: '+234 803 123 4567', type: 'tel',
+                  hint: 'Including the country code. We use it if something needs a conversation rather than an email.' },
                 { label: 'Password', value: password, set: setPassword, placeholder: '••••••••', type: 'password' },
               ].map(f => (
                 <div key={f.label} style={{ marginBottom: 14 }}>
