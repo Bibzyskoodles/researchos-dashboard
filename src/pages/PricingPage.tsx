@@ -12,7 +12,6 @@ const SALES = "mailto:bibilade@intelligencyai.com.ng";
 /** Mirrors the server's `FREE_SUBMISSION_LIMIT` (usage_limits.py), which is
  *  the enforcing copy. Shown here so the free tier states a real number. */
 const FREE_SUBMISSIONS = 50;
-const NGN_PER_USD = 1600;
 
 const LABEL: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.8 };
 
@@ -40,25 +39,25 @@ const PLANS: Record<PlanName, { price_ngn: number; price_usd: number; riu: numbe
   // Solo's verification cap mirrors the server's enforcing copy
   // (usage_limits.PLAN_PERIOD_CAPS["solo"] = 600 per 30-day period).
   Solo: {
-    price_ngn: 50000, price_usd: 31, riu: 800, popular: false,
+    price_ngn: 50000, price_usd: 79, riu: 800, popular: false,
     caps: { fieldscore: 600, interviews: 20, reports: 2, presentations: 1, questionnaires: 1 },
     features: ["Up to 600 FieldScore verifications", "20 qualitative interviews", "2 executive reports", "1 presentation", "1 questionnaire", "800 Research Intelligence Units", "Email support"],
     support: "Email support", cta: "Choose Solo",
   },
   Starter: {
-    price_ngn: 150000, price_usd: 94, riu: 1000, popular: false,
+    price_ngn: 150000, price_usd: 249, riu: 1000, popular: false,
     caps: { fieldscore: 500, interviews: 50, reports: 5, presentations: 3, questionnaires: 2 },
     features: ["Up to 500 FieldScore verifications", "50 qualitative interviews", "5 executive reports", "3 presentations", "2 questionnaires", "1,000 Research Intelligence Units", "Email support"],
     support: "Email support", cta: "Choose Starter",
   },
   Professional: {
-    price_ngn: 350000, price_usd: 219, riu: 5000, popular: true,
+    price_ngn: 350000, price_usd: 599, riu: 5000, popular: true,
     caps: { fieldscore: 2000, interviews: 200, reports: 20, presentations: 10, questionnaires: 5 },
     features: ["Up to 2,000 FieldScore verifications", "200 qualitative interviews", "20 executive reports", "10 presentations", "5 questionnaires", "5,000 Research Intelligence Units", "Priority support"],
     support: "Priority support", cta: "Choose Professional",
   },
   Enterprise: {
-    price_ngn: 800000, price_usd: 500, riu: Infinity, popular: false,
+    price_ngn: 800000, price_usd: 1200, riu: Infinity, popular: false,
     caps: { fieldscore: Infinity, interviews: Infinity, reports: Infinity, presentations: Infinity, questionnaires: Infinity },
     features: ["Unlimited verifications", "Unlimited interviews", "Unlimited reports", "Custom presentations", "Custom questionnaires", "Unlimited RIUs", "Dedicated account manager", "Custom integrations", "SLA guarantee"],
     support: "Dedicated account manager", cta: "Talk to Sales",
@@ -72,8 +71,18 @@ const PLAN_DESC: Record<PlanName, string> = {
   Enterprise: "For organisations with large-scale or continuous research.",
 };
 
-function money(ngn: number, currency: "NGN" | "USD", plus = false) {
-  const s = currency === "NGN" ? `₦${ngn.toLocaleString()}` : `$${Math.round(ngn / NGN_PER_USD).toLocaleString()}`;
+/** Render a plan's price in the chosen currency.
+ *
+ * Takes BOTH real prices rather than converting one into the other. USD is a
+ * separate price list set for the international market (it matches
+ * fieldscore-backend's payments.PLAN_PRICES, which is what actually gets
+ * charged) — dividing naira by a fixed rate here used to display a different
+ * number from the one the checkout would take, and would drift further every
+ * time the naira moved. Edit the two lists together. */
+function money(price_ngn: number, price_usd: number, currency: "NGN" | "USD", plus = false) {
+  const s = currency === "NGN"
+    ? `₦${price_ngn.toLocaleString()}`
+    : `$${price_usd.toLocaleString()}`;
   return plus ? `${s}+` : s;
 }
 
@@ -187,9 +196,13 @@ function PlanCard({ name, currency, recommended }: { name: PlanName; currency: "
       {recommended && !p.popular && <div style={{ position: "absolute", top: -11, left: 24, background: GREEN, color: "white", fontSize: 10.5, fontWeight: 700, padding: "4px 12px", borderRadius: 20 }}>Recommended</div>}
       <div style={{ fontSize: 17, fontWeight: 800, color: "#080D1A" }}>{name}</div>
       <div style={{ fontSize: 28, fontWeight: 800, color: "#080D1A", letterSpacing: -1.5, marginTop: 8 }}>
-        {money(p.price_ngn, currency, isEnt)}<span style={{ fontSize: 13, fontWeight: 500, color: "#9CA3AF" }}>/month</span>
+        {money(p.price_ngn, p.price_usd, currency, isEnt)}<span style={{ fontSize: 13, fontWeight: 500, color: "#9CA3AF" }}>/month</span>
       </div>
-      <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>{money(p.price_usd * NGN_PER_USD, "USD", isEnt)} / month</div>
+      {/* The other currency, as a secondary line — the two prices are set
+          independently, so this is never a conversion of the one above. */}
+      <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>
+        {money(p.price_ngn, p.price_usd, currency === "NGN" ? "USD" : "NGN", isEnt)} / month
+      </div>
       <div style={{ height: 1, background: "#F1F5F9", margin: "16px 0" }} />
       <div style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
         {p.features.map(f => (
@@ -492,7 +505,7 @@ export default function PricingPage() {
 
               <div style={{ height: 1, background: "rgba(255,255,255,.1)", margin: "16px 0" }} />
               <div style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: 0.8 }}>Estimated Monthly Investment</div>
-              <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: -1.5, marginTop: 6 }}>{money(p.price_ngn, currency, plan === "Enterprise")}</div>
+              <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: -1.5, marginTop: 6 }}>{money(p.price_ngn, p.price_usd, currency, plan === "Enterprise")}</div>
               <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.5)" }}>Billed monthly. Cancel anytime.</div>
               <Link to="/register" style={{ display: "block", textAlign: "center", marginTop: 14, padding: "12px", borderRadius: 10, background: BLUE, color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Start free · 50 submissions</Link>
               <a href={SALES} style={{ display: "block", textAlign: "center", marginTop: 8, fontSize: 12.5, color: "rgba(255,255,255,.6)", textDecoration: "none" }}>Talk to Sales Team →</a>
