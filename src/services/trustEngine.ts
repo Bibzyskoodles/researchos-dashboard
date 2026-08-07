@@ -161,6 +161,11 @@ export const HARD_GATE_FLAGS = new Set([
   "DURATION_NEGATIVE", "BACK_TO_BACK", "AUDIO_EMPTY",
   "AI_GENERATED_IMAGE", "DOWNLOADED_IMAGE",
   "SINGLE_VOICE_DETECTED", "ROAMING_PAIR_DETECTED",
+  // Physically impossible movement between two interviews by the same
+  // enumerator — the server's travel engine only raises this above ~900km/h,
+  // which is not a fast day's work, it is two devices or a fabricated
+  // coordinate. Mirrors score_engine.py's HARD_GATE_FLAGS.
+  "TRAVEL_IMPOSSIBLE",
 ]);
 
 // The best Trust Index a hard-gated submission can reach — must equal
