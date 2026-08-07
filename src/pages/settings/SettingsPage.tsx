@@ -13,7 +13,7 @@ import CreditsPanel from "../../gamify/CreditsPanel";
 import { orgAdminApi } from "../../services/api";
 import { track } from "../../services/funnel";
 import { useNavigate as useNav, useLocation } from "react-router-dom";
-import { loadEngineConfig, saveEngineConfig } from "../../services/engineConfig";
+import { loadEngineConfig, saveEngineConfig, DEFAULT_TRAVEL_THRESHOLDS } from "../../services/engineConfig";
 import type { EngineConfig, EngineRequirement, EngineRequirements, AssignedZone } from "../../services/engineConfig";
 import { evaluateZone, formatPointsText, parsePointsText } from "../../services/zoneGeometry";
 import ZonePlaceSearch from "./ZonePlaceSearch";
@@ -2929,6 +2929,29 @@ function EngineSection() {
   // How far outside stops being "a supervisor should look at this" and becomes
   // "reject it". Previously fixed at 2 km with no way to change it.
   const [zoneRejectKm, setZoneRejectKm] = useState<number>(_cfg.zoneRejectKm ?? 2);
+  // How fast an enumerator may appear to move between two of their own
+  // interviews. 120 km/h is a sensible ceiling for intercity fieldwork and
+  // useless for a team working one market: ten visits across a town in twenty
+  // minutes implies ~90 km/h and slips under it unnoticed.
+  const [travelSuspicious, setTravelSuspicious] = useState<number>(
+    _cfg.travelThresholds?.suspiciousKph ?? DEFAULT_TRAVEL_THRESHOLDS.suspiciousKph);
+  const [travelVeryHigh, setTravelVeryHigh] = useState<number>(
+    _cfg.travelThresholds?.veryHighKph ?? DEFAULT_TRAVEL_THRESHOLDS.veryHighKph);
+  const [travelImpossible, setTravelImpossible] = useState<number>(
+    _cfg.travelThresholds?.impossibleKph ?? DEFAULT_TRAVEL_THRESHOLDS.impossibleKph);
+  // The server refuses an inverted ladder and says why. Saying it here first
+  // means the person who typed it finds out while looking at the field, not
+  // after a round trip that also discards every other unsaved change.
+  const travelLadderError = useMemo(() => {
+    if (!(travelSuspicious < travelVeryHigh)) {
+      return `Review speed (${travelSuspicious} km/h) must be lower than the “faster than any vehicle” speed (${travelVeryHigh} km/h).`;
+    }
+    if (!(travelVeryHigh < travelImpossible)) {
+      return `“Faster than any vehicle” (${travelVeryHigh} km/h) must be lower than the reject speed (${travelImpossible} km/h).`;
+    }
+    if (travelSuspicious < 5) return "Review speed must be at least 5 km/h — below walking pace every ordinary field day would flag.";
+    return "";
+  }, [travelSuspicious, travelVeryHigh, travelImpossible]);
   // Parsed once, used by the save handler and the live summary alike, so what
   // the screen tells you it will enforce is exactly what gets sent.
   const zonePoints = useMemo(() => parsePointsText(zonePointsText), [zonePointsText]);
@@ -2991,6 +3014,9 @@ function EngineSection() {
         if (c.zone_width_m) setZoneWidth(Number(c.zone_width_m));
         if (c.zone_buffer_m != null && c.zone_buffer_m !== "") setZoneBuffer(Number(c.zone_buffer_m));
         if (c.zone_reject_km != null && c.zone_reject_km !== "") setZoneRejectKm(Number(c.zone_reject_km));
+        if (c.travel_suspicious_kph != null && c.travel_suspicious_kph !== "") setTravelSuspicious(Number(c.travel_suspicious_kph));
+        if (c.travel_very_high_kph != null && c.travel_very_high_kph !== "") setTravelVeryHigh(Number(c.travel_very_high_kph));
+        if (c.travel_impossible_kph != null && c.travel_impossible_kph !== "") setTravelImpossible(Number(c.travel_impossible_kph));
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3006,6 +3032,15 @@ function EngineSection() {
   };
 
   const save = () => {
+    // Stop before writing anything. The scoring-config request is atomic, so a
+    // ladder the server will refuse takes the image context, the audio context
+    // and the zone down with it — the same failure the flag-slider clamp below
+    // exists to prevent.
+    if (travelLadderError) {
+      setBackendSaveError(`Couldn't save: ${travelLadderError}`);
+      return;
+    }
+
     // The flag slider RENDERS a clamped value — Math.min(flagScoreThreshold,
     // passScoreThreshold - 5) — but the raw state was what got saved. Lower the
     // pass threshold to 30 while flag sat at 50 and the screen showed 25 while
@@ -3041,6 +3076,11 @@ function EngineSection() {
         bufferM: zoneBuffer,
       },
       zoneRejectKm,
+      travelThresholds: {
+        suspiciousKph: travelSuspicious,
+        veryHighKph: travelVeryHigh,
+        impossibleKph: travelImpossible,
+      },
       zoneList: [...zoneList],
       gating: {
         gps_reject_skips: [...gating.gps_reject_skips],
@@ -3076,6 +3116,9 @@ function EngineSection() {
         zone_width_m: zoneWidth,
         zone_buffer_m: zoneBuffer,
         zone_reject_km: zoneRejectKm,
+        travel_suspicious_kph: travelSuspicious,
+        travel_very_high_kph: travelVeryHigh,
+        travel_impossible_kph: travelImpossible,
       }).then(() => {
         // Best-effort rescore — if it fails, the config is already saved and
         // will apply to future submissions. Don't surface this as a save error.
@@ -3476,6 +3519,52 @@ function EngineSection() {
         })()}
 
         <ConfigHistory projectId={activeProject?.id} />
+      </SettingsCard>
+
+      {/* Enumerator movement — the same enumerator's consecutive interviews.
+          Independent of the zone above: a project with no zone at all still
+          gets this, because "could this person have got here?" needs no
+          assigned place to answer. */}
+      <SettingsCard style={{ padding: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>🚗 Enumerator Movement</div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 16, padding: "10px 14px", background: "#F8FAFF", borderRadius: 8, border: "1px solid #EEF2F8", lineHeight: 1.6 }}>
+          FieldScore compares each submission against <strong>the same enumerator's previous located interview</strong> and works out how fast they would have had to travel. The defaults suit a project spread across a country. A team working one town should lower the review speed until a day of implausibly quick hops becomes visible — ten visits across a market in twenty minutes implies about 90 km/h, which slips under 120 without a word.
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 16 }}>
+          {([
+            { label: "Flag for review above", value: travelSuspicious, set: setTravelSuspicious,
+              hint: "Faster than realistic field travel. A supervisor decides." },
+            { label: "Treat as serious above", value: travelVeryHigh, set: setTravelVeryHigh,
+              hint: "Faster than any land vehicle. Usually means someone else held the device." },
+            { label: "Reject above", value: travelImpossible, set: setTravelImpossible,
+              hint: "Physically impossible. Two devices, or a fabricated coordinate — this one is not a judgement call, so it excludes the row outright." },
+          ] as const).map(f => (
+            <div key={f.label}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 5 }}>{f.label}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="number" min={5} step={10} value={f.value}
+                  onChange={e => f.set(Math.max(0, Number(e.target.value) || 0))}
+                  style={{ width: 100, padding: "9px 12px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }} />
+                <span style={{ fontSize: 12, color: "#6B7280" }}>km/h</span>
+              </div>
+              <div style={{ fontSize: 10.5, color: "#9CA3AF", marginTop: 5, lineHeight: 1.55 }}>{f.hint}</div>
+            </div>
+          ))}
+        </div>
+
+        {travelLadderError ? (
+          <div style={{ marginTop: 16, fontSize: 11.5, color: RED, fontWeight: 600, lineHeight: 1.6 }}>
+            ⚠ {travelLadderError} Saving is blocked until this is fixed.
+          </div>
+        ) : (
+          <div style={{ marginTop: 16, fontSize: 11.5, color: GREEN, fontWeight: 600, lineHeight: 1.6 }}>
+            ✓ Trips faster than {travelSuspicious} km/h are flagged for review, and anything above {travelImpossible} km/h is rejected outright.
+            <span style={{ display: "block", fontWeight: 400, color: "#9CA3AF", marginTop: 4 }}>
+              Interviews less than a minute apart are skipped rather than measured — a bulk import stamps rows together, and dividing by a few seconds invents speeds nobody travelled.
+            </span>
+          </div>
+        )}
       </SettingsCard>
 
       {/* Multi-site zone list */}

@@ -11,6 +11,8 @@
 // analysis runs on the client from whatever submissions are currently loaded.
 
 import { haversineMeters } from "./trustEngine";
+import { DEFAULT_TRAVEL_THRESHOLDS } from "./engineConfig";
+import type { TravelThresholds } from "./engineConfig";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,10 +62,12 @@ export interface EnumeratorFraudSignals {
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 
-// Speed thresholds for travel risk classification
-const IMPOSSIBLE_KPH = 900;   // faster than any commercial aircraft
-const VERY_HIGH_KPH  = 350;   // faster than any land vehicle ever
-const SUSPICIOUS_KPH = 120;   // above realistic Nigerian road speed
+// Travel speeds are no longer defined here. They belong to the project, and the
+// server's travel engine is what actually scores against them: this analysis
+// reading 900 km/h while the project had been set to reject above 400 would put
+// "Plausible" on the same screen as a REJECT the server had already issued.
+// DEFAULT_TRAVEL_THRESHOLDS matches engines/travel_engine.py's own defaults, so
+// a caller that supplies nothing still agrees with an unconfigured project.
 
 // Burst detection: N+ submissions in this many minutes is a burst
 const BURST_WINDOW_MINUTES = 10;
@@ -91,17 +95,18 @@ function getHour(dateStr: string): number {
   return d ? d.getHours() : 12;
 }
 
-function classifySpeed(kph: number): { risk: TravelRisk; riskLabel: string } {
-  if (kph > IMPOSSIBLE_KPH) return { risk: "IMPOSSIBLE",  riskLabel: "Physically impossible — faster than any aircraft" };
-  if (kph > VERY_HIGH_KPH)  return { risk: "VERY_HIGH",   riskLabel: "Faster than any land vehicle" };
-  if (kph > SUSPICIOUS_KPH) return { risk: "SUSPICIOUS",  riskLabel: "Faster than realistic field travel" };
+function classifySpeed(kph: number, t: TravelThresholds): { risk: TravelRisk; riskLabel: string } {
+  if (kph > t.impossibleKph) return { risk: "IMPOSSIBLE",  riskLabel: "Physically impossible — faster than any aircraft" };
+  if (kph > t.veryHighKph)   return { risk: "VERY_HIGH",   riskLabel: "Faster than any land vehicle" };
+  if (kph > t.suspiciousKph) return { risk: "SUSPICIOUS",  riskLabel: "Faster than realistic field travel" };
   return { risk: "CLEAR", riskLabel: "Plausible" };
 }
 
 // ─── Main analysis ─────────────────────────────────────────────────────────────
 
 export function analyseEnumeratorSignals(
-  submissions: SubmissionForSignal[]
+  submissions: SubmissionForSignal[],
+  travelThresholds: TravelThresholds = DEFAULT_TRAVEL_THRESHOLDS,
 ): EnumeratorFraudSignals[] {
   // Group by enumerator
   const byEnum = new Map<string, SubmissionForSignal[]>();
@@ -137,7 +142,7 @@ export function analyseEnumeratorSignals(
       if (durationMinutes < 1) continue;
       const distanceM = haversineMeters(lat1, lon1, lat2, lon2);
       const impliedSpeedKph = (distanceM / 1000) / (durationMinutes / 60);
-      const { risk, riskLabel } = classifySpeed(impliedSpeedKph);
+      const { risk, riskLabel } = classifySpeed(impliedSpeedKph, travelThresholds);
       if (risk !== "CLEAR") {
         travelSegments.push({
           fromId: prev.submission_id, toId: curr.submission_id,

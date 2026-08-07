@@ -1066,6 +1066,47 @@ export default function SubmissionDetailPage(){
               {checks.duplicate?.finding||"No duplicate analysis available"}
             </div>
           </div>
+
+          {/* Travel — the server's reading, not the browser's.
+              SubmissionsPage computes implied speed across the rows it has
+              loaded, which is a useful overview and cannot be a verdict: it
+              sees one page of data and never touched the score. This is the
+              engine's own finding, on the submission it actually scored. */}
+          {(() => {
+            const tv = sub.checks?.travel;
+            if (!tv || tv.status === "NOT_AVAILABLE" || tv.status === "DISABLED" || tv.status === "GATED") return null;
+            const rejected = tv.status === "REJECT";
+            const flagged = tv.status === "FLAG";
+            const tone = rejected ? RED : flagged ? AMBER : GREEN;
+            const d = tv.details || {};
+            return (
+              <div style={{background:"white",borderRadius:16,padding:"16px 20px",border:`1px solid ${rejected?"#FECACA":"#E8EDF5"}`,boxShadow:"0 2px 12px rgba(10,15,28,.06)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                  <MapPin size={15} color={tone}/><span style={{fontSize:13.5,fontWeight:700,color:"#080D1A"}}>Travel From Previous Interview</span>
+                  <span style={{marginLeft:"auto",fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:20,background:tone+"15",color:tone}}>
+                    {rejected?"Impossible":flagged?"Too fast":"Plausible"}
+                  </span>
+                </div>
+                <div style={{fontSize:12.5,color:"#6B7280",lineHeight:1.65}}>
+                  {tv.finding||"No travel assessment available"}
+                </div>
+                {(d.distance_km!=null&&d.minutes!=null)&&(
+                  <div style={{display:"flex",gap:18,marginTop:12,paddingTop:12,borderTop:"1px solid #F1F5F9",flexWrap:"wrap"}}>
+                    {[
+                      {k:"Distance",v:`${Number(d.distance_km).toLocaleString()} km`},
+                      {k:"Elapsed",v:`${d.minutes} min`},
+                      {k:"Implied speed",v:`${Number(d.implied_kph||0).toLocaleString()} km/h`},
+                    ].map(m=>(
+                      <div key={m.k}>
+                        <div style={{fontSize:10,fontWeight:700,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:.7}}>{m.k}</div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#0A1230",fontFamily:"monospace",marginTop:2}}>{m.v}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* RIGHT */}

@@ -51,6 +51,9 @@ const FIELD_LABELS: Record<string, string> = {
   zone_buffer_m: 'Boundary allowance',
   zone_reject_km: 'Reject beyond',
   allowed_country: 'Allowed country',
+  travel_suspicious_kph: 'Flag travel faster than',
+  travel_very_high_kph: 'Treat travel as serious above',
+  travel_impossible_kph: 'Reject travel faster than',
 };
 
 const SOURCE_LABELS: Record<string, string> = {
