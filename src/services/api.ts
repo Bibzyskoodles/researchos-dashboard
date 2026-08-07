@@ -528,6 +528,13 @@ export const orgSettingsApi = {
   // changes state itself.
   startPlanUpgrade: (plan: string) =>
     api.post('/api/org/upgrade', { plan }),
+  // The borrowable sample project — 15 curated submissions so a new workspace
+  // isn't empty before its own data arrives. Admin-only server-side. The rows
+  // carry a reserved id prefix the verification cap ignores, so loading the
+  // sample never spends any of the workspace's free allowance.
+  getSampleProject: () => api.get('/api/org/sample-project'),
+  createSampleProject: () => api.post('/api/org/sample-project'),
+  removeSampleProject: () => api.delete('/api/org/sample-project'),
   // Per-project ingest token — the credential a form platform uses to write
   // submissions into THIS project and no other. Replaces the old shared
   // webhook secret + ?project_id=, which let any FieldScore customer write into

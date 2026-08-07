@@ -394,6 +394,46 @@ export default function ProjectsPage() {
   const [showImport, setShowImport] = useState(false);
   const [showCleanup, setShowCleanup] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  // The borrowable sample project. Admin-only server-side, so the controls are
+  // only offered to admins — the route would 403 anyone else, and a button
+  // that always fails is worse than no button.
+  const isAdmin = user?.role === 'admin';
+  const [sampleId, setSampleId] = useState<string | null>(null);
+  const [sampleBusy, setSampleBusy] = useState(false);
+  const [sampleError, setSampleError] = useState('');
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    orgSettingsApi.getSampleProject()
+      .then(r => setSampleId(r.data?.project_id ?? null))
+      .catch(() => { /* no controls rather than a broken one */ });
+  }, [isAdmin]);
+
+  const loadSample = async () => {
+    setSampleBusy(true); setSampleError('');
+    try {
+      const r = await orgSettingsApi.createSampleProject();
+      setSampleId(r.data?.project_id ?? null);
+      setLoading(true); loadProjects();
+    } catch (e: any) {
+      setSampleError(e?.response?.data?.error || 'Could not load the sample project.');
+    } finally {
+      setSampleBusy(false);
+    }
+  };
+
+  const dropSample = async () => {
+    setSampleBusy(true); setSampleError('');
+    try {
+      await orgSettingsApi.removeSampleProject();
+      setSampleId(null);
+      setLoading(true); loadProjects();
+    } catch (e: any) {
+      setSampleError(e?.response?.data?.error || 'Could not remove the sample project.');
+    } finally {
+      setSampleBusy(false);
+    }
+  };
 
   // First-run onboarding: a fresh workspace (no projects, never dismissed)
   // gets the 4-step welcome. This modal existed, fully built, and was never
@@ -489,6 +529,35 @@ export default function ProjectsPage() {
         </div>
       </div>
 
+      {/* Sample-data banner. A workspace must never have to wonder which
+          numbers are ours, so this stays visible for as long as the sample
+          does, with removal one click away. */}
+      {isAdmin && sampleId && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 12, flexWrap: 'wrap', background: '#FFFBEB', border: '1px solid #FDE68A',
+          borderRadius: 10, padding: '11px 16px', marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 12.5, color: '#92400E' }}>
+            <b>Sample data.</b> “{'Sample: Lagos Retail Audit'}” is demo data we
+            provided, not your fieldwork — and it doesn't count towards your
+            verifications.
+          </div>
+          <button
+            onClick={dropSample}
+            disabled={sampleBusy}
+            style={{
+              background: 'white', color: '#92400E', border: '1px solid #FDE68A',
+              borderRadius: 7, padding: '6px 13px', fontSize: 12.5, fontWeight: 600,
+              cursor: sampleBusy ? 'default' : 'pointer', fontFamily: 'Inter, sans-serif',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {sampleBusy ? 'Removing…' : 'Remove sample data'}
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#080D1A', margin: 0 }}>My Projects</h1>
@@ -570,6 +639,31 @@ export default function ProjectsPage() {
               ↓ Import existing data
             </button>
           </div>
+          {isAdmin && !sampleId && (
+            <div style={{ marginTop: 20, paddingTop: 18, borderTop: '1px solid #F1F5F9' }}>
+              <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 10 }}>
+                Not ready to bring your own data in yet?
+              </div>
+              <button
+                onClick={loadSample}
+                disabled={sampleBusy}
+                style={{
+                  background: 'transparent', color: BLUE, border: 'none',
+                  fontSize: 13.5, fontWeight: 600, cursor: sampleBusy ? 'default' : 'pointer',
+                  fontFamily: 'Inter, sans-serif', textDecoration: 'underline',
+                }}
+              >
+                {sampleBusy ? 'Loading sample…' : 'Show me a sample project →'}
+              </button>
+              <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 8 }}>
+                15 verified submissions from a real Lagos retail audit. Removable in one
+                click, and it doesn't use any of your free verifications.
+              </div>
+              {sampleError && (
+                <div style={{ fontSize: 12, color: '#DC2626', marginTop: 8 }}>{sampleError}</div>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
