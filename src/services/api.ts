@@ -229,6 +229,18 @@ export const dashboardApi = {
   odkPing: () => api.get('/odk/ping'),
   odkImport: (project_id: string, form_id: string, limit = 30, fieldscore_project_id?: string) =>
     api.post('/odk/import', { project_id, form_id, limit, ...(fieldscore_project_id ? { fieldscore_project_id } : {}) }),
+  // SurveyCTO. Same per-org credential shape as ODK, with one difference that
+  // shows in the UI: SurveyCTO publishes no forms list we can read (its only
+  // one sits behind a CSRF handshake on a console endpoint), so there is no
+  // picker — the form id is typed in and confirmed with the preview call.
+  surveyctoGetConfig: () => api.get<{ server_name: string; username: string; configured: boolean }>('/surveycto/config'),
+  surveyctoSaveConfig: (server_name: string, username: string, password?: string) =>
+    api.put('/surveycto/config', { server_name, username, ...(password ? { password } : {}) }),
+  surveyctoPing: () => api.get<{ ok: boolean; server: string; username: string; note?: string }>('/surveycto/ping'),
+  surveyctoPreview: (form_id: string, limit = 3) =>
+    api.get(`/surveycto/forms/${encodeURIComponent(form_id)}/preview`, { params: { limit } }),
+  surveyctoImport: (form_id: string, limit = 30, fieldscore_project_id?: string) =>
+    api.post('/surveycto/import', { form_id, limit, ...(fieldscore_project_id ? { fieldscore_project_id } : {}) }),
   uploadSubmissions: (submissions: object[]) =>
     api.post('/api/submissions/upload', { submissions }),
   uploadStatus: (batchId: string) =>

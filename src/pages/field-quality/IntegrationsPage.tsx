@@ -66,14 +66,17 @@ const buildSteps = (webhookUrl: string): Record<string, string[]> => ({
     "Click Save",
     "Submit a test response to verify",
   ],
+  // A direct pull, not a webhook. The webhook route would deliver the answers
+  // but not the media: SurveyCTO attachments sit behind the same login, so
+  // without credentials the photo and audio checks get a 401 and report
+  // "not available" — which reads as "no photo" rather than "could not fetch".
   surveycto: [
-    "Log in to SurveyCTO → open your form",
-    "Click the Publish tab",
-    "Scroll to the Webhooks section",
-    "Click Add webhook",
-    `URL: ${webhookUrl}`,
-    "Select: Send all form submissions",
-    "Click Save",
+    "Scroll down to \"Pull submissions from SurveyCTO\" below",
+    "Enter your server name — the part before .surveycto.com",
+    "Enter the username and password of an account that can download data",
+    "Click Save credentials, then Test connection",
+    "In SurveyCTO, open your form and copy its form id",
+    "Paste the form id, click Preview to check it, then Import & score",
   ],
   odk: [
     "ODK Central has no built-in webhook — FieldScore pulls from it instead",
@@ -126,7 +129,7 @@ function buildPlatforms(webhookUrl: string, koboStats: { count: number; last: st
   return [
     // Kobo status reflects REAL submissions for the active project — never a canned count.
     { id:"kobo",name:"KoboToolbox",icon:"🗂",status:koboStats && koboStats.count > 0 ? "active" : "available",category:"Data Collection",description:"The most widely used ODK-based platform for NGO fieldwork.",lastReceived:koboStats?.last || undefined,submissionCount:koboStats?.count,setupSteps:steps.kobo },
-    { id:"surveycto",name:"SurveyCTO",icon:"📋",status:"coming-soon",category:"Data Collection",description:"Enterprise-grade mobile data collection used by research firms. A direct connector is being built. Until it lands, export to CSV and import the file.",setupSteps:steps.surveycto },
+    { id:"surveycto",name:"SurveyCTO",icon:"📋",status:"available",category:"Data Collection",description:"Enterprise-grade mobile data collection used by research firms. FieldScore pulls submissions directly, including the photos and recordings.",setupSteps:steps.surveycto },
     { id:"odk",name:"ODK Central",icon:"📡",status:"available",category:"Data Collection",description:"Pull submissions directly from your ODK Central server for scoring.",setupSteps:steps.odk },
     { id:"commcare",name:"CommCare",icon:"🏥",status:"coming-soon",category:"Data Collection",description:"Mobile data collection platform popular in health programmes. A direct connector is planned. Until then, export to CSV and import the file.",setupSteps:steps.commcare },
     { id:"cspro",name:"CSPro",icon:"📊",status:"available",category:"Data Collection",description:"Census and Survey Processing System by the US Census Bureau. Export your data and import the file — CSPro runs on the desktop, so there is no server to connect to.",setupSteps:steps.cspro },
@@ -397,6 +400,206 @@ function OdkCentralCard({ projectId }: { projectId?: string }) {
       {odkResult && (
         <div style={{ fontSize: 12.5, color: GREEN, background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '10px 12px' }}>
           ✓ Imported and scored {odkResult.scored} of {odkResult.fetched} submissions{odkResult.errors ? ` (${odkResult.errors} errors)` : ''}. They now appear on your dashboard.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SurveyCtoCard({ projectId }: { projectId?: string }) {
+  const [serverName, setServerName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [configured, setConfigured] = useState(false);
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configMsg, setConfigMsg] = useState('');
+
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [pinged, setPinged] = useState<{ server: string; username: string } | null>(null);
+  // Typed in rather than picked from a list: SurveyCTO publishes no forms API
+  // worth depending on, so Preview is what proves the id is right before an
+  // import spends any verification allowance on it.
+  const [formId, setFormId] = useState('');
+  const [preview, setPreview] = useState<any | null>(null);
+  const [result, setResult] = useState<any>(null);
+
+  React.useEffect(() => {
+    dashboardApi.surveyctoGetConfig()
+      .then(r => {
+        setServerName(r.data?.server_name || '');
+        setUsername(r.data?.username || '');
+        setConfigured(!!r.data?.configured);
+      })
+      .catch(() => {})
+      .finally(() => setConfigLoaded(true));
+  }, []);
+
+  const saveConfig = async () => {
+    if (!serverName.trim() || !username.trim() || configSaving) return;
+    setConfigSaving(true); setConfigMsg('');
+    try {
+      await dashboardApi.surveyctoSaveConfig(serverName.trim(), username.trim(), password.trim() || undefined);
+      setConfigured(true);
+      // Never keep the password in component state after it has been sent.
+      setPassword('');
+      setConfigMsg('✓ Saved. Click Test Connection to check the login works.');
+    } catch (e: any) {
+      setConfigMsg(e?.response?.data?.error || 'Could not save — check your connection and try again.');
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
+  const testConnection = async () => {
+    setBusy('ping'); setError(''); setPinged(null); setPreview(null); setResult(null);
+    try {
+      const r = await dashboardApi.surveyctoPing();
+      setPinged({ server: r.data.server, username: r.data.username });
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Connection failed — check the server name, username and password.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const previewForm = async () => {
+    if (!formId.trim()) return;
+    setBusy('preview'); setError(''); setPreview(null); setResult(null);
+    try {
+      const r = await dashboardApi.surveyctoPreview(formId.trim(), 3);
+      setPreview(r.data);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Could not read that form — check the form id.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const runImport = async () => {
+    if (!formId.trim()) return;
+    setBusy('import'); setError(''); setResult(null);
+    try {
+      const r = await dashboardApi.surveyctoImport(formId.trim(), 30, projectId);
+      setResult(r.data);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Import failed');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box', border: '1px solid #E2E8F0',
+    borderRadius: 7, padding: '7px 10px', fontSize: 12, fontFamily: 'monospace', outline: 'none',
+  };
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 10.5, fontWeight: 700, color: '#6B7280', marginBottom: 3,
+  };
+
+  return (
+    <div style={{ ...CARD, padding: '20px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <Zap size={15} color={BLUE} /><div style={{ fontSize: 13.5, fontWeight: 700, color: '#080D1A' }}>Pull submissions from SurveyCTO</div>
+      </div>
+      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14, lineHeight: 1.6 }}>
+        FieldScore signs in to your SurveyCTO server and pulls submissions, including the photos and recordings — those need your login to download, which is why a direct connection catches more than a webhook would.
+      </div>
+
+      {configLoaded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14, padding: '12px 14px', background: '#F8FAFF', border: '1px solid #EEF2F8', borderRadius: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div>
+              <label style={labelStyle}>SERVER NAME</label>
+              <input value={serverName} onChange={e => setServerName(e.target.value)} placeholder="your-server"
+                style={inputStyle} />
+              <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 3 }}>
+                The part before .surveycto.com. Pasting the full address works too.
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>USERNAME</label>
+              <input value={username} onChange={e => setUsername(e.target.value)} placeholder="you@example.org"
+                style={inputStyle} />
+              <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 3 }}>
+                An account allowed to download this form's data.
+              </div>
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>PASSWORD</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              placeholder={configured ? 'Saved — leave blank to keep it' : ''} style={inputStyle} />
+            <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 3 }}>
+              Encrypted before it is stored, and never shown again — not even masked.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={saveConfig} disabled={configSaving || !serverName.trim() || !username.trim()}
+              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: BLUE, color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: configSaving ? 0.6 : 1 }}>
+              {configSaving ? 'Saving…' : 'Save credentials'}
+            </button>
+            <button onClick={testConnection} disabled={!configured || !!busy}
+              style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#374151', fontSize: 12, fontWeight: 600, cursor: configured ? 'pointer' : 'not-allowed', opacity: configured ? 1 : 0.5 }}>
+              {busy === 'ping' ? 'Checking…' : 'Test connection'}
+            </button>
+            {configMsg && <span style={{ fontSize: 11.5, color: configMsg.startsWith('✓') ? GREEN : '#DC2626' }}>{configMsg}</span>}
+          </div>
+        </div>
+      )}
+
+      {pinged && (
+        <div style={{ fontSize: 12, color: GREEN, background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '10px 12px', marginBottom: 12, lineHeight: 1.6 }}>
+          ✓ Signed in to {pinged.server} as {pinged.username}.
+          <span style={{ display: 'block', color: '#047857', fontWeight: 400, marginTop: 3 }}>
+            SurveyCTO doesn't publish a list of your forms, so type the form id below and press Preview to check it before importing.
+          </span>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <label style={labelStyle}>FORM ID</label>
+          <input value={formId} onChange={e => setFormId(e.target.value)} placeholder="household_survey" style={inputStyle} />
+        </div>
+        <button onClick={previewForm} disabled={!configured || !formId.trim() || !!busy}
+          style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: 'white', color: '#374151', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: (configured && formId.trim()) ? 1 : 0.5 }}>
+          {busy === 'preview' ? 'Reading…' : 'Preview'}
+        </button>
+        <button onClick={runImport} disabled={!configured || !formId.trim() || !!busy}
+          style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: BLUE, color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (configured && formId.trim()) ? 1 : 0.5 }}>
+          {busy === 'import' ? 'Importing…' : 'Import & score'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {preview && (
+        <div style={{ marginBottom: 12, padding: '10px 12px', background: '#F8FAFF', border: '1px solid #EEF2F8', borderRadius: 8 }}>
+          <div style={{ fontSize: 11.5, color: '#374151', fontWeight: 600, marginBottom: 6 }}>
+            {preview.available} submission(s) on this form. Showing {preview.count}, unscored — this is only to check the fields line up.
+          </div>
+          {(preview.submissions || []).map((row: any, i: number) => (
+            <div key={i} style={{ fontSize: 11, fontFamily: 'monospace', color: '#6B7280', padding: '5px 8px', background: 'white', border: '1px solid #EEF2F8', borderRadius: 6, marginBottom: 4, overflowX: 'auto' }}>
+              {row.error
+                ? row.error
+                : `${row.normalised?.KEY || '—'} · ${row.normalised?.enumerator || 'no enumerator'} · ${row.normalised?.gps_location || 'no GPS'}`}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result && (
+        <div style={{ fontSize: 12.5, color: GREEN, background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '10px 12px' }}>
+          ✓ Imported and scored {result.scored} of {result.fetched} submissions{result.errors ? ` (${result.errors} errors)` : ''}. They now appear on your dashboard.
+          {result.limit_message && (
+            <span style={{ display: 'block', color: '#92400E', marginTop: 4 }}>{result.limit_message}</span>
+          )}
         </div>
       )}
     </div>
@@ -1069,6 +1272,8 @@ export default function IntegrationsPage() {
       </div>
 
       <OdkCentralCard projectId={activeProject?.id} />
+
+      <SurveyCtoCard projectId={activeProject?.id} />
 
       <CsvUploadCard projectId={activeProject?.id} insightscoreProjectId={activeProject?.insightscore_project_id} />
 

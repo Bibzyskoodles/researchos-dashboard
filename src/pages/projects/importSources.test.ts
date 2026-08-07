@@ -52,11 +52,27 @@ describe('every source it offers is one that works', () => {
     expect(entry('csv')).toContain("goto: '/integrations'");
   });
 
-  it('still says so plainly for the one that genuinely is not built', () => {
-    // Honesty runs both ways: SurveyCTO has no *_routes.py, so it must not
-    // acquire a destination that leads somewhere it cannot be set up.
-    expect(apiSrc).not.toContain('surveyctoImport');
-    expect(entry('surveycto')).toContain("goto: ''");
+  it('does not call SurveyCTO "coming soon" while shipping a SurveyCTO client', () => {
+    // This test used to assert the opposite, and was right to: surveycto had no
+    // *_routes.py, so it must not have acquired a destination leading somewhere
+    // it could not be set up. surveycto_routes.py exists now and the
+    // Integrations page has the card, so the claim flips with the backend
+    // rather than ahead of it — which is the whole point of pinning it here.
+    expect(apiSrc).toContain('surveyctoImport');
+    expect(entry('surveycto')).not.toMatch(/Coming soon|Not connected/i);
+    expect(entry('surveycto')).toContain("goto: '/integrations'");
+  });
+
+  it('still says so plainly for anything that genuinely is not built', () => {
+    // Honesty runs both ways. A source with no backend must not acquire a
+    // destination that leads somewhere it cannot be set up — so any entry
+    // without a goto must also say it is not available, and vice versa.
+    const lines = platformsBlock.split('\n').filter(l => l.includes("id: '"));
+    for (const line of lines) {
+      const hasDestination = !line.includes("goto: ''");
+      const claimsUnavailable = /Coming soon|Not connected/i.test(line);
+      expect(hasDestination && claimsUnavailable).toBe(false);
+    }
   });
 });
 

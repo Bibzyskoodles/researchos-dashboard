@@ -156,13 +156,14 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
   // and working, just set up on Integrations — this screen used to label both
   // ODK and CSV "Coming soon", which is the natural place someone looks to
   // answer "how do I get my data in?" and understated the answer by two of
-  // three. Only SurveyCTO has no backend (see fieldscore-backend's route list;
-  // a platform is real once a *_routes.py exists for it).
+  // three. SurveyCTO joined them when surveycto_routes.py landed; a platform is
+  // real once a *_routes.py exists for it, and importSources.test.ts holds this
+  // list to that rule in both directions.
   const PLATFORMS = [
     { id: 'kobo', label: 'KoboToolbox', icon: '🗂', desc: 'Import a form and its submissions', live: true, goto: '' },
     { id: 'odk', label: 'ODK Central', icon: '📱', desc: 'Connect your ODK Central server', live: false, goto: '/integrations' },
     { id: 'csv', label: 'CSV / Excel', icon: '📊', desc: 'Upload a submission export', live: false, goto: '/integrations' },
-    { id: 'surveycto', label: 'SurveyCTO', icon: '📋', desc: 'Not connected yet — talk to us if you need it', live: false, goto: '' },
+    { id: 'surveycto', label: 'SurveyCTO', icon: '📋', desc: 'Connect your SurveyCTO server', live: false, goto: '/integrations' },
   ] as const;
 
   const connectKobo = async () => {
