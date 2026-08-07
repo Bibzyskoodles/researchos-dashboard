@@ -116,6 +116,9 @@ button{font-family:var(--ff-ui);cursor:pointer}
 .btn-secondary{padding:14px 26px;border-radius:9px;background:transparent;color:var(--ink-2);font-size:14.5px;font-weight:600;border:1.5px solid var(--mist);transition:border-color .18s,color .18s,background .18s;cursor:pointer}
 .btn-secondary:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-ghost)}
 
+.hero-reassure{margin-top:16px;font-size:13.5px;color:var(--slate);opacity:0;animation:fadeUp .9s var(--ease) .72s forwards}
+.hero-demo-link{background:none;border:none;padding:0;font:inherit;color:var(--blue);font-weight:600;cursor:pointer;text-decoration:underline}
+.hero-demo-link:hover{color:var(--blue-dim)}
 .hero-stat{margin-top:48px;opacity:0;animation:fadeUp .9s var(--ease) .8s forwards}
 .hero-stat-num{font-family:var(--ff-display);font-size:38px;font-weight:700;letter-spacing:-1.5px;color:var(--ink)}
 .hero-stat-label{font-size:12px;color:var(--slate);margin-top:2px;letter-spacing:.3px}
@@ -504,9 +507,19 @@ textarea.form-input{resize:vertical;min-height:88px}
       <span class="light">We verify it there.</span>
     </h1>
     <p class="hero-sub">FieldScore continuously verifies every interview, flags fraud before it corrupts your data, and delivers AI-powered intelligence that makes your research decisions unquestionable.</p>
+    <!-- The free tier leads. It used to sit behind "Request a demo", which put a
+         sales conversation between a stranger and a product they can simply
+         use — and the offer is strong enough to stand in front: 500
+         verifications that never expire, no card. The demo stays for the
+         enterprise path, as a text link rather than a button, because the
+         people who need it look for it. -->
     <div class="hero-actions">
-      <button class="btn-primary" onclick="openModal()">Request a demo</button>
+      <button class="btn-primary" onclick="window.location='https://app.intelligencyai.com.ng/register'">Start free</button>
       <button class="btn-secondary" onclick="window.location='https://app.intelligencyai.com.ng/meeting'">Talk to Ada &rarr;</button>
+    </div>
+    <div class="hero-reassure">
+      500 verifications free. No card. Nothing expires. &middot;
+      <button class="hero-demo-link" onclick="openModal()">Request a demo</button>
     </div>
     <div class="hero-stat">
       <div class="hero-stat-row">
@@ -873,21 +886,21 @@ textarea.form-input{resize:vertical;min-height:88px}
         <div class="pb-plan-price">₦50,000 <span>/ mo</span></div>
         <div class="pb-plan-price-usd">or $79 USD / month</div>
         <div class="pb-plan-desc">600 verifications a month, full platform. For independent researchers and consultants.</div>
-        <a href="https://app.intelligencyai.com.ng/register" class="pb-plan-cta">Start free trial</a>
+        <a href="https://app.intelligencyai.com.ng/register" class="pb-plan-cta">Start free</a>
       </div>
       <div class="pb-plan arrive d2">
         <div class="pb-plan-name">Starter</div>
         <div class="pb-plan-price">₦150,000 <span>/ mo</span></div>
         <div class="pb-plan-price-usd">or $249 USD / month</div>
         <div class="pb-plan-desc">500 verifications, 50 interviews analysed, 5 reports. For small teams running focused studies.</div>
-        <a href="https://app.intelligencyai.com.ng/register" class="pb-plan-cta">Start free trial</a>
+        <a href="https://app.intelligencyai.com.ng/register" class="pb-plan-cta">Start free</a>
       </div>
       <div class="pb-plan featured arrive d3">
         <div class="pb-plan-name">Professional</div>
         <div class="pb-plan-price">₦350,000 <span>/ mo</span></div>
         <div class="pb-plan-price-usd">or $599 USD / month</div>
         <div class="pb-plan-desc">2,000 verifications, 200 interviews, 20 reports. For active teams running multiple projects.</div>
-        <a href="https://app.intelligencyai.com.ng/register" class="pb-plan-cta">Start free trial</a>
+        <a href="https://app.intelligencyai.com.ng/register" class="pb-plan-cta">Start free</a>
       </div>
       <div class="pb-plan arrive d4">
         <div class="pb-plan-name">Enterprise</div>
@@ -951,7 +964,7 @@ textarea.form-input{resize:vertical;min-height:88px}
     <div>
       <div class="footer-col-title">Get started</div>
       <div class="footer-links">
-        <a href="https://app.intelligencyai.com.ng/register">Free trial</a>
+        <a href="https://app.intelligencyai.com.ng/register">Start free</a>
         <a href="#" onclick="openModal();return false;">Request demo</a>
         <a href="https://app.intelligencyai.com.ng">Log in</a>
       </div>

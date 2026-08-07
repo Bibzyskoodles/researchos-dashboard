@@ -11,7 +11,12 @@ const BLUE = '#2463EB';
 /** Mirrors the server's `FREE_SUBMISSION_LIMIT` (usage_limits.py), which is
  *  the enforcing copy. Shown here only so the offer is visible at the moment
  *  someone decides whether to sign up. */
-const FREE_SUBMISSIONS = 50;
+// Mirrors usage_limits.FREE_SUBMISSION_LIMIT (500) and
+// free_tier.FREE_AI_SUBMISSIONS (25). Two numbers because they bound two
+// different things: how much may be verified, and how much of it gets the
+// checks that cost us money.
+const FREE_SUBMISSIONS = 500;
+const FREE_AI_SUBMISSIONS = 25;
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -88,8 +93,17 @@ export default function RegisterPage() {
             <h1 style={{ fontSize: 22, fontWeight: 800, color: '#080D1A', marginBottom: 6 }}>Create your account</h1>
             <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>Set up FieldScore for your organisation.</p>
             <div style={{ background: '#F0F5FF', border: '1px solid #DBE6FF', borderRadius: 8, padding: '10px 13px', marginBottom: 20 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#1E40AF' }}>Your first {FREE_SUBMISSIONS} submissions are free</div>
-              <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>Fully verified, no card required. Upgrade when you need more.</div>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#1E40AF' }}>{FREE_SUBMISSIONS} verifications free, and nothing expires</div>
+              {/* "Fully verified" stopped being true when the AI budget landed:
+                  past the first {FREE_AI_SUBMISSIONS} a submission is still
+                  checked, by the checks that cost nothing. Saying which is
+                  which here is cheaper than a supervisor discovering it from a
+                  verdict. */}
+              <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>
+                Location, travel, timing, duplicates and answer quality on every one.
+                The AI checks — fake photos, staged audio, contradictions — on your
+                first {FREE_AI_SUBMISSIONS}. No card required.
+              </div>
             </div>
             {error && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '9px 12px', borderRadius: 7, fontSize: 12.5, marginBottom: 14 }}>{error}</div>}
             <form onSubmit={handleStep1}>
