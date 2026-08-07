@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './store/AuthContext';
 import { AdaProvider } from './ada/AdaContext';
 import { GamifyProvider } from './gamify/GamifyContext';
 import { ResearchProvider } from './context/ResearchContext';
-import { ProjectProvider } from './context/ProjectContext';
+import { ProjectProvider, useProject } from './context/ProjectContext';
 import { IndustryProvider } from './store/IndustryContext';
 import { PlatformProvider } from './platform/PlatformProvider';
 import AppShell from './components/layout/AppShell';
@@ -66,6 +66,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   );
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
+}
+
+/** Sends the sidebar's "Questionnaire" item to the active project's design
+ *  stage, where the questionnaire workspace actually lives. */
+function QuestionnaireRedirect() {
+  const { activeProject } = useProject();
+  return <Navigate to={activeProject ? `/projects/${activeProject.id}/design` : '/projects'} replace />;
 }
 
 // Wrap AppShell in a single ProjectProvider so Sidebar always has project context
@@ -178,7 +185,13 @@ function AppRoutes() {
         <Route path="data-cleaning" element={<DataCleaningPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="integrations" element={<IntegrationsPage />} />
-        <Route path="questionnaire" element={<Navigate to="/projects" replace />} />
+        {/* Questionnaire design is per-project (DesignStagePage renders it),
+            so there is no standalone page to show — but the sidebar advertises
+            it as a Professional capability. This used to dump the user on
+            /projects with no explanation; now it opens the design stage of the
+            project they're already working in, and only falls back to the
+            project list when there isn't one. */}
+        <Route path="questionnaire" element={<QuestionnaireRedirect />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/projects" replace />} />
